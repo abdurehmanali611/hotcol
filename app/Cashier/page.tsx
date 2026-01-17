@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react"; // Added Suspense
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, CreditCard, Store, RefreshCw } from "lucide-react";
+import { ShoppingCart, CreditCard, Store, RefreshCw, Loader2 } from "lucide-react";
 import {
   Item,
   Order,
@@ -21,7 +21,8 @@ import CashoutForm from "@/components/CashoutForm";
 import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Button } from "@/components/ui/button";
 
-export default function Cashier() {
+// 1. Logic moved to a internal component to allow Suspense wrapping
+function CashierContent() {
   const searchParams = useSearchParams();
   const hotelName = searchParams.get("hotel") || "Hotel";
   const logoUrl = searchParams.get("logo") || "";
@@ -93,14 +94,10 @@ export default function Cashier() {
 
     try {
       const result = await createOrder(orderData);
-
       toast.success("Order created successfully!");
-
       await loadData();
-
       setShowOrderModal(false);
       setSelectedItem(null);
-
       return result;
     } catch (error: any) {
       throw error;
@@ -143,25 +140,18 @@ export default function Cashier() {
 
   return (
     <div className="min-h-screen bg-muted/10">
-      {/* Header */}
       <header className="bg-background border-b sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row md:h-20 py-4 md:py-0 items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12 border-2 border-primary/10">
-                <AvatarImage
-                  src={logoUrl}
-                  alt={hotelName}
-                  className="object-cover"
-                />
+                <AvatarImage src={logoUrl} alt={hotelName} className="object-cover" />
                 <AvatarFallback className="bg-primary/5">
                   <Store className="text-primary" />
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <h1 className="text-xl font-bold tracking-tight">
-                  {hotelName}
-                </h1>
+                <h1 className="text-xl font-bold tracking-tight">{hotelName}</h1>
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
                   Cashier Terminal
                 </span>
@@ -179,30 +169,19 @@ export default function Cashier() {
               </Button>
               <Tabs
                 value={activeView}
-                onValueChange={(v) =>
-                  setActiveView(v as "order" | "payment" | "cashout")
-                }
+                onValueChange={(v) => setActiveView(v as "order" | "payment" | "cashout")}
                 className="w-full md:w-auto"
               >
                 <TabsList className="grid w-full grid-cols-3 h-11 p-1 bg-muted/50 border">
-                  <TabsTrigger
-                    value="order"
-                    className="gap-2 data-[state=active]:shadow-sm"
-                  >
+                  <TabsTrigger value="order" className="gap-2 data-[state=active]:shadow-sm">
                     <ShoppingCart size={16} />
                     <span>Order</span>
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="payment"
-                    className="gap-2 data-[state=active]:shadow-sm"
-                  >
+                  <TabsTrigger value="payment" className="gap-2 data-[state=active]:shadow-sm">
                     <CreditCard size={16} />
                     <span>Payment</span>
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="cashout"
-                    className="gap-2 data-[state=active]:shadow-sm"
-                  >
+                  <TabsTrigger value="cashout" className="gap-2 data-[state=active]:shadow-sm">
                     <CreditCard size={16} />
                     <span>Cashout</span>
                   </TabsTrigger>
@@ -213,7 +192,6 @@ export default function Cashier() {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="max-w-7xl mx-auto p-4 md:p-6 transition-all">
         <div className="bg-background rounded-2xl border shadow-sm min-h-[calc(100vh-160px)]">
           {activeView === "order" ? (
@@ -223,7 +201,7 @@ export default function Cashier() {
                 hotelName={hotelName}
                 onItemSelect={handleItemSelect}
                 onGoToPayment={() => setActiveView("payment")}
-                onBatchOrderSuccess={handleBatchOrderSuccess} // Add this prop
+                onBatchOrderSuccess={handleBatchOrderSuccess}
               />
             </div>
           ) : activeView === "payment" ? (
@@ -253,5 +231,19 @@ export default function Cashier() {
         onSubmit={handleOrderSubmit}
       />
     </div>
+  );
+}
+
+// 2. Export the page wrapped in Suspense
+export default function Cashier() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse">Initializing Terminal...</p>
+      </div>
+    }>
+      <CashierContent />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react'; // Added Suspense
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { toast, Toaster } from 'sonner';
@@ -16,7 +16,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 import { Coffee, RefreshCw, CheckCircle2, XCircle, Clock, Utensils } from 'lucide-react';
 
-export default function Bar() {
+// 1. Move the main logic to a separate component
+function BaristaContent() {
   const searchParams = useSearchParams();
   const hotelName = searchParams.get('hotel') || 'Hotel';
   const logoUrl = searchParams.get('logo') || '';
@@ -195,5 +196,17 @@ export default function Bar() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Bar() {
+  return (
+    <Suspense fallback={
+        <div className="min-h-screen bg-muted/30 p-4 md:p-8 flex items-center justify-center">
+            <RefreshCw className="animate-spin text-muted-foreground" size={32} />
+        </div>
+    }>
+      <BaristaContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react"; // Added Suspense
 import { useSearchParams, useRouter } from "next/navigation";
 import { Toaster, toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,7 +56,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-export default function AdminDashboard() {
+// 1. Logic moved to internal component
+function AdminDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const hotelName = searchParams.get("hotel") || "";
@@ -255,7 +256,7 @@ export default function AdminDashboard() {
           <UpdateCredential
             credentials={credentials}
             hotelName={hotelName}
-            onUpdateCredential={async (data) => {
+            onUpdateCredential={async (data: any) => {
               await updateCredential(data);
               loadData(true);
             }}
@@ -357,4 +358,17 @@ export default function AdminDashboard() {
       <Toaster position="top-right" richColors />
     </SidebarProvider>
   );
+}
+
+// 2. Export wrapped in Suspense
+export default function AdminDashboard() {
+    return (
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      }>
+        <AdminDashboardContent />
+      </Suspense>
+    );
 }

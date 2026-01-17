@@ -125,10 +125,10 @@ export default function Reports({ onGenerateReport, onExportReport, orders, hote
                   <TableHeader>
                     <TableRow>
                       <TableHead>Item</TableHead>
-                      <TableHead>Qty</TableHead>
                       <TableHead>Waiter</TableHead>
                       <TableHead>Table No</TableHead>
                       <TableHead>Price</TableHead>
+                      <TableHead>Qty</TableHead>
                       <TableHead className="text-right">Subtotal</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -143,10 +143,10 @@ export default function Reports({ onGenerateReport, onExportReport, orders, hote
                       reportData.orders.map((order: any) => (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">{order.title}</TableCell>
-                          <TableCell>{order.orderAmount}</TableCell>
                           <TableCell>{order.waiterName}</TableCell>
                           <TableCell>{order.tableNo}</TableCell>
                           <TableCell>{order.price.toFixed(2)} ETB</TableCell>
+                          <TableCell>{order.orderAmount}</TableCell>
                           <TableCell className="text-right font-bold">
                             {(order.price * order.orderAmount).toFixed(2)} ETB
                           </TableCell>

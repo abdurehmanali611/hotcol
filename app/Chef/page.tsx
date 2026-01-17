@@ -1,12 +1,10 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react"; // Added Suspense
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast, Toaster } from "sonner";
-
 import {
   Order,
   fetchOrders,
@@ -28,7 +26,8 @@ import {
   Hash,
 } from "lucide-react";
 
-export default function Chef() {
+// 1. Logic moved to a child component to allow Suspense wrapping
+function ChefContent() {
   const searchParams = useSearchParams();
   const hotelName = searchParams.get("hotel") || "Hotel";
   const logoUrl = searchParams.get("logo") || "";
@@ -49,6 +48,7 @@ export default function Chef() {
       setLoading(false);
     }
   };
+  
   useEffect(() => {
     loadOrders();
     const interval = setInterval(() => loadOrders(true), 45000);
@@ -249,5 +249,18 @@ export default function Chef() {
         )}
       </main>
     </div>
+  );
+}
+
+// 2. Final Export with Suspense Wrapper
+export default function Chef() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <ChefContent />
+    </Suspense>
   );
 }

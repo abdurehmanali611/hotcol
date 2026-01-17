@@ -35,7 +35,7 @@ export default function OrderDetailsModal({
   item,
   isOpen,
   onClose,
-  hotelName,
+  hotelName, 
   onSubmit,
 }: any) {
   const [loading, setLoading] = useState(false);
@@ -57,14 +57,29 @@ export default function OrderDetailsModal({
           waiters: w.filter((x) => x.HotelName === hotelName),
           tables: t.filter((x) => x.HotelName === hotelName),
         });
+        // Reset form values when modal opens and item changes
         form.reset({ tableNo: 0, waiterName: "", orderAmount: 1 });
       })();
     }
   }, [isOpen]);
 
-  const onValidSubmit = async (values: OrderCreationData) => {
+  const onValidSubmit = async (values: z.infer<typeof orderSchema>) => {
     setLoading(true);
     try {
+      // Construct the full OrderCreationData object
+      const fullOrderData: OrderCreationData = {
+        title: item.name,
+        price: item.price,
+        imageUrl: item.imageUrl,
+        category: item.category,
+        type: item.type,
+        orderAmount: values.orderAmount,
+        tableNo: values.tableNo,
+        waiterName: values.waiterName,
+        HotelName: hotelName,
+      };
+
+      await onSubmit(fullOrderData);
       await onSubmit(values);
       onClose();
     } finally {

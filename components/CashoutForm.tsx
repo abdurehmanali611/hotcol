@@ -23,7 +23,7 @@ export default function CashoutForm() {
     defaultValues: {
       Amount: 50,
       Reason: [],
-      HotelName: localStorage.getItem("hotel_name")
+      HotelName: localStorage.getItem("hotel_name") || "",
     },
   });
   
