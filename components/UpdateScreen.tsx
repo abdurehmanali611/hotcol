@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { updateItemSchema } from "@/lib/validations";
-import { RefreshCw, UploadCloud } from "lucide-react";
+import Image from "next/image";
+import { ImageIcon, RefreshCw, UploadCloud } from "lucide-react";
+import { toast } from "sonner";
 import z from "zod";
 import { updateItem, uploadImage } from "@/lib/actions";
 
@@ -30,7 +32,7 @@ export default function UpdateScreen({
       type: item.type,
       category: item.category,
       imageUrl: item.imageUrl,
-      HotelName: hotelName || item.HotelName || localStorage.getItem("hotel_name") || "", 
+      HotelName: hotelName || item.HotelName || localStorage.getItem("hotel_name") || "", // Ensure HotelName is set
     },
   });
 
@@ -38,27 +40,57 @@ export default function UpdateScreen({
   const onSubmit = async (values: z.infer<typeof updateItemSchema>) => {
     setIsUploading(true);
     try {
+      // Ensure HotelName is always included
       const submissionData = {
         ...values,
         id: Number(values.id),
         price: Number(values.price),
-        HotelName: hotelName || values.HotelName || localStorage.getItem("hotel_name") || "",
+        HotelName: hotelName || values.HotelName || item.HotelName || localStorage.getItem("hotel_name") || "",
       };
 
+      console.log("Submitting update:", submissionData); // Debug log
+
       await updateItem(submissionData);
+      toast.success("Item updated successfully!");
 
       if (onUpdateSuccess) {
         onUpdateSuccess();
       }
-    } catch {
+    } catch (error: any) {
+      toast.error(`Failed to update item: ${error.message}`);
+      console.error("Update error:", error);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    try {
+      const url = (await uploadImage(
+        file,
+        form,
+        setImagePreview,
+        "imageUrl"
+      )) as unknown as string;
+      form.setValue("imageUrl", url);
+      toast.success("Image uploaded successfully");
+    } catch (error: any) {
+      toast.error(`Failed to upload image: ${error.message}`);
     }
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <input type="hidden" {...form.register("HotelName")} />
+        
         <div className="flex flex-col gap-5 items-center">
           <div className="flex items-center gap-5">
             <CustomFormField
@@ -118,15 +150,58 @@ export default function UpdateScreen({
           </div>
 
           <div className="space-y-4">
-            <CustomFormField 
-            name="imageUrl"
-            control={form.control}
-            fieldType={formFieldTypes.IMAGE_UPLOADER}
-            label="Image: "
-            previewUrl={imagePreview}
-            fileType={imagePreview?.match(/\.(mp4|webm|ogg|mov|avi)$/i) ? "video" : "image"}
-            handleCloudinary={(result) => uploadImage(result, form, setImagePreview, "imageUrl")}
-            />
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Item Image</label>
+              <div className="relative w-42 h-42 rounded-lg flex items-center justify-center overflow-hidden group mt-2">
+                {imagePreview ? (
+                  <>
+                    <Image
+                      src={imagePreview}
+                      alt="Preview"
+                      fill
+                      className="object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="cursor-pointer"
+                        onClick={() =>
+                          document.getElementById("image-upload")?.click()
+                        }
+                      >
+                        Change Image
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center p-6">
+                    <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="cursor-pointer"
+                        onClick={() =>
+                          document.getElementById("image-upload")?.click()
+                        }
+                      >
+                        Upload Image
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
