@@ -124,6 +124,7 @@ export default function UpdateScreen({
             fieldType={formFieldTypes.IMAGE_UPLOADER}
             label="Image: "
             previewUrl={imagePreview}
+            fileType={imagePreview?.match(/\.(mp4|webm|ogg|mov|avi)$/i) ? "video" : "image"}
             handleCloudinary={(result) => uploadImage(result, form, setImagePreview, "imageUrl")}
             />
           </div>
