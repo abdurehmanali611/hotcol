@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { CldUploadWidget } from "next-cloudinary";
+import { CldUploadButton } from "next-cloudinary";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -426,7 +426,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
       return (
         <FormControl>
           <div className="flex flex-col items-center gap-4 w-full">
-            <CldUploadWidget
+            <CldUploadButton
               uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME}
               onSuccess={props.handleCloudinary}
               options={{
@@ -447,10 +447,8 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                 ],
               }}
             >
-              {({ open }) => (
                 <Button
                   type="button"
-                  onClick={() => open()}
                   variant="outline"
                   className={clsx(
                     "flex items-center gap-2 cursor-pointer",
@@ -461,8 +459,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                   <Upload className="w-4 h-4" />
                   {props.previewUrl ? "Change File" : "Choose File"}
                 </Button>
-              )}
-            </CldUploadWidget>
+            </CldUploadButton>
             {props.previewUrl && (
               <div className="relative flex flex-col items-center">
                 <div className="border rounded-lg p-2 bg-gray-50 w-fit">

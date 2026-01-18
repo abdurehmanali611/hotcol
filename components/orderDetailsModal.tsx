@@ -57,7 +57,6 @@ export default function OrderDetailsModal({
           waiters: w.filter((x) => x.HotelName === hotelName),
           tables: t.filter((x) => x.HotelName === hotelName),
         });
-        // Reset form values when modal opens and item changes
         form.reset({ tableNo: 0, waiterName: "", orderAmount: 1 });
       })();
     }
@@ -66,7 +65,6 @@ export default function OrderDetailsModal({
   const onValidSubmit = async (values: z.infer<typeof orderSchema>) => {
     setLoading(true);
     try {
-      // Construct the full OrderCreationData object
       const fullOrderData: OrderCreationData = {
         title: item.name,
         price: item.price,
@@ -80,7 +78,6 @@ export default function OrderDetailsModal({
       };
 
       await onSubmit(fullOrderData);
-      await onSubmit(values);
       onClose();
     } finally {
       setLoading(false);

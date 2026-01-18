@@ -508,7 +508,6 @@ export async function updateItem(itemData: UpdateItemData) {
       );
     }
 
-    toast.success("Item updated successfully");
     return response.data;
   } catch (error: any) {
     toast.error("Unable to update item. Please try again.");
@@ -1871,24 +1870,29 @@ export async function uploadImage(
   setPreviewUrl: (url: string | null) => void,
   formField: string
 ) {
-  if (
-    typeof result == "object" &&
-    result !== null &&
-    "event" in result &&
-    result.event == "success" &&
-    "info" in result &&
-    typeof result.info == "object" &&
-    result.info !== null &&
-    "secure_url" in result.info
-  ) {
-    const typedResult = result as cloudinarySuccessResult;
-    const secured_url = typedResult.info.secure_url;
+  try {
+    if (
+      typeof result === "object" &&
+      result !== null &&
+      "event" in result &&
+      result.event === "success" &&
+      "info" in result &&
+      typeof result.info === "object" &&
+      result.info !== null &&
+      "secure_url" in result.info
+    ) {
+      const typedResult = result as cloudinarySuccessResult;
+      const secured_url = typedResult.info.secure_url;
 
-    form.setValue(formField, secured_url, { shouldValidate: true });
-    setPreviewUrl(secured_url);
-  } else {
-    form.setValue(formField, "");
-    setPreviewUrl(null);
+      form.setValue(formField, secured_url, { shouldValidate: true });
+      setPreviewUrl(secured_url);
+    } else {
+      form.setValue(formField, "");
+      setPreviewUrl(null);
+    }
+  } catch (error: any) {
+    toast.error("An unexpected error occurred during image upload processing.");
+    console.error("Image processing error:", error);
   }
 }
 

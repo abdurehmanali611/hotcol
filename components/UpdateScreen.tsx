@@ -11,7 +11,7 @@ import Image from "next/image";
 import { ImageIcon, RefreshCw, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
-import { updateItem, uploadImage } from "@/lib/actions";
+import { updateItem } from "@/lib/actions";
 
 export default function UpdateScreen({
   item,
@@ -32,7 +32,7 @@ export default function UpdateScreen({
       type: item.type,
       category: item.category,
       imageUrl: item.imageUrl,
-      HotelName: hotelName || item.HotelName || localStorage.getItem("hotel_name") || "", // Ensure HotelName is set
+      HotelName: hotelName || item.HotelName || "", // Ensure HotelName is set
     },
   });
 
@@ -44,10 +44,8 @@ export default function UpdateScreen({
         ...values,
         id: Number(values.id),
         price: Number(values.price),
-        HotelName: hotelName || values.HotelName || item.HotelName || localStorage.getItem("hotel_name") || "",
+        HotelName: hotelName || values.HotelName || item.HotelName || "",
       };
-
-      console.log("Submitting update:", submissionData); 
 
       await updateItem(submissionData);
       toast.success("Item updated successfully!");
@@ -57,39 +55,43 @@ export default function UpdateScreen({
       }
     } catch (error: any) {
       toast.error(`Failed to update item: ${error.message}`);
-      console.error("Update error:", error);
     } finally {
- setIsUploading(false);
+      setIsUploading(false);
     }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
+  const reader = new FileReader();
+  reader.onloadend = () => setImagePreview(reader.result as string);
+  reader.readAsDataURL(file);
 
-    try {
-      const url = (await uploadImage(
-        file,
-        form,
-        setImagePreview,
-        "imageUrl"
-      )) as unknown as string;
-      form.setValue("imageUrl", url);
-      toast.success("Image uploaded successfully");
-    } catch (error: any) {
-      toast.error(`Failed to upload image: ${error.message}`);
-    }
-  };
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME || '');
+    
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    const data = await response.json();
+    const imageUrl = data.secure_url;
+    
+    form.setValue("imageUrl", imageUrl);
+    setImagePreview(imageUrl);
+    toast.success("Image uploaded successfully");
+  } catch (error: any) {
+    toast.error(`Failed to upload image: ${error.message}`);
+  }
+};
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <input type="hidden" {...form.register("HotelName")} />
-        
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">        
         <div className="flex flex-col gap-5 items-center">
           <div className="flex items-center gap-5">
             <CustomFormField
