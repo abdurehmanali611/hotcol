@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { updateItemSchema } from "@/lib/validations";
-import { ImageIcon, RefreshCw, UploadCloud } from "lucide-react";
-import { toast } from "sonner";
+import { RefreshCw, UploadCloud } from "lucide-react";
 import z from "zod";
 import { updateItem, uploadImage } from "@/lib/actions";
 
@@ -54,27 +53,6 @@ export default function UpdateScreen({
     } catch {
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-
-    try {
-      const url = (await uploadImage(
-        file,
-        form,
-        setImagePreview,
-        "imageUrl"
-      )) as unknown as string;
-      form.setValue("imageUrl", url);
-    } catch (error: any) {
-      toast.error(`Failed to upload image: ${error.message}`);
     }
   };
 
