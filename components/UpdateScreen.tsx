@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { updateItemSchema } from "@/lib/validations";
-import Image from "next/image";
 import { ImageIcon, RefreshCw, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
@@ -32,7 +31,7 @@ export default function UpdateScreen({
       type: item.type,
       category: item.category,
       imageUrl: item.imageUrl,
-      HotelName: hotelName || item.HotelName || "", // CRITICAL: This was missing, causing silent failure
+      HotelName: hotelName || item.HotelName || localStorage.getItem("hotel_name") || "", 
     },
   });
 
@@ -44,6 +43,7 @@ export default function UpdateScreen({
         ...values,
         id: Number(values.id),
         price: Number(values.price),
+        HotelName: hotelName || values.HotelName || localStorage.getItem("hotel_name") || "",
       };
 
       await updateItem(submissionData);
@@ -140,58 +140,14 @@ export default function UpdateScreen({
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Item Image</label>
-              <div className="relative w-42 h-42 rounded-lg flex items-center justify-center overflow-hidden group mt-2">
-                {imagePreview ? (
-                  <>
-                    <Image
-                      src={imagePreview}
-                      alt="Preview"
-                      fill
-                      className="object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="cursor-pointer"
-                        onClick={() =>
-                          document.getElementById("image-upload")?.click()
-                        }
-                      >
-                        Change Image
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center p-6">
-                    <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="cursor-pointer"
-                        onClick={() =>
-                          document.getElementById("image-upload")?.click()
-                        }
-                      >
-                        Upload Image
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <input
-                  id="image-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-              </div>
-            </div>
+            <CustomFormField 
+            name="imageUrl"
+            control={form.control}
+            fieldType={formFieldTypes.IMAGE_UPLOADER}
+            label="Image: "
+            previewUrl={imagePreview}
+            handleCloudinary={(result) => uploadImage(result, form, setImagePreview, "imageUrl")}
+            />
           </div>
         </div>
 
