@@ -40,7 +40,6 @@ export default function UpdateScreen({
   const onSubmit = async (values: z.infer<typeof updateItemSchema>) => {
     setIsUploading(true);
     try {
-      // Ensure HotelName is always included
       const submissionData = {
         ...values,
         id: Number(values.id),
@@ -48,7 +47,7 @@ export default function UpdateScreen({
         HotelName: hotelName || values.HotelName || item.HotelName || localStorage.getItem("hotel_name") || "",
       };
 
-      console.log("Submitting update:", submissionData); // Debug log
+      console.log("Submitting update:", submissionData); 
 
       await updateItem(submissionData);
       toast.success("Item updated successfully!");
@@ -60,7 +59,7 @@ export default function UpdateScreen({
       toast.error(`Failed to update item: ${error.message}`);
       console.error("Update error:", error);
     } finally {
-      setIsUploading(false);
+ setIsUploading(false);
     }
   };
 
