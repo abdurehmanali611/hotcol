@@ -41,7 +41,7 @@ export default function OrderDetailsModal({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
     waiters: [] as Waiter[],
-    tables: [] as Table[],
+    tables: [] as Table[]
   });
 
   const form = useForm<z.infer<typeof orderSchema>>({
@@ -55,7 +55,7 @@ export default function OrderDetailsModal({
         const [w, t] = await Promise.all([fetchWaiters(), fetchTables()]);
         setData({
           waiters: w.filter((x) => x.HotelName === hotelName),
-          tables: t.filter((x) => x.HotelName === hotelName),
+          tables: t.filter((x) => x.HotelName === hotelName)
         });
         form.reset({ tableNo: 0, waiterName: "", orderAmount: 1 });
       })();

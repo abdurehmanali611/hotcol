@@ -58,7 +58,7 @@ const PhoneInput = dynamic(
     loading: () => (
       <div className="h-10 w-full animate-pulse rounded-md bg-gray-200"></div>
     ),
-  }
+  },
 );
 
 export enum formFieldTypes {
@@ -176,8 +176,8 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                   props.add
                     ? localValue
                     : props.type === "number"
-                    ? field.value || 0
-                    : field.value
+                      ? field.value || 0
+                      : field.value
                 }
                 onKeyDown={(e) => {
                   if (
@@ -221,7 +221,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                               ? field.value
                               : [];
                             const next = currentArray.filter(
-                              (_: string, idx: number) => idx !== i
+                              (_: string, idx: number) => idx !== i,
                             );
                             field.onChange(next);
                           }}
@@ -229,7 +229,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                           ×
                         </button>
                       </span>
-                    )
+                    ),
                   )}
                 </div>
               )}
@@ -286,7 +286,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
               variant="outline"
               className={clsx(
                 "w-fit justify-between ml-6 font-normal cursor-pointer",
-                props.inputClassName
+                props.inputClassName,
               )}
               disabled={props.disabled}
               type="button"
@@ -365,7 +365,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                 "w-full p-3 cursor-pointer": props.isDoctorList,
                 "w-75 cursor-pointer": !props.isDoctorList,
               },
-              props.inputClassName
+              props.inputClassName,
             )}
           >
             <SelectValue placeholder={props.placeholder} />
@@ -378,7 +378,10 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                     (item) =>
                       item.roleType === "Doctor" && (
                         <Tooltip key={item._id}>
-                          <TooltipTrigger className="flex flex-col gap-3" asChild>
+                          <TooltipTrigger
+                            className="flex flex-col gap-3"
+                            asChild
+                          >
                             <div>
                               <SelectItem
                                 key={item._id}
@@ -402,7 +405,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                           </TooltipTrigger>
                           <TooltipContent>{item.Speciality}</TooltipContent>
                         </Tooltip>
-                      )
+                      ),
                   )
                 : props.listdisplay?.map((item) => (
                     <SelectItem
@@ -412,9 +415,14 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                           ? item.realValue.toString()
                           : item.name
                       }
-                      disabled={props.disabled}
+                      disabled={item.disabled || props.disabled}
                     >
                       {item.name}
+                      {item.subText && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {item.subText}
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
             </SelectGroup>
@@ -447,18 +455,18 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                 ],
               }}
             >
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={clsx(
-                    "flex items-center gap-2 cursor-pointer",
-                    props.inputClassName
-                  )}
-                  disabled={props.disabled}
-                >
-                  <Upload className="w-4 h-4" />
-                  {props.previewUrl ? "Change File" : "Choose File"}
-                </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={clsx(
+                  "flex items-center gap-2 cursor-pointer",
+                  props.inputClassName,
+                )}
+                disabled={props.disabled}
+              >
+                <Upload className="w-4 h-4" />
+                {props.previewUrl ? "Change File" : "Choose File"}
+              </Button>
             </CldUploadButton>
             {props.previewUrl && (
               <div className="relative flex flex-col items-center">
@@ -589,9 +597,7 @@ const CustomFormField = (props: customProps) => {
                     props.handleAlertDialog?.(item);
                   }}
                   disabled={
-                    !props.passKey || 
-                    props.passKey.length < 6 || 
-                    props.disabled
+                    !props.passKey || props.passKey.length < 6 || props.disabled
                   }
                 >
                   Submit

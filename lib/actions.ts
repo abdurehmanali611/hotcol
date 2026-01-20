@@ -1463,7 +1463,7 @@ export function filterChefOrders(orders: Order[], hotelName: string): Order[] {
   return orders.filter((order) => {
     const isSameHotel = order.HotelName === hotelName;
     const isPending = order.status === null || order.status === "Pending";
-    const isFood = order.category?.toLowerCase() === "food";
+    const isFood = order.category?.toLowerCase() === "food" || order.category?.toLowerCase() === "others";
     return isSameHotel && isPending && isFood;
   });
 }

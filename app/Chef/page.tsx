@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useEffect, useState, Suspense } from "react"; // Added Suspense
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast, Toaster } from "sonner";
@@ -16,7 +15,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
 import {
   ChefHat,
   RefreshCw,
@@ -26,7 +24,6 @@ import {
   Hash,
 } from "lucide-react";
 
-// 1. Logic moved to a child component to allow Suspense wrapping
 function ChefContent() {
   const searchParams = useSearchParams();
   const hotelName = searchParams.get("hotel") || "Hotel";
@@ -42,13 +39,13 @@ function ChefContent() {
       const allOrders = await fetchOrders();
       const filteredOrders = filterChefOrders(allOrders, hotelName);
       setOrders(filteredOrders);
-    } catch (error: any) {
+    } catch {
       toast.error("Failed to fetch orders");
     } finally {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     loadOrders();
     const interval = setInterval(() => loadOrders(true), 45000);
@@ -57,7 +54,7 @@ function ChefContent() {
 
   const handleStatusUpdate = async (
     id: number,
-    status: "Completed" | "Cancelled"
+    status: "Completed" | "Cancelled",
   ) => {
     setUpdatingId(id);
     try {
@@ -71,7 +68,21 @@ function ChefContent() {
     }
   };
 
-  const pendingOrders = orders.filter((order) => order.status === null || order.status === "Pending");
+  const pendingOrders = orders.filter(
+    (order) => order.status === null || order.status === "Pending",
+  );
+
+  const groupedOrders = pendingOrders.reduce(
+    (acc, order) => {
+      const key = order.tableNo;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(order);
+      return acc;
+    },
+    {} as Record<number, Order[]>,
+  );
 
   if (loading) {
     return (
@@ -89,8 +100,6 @@ function ChefContent() {
   return (
     <div className="min-h-screen bg-muted/20 pb-10">
       <Toaster position="top-center" richColors />
-
-      {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="max-w-5xl mx-auto px-4 h-18 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -131,7 +140,7 @@ function ChefContent() {
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto p-4 md:p-6">
-        {pendingOrders.length === 0 ? (
+        {Object.keys(groupedOrders).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="bg-background p-8 rounded-full shadow-sm mb-6">
               <Utensils size={48} className="text-muted-foreground/30" />
@@ -145,102 +154,96 @@ function ChefContent() {
           </div>
         ) : (
           <div className="grid gap-6">
-            {pendingOrders.map((order) => (
+            {Object.entries(groupedOrders).map(([tableNo, tableOrders]) => (
               <Card
-                key={order.id}
+                key={tableNo}
                 className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all"
               >
-                <CardContent className="p-0">
-                  <div className="flex flex-col md:flex-row">
-                    <div className="relative w-full md:w-64 h-56 md:h-auto bg-muted">
-                      <Image
-                        src={order.imageUrl || "/placeholder-food.jpg"}
-                        alt={order.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 256px"
-                      />
-                      <Badge className="absolute top-3 left-3 px-3 py-1">
-                        Table {order.tableNo}
+                <CardContent className="p-6">
+                  {/* Table header */}
+                  <div className="mb-6 pb-4 border-b">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-2xl font-bold">Table {tableNo}</h2>
+                      <Badge variant="outline" className="text-sm">
+                        {tableOrders.length}{" "}
+                        {tableOrders.length === 1 ? "order" : "orders"}
                       </Badge>
                     </div>
+                    <p className="text-muted-foreground mt-2">
+                      Waiter: {tableOrders[0].waiterName || "Self-Service"}
+                    </p>
+                  </div>
 
-                    <div className="flex-1 p-6 flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h2 className="text-2xl font-extrabold tracking-tight text-green-500">
-                              {order.title}
-                            </h2>
-                            <div className="flex items-center gap-2 mt-1 text-muted-foreground">
-                              <Hash size={14} />
-                              <span className="text-xs font-mono uppercase">
-                                Order ID: {order.id}
-                              </span>
+                  {/* Orders grid */}
+                  <div className="grid gap-4">
+                    {tableOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="flex items-center border rounded-lg p-4 bg-card"
+                      >
+                        {/* Order image */}
+                        <div className="relative w-20 h-20 rounded-md overflow-hidden shrink-0">
+                          <Image
+                            src={order.imageUrl || "/placeholder-food.jpg"}
+                            alt={order.title}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+
+                        {/* Order details */}
+                        <div className="ml-4 flex-1">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-bold">{order.title}</h3>
+                              <div className="flex items-center gap-2 mt-1 text-muted-foreground">
+                                <Hash size={12} />
+                                <span className="text-xs font-mono">
+                                  ID: {order.id}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Qty: {order.orderAmount} • each @{" "}
+                                {order.price.toFixed(2)} ETB 
+                              </p>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-bold text-muted-foreground uppercase block">
-                              Qty
-                            </span>
-                            <span className="text-3xl font-black text-primary leading-none">
-                              {order.orderAmount}
+                            <span className="font-bold text-lg">
+                              {(order.price * order.orderAmount).toFixed(2)} ETB
                             </span>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 mt-6">
-                          <div className="bg-muted/50 p-3 rounded-lg">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                              Waiter
-                            </p>
-                            <p className="font-semibold truncate">
-                              {order.waiterName || "Self-Service"}
-                            </p>
-                          </div>
-                          <div className="bg-muted/50 p-3 rounded-lg">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                              Table No
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className="mt-0.5 bg-background"
-                            >
-                              {order.tableNo}
-                            </Badge>
-                          </div>
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            onClick={() =>
+                              handleStatusUpdate(order.id, "Cancelled")
+                            }
+                            disabled={updatingId === order.id}
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 h-10"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              handleStatusUpdate(order.id, "Completed")
+                            }
+                            disabled={updatingId === order.id}
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white h-10"
+                          >
+                            {updatingId === order.id ? (
+                              <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                            )}
+                            Ready
+                          </Button>
                         </div>
                       </div>
-
-                      {/* Chef Actions */}
-                      <div className="flex gap-4 mt-8">
-                        <Button
-                          onClick={() =>
-                            handleStatusUpdate(order.id, "Cancelled")
-                          }
-                          disabled={updatingId === order.id}
-                          variant="ghost"
-                          className="flex-1 text-destructive hover:bg-destructive/10 hover:text-destructive h-12"
-                        >
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={() =>
-                            handleStatusUpdate(order.id, "Completed")
-                          }
-                          disabled={updatingId === order.id}
-                          className="flex-2 bg-green-600 hover:bg-green-700 text-white h-12 shadow-md"
-                        >
-                          {updatingId === order.id ? (
-                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                          )}
-                          Mark Ready
-                        </Button>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -255,11 +258,13 @@ function ChefContent() {
 // 2. Final Export with Suspense Wrapper
 export default function Chef() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
       <ChefContent />
     </Suspense>
   );

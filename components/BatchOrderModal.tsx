@@ -75,7 +75,6 @@ export default function BatchOrderModal({
     form.setValue("assignmentType", "single");
   }, [initialItems, hotelName, form]);
 
-  // Load dropdown data and reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchWaiters()
