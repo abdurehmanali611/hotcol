@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import Image from "next/image";
@@ -35,13 +36,13 @@ export default function OrderDetailsModal({
   item,
   isOpen,
   onClose,
-  hotelName, 
+  hotelName,
   onSubmit,
 }: any) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
     waiters: [] as Waiter[],
-    tables: [] as Table[]
+    tables: [] as Table[],
   });
 
   const form = useForm<z.infer<typeof orderSchema>>({
@@ -55,7 +56,7 @@ export default function OrderDetailsModal({
         const [w, t] = await Promise.all([fetchWaiters(), fetchTables()]);
         setData({
           waiters: w.filter((x) => x.HotelName === hotelName),
-          tables: t.filter((x) => x.HotelName === hotelName)
+          tables: t.filter((x) => x.HotelName === hotelName),
         });
         form.reset({ tableNo: 0, waiterName: "", orderAmount: 1 });
       })();
@@ -89,8 +90,13 @@ export default function OrderDetailsModal({
       <DialogContent className="sm:max-w-106.25">
         <DialogHeader>
           <DialogTitle>Customize Order</DialogTitle>
+          <DialogDescription>
+            <span className="text-red-500 font-serif font-semibold text-lg">
+              For Delivery,{" "}
+            </span>{" "}
+            Leave the table Number empty
+          </DialogDescription>
         </DialogHeader>
-
         {item && (
           <Form {...form}>
             <form
@@ -113,7 +119,6 @@ export default function OrderDetailsModal({
                   </p>
                 </div>
               </div>
-
               <div className="grid grid-cols-1 gap-4 items-center">
                 <CustomFormField
                   control={form.control}
@@ -137,7 +142,6 @@ export default function OrderDetailsModal({
                   listdisplay={data.waiters}
                 />
               </div>
-
               <CustomFormField
                 control={form.control}
                 name="orderAmount"
@@ -146,13 +150,12 @@ export default function OrderDetailsModal({
                 label="Quantity"
                 inputClassName="h-fit p-2 w-75"
               />
-
               <Separator />
-
               <div className="flex justify-between text-sm font-bold">
                 <span>Total Amount:</span>
                 <span className="text-lg text-primary">
-                  {(item.price * (form.watch("orderAmount") || 1)).toFixed(2)} ETB
+                  {(item.price * (form.watch("orderAmount") || 1)).toFixed(2)}{" "}
+                  ETB
                 </span>
               </div>
 

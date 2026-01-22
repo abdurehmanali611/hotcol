@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { Separator } from "@/components/ui/separator";
@@ -78,13 +79,12 @@ export default function BatchOrderModal({
   useEffect(() => {
     if (isOpen) {
       fetchWaiters()
-        .then(setWaiters)
+        .then((res) => res.filter((w) => w.HotelName === hotelName)).then(setWaiters)
         .catch(() => toast.error("Failed to load waiters"));
       fetchTables()
-        .then(setTables)
+        .then((res) => res.filter((t) => t.HotelName === hotelName)).then(setTables)
         .catch(() => toast.error("Failed to load tables"));
-      
-      // Reset form when modal opens, then set items
+
       const formItems = initialItems.map((item) => ({
         itemId: item.id,
         itemName: item.name,
@@ -94,7 +94,7 @@ export default function BatchOrderModal({
         type: item.type,
         orderAmount: item.orderAmount,
       }));
-      
+
       form.reset({
         singleWaiterName: "",
         singleTableNo: 0,
@@ -110,7 +110,7 @@ export default function BatchOrderModal({
       const updated = prev.map((si) =>
         si.id === id
           ? { ...si, orderAmount: Math.max(1, si.orderAmount + delta) }
-          : si
+          : si,
       );
       const formItems = updated.map((item) => ({
         itemId: item.id,
@@ -146,7 +146,7 @@ export default function BatchOrderModal({
 
   const totalAmount = selectedItems.reduce(
     (sum, si) => sum + si.price * si.orderAmount,
-    0
+    0,
   );
 
   const onSubmit = async (values: z.infer<typeof batchOrderSchema>) => {
@@ -168,7 +168,7 @@ export default function BatchOrderModal({
     setLoading(true);
     try {
       const finalOrders = selectedItems.map((si) => ({
-        title: si.name, 
+        title: si.name,
         price: si.price,
         imageUrl: si.imageUrl,
         category: si.category,
@@ -180,11 +180,14 @@ export default function BatchOrderModal({
       }));
 
       await createBatchOrders(finalOrders);
-      toast.success(`Successfully sent ${finalOrders.length} order(s) to kitchen!`);
+      toast.success(
+        `Successfully sent ${finalOrders.length} order(s) to kitchen!`,
+      );
       onSubmitSuccess();
       onClose();
     } catch (err: any) {
-      const errorMessage = err?.message || "Failed to create batch orders. Please try again.";
+      const errorMessage =
+        err?.message || "Failed to create batch orders. Please try again.";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -198,10 +201,16 @@ export default function BatchOrderModal({
           <DialogTitle className="text-2xl font-bold">
             Review Batch Order
           </DialogTitle>
+          <DialogDescription>
+            <span className="text-red-500 font-serif font-semibold text-lg">
+              For Delivery,{" "}
+            </span>{" "}
+            Leave the table Number empty
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form 
+          <form
             onSubmit={form.handleSubmit(onSubmit, (errors) => {
               const firstError = Object.values(errors)[0];
               if (firstError?.message) {
@@ -209,7 +218,7 @@ export default function BatchOrderModal({
               } else {
                 toast.error("Please fill in all required fields correctly");
               }
-            })} 
+            })}
             className="space-y-6"
           >
             {/* 1. Header Info */}

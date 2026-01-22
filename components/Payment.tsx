@@ -6,7 +6,15 @@ import { Order, filterUnpaidOrders } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock, CreditCard, Wallet, User, Search, Filter } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  Wallet,
+  User,
+  Search,
+  Filter,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -45,22 +53,22 @@ export default function PaymentComponent({
   const [selectedTableForAll, setSelectedTableForAll] = useState<number | null>(
     null,
   );
-  
-  // Search and filter states
+
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [filterType, setFilterType] = useState<"all" | "ready" | "pending">("all");
+  const [filterType, setFilterType] = useState<"all" | "ready" | "pending">(
+    "all",
+  );
 
   useEffect(() => {
     const unpaid = filterUnpaidOrders(orders, hotelName);
     const payRequire = unpaid.filter((item) => item.status != "Cancelled");
-    // Sort by ID (FIFO - auto-increment IDs)
     payRequire.sort((a, b) => a.id - b.id);
     setUnpaidOrders(payRequire);
   }, [orders, hotelName]);
 
   const groupedOrders = useMemo(() => {
     const groups: Record<number, Order[]> = {};
-    
+
     unpaidOrders.forEach((order) => {
       const key = order.tableNo;
       if (!groups[key]) {
@@ -68,29 +76,30 @@ export default function PaymentComponent({
       }
       groups[key].push(order);
     });
-    
+
     return Object.fromEntries(
       Object.entries(groups).sort(([, ordersA], [, ordersB]) => {
-        const minIdA = Math.min(...ordersA.map(o => o.id));
-        const minIdB = Math.min(...ordersB.map(o => o.id));
+        const minIdA = Math.min(...ordersA.map((o) => o.id));
+        const minIdB = Math.min(...ordersB.map((o) => o.id));
         return minIdA - minIdB;
-      })
+      }),
     );
   }, [unpaidOrders]);
 
   const filteredGroupedOrders = useMemo(() => {
     return Object.entries(groupedOrders).filter(([tableNo, tableOrders]) => {
-      const matchesSearch = searchQuery === "" || 
-        tableNo.includes(searchQuery);
-      
-      const allCompleted = tableOrders.every((order) => order.status === "Completed");
-      
+      const matchesSearch = searchQuery === "" || tableNo.includes(searchQuery);
+
+      const allCompleted = tableOrders.every(
+        (order) => order.status === "Completed",
+      );
+
       if (filterType === "ready") {
         return matchesSearch && allCompleted;
       } else if (filterType === "pending") {
         return matchesSearch && !allCompleted;
       }
-      
+
       return matchesSearch;
     });
   }, [groupedOrders, searchQuery, filterType]);
@@ -152,26 +161,22 @@ export default function PaymentComponent({
     }
   };
 
-  // Check if all orders for a table are completed
   const areAllOrdersCompleted = (tableOrders: Order[]) => {
     return tableOrders.every((order) => order.status === "Completed");
   };
 
-  // Calculate total amount for a table
   const calculateTableTotal = (tableOrders: Order[]) => {
     return tableOrders.reduce((total, order) => {
       return total + order.price * order.orderAmount;
     }, 0);
   };
 
-  // Clear search
   const clearSearch = () => {
     setSearchQuery("");
   };
 
   return (
     <div className="space-y-6 p-4">
-      {/* Header with search and filters */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -180,13 +185,13 @@ export default function PaymentComponent({
           <div>
             <h2 className="text-2xl font-bold">Pending Payments</h2>
             <p className="text-sm text-muted-foreground">
-              {unpaidOrders.length} unpaid orders across {Object.keys(groupedOrders).length} tables
+              {unpaidOrders.length} unpaid orders across{" "}
+              {Object.keys(groupedOrders).length} tables
             </p>
           </div>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search input */}
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -206,17 +211,25 @@ export default function PaymentComponent({
               </Button>
             )}
           </div>
-          
+
           {/* Filter tabs */}
-          <Tabs 
-            value={filterType} 
-            onValueChange={(v) => setFilterType(v as "all" | "ready" | "pending")}
+          <Tabs
+            value={filterType}
+            onValueChange={(v) =>
+              setFilterType(v as "all" | "ready" | "pending")
+            }
             className="w-full sm:w-auto"
           >
             <TabsList className="grid grid-cols-3 w-full sm:w-64">
-              <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-              <TabsTrigger value="ready" className="text-xs">Ready</TabsTrigger>
-              <TabsTrigger value="pending" className="text-xs">Pending</TabsTrigger>
+              <TabsTrigger value="all" className="text-xs">
+                All
+              </TabsTrigger>
+              <TabsTrigger value="ready" className="text-xs">
+                Ready
+              </TabsTrigger>
+              <TabsTrigger value="pending" className="text-xs">
+                Pending
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -231,35 +244,37 @@ export default function PaymentComponent({
             </span>
           </div>
           <Badge variant="outline" className="bg-white">
-            {filteredGroupedOrders.length} {filteredGroupedOrders.length === 1 ? 'table' : 'tables'} found
+            {filteredGroupedOrders.length}{" "}
+            {filteredGroupedOrders.length === 1 ? "table" : "tables"} found
           </Badge>
         </div>
       )}
 
       {/* No results message */}
-      {filteredGroupedOrders.length === 0 && Object.keys(groupedOrders).length > 0 && (
-        <Card className="border-dashed py-12 text-center">
-          <Filter className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No tables found</h3>
-          <p className="text-muted-foreground">
-            {searchQuery 
-              ? `No tables matching "${searchQuery}"` 
-              : "No tables match the current filter"}
-          </p>
-          {(searchQuery || filterType !== "all") && (
-            <Button 
-              variant="outline" 
-              className="mt-4"
-              onClick={() => {
-                setSearchQuery("");
-                setFilterType("all");
-              }}
-            >
-              Clear filters
-            </Button>
-          )}
-        </Card>
-      )}
+      {filteredGroupedOrders.length === 0 &&
+        Object.keys(groupedOrders).length > 0 && (
+          <Card className="border-dashed py-12 text-center">
+            <Filter className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No tables found</h3>
+            <p className="text-muted-foreground">
+              {searchQuery
+                ? `No tables matching "${searchQuery}"`
+                : "No tables match the current filter"}
+            </p>
+            {(searchQuery || filterType !== "all") && (
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterType("all");
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </Card>
+        )}
 
       {Object.keys(groupedOrders).length === 0 ? (
         <Card className="border-dashed py-16 text-center">
@@ -276,13 +291,21 @@ export default function PaymentComponent({
             const tableTotal = calculateTableTotal(tableOrders);
 
             return (
-              <Card key={tableNo} className="overflow-hidden border-l-4 border-l-primary hover:shadow-md transition-shadow">
+              <Card
+                key={tableNo}
+                className="overflow-hidden border-l-4 border-l-primary hover:shadow-md transition-shadow"
+              >
                 <CardHeader className="bg-muted/30 pb-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-base px-3 py-1 font-mono">
-                          Table {tableNo}
+                        <Badge
+                          variant="outline"
+                          className="text-base px-3 py-1 font-mono"
+                        >
+                          {Number(tableNo) > 0
+                            ? `Table ${tableNo}`
+                            : "Delivery"}
                         </Badge>
                         {allCompleted && (
                           <Badge className="bg-green-100 text-green-800 text-sm px-2 py-1">
@@ -299,7 +322,8 @@ export default function PaymentComponent({
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge variant="secondary" className="text-sm px-3 py-1">
-                        {tableOrders.length} {tableOrders.length === 1 ? 'order' : 'orders'}
+                        {tableOrders.length}{" "}
+                        {tableOrders.length === 1 ? "order" : "orders"}
                       </Badge>
                       <span className="font-bold text-lg">
                         {tableTotal.toFixed(2)} ETB
@@ -320,8 +344,8 @@ export default function PaymentComponent({
                             </h3>
                           </div>
                           <p className="text-green-700 text-sm">
-                            You can pay all {tableOrders.length} orders for Table{" "}
-                            {tableNo} at once to save time.
+                            You can pay all {tableOrders.length} orders for
+                            Table {tableNo} at once to save time.
                           </p>
                         </div>
                         <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -329,7 +353,9 @@ export default function PaymentComponent({
                             <div className="text-2xl font-black text-green-800">
                               {tableTotal.toFixed(2)} ETB
                             </div>
-                            <div className="text-xs text-green-600">Total Amount</div>
+                            <div className="text-xs text-green-600">
+                              Total Amount
+                            </div>
                           </div>
                           <AlertDialog
                             open={
@@ -348,7 +374,8 @@ export default function PaymentComponent({
                               >
                                 {processingAll === parseInt(tableNo) ? (
                                   <>
-                                    <span className="animate-spin">⟳</span> Processing...
+                                    <span className="animate-spin">⟳</span>{" "}
+                                    Processing...
                                   </>
                                 ) : (
                                   <>
@@ -363,22 +390,30 @@ export default function PaymentComponent({
                                   Pay All Orders
                                 </AlertDialogTitle>
                                 <AlertDialogDescription className="text-base">
-                                  You are about to pay all {tableOrders.length} orders for Table {tableNo}
+                                  You are about to pay all {tableOrders.length}{" "}
+                                  orders for Table {tableNo}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
-                              
+
                               <div className="py-4 border-y my-4">
                                 <div className="flex justify-between items-center mb-2">
-                                  <span className="text-muted-foreground">Table Total:</span>
-                                  <span className="text-2xl font-bold">{tableTotal.toFixed(2)} ETB</span>
+                                  <span className="text-muted-foreground">
+                                    Table Total:
+                                  </span>
+                                  <span className="text-2xl font-bold">
+                                    {tableTotal.toFixed(2)} ETB
+                                  </span>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
-                                  This will mark all completed orders for Table {tableNo} as paid.
+                                  This will mark all completed orders for
+                                  {Number(tableNo) > 0 ? `Table ${tableNo}`: "Delivery"} as paid.
                                 </div>
                               </div>
-                              
+
                               <div className="space-y-4">
-                                <h4 className="font-medium">Select Payment Method:</h4>
+                                <h4 className="font-medium">
+                                  Select Payment Method:
+                                </h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <Button
                                     size="lg"
@@ -389,7 +424,9 @@ export default function PaymentComponent({
                                         false,
                                       )
                                     }
-                                    disabled={processingAll === parseInt(tableNo)}
+                                    disabled={
+                                      processingAll === parseInt(tableNo)
+                                    }
                                     variant="outline"
                                   >
                                     <Icon
@@ -397,8 +434,12 @@ export default function PaymentComponent({
                                       className="text-4xl mb-2"
                                     />
                                     <div>
-                                      <h2 className="font-bold text-lg">Cash</h2>
-                                      <p className="text-xs text-muted-foreground">Pay with cash</p>
+                                      <h2 className="font-bold text-lg">
+                                        Cash
+                                      </h2>
+                                      <p className="text-xs text-muted-foreground">
+                                        Pay with cash
+                                      </p>
                                     </div>
                                   </Button>
                                   <Button
@@ -410,7 +451,9 @@ export default function PaymentComponent({
                                         true,
                                       )
                                     }
-                                    disabled={processingAll === parseInt(tableNo)}
+                                    disabled={
+                                      processingAll === parseInt(tableNo)
+                                    }
                                     variant="outline"
                                   >
                                     <Icon
@@ -418,8 +461,12 @@ export default function PaymentComponent({
                                       className="text-4xl mb-2"
                                     />
                                     <div>
-                                      <h2 className="font-bold text-lg">Bank Transfer</h2>
-                                      <p className="text-xs text-muted-foreground">Electronic payment</p>
+                                      <h2 className="font-bold text-lg">
+                                        Bank Transfer
+                                      </h2>
+                                      <p className="text-xs text-muted-foreground">
+                                        Electronic payment
+                                      </p>
                                     </div>
                                   </Button>
                                 </div>
@@ -442,14 +489,13 @@ export default function PaymentComponent({
                         </Badge>
                       )}
                     </div>
-                    
+
                     <div className="space-y-4">
                       {tableOrders.map((order) => (
                         <div
                           key={order.id}
                           className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border rounded-lg p-4"
                         >
-                          {/* Order Image */}
                           <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden shrink-0">
                             <Image
                               src={order.imageUrl || "/placeholder-food.jpg"}
@@ -459,14 +505,20 @@ export default function PaymentComponent({
                               sizes="(max-width: 640px) 80px, 96px"
                             />
                           </div>
-                          
+
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                               <div className="flex-1">
-                                <h3 className="font-bold text-lg">{order.title}</h3>
+                                <h3 className="font-bold text-lg">
+                                  {order.title}
+                                </h3>
                                 <div className="flex flex-wrap items-center gap-3 mt-2">
                                   <Badge
-                                    variant={order.status === "Completed" ? "default" : "secondary"}
+                                    variant={
+                                      order.status === "Completed"
+                                        ? "default"
+                                        : "secondary"
+                                    }
                                     className={
                                       order.status === "Completed"
                                         ? "bg-green-100 text-green-800 hover:bg-green-100"
@@ -476,16 +528,23 @@ export default function PaymentComponent({
                                     {order.status || "Pending"}
                                   </Badge>
                                   <span className="text-sm text-muted-foreground">
-                                    Qty: <span className="font-bold">{order.orderAmount}</span>
+                                    Qty:{" "}
+                                    <span className="font-bold">
+                                      {order.orderAmount}
+                                    </span>
                                   </span>
                                   <span className="text-sm text-muted-foreground">
-                                    Unit: <span className="font-bold">{order.price.toFixed(2)} ETB</span>
+                                    Unit:{" "}
+                                    <span className="font-bold">
+                                      {order.price.toFixed(2)} ETB
+                                    </span>
                                   </span>
                                 </div>
                               </div>
                               <div className="text-right">
                                 <div className="text-xl font-bold text-primary">
-                                  {(order.price * order.orderAmount).toFixed(2)} ETB
+                                  {(order.price * order.orderAmount).toFixed(2)}{" "}
+                                  ETB
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1">
                                   Order ID: {order.id}
@@ -506,7 +565,11 @@ export default function PaymentComponent({
                                     processingPayment === order.id
                                   }
                                   onClick={() => openPaymentDialog(order.id)}
-                                  variant={order.status === "Completed" ? "default" : "outline"}
+                                  variant={
+                                    order.status === "Completed"
+                                      ? "default"
+                                      : "outline"
+                                  }
                                 >
                                   {processingPayment === order.id ? (
                                     <span className="animate-spin">⟳</span>
@@ -527,7 +590,11 @@ export default function PaymentComponent({
                                     Pay Order #{order.id}
                                   </AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    {order.title} - {(order.price * order.orderAmount).toFixed(2)} ETB
+                                    {order.title} -{" "}
+                                    {(order.price * order.orderAmount).toFixed(
+                                      2,
+                                    )}{" "}
+                                    ETB
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-4">
@@ -535,9 +602,15 @@ export default function PaymentComponent({
                                     size="lg"
                                     className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
                                     onClick={() => {
-                                      handlePaymentMethod(order.id, order, false);
+                                      handlePaymentMethod(
+                                        order.id,
+                                        order,
+                                        false,
+                                      );
                                     }}
-                                    disabled={processingPayment === selectedOrderId}
+                                    disabled={
+                                      processingPayment === selectedOrderId
+                                    }
                                     variant="outline"
                                   >
                                     <Icon
@@ -550,9 +623,15 @@ export default function PaymentComponent({
                                     size="lg"
                                     className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
                                     onClick={() => {
-                                      handlePaymentMethod(order.id, order, true);
+                                      handlePaymentMethod(
+                                        order.id,
+                                        order,
+                                        true,
+                                      );
                                     }}
-                                    disabled={processingPayment === selectedOrderId}
+                                    disabled={
+                                      processingPayment === selectedOrderId
+                                    }
                                     variant="outline"
                                   >
                                     <Icon

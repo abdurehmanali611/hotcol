@@ -163,7 +163,7 @@ function ChefContent() {
                   {/* Table header */}
                   <div className="mb-6 pb-4 border-b">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-2xl font-bold">Table {tableNo}</h2>
+                      <h2 className="text-2xl font-bold">{Number(tableNo) > 0 ? `Table ${tableNo}`: "Delivery"}</h2>
                       <Badge variant="outline" className="text-sm">
                         {tableOrders.length}{" "}
                         {tableOrders.length === 1 ? "order" : "orders"}
