@@ -23,7 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { Separator } from "@/components/ui/separator";
@@ -201,12 +200,6 @@ export default function BatchOrderModal({
           <DialogTitle className="text-2xl font-bold">
             Review Batch Order
           </DialogTitle>
-          <DialogDescription>
-            <span className="text-red-500 font-serif font-semibold text-lg">
-              For Delivery,{" "}
-            </span>{" "}
-            Leave the table Number empty
-          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>

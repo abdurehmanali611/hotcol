@@ -158,7 +158,7 @@ export const batchOrderItemSchema = z.object({
   category: z.string().min(1, "Category is required"),
   type: z.string().min(1, "Type is required"),
   orderAmount: z.number().min(1, "Order amount must be at least 1"),
-  tableNo: z.number().min(1, "Table number is required").optional().or(z.literal(0)),
+  tableNo: z.number().min(1, "Table number is required").optional(),
   waiterName: z.string().min(1, "Waiter name is required").optional(),
 });
 
@@ -196,7 +196,7 @@ export const reportFilterSchema = z.object({
 // ==================== FORM VALIDATIONS ====================
 
 export const orderDetailsSchema = z.object({
-  tableNo: z.number().min(1, "Please select a table").optional().or(z.literal(0)),
+  tableNo: z.number().min(1, "Please select a table"),
   waiterName: z.string().min(1, "Please select a waiter"),
   orderAmount: z.number().min(1, "Order amount must be at least 1"),
 });

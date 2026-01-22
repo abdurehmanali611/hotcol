@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import Image from "next/image";
@@ -90,12 +89,6 @@ export default function OrderDetailsModal({
       <DialogContent className="sm:max-w-106.25">
         <DialogHeader>
           <DialogTitle>Customize Order</DialogTitle>
-          <DialogDescription>
-            <span className="text-red-500 font-serif font-semibold text-lg">
-              For Delivery,{" "}
-            </span>{" "}
-            Leave the table Number empty
-          </DialogDescription>
         </DialogHeader>
         {item && (
           <Form {...form}>
