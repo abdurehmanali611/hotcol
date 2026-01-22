@@ -1405,12 +1405,11 @@ export async function CreateCashout(data: any) {
 export async function fetchCashout(HotelName?: string) {
   try {
     const query = `
-      query fetchCashouts($HotelName: String) {
-        cashouts(HotelName: $HotelName) {
+      query fetchCashouts {
+        cashouts {
           id
           Amount
           Reason
-          HotelName
           createdAt
         }
       }
