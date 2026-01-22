@@ -86,8 +86,8 @@ export const deleteWaiterSchema = z.object({
 });
 
 export const createTableSchema = z.object({
-  tableNo: z.coerce.number().min(1, "Table number must be at least 1").max(999, "Invalid table number"),
-  capacity: z.coerce.number().min(1, "Capacity must be at least 1").max(20, "Capacity is too high"),
+  tableNo: z.coerce.number().min(0, "Table number must be at least 1").max(999, "Invalid table number"),
+  capacity: z.coerce.number().min(0, "Capacity must be at least 1").max(20, "Capacity is too high"),
 });
 
 export const updateTableSchema = createTableSchema.extend({
