@@ -1118,6 +1118,12 @@ export async function createBatchOrders(orderDataArray: any[]) {
           orderAmount
           price
           waiterName
+          status
+          payment
+          HotelName
+          category
+          type
+          imageUrl
         }
       }
     `;
