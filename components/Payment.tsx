@@ -81,7 +81,7 @@ export default function PaymentComponent({
   const filteredGroupedOrders = useMemo(() => {
     return Object.entries(groupedOrders).filter(([tableNo, tableOrders]) => {
       const matchesSearch = searchQuery === "" || 
-        tableNo.includes(searchQuery) 
+        tableNo.includes(searchQuery);
       
       const allCompleted = tableOrders.every((order) => order.status === "Completed");
       
@@ -493,82 +493,78 @@ export default function PaymentComponent({
                               </div>
                             </div>
                           </div>
-
-                          {/* Individual payment button - only show if not all orders are completed */}
-                          {!allCompleted && (
-                            <div className="shrink-0 self-end sm:self-center">
-                              <AlertDialog
-                                open={dialogOpen && selectedOrderId === order.id}
-                                onOpenChange={handleDialogClose}
-                              >
-                                <AlertDialogTrigger asChild>
+                          <div className="shrink-0 self-end sm:self-center">
+                            <AlertDialog
+                              open={dialogOpen && selectedOrderId === order.id}
+                              onOpenChange={handleDialogClose}
+                            >
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  className="w-full sm:w-auto gap-2 min-w-30"
+                                  disabled={
+                                    order.status !== "Completed" ||
+                                    processingPayment === order.id
+                                  }
+                                  onClick={() => openPaymentDialog(order.id)}
+                                  variant={order.status === "Completed" ? "default" : "outline"}
+                                >
+                                  {processingPayment === order.id ? (
+                                    <span className="animate-spin">⟳</span>
+                                  ) : order.status !== "Completed" ? (
+                                    <>
+                                      <Clock className="h-4 w-4" /> Waiting
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Wallet className="h-4 w-4" /> Pay Now
+                                    </>
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Pay Order #{order.id}
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {order.title} - {(order.price * order.orderAmount).toFixed(2)} ETB
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-4">
                                   <Button
-                                    className="w-full sm:w-auto gap-2 min-w-30"
-                                    disabled={
-                                      order.status !== "Completed" ||
-                                      processingPayment === order.id
-                                    }
-                                    onClick={() => openPaymentDialog(order.id)}
-                                    variant={order.status === "Completed" ? "default" : "outline"}
+                                    size="lg"
+                                    className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
+                                    onClick={() => {
+                                      handlePaymentMethod(order.id, order, false);
+                                    }}
+                                    disabled={processingPayment === selectedOrderId}
+                                    variant="outline"
                                   >
-                                    {processingPayment === order.id ? (
-                                      <span className="animate-spin">⟳</span>
-                                    ) : order.status !== "Completed" ? (
-                                      <>
-                                        <Clock className="h-4 w-4" /> Waiting
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Wallet className="h-4 w-4" /> Pay Now
-                                      </>
-                                    )}
+                                    <Icon
+                                      icon="streamline-ultimate-color:cash-briefcase"
+                                      className="text-3xl"
+                                    />
+                                    <h2 className="font-semibold">Cash</h2>
                                   </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      Pay Order #{order.id}
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      {order.title} - {(order.price * order.orderAmount).toFixed(2)} ETB
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-4">
-                                    <Button
-                                      size="lg"
-                                      className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
-                                      onClick={() => {
-                                        handlePaymentMethod(order.id, order, false);
-                                      }}
-                                      disabled={processingPayment === selectedOrderId}
-                                      variant="outline"
-                                    >
-                                      <Icon
-                                        icon="streamline-ultimate-color:cash-briefcase"
-                                        className="text-3xl"
-                                      />
-                                      <h2 className="font-semibold">Cash</h2>
-                                    </Button>
-                                    <Button
-                                      size="lg"
-                                      className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
-                                      onClick={() => {
-                                        handlePaymentMethod(order.id, order, true);
-                                      }}
-                                      disabled={processingPayment === selectedOrderId}
-                                      variant="outline"
-                                    >
-                                      <Icon
-                                        icon="streamline-kameleon-color:bank-duo"
-                                        className="text-3xl"
-                                      />
-                                      <h2 className="font-semibold">Bank</h2>
-                                    </Button>
-                                  </div>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          )}
+                                  <Button
+                                    size="lg"
+                                    className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
+                                    onClick={() => {
+                                      handlePaymentMethod(order.id, order, true);
+                                    }}
+                                    disabled={processingPayment === selectedOrderId}
+                                    variant="outline"
+                                  >
+                                    <Icon
+                                      icon="streamline-kameleon-color:bank-duo"
+                                      className="text-3xl"
+                                    />
+                                    <h2 className="font-semibold">Bank</h2>
+                                  </Button>
+                                </div>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
                       ))}
                     </div>
