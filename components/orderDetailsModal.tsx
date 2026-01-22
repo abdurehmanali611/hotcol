@@ -121,7 +121,7 @@ export default function OrderDetailsModal({
                   placeholder="Select"
                   listdisplay={data.tables.map((table) => ({
                     id: table.id,
-                    name: `${table.tableNo === 0 ? "Delivery" : `Table ${table.tableNo}`}`,
+                    name: `Table ${table.tableNo}`,
                     realValue: table.tableNo,
                   }))}
                   isNumeric={true}
