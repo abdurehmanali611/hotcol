@@ -226,7 +226,7 @@ export default function BatchOrderModal({
                 inputClassName="h-fit p-2 w-56"
                 listdisplay={tables.map((t) => ({
                   id: t.id,
-                  name: `Table ${t.tableNo}`,
+                  name: `${t.tableNo === 0 ? "Delivery" : `Table ${t.tableNo}`}`,
                   realValue: t.tableNo,
                 }))}
               />
