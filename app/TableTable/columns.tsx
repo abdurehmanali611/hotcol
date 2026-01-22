@@ -83,7 +83,7 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
     cell: ({ row }) => {
       const order = row.original;
       const completedOrders =
-        order.payment?.filter((p) => p.toLowerCase() === "paid").length ?? 0;
+        Array.isArray(order.payment) ? order.payment.filter((p) => p.toLowerCase() === "paid").length : 0;
       return <div className="ml-5">{completedOrders}</div>;
     },
   },
@@ -93,7 +93,7 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
     cell: ({ row }) => {
       const sales = row.original;
       const totalSales =
-        sales.price?.reduce((sum, price) => sum + (price ?? 0), 0) ?? 0;
+        Array.isArray(sales.price) ? sales.price.reduce((sum, price) => sum + (price ?? 0), 0) : 0;
       return sales ? (
         <div className="ml-5">{totalSales.toFixed(2)} ETB</div>
       ) : (

@@ -89,7 +89,9 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
     header: "Tables Served",
     cell: ({ row }) => {
       const waiter = row.original;
-      const uniqueTables = new Set(waiter.tablesServed || []).size;
+      const uniqueTables = new Set(
+        Array.isArray(waiter.tablesServed) ? waiter.tablesServed : []
+      ).size;
       return <div className="ml-5">{uniqueTables}</div>;
     },
   },
@@ -99,7 +101,7 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
     cell: ({ row }) => {
       const waiter = row.original;
       const completedOrders =
-        waiter.payment?.filter((p) => p === "Paid").length || 0;
+        Array.isArray(waiter.payment) ? waiter.payment.filter((p) => p === "Paid").length : 0;
 
       return <div className="ml-5">{completedOrders}</div>;
     },
@@ -110,7 +112,7 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
     cell: ({ row }) => {
       const sales = row.original;
       const totalSales =
-        sales.price?.reduce((sum, price) => sum + (price || 0), 0) || 0;
+        Array.isArray(sales.price) ? sales.price.reduce((sum, price) => sum + (price || 0), 0) : 0;
       return <div className="ml-5">{totalSales.toFixed(2)} ETB</div>;
     },
   },
