@@ -2,7 +2,16 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
-import { Order, filterUnpaidOrders } from "@/lib/actions";
+import {
+  Order,
+  fetchTables,
+  fetchWaiters,
+  filterUnpaidOrders,
+  transformOrderDataForTableUpdate,
+  transformOrderDataForWaiterUpdate,
+  updateTablePayment,
+  updateWaiterPayment,
+} from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +35,7 @@ import {
 import { Icon } from "@iconify/react";
 import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { toast } from "sonner";
 
 interface PaymentProps {
   orders: Order[];
@@ -113,6 +123,28 @@ export default function PaymentComponent({
     setDialogOpen(false);
     try {
       await onHandlePayment(id, order, order.price * order.orderAmount, bank);
+      const waiters = await fetchWaiters();
+      const Tables = await fetchTables();
+      const waiter = waiters.find((item) => item.name === order.waiterName);
+      const Table = Tables.find((item) => item.tableNo === order.tableNo);
+      if (waiter) {
+        const waiterUpdateData = transformOrderDataForWaiterUpdate(
+          [order],
+          waiter.id,
+        );
+        await updateWaiterPayment(waiterUpdateData);
+      }
+      if (Table) {
+        const tableUpdateData = transformOrderDataForTableUpdate(
+          [order],
+          Table.id,
+          order.tableNo,
+        );
+        await updateTablePayment(tableUpdateData);
+      }
+    } catch (error) {
+      console.error("Payment processing error:", error);
+      toast.error("Failed to complete payment process");
     } finally {
       setProcessingPayment(null);
       setSelectedOrderId(null);
@@ -127,16 +159,56 @@ export default function PaymentComponent({
     setDialogOpen(false);
 
     try {
-      for (const order of tableOrders) {
-        if (order.status === "Completed") {
-          await onHandlePayment(
-            order.id,
-            order,
-            order.price * order.orderAmount,
-            bank,
+      const completedOrders = tableOrders.filter(
+        (order) => order.status?.toLowerCase() === "completed",
+      );
+
+      for (const order of completedOrders) {
+        await onHandlePayment(
+          order.id,
+          order,
+          order.price * order.orderAmount,
+          bank,
+        );
+      }
+
+      const waiters = await fetchWaiters();
+      const tables = await fetchTables();
+
+      const ordersByWaiter = completedOrders.reduce(
+        (acc, order) => {
+          if (!acc[order.waiterName]) {
+            acc[order.waiterName] = [];
+          }
+          acc[order.waiterName].push(order);
+          return acc;
+        },
+        {} as Record<string, Order[]>,
+      );
+
+      for (const [waiterName, orders] of Object.entries(ordersByWaiter)) {
+        const waiter = waiters.find((item) => item.name === waiterName);
+        if (waiter) {
+          const waiterUpdateData = transformOrderDataForWaiterUpdate(
+            orders as Order[],
+            waiter.id,
           );
+          await updateWaiterPayment(waiterUpdateData);
         }
       }
+
+      const table = tables.find((item) => item.tableNo === tableNo);
+      if (table) {
+        const tableUpdateData = transformOrderDataForTableUpdate(
+          completedOrders,
+          table.id,
+          tableNo,
+        );
+        await updateTablePayment(tableUpdateData);
+      }
+    } catch (error) {
+      console.error("Batch payment processing error:", error);
+      toast.error("Failed to complete batch payment process");
     } finally {
       setProcessingAll(null);
       setSelectedTableForAll(null);
@@ -212,7 +284,6 @@ export default function PaymentComponent({
             )}
           </div>
 
-          {/* Filter tabs */}
           <Tabs
             value={filterType}
             onValueChange={(v) =>
@@ -250,7 +321,6 @@ export default function PaymentComponent({
         </div>
       )}
 
-      {/* No results message */}
       {filteredGroupedOrders.length === 0 &&
         Object.keys(groupedOrders).length > 0 && (
           <Card className="border-dashed py-12 text-center">
@@ -303,9 +373,7 @@ export default function PaymentComponent({
                           variant="outline"
                           className="text-base px-3 py-1 font-mono"
                         >
-                          {Number(tableNo) > 0
-                            ? `Table ${tableNo}`
-                            : "Delivery"}
+                          Table {tableNo}
                         </Badge>
                         {allCompleted && (
                           <Badge className="bg-green-100 text-green-800 text-sm px-2 py-1">
@@ -406,7 +474,10 @@ export default function PaymentComponent({
                                 </div>
                                 <div className="text-sm text-muted-foreground">
                                   This will mark all completed orders for
-                                  {Number(tableNo) > 0 ? `Table ${tableNo}`: "Delivery"} as paid.
+                                  {Number(tableNo) > 0
+                                    ? `Table ${tableNo}`
+                                    : "Delivery"}{" "}
+                                  as paid.
                                 </div>
                               </div>
 

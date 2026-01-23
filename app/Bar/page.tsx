@@ -174,7 +174,7 @@ function BaristaContent() {
                   <div className="mb-6 pb-4 border-b">
                     <div className="flex items-center justify-between">
                       <h2 className="text-2xl font-bold">
-                        {Number(tableNo) > 0 ? `Table ${tableNo}` : "Delivery"}
+                        Table {tableNo}
                       </h2>
                       <Badge variant="outline" className="text-sm">
                         {tableOrders.length}{" "}

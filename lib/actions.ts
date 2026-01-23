@@ -170,9 +170,9 @@ export interface ExcelExportData {
   data: any[];
   headers: string[];
 }
-
+// https://hotcol-backend.vercel.app/graphql
 const API_URL =
-  process.env.NEXT_PUBLIC_GRAPHQL_URL || "https://hotcol-backend.vercel.app/graphql";
+  process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:4000/graphql";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -611,8 +611,8 @@ export async function createCredential(credentialData: CreateCredentialData) {
 export async function updateCredential(credentialData: UpdateCredentialData) {
   try {
     const mutation = `
-      mutation UpdateCredential($UserName: String!, $Password: String!, $HotelName: String!, $Role: String!) {
-        UpdateCredential(UserName: $UserName, Password: $Password, HotelName: $HotelName, Role: $Role) {
+      mutation UpdateCredential($UserName: String!, $Password: String!, $Role: String!) {
+        UpdateCredential(UserName: $UserName, Password: $Password, Role: $Role) {
           id
           UserName
           Password
@@ -660,8 +660,8 @@ export async function updateAdminPassword(
     }
 
     const mutation = `
-      mutation UpdateAdminCredential($Password: String!, $HotelName: String!) {
-        UpdateAdminCredential(Password: $Password, HotelName: $HotelName) {
+      mutation UpdateAdminCredential($Password: String!) {
+        UpdateAdminCredential(Password: $Password) {
           id
           HotelName
           Password
@@ -686,7 +686,8 @@ export async function updateAdminPassword(
     toast.success("Admin password updated successfully");
     return true;
   } catch (error: any) {
-    toast.error("Unable to update password. Please verify your current password and try again.");
+    toast.error( `Unable to update password. Please verify your current password and try again. ${error.message}`);
+    console.error(error)
     return false;
   }
 }
@@ -792,8 +793,8 @@ export async function createWaiter(waiterData: CreateWaiterData) {
 export async function updateWaiter(waiterData: UpdateWaiterData) {
   try {
     const mutation = `
-      mutation UpdateWaiter($id: Int!, $name: String!, $age: Int!, $sex: String!, $experience: Int!, $phoneNumber: String!, $HotelName: String!) {
-        UpdateWaiter(id: $id, name: $name, age: $age, sex: $sex, experience: $experience, phoneNumber: $phoneNumber, HotelName: $HotelName) {
+      mutation UpdateWaiter($id: Int!, $name: String!, $age: Int!, $sex: String!, $experience: Int!, $phoneNumber: String!) {
+        UpdateWaiter(id: $id, name: $name, age: $age, sex: $sex, experience: $experience, phoneNumber: $phoneNumber) {
           id
           name
           age
@@ -922,8 +923,8 @@ export async function createTable(tableData: CreateTableData) {
 export async function updateTable(tableData: UpdateTableData) {
   try {
     const mutation = `
-      mutation UpdateTable($id: Int!, $tableNo: Int!, $capacity: Int!, $HotelName: String!) {
-        UpdateTable(id: $id, tableNo: $tableNo, capacity: $capacity, HotelName: $HotelName) {
+      mutation UpdateTable($id: Int!, $tableNo: Int!, $capacity: Int!) {
+        UpdateTable(id: $id, tableNo: $tableNo, capacity: $capacity) {
           id
           tableNo
           capacity
@@ -1190,43 +1191,6 @@ export async function updateOrderStatus(id: number, status: string) {
   }
 }
 
-export async function updateOrderPayment(id: number, payment: string, withBank: boolean, order?: Order) {
-  try {
-    const mutation = `
-      mutation UpdatePayment($id: Int!, $payment: String, $withBank: Boolean) {
-        UpdatePayment(id: $id, payment: $payment, withBank: $withBank) {
-          id
-          payment
-          waiterName
-          tableNo
-          title
-          orderAmount
-          price
-        }
-      }
-    `;
-
-    const response = await api.post(API_URL, {
-      query: mutation,
-      variables: { id, payment, withBank },
-    });
-
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to update payment"
-      );
-    }
-
-
-    toast.success("Payment updated successfully");
-    return response.data.data.UpdatePayment;
-  } catch (error: any) {
-    console.error("Payment update error:", error);
-    toast.error("Failed to update payment");
-    throw error;
-  }
-}
-
 export async function updateWaiterPayment(data: {
   id: number;
   payment: string[];
@@ -1240,15 +1204,13 @@ export async function updateWaiterPayment(data: {
         $id: Int!, 
         $payment: JSON!, 
         $price: JSON!, 
-        $tablesServed: JSON!, 
-        $HotelName: String!
+        $tablesServed: JSON!
       ) {
         UpdatePaymentWaiter(
           id: $id, 
           payment: $payment, 
           price: $price, 
-          tablesServed: $tablesServed, 
-          HotelName: $HotelName
+          tablesServed: $tablesServed 
         ) {
           id
           HotelName
@@ -1290,13 +1252,11 @@ export async function updateTablePayment(data: {
         $id: Int!, 
         $payment: JSON!, 
         $price: JSON!, 
-        $HotelName: String!
       ) {
         UpdatePaymentTable(
           id: $id, 
           payment: $payment, 
           price: $price, 
-          HotelName: $HotelName
         ) {
           id
           HotelName
@@ -1325,24 +1285,74 @@ export async function updateTablePayment(data: {
   }
 }
 
+export async function updateOrderPayment(id: number, payment: string, withBank: boolean) {
+  try {
+    const mutation = `
+      mutation UpdatePayment($id: Int!, $payment: String, $withBank: Boolean) {
+        UpdatePayment(id: $id, payment: $payment, withBank: $withBank) {
+          id
+          payment
+          waiterName
+          tableNo
+          title
+          orderAmount
+          price
+        }
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id, payment, withBank },
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to update payment"
+      );
+    }
+
+
+    toast.success("Payment updated successfully");
+    return response.data.data.UpdatePayment;
+  } catch (error: any) {
+    console.error("Payment update error:", error);
+    toast.error("Failed to update payment");
+    throw error;
+  }
+}
 
 export async function CreateCashout(data: any) {
   try {
     const mutation = `
-      mutation CreateCashout($Amount: Int!, $Reason: JSON, $HotelName: String!) {
-        CreateCashout(Amount: $Amount, Reason: $Reason, HotelName: $HotelName) {
+      mutation CreateCashout(
+        $items: JSON, 
+        $prices: JSON, 
+        $measuredBy: JSON, 
+        $requiredAmount: JSON, 
+        $totalCalc: Float!
+      ) {
+        CreateCashout(
+          items: $items, 
+          prices: $prices, 
+          measuredBy: $measuredBy, 
+          requiredAmount: $requiredAmount, 
+          totalCalc: $totalCalc
+        ) {
           id
-          Amount
-          Reason
+          items
+          prices
+          measuredBy
+          totalCalc
+          requiredAmount
           HotelName
           createdAt
         }
       }
     `;
     
-    const formattedReason = Array.isArray(data.Reason) ? data.Reason : 
-                           typeof data.Reason === 'string' ? [data.Reason] : 
-                           data.Reason || [];
+    // Log the data to debug
+    console.log("Creating cashout with data:", data);
     
     const token = typeof window !== 'undefined' ? localStorage.getItem("auth_token") : null;
     
@@ -1351,13 +1361,20 @@ export async function CreateCashout(data: any) {
       throw new Error("No authentication token found");
     }
     
+    const variables = {
+      items: data.items || [],
+      prices: data.prices || [],
+      measuredBy: data.measuredBy || [],
+      requiredAmount: data.requiredAmount || [],
+      totalCalc: data.totalCalc || 0,
+      HotelName: data.HotelName || ""
+    };
+    
+    console.log("Sending variables:", variables);
+    
     const response = await axios.post(API_URL, {
       query: mutation,
-      variables: {
-        Amount: Number(data.Amount),
-        Reason: formattedReason,
-        HotelName: data.HotelName
-      },
+      variables: variables,
     }, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -1365,12 +1382,14 @@ export async function CreateCashout(data: any) {
       }
     });
 
+    console.log("Response:", response.data);
+
     if (response.data.errors) {
       const errorMessage = response.data.errors[0]?.message || "Failed to create cashout";
       
       if (errorMessage.includes("Not Authenticated") || errorMessage.includes("Unauthorized")) {
         toast.error("Session expired. Please login again.");
-        logoutAction(); // Clear localStorage and redirect
+        logoutAction();
         throw new Error("Authentication failed");
       }
       
@@ -1381,6 +1400,8 @@ export async function CreateCashout(data: any) {
     toast.success("Cashout created successfully");
     return response.data.data.CreateCashout;
   } catch (error: any) {
+    console.error("Cashout creation error:", error);
+    
     if (error.response?.data?.errors) {
       const graphqlErrors = error.response.data.errors;
       const errorMessages = graphqlErrors
@@ -1392,6 +1413,8 @@ export async function CreateCashout(data: any) {
         })
         .join("\n");
       toast.error(`GraphQL Error: ${errorMessages}`);
+    } else if (error.response?.status === 400) {
+      toast.error("Bad request. Please check the data you're sending.");
     } else if (error.message) {
       toast.error(error.message);
     } else {
@@ -1408,8 +1431,11 @@ export async function fetchCashout(HotelName?: string) {
       query fetchCashouts {
         cashouts {
           id
-          Amount
-          Reason
+          items
+          prices
+          measuredBy
+          totalCalc
+          requiredAmount
           createdAt
         }
       }
@@ -1646,8 +1672,11 @@ export interface ReportData {
 
 export interface Cashout {
   id: number;
-  Amount: number;
-  Reason: any;
+  items: any;
+  prices: any;
+  measuredBy: any
+  requiredAmount: any
+  totalCalc: number
   HotelName: string;
   createdAt: string;
 }
@@ -1655,11 +1684,8 @@ export interface Cashout {
 export async function generateReport(
   orders: Order[],
   cashouts: Cashout[],
-  filter: { date: Date; type: "Daily" | "Monthly" | "remain"; HotelName: string }
+  filter: { date: Date; type: "Daily" | "Monthly"; HotelName: string }
 ): Promise<ReportData | null> {
-  if (filter.type === "remain") {
-    return null;
-  }
 
   const filteredOrders = filterReportOrders(orders, {
     HotelName: filter.HotelName,
@@ -1686,7 +1712,7 @@ export async function generateReport(
     return false;
   });
 
-  const totalCashouts = filteredCashouts.reduce((sum, cashout) => sum + cashout.Amount, 0);
+  const totalCashouts = filteredCashouts.reduce((sum, cashout) => sum + cashout.totalCalc, 0);
   const netSales = totalSales - totalCashouts;
   const cashOrders = filteredOrders.filter((order) => !order.withBank);
   const bankOrders = filteredOrders.filter((order) => order.withBank === true);
@@ -1751,7 +1777,7 @@ export function prepareInventoryExportData(
   cashouts: Cashout[],
   hotelName: string
 ): ExcelExportData {
-  const totalCashouts = cashouts.reduce((sum, cashout) => sum + cashout.Amount, 0);
+  const totalCashouts = cashouts.reduce((sum, cashout) => sum + cashout.totalCalc, 0);
   const cashoutCount = cashouts.length;
 
   const foodItems = items.filter((item) => item.category.toLowerCase() === "food");

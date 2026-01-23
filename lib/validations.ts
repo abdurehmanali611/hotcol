@@ -145,10 +145,21 @@ export const updatePaymentSchema = z.object({
 });
 
 export const cashoutSchema = z.object({
-  Amount: z.coerce.number().min(50, "Please Enter valid amount"),
-  Reason: z.array(z.string().min(2, "Enter a valid reason/reasons")).optional().or(z.literal("")),
-  HotelName: z.string().min(1, "Hotel name is required")
-})
+  items: z.array(z.string().min(1, "Item name is required")),
+  measuredBy: z.array(z.string().min(1, "Measurement unit is required")),
+  prices: z.array(z.number().min(0, "Price must be positive")),
+  requiredAmount: z.array(z.number().min(0, "Amount must be positive")),
+  HotelName: z.string().min(1, "Hotel name is required"),
+}).refine(
+  (data) => 
+    data.items.length === data.measuredBy.length && 
+    data.items.length === data.prices.length && 
+    data.items.length === data.requiredAmount.length,
+  {
+    message: "All item fields must have the same number of entries",
+    path: ["items"], 
+  }
+);
 
 export const batchOrderItemSchema = z.object({
   itemId: z.number().optional(),

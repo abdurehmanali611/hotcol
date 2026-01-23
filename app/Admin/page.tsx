@@ -27,7 +27,6 @@ import {
   uploadImage,
   generateReport,
   prepareReportExportData,
-  prepareInventoryExportData,
   exportToExcel,
   fetchCashout,
 } from "@/lib/actions";
@@ -161,13 +160,16 @@ function AdminDashboardContent() {
       case "reports":
         return (
           <Reports
-            orders={orders}
+            orders={orders} 
             hotelName={hotelName}
-            onGenerateReport={async ({ date, type }: { date: Date; type: "Daily" | "Monthly" | "remain" }) => {
+            onGenerateReport={async ({
+              date,
+              type,
+            }: {
+              date: Date;
+              type: "Daily" | "Monthly";
+            }) => {
               try {
-                if (type === "remain") {
-                  return { type: "inventory" };
-                }
                 const cashouts = await fetchCashout(hotelName);
                 return await generateReport(orders, cashouts, {
                   date,
@@ -179,17 +181,16 @@ function AdminDashboardContent() {
                 throw error;
               }
             }}
-            onExportReport={async (reportData: any, reportType: "Daily" | "Monthly" | "remain") => {
+            onExportReport={async (
+              reportData: any,
+              reportType: "Daily" | "Monthly",
+            ) => {
               try {
-                if (reportType === "remain") {
-                  const items = await fetchItems();
-                  const cashouts = await fetchCashout(hotelName);
-                  const exportData = prepareInventoryExportData(items, cashouts, hotelName);
-                  await exportToExcel(exportData);
-                } else {
-                  const exportData = prepareReportExportData(reportData.orders, reportType);
-                  await exportToExcel(exportData);
-                }
+                const exportData = prepareReportExportData(
+                  reportData.orders,
+                  reportType,
+                );
+                await exportToExcel(exportData);
               } catch (error: any) {
                 toast.error("Failed to export report: " + error.message);
                 throw error;
@@ -362,13 +363,15 @@ function AdminDashboardContent() {
 
 // 2. Export wrapped in Suspense
 export default function AdminDashboard() {
-    return (
-      <Suspense fallback={
+  return (
+    <Suspense
+      fallback={
         <div className="flex items-center justify-center min-h-screen">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </div>
-      }>
-        <AdminDashboardContent />
-      </Suspense>
-    );
+      }
+    >
+      <AdminDashboardContent />
+    </Suspense>
+  );
 }
