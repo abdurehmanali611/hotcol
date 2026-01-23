@@ -170,9 +170,9 @@ export interface ExcelExportData {
   data: any[];
   headers: string[];
 }
-// https://hotcol-backend.vercel.app/graphql
+
 const API_URL =
-  process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:4000/graphql";
+  process.env.NEXT_PUBLIC_GRAPHQL_URL || "https://hotcol-backend.vercel.app/graphql";
 
 const api = axios.create({
   baseURL: API_URL,
