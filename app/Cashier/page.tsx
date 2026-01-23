@@ -45,7 +45,7 @@ function CashierContent() {
       ]);
       setItems(itemsData);
       setOrders(ordersData);
-    } catch (error: any) {
+    } catch {
       toast.error("Failed to load data");
     } finally {
       setLoading(false);
@@ -106,7 +106,7 @@ function CashierContent() {
 
   const handlePayment = async (id: number, order: Order, sales: number, bank: boolean) => {
     try {
-      await updateOrderPayment(id, "Paid", bank, order);
+      await updateOrderPayment(id, "Paid", bank);
       await loadData();
       toast.success(`Payment processed successfully via ${bank ? "Bank" : "Cash"}`);
       return { id, order, sales, bank };
