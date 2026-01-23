@@ -56,7 +56,7 @@ const CashoutItem = ({ index, form, removeItem }: any) => (
         name={`prices.${index}`}
         control={form.control}
         fieldType={formFieldTypes.INPUT}
-        label="Unit Price ($)"
+        label="Unit Price (ETB)"
         placeholder="0.00"
         type="number"
         inputClassName="h-fit p-2 w-full"
@@ -177,7 +177,7 @@ export default function CashoutForm() {
               <div className="hidden sm:grid sm:grid-cols-5 gap-3 mb-2 p-3">
                 <div className="font-semibold">Item Name</div>
                 <div className="font-semibold">Unit</div>
-                <div className="font-semibold">Unit Price ($)</div>
+                <div className="font-semibold">Unit Price (ETB)</div>
                 <div className="font-semibold">Quantity</div>
                 <div className="font-semibold">Action</div>
               </div>
