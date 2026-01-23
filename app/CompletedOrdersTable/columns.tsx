@@ -65,7 +65,7 @@ export const columns:  ColumnDef<Order>[] = [
   },
   {
     id: "value",
-    header: "Item Name",
+    header: "Total Value",
     cell: ({row}) => <div>{row.original.orderAmount * row.original.price}</div>
   },
   {
