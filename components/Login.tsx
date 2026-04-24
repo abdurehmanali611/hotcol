@@ -33,13 +33,16 @@ const Login = () => {
 
   const handleSubmit = async (values: z.infer<typeof login>) => {
     try {
-      if (values.UserName.toLowerCase() === "betty" || values.UserName.startsWith("hafina")) {
-        toast.info("Payment Processing Required")
+      if (
+        values.UserName.toLowerCase() === "betty" ||
+        values.UserName.startsWith("hafina")
+      ) {
+        toast.warning("Payment Processing Required");
+      } else {
+        await LoginAction(values, setLoading, setError, router);
+        form.reset();
       }
-      await LoginAction(values, setLoading, setError, router);
-      form.reset();
-    } catch {
-    }
+    } catch {}
   };
 
   return (
