@@ -77,6 +77,8 @@ export interface Waiter {
   tablesServed: number[];
   price: number[];
   payment: string[];
+  /** ISO timestamps aligned with payment/price/tablesServed indices */
+  incomeAt?: string[];
   createdAt: Date;
 }
 
@@ -87,6 +89,7 @@ export interface Table {
   capacity: number;
   price: number[];
   payment: string[];
+  incomeAt?: string[];
   createdAt: Date;
 }
 
@@ -938,6 +941,7 @@ export async function fetchWaiters(): Promise<Waiter[]> {
           tablesServed
           price
           payment
+          incomeAt
           createdAt
         }
       }
@@ -1069,6 +1073,7 @@ export async function fetchTables(): Promise<Table[]> {
           capacity
           price
           payment
+          incomeAt
           createdAt
         }
       }
@@ -1724,6 +1729,7 @@ export async function updateWaiterPayment(data: {
   payment: string[];
   price: number[];
   tablesServed: number[];
+  incomeAt: string[];
   HotelName: string;
 }) {
   try {
@@ -1732,19 +1738,22 @@ export async function updateWaiterPayment(data: {
         $id: Int!, 
         $payment: JSON!, 
         $price: JSON!, 
-        $tablesServed: JSON!
+        $tablesServed: JSON!,
+        $incomeAt: JSON!
       ) {
         UpdatePaymentWaiter(
           id: $id, 
           payment: $payment, 
           price: $price, 
-          tablesServed: $tablesServed 
+          tablesServed: $tablesServed,
+          incomeAt: $incomeAt
         ) {
           id
           HotelName
           payment
           tablesServed
           price
+          incomeAt
         }
       }
     `;
@@ -1752,7 +1761,13 @@ export async function updateWaiterPayment(data: {
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: data,
+      variables: {
+        id: data.id,
+        payment: data.payment,
+        price: data.price,
+        tablesServed: data.tablesServed,
+        incomeAt: data.incomeAt,
+      },
     });
 
     if (response.data.errors) {
@@ -1773,6 +1788,7 @@ export async function updateTablePayment(data: {
   id: number;
   payment: string[];
   price: number[];
+  incomeAt: string[];
   HotelName: string;
 }) {
   try {
@@ -1780,17 +1796,20 @@ export async function updateTablePayment(data: {
       mutation UpdatePaymentTable(
         $id: Int!, 
         $payment: JSON!, 
-        $price: JSON!
+        $price: JSON!,
+        $incomeAt: JSON!
       ) {
         UpdatePaymentTable(
           id: $id, 
           payment: $payment, 
-          price: $price
+          price: $price,
+          incomeAt: $incomeAt
         ) {
           id
           HotelName
           payment
           price
+          incomeAt
         }
       }
     `;
@@ -1799,7 +1818,12 @@ export async function updateTablePayment(data: {
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: data,
+      variables: {
+        id: data.id,
+        payment: data.payment,
+        price: data.price,
+        incomeAt: data.incomeAt,
+      },
     });
 
     if (response.data.errors) {
@@ -2243,12 +2267,14 @@ export function transformOrderDataForWaiterUpdate(
   waiterId: number,
 ) {
   const paidOrders = orders.filter((order) => order.payment === "Paid");
+  const recordedAt = new Date().toISOString();
 
   return {
     id: waiterId,
     payment: paidOrders.map((order) => order.payment),
     price: paidOrders.map((order) => order.price * order.orderAmount),
     tablesServed: paidOrders.map((order) => order.tableNo || 0),
+    incomeAt: paidOrders.map(() => recordedAt),
     HotelName: orders[0]?.HotelName || "",
   };
 }
@@ -2261,11 +2287,13 @@ export function transformOrderDataForTableUpdate(
   const paidOrders = orders.filter(
     (order) => order.payment === "Paid" && order.tableNo === tableNo,
   );
+  const recordedAt = new Date().toISOString();
 
   return {
     id: tableId,
     payment: paidOrders.map((order) => order.payment),
     price: paidOrders.map((order) => order.price * order.orderAmount),
+    incomeAt: paidOrders.map(() => recordedAt),
     HotelName: orders[0]?.HotelName || "",
   };
 }

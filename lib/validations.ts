@@ -293,6 +293,7 @@ export const updateWaiterPaymentSchema = z.object({
   payment: z.array(z.string()).min(1, "Payment array is required"),
   price: z.array(z.number()).min(1, "Price array is required"),
   tablesServed: z.array(z.number()).min(1, "Tables served array is required"),
+  incomeAt: z.array(z.string()).min(1, "Income timestamps are required"),
   HotelName: z.string().min(1, "Hotel name is required"),
 });
 
@@ -300,6 +301,7 @@ export const updateTablePaymentSchema = z.object({
   id: z.number().min(1, "Table ID is required"),
   payment: z.array(z.string()).min(1, "Payment array is required"),
   price: z.array(z.number()).min(1, "Price array is required"),
+  incomeAt: z.array(z.string()).min(1, "Income timestamps are required"),
   HotelName: z.string().min(1, "Hotel name is required"),
 });
 

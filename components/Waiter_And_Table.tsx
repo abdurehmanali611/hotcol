@@ -26,6 +26,7 @@ import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import WaiterTable from "@/app/WaiterTable/page";
 import TableTable from "@/app/TableTable/page";
+import AdminIncomeRankings from "@/components/AdminIncomeRankings";
 import { useState } from "react";
 import { prepareWaiterExportData, prepareTableExportData, exportToExcel } from "@/lib/actions";
 
@@ -58,6 +59,12 @@ export default function WaiterAndTable({
     },
   });
   return (
+    <div className="w-full space-y-6">
+      <AdminIncomeRankings
+        waiters={waiters}
+        tables={tables}
+        hotelName={hotelName}
+      />
     <Tabs defaultValue="waiters" className="w-full">
       <div className="flex justify-between items-center mb-6 px-4">
         <TabsList>
@@ -264,5 +271,6 @@ export default function WaiterAndTable({
         </Card>
       </TabsContent>
     </Tabs>
+    </div>
   );
 }
