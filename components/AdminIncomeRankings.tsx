@@ -1,7 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
+import { BarChart3, CalendarIcon, Info } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -26,6 +27,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import type { Table as TableModel, Waiter } from "@/lib/actions";
 import {
   aggregateTableIncomeInRange,
@@ -35,7 +44,6 @@ import {
   rankWaitersByRevenueAndTables,
   type IncomePeriod,
 } from "@/lib/incomeAggregation";
-import { BarChart3, Info } from "lucide-react";
 
 type Props = {
   waiters: Waiter[];
@@ -49,15 +57,12 @@ export default function AdminIncomeRankings({
   hotelName,
 }: Props) {
   const [period, setPeriod] = useState<IncomePeriod>("day");
-  const [anchorStr, setAnchorStr] = useState(() => {
+  const [anchorDate, setAnchorDate] = useState(() => {
     const d = new Date();
-    return d.toISOString().slice(0, 10);
+    d.setHours(12, 0, 0, 0);
+    return d;
   });
-
-  const anchorDate = useMemo(() => {
-    const d = new Date(anchorStr + "T12:00:00");
-    return Number.isNaN(d.getTime()) ? new Date() : d;
-  }, [anchorStr]);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const range = useMemo(
     () => getIncomePeriodRange(period, anchorDate),
@@ -157,12 +162,40 @@ export default function AdminIncomeRankings({
                 <Label className="text-xs text-muted-foreground">
                   Reference date
                 </Label>
-                <input
-                  type="date"
-                  className="flex h-9 w-[180px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  value={anchorStr}
-                  onChange={(e) => setAnchorStr(e.target.value)}
-                />
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-9 w-full min-w-[200px] justify-start text-left font-normal sm:w-[240px]",
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                      {format(anchorDate, "PPP")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={anchorDate}
+                      captionLayout="dropdown"
+                      buttonVariant="ghost"
+                      onSelect={(d) => {
+                        if (d) {
+                          const next = new Date(d);
+                          next.setHours(12, 0, 0, 0);
+                          setAnchorDate(next);
+                          setCalendarOpen(false);
+                        }
+                      }}
+                      initialFocus
+                      classNames={{
+                        day: "cursor-pointer rounded-md hover:bg-accent hover:text-accent-foreground",
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
           </div>
