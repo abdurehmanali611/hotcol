@@ -36,10 +36,13 @@ export default function StoreItems({
   }, []);
 
   useEffect(() => {
-    refresh();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refetch mutates local table state
+    void refresh();
   }, [refresh, refreshTrigger]);
 
+  // Keep local table in sync when parent passes new `items` (prop-driven refresh).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror props into editable list state
     setData(Array.isArray(items) ? items : []);
   }, [items]);
 

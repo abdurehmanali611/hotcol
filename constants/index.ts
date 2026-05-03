@@ -1,0 +1,77 @@
+/** Ethiopian TIN length (federal taxpayer identifier). */
+export const ETHIOPIAN_TIN_LENGTH = 10;
+
+/** When no TIN is supplied, the server assigns a random numeric tenant id in this range (digits). */
+export const AUTO_TENANT_KEY_LENGTH_MIN = 11;
+export const AUTO_TENANT_KEY_LENGTH_MAX = 12;
+
+export const BUSINESS_TYPES = [
+  "Cafe and Restaurant",
+  "Hotel",
+  "Resort",
+  "Pension",
+] as const;
+
+export type BusinessType = (typeof BUSINESS_TYPES)[number];
+
+export const LODGING_BUSINESS_TYPES = ["Hotel", "Resort", "Pension"] as const;
+
+export type LodgingBusinessType = (typeof LODGING_BUSINESS_TYPES)[number];
+
+export function isLodgingBusinessType(
+  type: BusinessType,
+): type is LodgingBusinessType {
+  return (LODGING_BUSINESS_TYPES as readonly string[]).includes(type);
+}
+
+/** Module keys selectable at signup (aligned with backend / validations). */
+export const MODULE_OPTIONS = [
+  "Cafe and Restaurant",
+  "Credentials(Common)",
+  "Inventory",
+  "Credit Management",
+  "Financial Management",
+  "HR Module",
+  "Room Management",
+  "Cleaning and Maintenance",
+] as const;
+
+export type ModuleOption = (typeof MODULE_OPTIONS)[number];
+
+/** Every registration must enable shared credential management. */
+export const SIGNUP_REQUIRED_MODULE_COMMON = "Credentials(Common)" as const;
+
+/** Cafe-type businesses must enable the cafe/restaurant module. */
+export const SIGNUP_REQUIRED_MODULES_CAFE = [
+  SIGNUP_REQUIRED_MODULE_COMMON,
+  "Cafe and Restaurant",
+] as const satisfies readonly ModuleOption[];
+
+/** Hotel, resort, and pension must enable room operations. */
+export const SIGNUP_REQUIRED_MODULES_LODGING = [
+  SIGNUP_REQUIRED_MODULE_COMMON,
+  "Room Management",
+] as const satisfies readonly ModuleOption[];
+
+/** Admin dashboard sidebar: `icon` is keyed in the Admin page for Lucide icons. */
+export const ADMIN_SIDEBAR_ITEMS = [
+  { id: "reports", label: "Reports", icon: "FileText" },
+  { id: "create-item", label: "Add Item", icon: "PlusCircle" },
+  { id: "update-item", label: "Update/Delete Item", icon: "Edit" },
+  { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
+  { id: "grant-credential", label: "Grant Credential", icon: "Key" },
+  { id: "update-credential", label: "Update Credential", icon: "RefreshCw" },
+  {
+    id: "inventory/credit",
+    label: "Inventory and Credit Sync",
+    icon: "Store",
+  },
+] as const;
+
+export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
+
+/** Legacy name — prefer `BUSINESS_TYPES`. */
+export const businessTypes = [...BUSINESS_TYPES] as BusinessType[];
+
+/** Legacy name — prefer `MODULE_OPTIONS`. */
+export const modules = [...MODULE_OPTIONS] as ModuleOption[];

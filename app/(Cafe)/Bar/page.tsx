@@ -4,29 +4,34 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast, Toaster } from "sonner";
+
 import {
   Order,
   fetchOrders,
   updateOrderStatus,
-  filterChefOrders,
+  filterBaristaOrders,
 } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  ChefHat,
+  Coffee,
   RefreshCw,
-  CheckCircle,
   XCircle,
-  Utensils,
+  Clock,
+  CheckCircle,
   Hash,
   User,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
-function ChefContent() {
+function BaristaContent() {
   const searchParams = useSearchParams();
-  const hotelName = searchParams.get("hotel") || "Hotel";
+  const { tenantScope, displayName } = useTenantScopeAndDisplay(
+    searchParams.get("hotel"),
+  );
+  const displayLabel = displayName || "Hotel";
   const logoUrl = searchParams.get("logo") || "";
 
   const [orders, setOrders] = useState<Order[]>([]);
@@ -37,10 +42,10 @@ function ChefContent() {
     if (!silent) setLoading(true);
     try {
       const allOrders = await fetchOrders();
-      const filteredOrders = filterChefOrders(allOrders, hotelName);
+      const filteredOrders = filterBaristaOrders(allOrders, tenantScope);
       setOrders(filteredOrders);
     } catch {
-      toast.error("Failed to fetch orders");
+      toast.error("Failed to load orders");
     } finally {
       setLoading(false);
     }
@@ -48,21 +53,29 @@ function ChefContent() {
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(() => loadOrders(true), 45000);
+    const interval = setInterval(() => loadOrders(true), 30000);
     return () => clearInterval(interval);
-  }, [hotelName]);
+  }, [tenantScope]);
 
   const handleStatusUpdate = async (
     id: number,
     status: "Completed" | "Cancelled",
   ) => {
     setUpdatingId(id);
+    const promise = updateOrderStatus(id, status);
+
+    toast.promise(promise, {
+      loading: `Marking order as ${status.toLowerCase()}...`,
+      success: () => {
+        loadOrders(true);
+        return `Order #${id} ${status.toLowerCase()}!`;
+      },
+      error: "Failed to update order status.",
+    });
+
     try {
-      await updateOrderStatus(id, status);
-      toast.success(`Order #${id} marked as ${status.toLowerCase()}`);
-      await loadOrders(true);
+      await promise;
     } catch {
-      toast.error("Failed to update order");
     } finally {
       setUpdatingId(null);
     }
@@ -102,7 +115,7 @@ function ChefContent() {
         <div className="max-w-5xl mx-auto space-y-6">
           <Skeleton className="h-20 w-full rounded-xl" />
           {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-xl" />
+            <Skeleton key={i} className="h-48 w-full rounded-xl" />
           ))}
         </div>
       </div>
@@ -110,43 +123,44 @@ function ChefContent() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20 pb-10">
+    <div className="min-h-screen bg-muted/20 pb-12">
       <Toaster position="top-center" richColors />
+
+      {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="max-w-5xl mx-auto px-4 h-18 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-12 w-12 border-2 border-primary/20">
-              <AvatarImage
-                src={logoUrl}
-                alt={hotelName}
-                className="object-cover"
-              />
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10 border">
+              <AvatarImage src={logoUrl} alt={displayLabel} />
               <AvatarFallback className="bg-primary text-primary-foreground">
-                <ChefHat size={24} />
+                <Coffee size={20} />
               </AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                {hotelName} Kitchen
+              <h1 className="text-lg font-bold leading-none">
+                {displayLabel} Barista
               </h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  Live Kitchen Feed
-                </span>
-              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Live Order Monitor
+              </p>
             </div>
           </div>
 
-          <Button
-            onClick={() => loadOrders()}
-            variant="outline"
-            size="sm"
-            className="gap-2 shadow-sm"
-          >
-            <RefreshCw size={14} className={updatingId ? "animate-spin" : ""} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="hidden sm:flex gap-1 py-1">
+              <Clock size={12} className="text-orange-500" />
+              {pendingOrders.length} Pending
+            </Badge>
+            <Button
+              onClick={() => loadOrders()}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -155,13 +169,13 @@ function ChefContent() {
         {Object.keys(sortedGroupedOrders).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="bg-background p-8 rounded-full shadow-sm mb-6">
-              <Utensils size={48} className="text-muted-foreground/30" />
+              <Coffee size={48} className="text-muted-foreground/30" />
             </div>
             <h2 className="text-2xl font-semibold tracking-tight">
               No pending orders
             </h2>
             <p className="text-muted-foreground mt-2 max-w-xs">
-              Great job! All food orders have been cleared from the queue.
+              Great job! All Beverage orders have been cleared from the queue.
             </p>
           </div>
         ) : (
@@ -265,16 +279,16 @@ function ChefContent() {
   );
 }
 
-export default function Chef() {
+export default function Bar() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        <div className="min-h-screen bg-muted/30 p-4 md:p-8 flex items-center justify-center">
+          <RefreshCw className="animate-spin text-muted-foreground" size={32} />
         </div>
       }
     >
-      <ChefContent />
+      <BaristaContent />
     </Suspense>
   );
 }

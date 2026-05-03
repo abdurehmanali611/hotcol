@@ -14,6 +14,7 @@ import {
   Waiter,
   Table,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { batchOrderSchema } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
@@ -78,10 +79,20 @@ export default function BatchOrderModal({
   useEffect(() => {
     if (isOpen) {
       fetchWaiters()
-        .then((res) => res.filter((w) => w.HotelName === hotelName)).then(setWaiters)
+        .then((res) =>
+          res.filter((w) =>
+            rowHotelMatchesTenantScope(w.HotelName, hotelName),
+          ),
+        )
+        .then(setWaiters)
         .catch(() => toast.error("Failed to load waiters"));
       fetchTables()
-        .then((res) => res.filter((t) => t.HotelName === hotelName)).then(setTables)
+        .then((res) =>
+          res.filter((t) =>
+            rowHotelMatchesTenantScope(t.HotelName, hotelName),
+          ),
+        )
+        .then(setTables)
         .catch(() => toast.error("Failed to load tables"));
 
       const formItems = initialItems.map((item) => ({

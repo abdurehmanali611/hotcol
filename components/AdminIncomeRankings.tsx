@@ -44,6 +44,7 @@ import {
   rankWaitersByRevenueAndTables,
   type IncomePeriod,
 } from "@/lib/incomeAggregation";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 
 type Props = {
   waiters: Waiter[];
@@ -70,11 +71,17 @@ export default function AdminIncomeRankings({
   );
 
   const hotelWaiters = useMemo(
-    () => waiters.filter((w) => w.HotelName === hotelName),
+    () =>
+      waiters.filter((w) =>
+        rowHotelMatchesTenantScope(w.HotelName, hotelName),
+      ),
     [waiters, hotelName],
   );
   const hotelTables = useMemo(
-    () => tables.filter((t) => t.HotelName === hotelName),
+    () =>
+      tables.filter((t) =>
+        rowHotelMatchesTenantScope(t.HotelName, hotelName),
+      ),
     [tables, hotelName],
   );
 

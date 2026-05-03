@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Node/Prisma backend and generated client (CommonJS + generated types)
+    "BackEnd/**",
   ]),
 ]);
 

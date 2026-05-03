@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { DataTableClientWrapper } from "./DataTableClientWrapper"
 import { fetchWaiters, Waiter } from "@/lib/actions"
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch"
 
 export default function WaiterTable({
   waiter,
@@ -14,7 +15,11 @@ export default function WaiterTable({
   
   const refetchData = useCallback(async () => {
     const res = await fetchWaiters();
-    setData(res.filter((item) => item.HotelName === hotelName));
+    setData(
+      res.filter((item) =>
+        rowHotelMatchesTenantScope(item.HotelName, hotelName),
+      ),
+    );
   }, [hotelName]);
 
   useEffect(() => {

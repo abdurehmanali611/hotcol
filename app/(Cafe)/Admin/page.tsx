@@ -20,8 +20,8 @@ import {
   deleteItem,
   createCredential,
   updateCredential,
+  deleteCredential,
   updateAdminPassword,
-  verifyAdminPassword,
   createWaiter,
   createTable,
   uploadImage,
@@ -41,7 +41,9 @@ import {
   LayoutDashboard,
   Loader2,
   Store,
+  type LucideIcon,
 } from "lucide-react";
+import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
 import {
   Sidebar,
   SidebarContent,
@@ -56,11 +58,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import InventoryAndCredit from "@/components/InventoryAndCredit";
+import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
 function AdminDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const hotelName = searchParams.get("hotel") || "";
+  const { tenantScope, displayName } = useTenantScopeAndDisplay(
+    searchParams.get("hotel"),
+  );
+  const headerLabel = displayName || "Admin";
   const logoUrl = searchParams.get("logo") || "";
 
   const [activeTab, setActiveTab] = useState("reports");
@@ -107,44 +113,32 @@ function AdminDashboardContent() {
   }, []);
 
   useEffect(() => {
-    if (hotelName) {
+    if (tenantScope) {
       loadData();
     }
-  }, [hotelName, loadData]);
+  }, [tenantScope, loadData]);
 
-  const sidebarItems = [
-    { id: "reports", label: "Reports", icon: <FileText className="h-4 w-4" /> },
-    {
-      id: "create-item",
-      label: "Add Item",
-      icon: <PlusCircle className="h-4 w-4" />,
-    },
-    {
-      id: "update-item",
-      label: "Update/Delete Item",
-      icon: <Edit className="h-4 w-4" />,
-    },
-    {
-      id: "waiter-table",
-      label: "Waiters & Tables",
-      icon: <Users className="h-4 w-4" />,
-    },
-    {
-      id: "grant-credential",
-      label: "Grant Credential",
-      icon: <Key className="h-4 w-4" />,
-    },
-    {
-      id: "update-credential",
-      label: "Update Credential",
-      icon: <RefreshCw className="h-4 w-4" />,
-    },
-    {
-      id: "inventory/credit",
-      label: "Inventory and Credit Sync",
-      icon: <Store className="h-4 w-4" />,
-    },
-  ];
+  const sidebarIconMap: Record<
+    (typeof ADMIN_SIDEBAR_ITEMS)[number]["icon"],
+    LucideIcon
+  > = {
+    FileText,
+    PlusCircle,
+    Edit,
+    Users,
+    Key,
+    RefreshCw,
+    Store,
+  };
+
+  const sidebarItems = ADMIN_SIDEBAR_ITEMS.map((item) => {
+    const Icon = sidebarIconMap[item.icon];
+    return {
+      id: item.id,
+      label: item.label,
+      icon: <Icon className="h-4 w-4" aria-hidden />,
+    };
+  });
 
   const handleLogout = () => {
     router.push("/");
@@ -167,7 +161,7 @@ function AdminDashboardContent() {
         return (
           <Reports
             orders={orders}
-            hotelName={hotelName}
+            hotelName={tenantScope}
             onGenerateReport={async ({
               date,
               type,
@@ -176,11 +170,11 @@ function AdminDashboardContent() {
               type: "Daily" | "Monthly";
             }) => {
               try {
-                const cashouts = await fetchCashout(hotelName);
+                const cashouts = await fetchCashout(tenantScope);
                 return await generateReport(orders, cashouts, {
                   date,
                   type,
-                  HotelName: hotelName,
+                  HotelName: tenantScope,
                 });
               } catch (error: any) {
                 toast.error("Failed to generate report: " + error.message);
@@ -207,7 +201,7 @@ function AdminDashboardContent() {
       case "create-item":
         return (
           <ItemCreationForm
-            hotelName={hotelName}
+            hotelName={tenantScope}
             onSubmit={async (data) => {
               await createItem(data);
               loadData(true);
@@ -219,7 +213,7 @@ function AdminDashboardContent() {
         return (
           <UpdateDeleteIntro
             items={items}
-            hotelName={hotelName}
+            hotelName={tenantScope}
             onUpdate={() => loadData(true)}
             onDelete={async (id: number) => {
               try {
@@ -235,7 +229,7 @@ function AdminDashboardContent() {
       case "grant-credential":
         return (
           <GrantCredential
-            hotelName={hotelName}
+            hotelName={tenantScope}
             logoUrl={logoUrl}
             onSubmit={async (data) => {
               await createCredential(data);
@@ -248,13 +242,13 @@ function AdminDashboardContent() {
           <WaiterAndTable
             waiters={waiters}
             tables={tables}
-            hotelName={hotelName}
+            hotelName={tenantScope}
             onAddWaiter={async (data: any) => {
-              await createWaiter({ ...data, HotelName: hotelName });
+              await createWaiter({ ...data, HotelName: tenantScope });
               loadData(true);
             }}
             onAddTable={async (data: any) => {
-              await createTable({ ...data, HotelName: hotelName });
+              await createTable({ ...data, HotelName: tenantScope });
               loadData(true);
             }}
           />
@@ -263,17 +257,20 @@ function AdminDashboardContent() {
         return (
           <UpdateCredential
             credentials={credentials}
-            hotelName={hotelName}
+            hotelName={tenantScope}
             onUpdateCredential={async (data: any) => {
               await updateCredential(data);
               loadData(true);
             }}
             onUpdateAdminPassword={updateAdminPassword}
-            onVerifyPassword={verifyAdminPassword}
+            onDeleteCredential={async (userName: string) => {
+              await deleteCredential(userName);
+              loadData(true);
+            }}
           />
         );
       case "inventory/credit":
-        return <InventoryAndCredit hotelName={hotelName}/>;
+        return <InventoryAndCredit hotelName={tenantScope}/>;
       default:
         return null;
     }
@@ -325,7 +322,7 @@ function AdminDashboardContent() {
             <SidebarTrigger />
             <div className="flex-1 min-w-0">
               <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
-                {hotelName}
+                {headerLabel}
               </h1>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
@@ -339,9 +336,9 @@ function AdminDashboardContent() {
                 <RefreshCw className="h-4 w-4" />
               </Button>
               <Avatar className="h-8 w-8 md:h-9 md:w-9 border shadow-sm">
-                <AvatarImage src={logoUrl} alt={hotelName} />
+                <AvatarImage src={logoUrl} alt={headerLabel} />
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                  {hotelName.substring(0, 2).toUpperCase()}
+                  {headerLabel.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>

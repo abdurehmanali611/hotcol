@@ -2,6 +2,7 @@
 "use client";
 
 import { Item } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +64,8 @@ export default function OrderComponent({
     if (!typeFilter) return false;
     if (!searchFilter) return false;
     return (
-      item.HotelName === hotelName && item.category.toLowerCase() === "food"
+      rowHotelMatchesTenantScope(item.HotelName, hotelName) &&
+      item.category.toLowerCase() === "food"
     );
   });
 
@@ -75,7 +77,8 @@ export default function OrderComponent({
     if (!typeFilter) return false;
     if (!searchFilter) return false;
     return (
-      item.HotelName === hotelName && item.category.toLowerCase() === "beverage"
+      rowHotelMatchesTenantScope(item.HotelName, hotelName) &&
+      item.category.toLowerCase() === "beverage"
     );
   });
 
@@ -87,7 +90,8 @@ export default function OrderComponent({
     if (!typeFilter) return false;
     if (!searchFilter) return false;
     return (
-      item.HotelName === hotelName && item.category.toLowerCase() === "others"
+      rowHotelMatchesTenantScope(item.HotelName, hotelName) &&
+      item.category.toLowerCase() === "others"
     );
   });
 
@@ -121,12 +125,6 @@ export default function OrderComponent({
 
   const handleBatchOrder = () => {
     if (selectedItems.length > 0) {
-      const itemsWithQuantities = selectedItems.map((item) => ({
-        ...item,
-        orderAmount: itemQuantities[item.id] || 1,
-      }));
-
-
       setShowBatchModal(true);
     }
   };

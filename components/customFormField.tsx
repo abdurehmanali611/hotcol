@@ -49,6 +49,7 @@ import {
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "./ui/input-otp";
 import clsx from "clsx";
 import { Switch } from "./ui/switch";
+import { Checkbox } from "./ui/checkbox";
 import dynamic from "next/dynamic";
 
 const PhoneInput = dynamic(
@@ -72,6 +73,7 @@ export enum formFieldTypes {
   ALERTDIALOG = "alertDialog",
   SWITCH = "switch",
   PHONE_INPUT = "phoneInput",
+  CHECKBOX_GROUP = "checkboxGroup",
 }
 
 interface BaseProps {
@@ -120,7 +122,8 @@ interface FormConnectedProps extends BaseProps {
     | formFieldTypes.IMAGE_UPLOADER
     | formFieldTypes.SKELETON
     | formFieldTypes.SWITCH
-    | formFieldTypes.PHONE_INPUT;
+    | formFieldTypes.PHONE_INPUT
+    | formFieldTypes.CHECKBOX_GROUP;
 }
 
 interface AlertDialogProps extends BaseProps {
@@ -311,6 +314,43 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
             />
           </PopoverContent>
         </Popover>
+      );
+
+    case formFieldTypes.CHECKBOX_GROUP:
+      return (
+        <FormControl>
+          <div
+            className={clsx(
+              "grid sm:grid-cols-2 gap-3 rounded-md border p-4 bg-muted/30",
+              props.inputClassName,
+            )}
+          >
+            {(props.listdisplay as string[] | undefined)?.map((mod) => (
+              <div key={mod} className="flex items-center gap-2 space-y-0">
+                <Checkbox
+                  id={`${props.name}-${mod}`}
+                  checked={Boolean(
+                    Array.isArray(field.value) && field.value.includes(mod),
+                  )}
+                  onCheckedChange={(checked) => {
+                    const current = Array.isArray(field.value) ? field.value : [];
+                    if (checked === true) {
+                      field.onChange([...current, mod]);
+                    } else {
+                      field.onChange(current.filter((m: string) => m !== mod));
+                    }
+                  }}
+                />
+                <Label
+                  htmlFor={`${props.name}-${mod}`}
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {mod}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </FormControl>
       );
 
     case formFieldTypes.RADIO_BUTTON:

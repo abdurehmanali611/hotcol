@@ -24,6 +24,7 @@ import {
   fetchCreditRegistrations,
   UpdateCreditLevel,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { toast } from "sonner";
 import { Edit, Trash, Plus, CreditCard, Clock, Coins } from "lucide-react";
 import {
@@ -70,7 +71,7 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
     try {
       const data = await fetchCreditRegistrations();
       if (Array.isArray(data)) {
-        const HotelItems = data.filter((item) => item.HotelName === hotelName);
+        const HotelItems = data.filter((item) => rowHotelMatchesTenantScope(item.HotelName, hotelName));
         setPersons(HotelItems);
       } else {
         setPersons([]);
@@ -86,7 +87,7 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
       const data = await fetchCreditLevels();
       if (Array.isArray(data)) {
         const hotelCreditLevels = data.filter(
-          (item) => item.HotelName === hotelName
+          (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName)
         );
         setCreditLevels(hotelCreditLevels);
       } else {

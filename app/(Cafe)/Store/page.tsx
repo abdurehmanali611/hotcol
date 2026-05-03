@@ -39,10 +39,12 @@ import {
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import StoreItems from "../StoreItems/page";
-import Suppliers from "../Suppliers/page";
-import Inactive from "../Inactive/page";
+import StoreItems from "../../StoreItems/page";
+import Suppliers from "../../Suppliers/page";
+import Inactive from "../../Inactive/page";
 import { Separator } from "@/components/ui/separator";
+import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 
 function StoreComponent() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -53,7 +55,10 @@ function StoreComponent() {
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
   const searchedParams = useSearchParams();
-  const hotelName = searchedParams.get("hotel");
+  const { tenantScope, displayName } = useTenantScopeAndDisplay(
+    searchedParams.get("hotel"),
+  );
+  const displayLabel = displayName || "Store Management";
   const logoUrl = searchedParams.get("logo");
 
   const loadData = async () => {
@@ -67,15 +72,15 @@ function StoreComponent() {
        const statusResponse = itemStatusData as ItemStatus[];
       if (Array.isArray(response)) {
         const hotelItem = response.filter(
-          (item) => item.HotelName === hotelName,
+          (item) => item.HotelName === tenantScope,
         );
         setStoreItem(hotelItem);
       } else {
         setStoreItem([]);
       }
       if (Array.isArray(statusResponse)) {
-        const hotelItem = statusResponse.filter(
-          (item) => item.HotelName === hotelName,
+        const hotelItem = statusResponse.filter((item) =>
+          rowHotelMatchesTenantScope(item.HotelName, tenantScope),
         );
         setItemStatus(hotelItem);
       } else {
@@ -90,7 +95,7 @@ function StoreComponent() {
 
   useEffect(() => {
     loadData();
-  }, [hotelName]);
+  }, [tenantScope]);
 
   const form = useForm<z.infer<typeof ItemRegistrationSchema>>({
     resolver: zodResolver(ItemRegistrationSchema),
@@ -109,9 +114,15 @@ function StoreComponent() {
       Address: "",
       supplierLevel: "Bronze",
       paidAmount: 0,
-      HotelName: hotelName || "",
+      HotelName: tenantScope || "",
     },
   });
+
+  useEffect(() => {
+    if (tenantScope) {
+      form.setValue("HotelName", tenantScope);
+    }
+  }, [tenantScope, form]);
 
   const onSubmit = async (values: z.infer<typeof ItemRegistrationSchema>) => {
     try {
@@ -147,7 +158,7 @@ function StoreComponent() {
                 <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-md transition-transform group-hover:scale-105">
                   <AvatarImage
                     src={logoUrl || ""}
-                    alt={hotelName || "Hotel"}
+                    alt={displayLabel}
                     className="object-cover"
                   />
                   <AvatarFallback className="bg-muted">
@@ -158,7 +169,7 @@ function StoreComponent() {
               </div>
               <div className="flex flex-col">
                 <h1 className="text-2xl font-bold tracking-tight leading-tight">
-                  {hotelName || "Store Management"}
+                  {displayLabel}
                 </h1>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary border border-primary/20">
@@ -409,7 +420,7 @@ function StoreComponent() {
           </div>
         ) : activeView === "Inactive" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-            <Inactive items={itemStatus} admin={false} hotelName={hotelName}/>
+            <Inactive items={itemStatus} admin={false} hotelName={tenantScope}/>
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-300">

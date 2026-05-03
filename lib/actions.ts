@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
+import { rowHotelMatchesTenantScope } from "./tenantRowMatch";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -22,7 +23,9 @@ export interface User {
   id: number;
   UserName: string;
   Role: "Admin" | "Cashier" | "Barista" | "Kitchen" | "Store";
+  /** Tenant id (matches `tinNumber` / Item.Order `HotelName` column). */
   HotelName: string;
+  tinNumber?: string | null;
   LogoUrl?: string;
 }
 
@@ -361,11 +364,18 @@ export interface CreatingItemStatus {
   HotelName: string;
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_GRAPHQL_URL || "https://hotcol-backend.vercel.app/graphql";
+/** Ensures POSTs hit the GraphQL HTTP endpoint (avoids 404/400 when env omits `/graphql`). */
+function normalizeGraphqlHttpUrl(raw: string | undefined): string {
+  const fallback = "https://hotcol-backend.vercel.app/graphql";
+  const s = (raw ?? fallback).trim() || fallback;
+  const base = s.replace(/\/+$/, "");
+  if (/\/graphql$/i.test(base)) return base;
+  return `${base}/graphql`;
+}
+
+const API_URL = normalizeGraphqlHttpUrl(process.env.NEXT_PUBLIC_GRAPHQL_URL);
 
 const api = axios.create({
-  baseURL: API_URL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
@@ -411,24 +421,34 @@ export async function handleCredential(
   try {
     setIsLoading(true);
 
+    const tinRaw =
+      typeof values.tinNumber === "string" ? values.tinNumber.trim() : "";
+
     const graphqlQuery = {
       query: `
         mutation CreateAdmin(
-          $HotelName: String!
           $UserName: String!
           $Password: String!
-          $LogoUrl: String!
           $Role: String!
+          $HotelName: String!
+          $LogoUrl: String!
+          $tinNumber: String
+          $businessType: String
+          $modules: String
         ) {
           CreateAdmin(
-            HotelName: $HotelName
             UserName: $UserName
             Password: $Password
-            LogoUrl: $LogoUrl
             Role: $Role
+            HotelName: $HotelName
+            LogoUrl: $LogoUrl
+            tinNumber: $tinNumber
+            businessType: $businessType
+            modules: $modules
           ) {
             id
             HotelName
+            tinNumber
             UserName
             LogoUrl
             Role
@@ -436,11 +456,16 @@ export async function handleCredential(
         }
       `,
       variables: {
-        HotelName: values.HotelName,
         UserName: values.UserName,
         Password: values.Password,
-        LogoUrl: values.LogoUrl,
         Role: "Admin",
+        HotelName: values.HotelName,
+        LogoUrl: values.LogoUrl,
+        tinNumber: tinRaw,
+        businessType: values.type ?? "",
+        modules: JSON.stringify(
+          Array.isArray(values.modules) ? values.modules : [],
+        ),
       },
     };
 
@@ -507,6 +532,7 @@ export async function LoginAction(
             UserName
             Role
             HotelName
+            tinNumber
             LogoUrl
           }
         }
@@ -525,17 +551,24 @@ export async function LoginAction(
     const { token, user } = response.data.data.Login;
 
     if (typeof window !== "undefined") {
+      const tin =
+        user.tinNumber != null && String(user.tinNumber).trim() !== ""
+          ? String(user.tinNumber).trim()
+          : "";
+      const tenantId = tin || user.HotelName;
       localStorage.setItem("auth_token", token);
       localStorage.setItem("user_role", user.Role);
-      localStorage.setItem("hotel_name", user.HotelName);
+      localStorage.setItem("hotel_name", tenantId);
+      localStorage.setItem("tin_number", tin || tenantId);
+      localStorage.setItem("hotel_display_name", user.HotelName);
       localStorage.setItem("logo_url", user.LogoUrl || "");
       localStorage.setItem("user_name", user.UserName);
     }
 
     toast.success(`Welcome back, ${user.UserName}!`);
-
+   
     const queryParams = new URLSearchParams({
-      hotel: user.HotelName,
+      hotel: user.HotelName || "",
       logo: user.LogoUrl || "",
       role: user.Role,
     });
@@ -563,7 +596,18 @@ export async function LoginAction(
     let errorMessage =
       "Unable to sign in. Please check your credentials and try again.";
 
-    if (
+    const fromGraphqlBody = (() => {
+      if (!axios.isAxiosError(error)) return null;
+      const data = error.response?.data as
+        | { errors?: Array<{ message?: string }> }
+        | undefined;
+      const msg = data?.errors?.[0]?.message;
+      return typeof msg === "string" && msg.trim() ? msg.trim() : null;
+    })();
+
+    if (fromGraphqlBody) {
+      errorMessage = fromGraphqlBody;
+    } else if (
       error.message?.includes("Connection Timeout") ||
       error.message?.includes("Network Error")
     ) {
@@ -604,11 +648,14 @@ export function getCurrentUser(): User | null {
 
   if (!role || !hotelName) return null;
 
+  const tin = localStorage.getItem("tin_number");
+
   return {
     id: 0,
     UserName: userName || "",
     Role: role as User["Role"],
     HotelName: hotelName,
+    tinNumber: tin || hotelName,
     LogoUrl: logoUrl || "",
   };
 }
@@ -784,6 +831,7 @@ export async function createCredential(credentialData: CreateCredentialData) {
           id
           UserName
           HotelName
+          tinNumber
           Password
           Role
           LogoUrl
@@ -841,6 +889,35 @@ export async function updateCredential(credentialData: UpdateCredentialData) {
     return response.data.data.UpdateCredential;
   } catch (error: any) {
     toast.error("Unable to update credential. Please try again.");
+    throw error;
+  }
+}
+
+export async function deleteCredential(userName: string) {
+  try {
+    const mutation = `
+      mutation DeleteCredential($UserName: String!) {
+        DeleteCredential(UserName: $UserName)
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { UserName: userName },
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to delete credential",
+      );
+    }
+
+    toast.success("Staff account removed");
+    return response.data.data.DeleteCredential;
+  } catch (error: any) {
+    toast.error(
+      error?.message || "Unable to delete credential. Please try again.",
+    );
     throw error;
   }
 }
@@ -1705,10 +1782,11 @@ export async function deductFromCreditRegistrant(
 ) {
   try {
     const creditRegistrations = await fetchCreditRegistrations();
+    const cu = getCurrentUser();
     const creditRegistrant = creditRegistrations.find(
       (reg: any) =>
         reg.name.toLowerCase() === credittorName.toLowerCase() &&
-        reg.HotelName === getCurrentUser()?.HotelName,
+        rowHotelMatchesTenantScope(reg.HotelName, cu?.HotelName ?? ""),
     );
 
     if (creditRegistrant) {
@@ -1978,7 +2056,7 @@ export function filterBaristaOrders(
   hotelName: string,
 ): Order[] {
   return orders.filter((order) => {
-    const isSameHotel = order.HotelName === hotelName;
+    const isSameHotel = rowHotelMatchesTenantScope(order.HotelName, hotelName);
     const isPending = order.status === null || order.status === "Pending";
     const isBeverage = order.category?.toLowerCase() === "beverage";
     return isSameHotel && isPending && isBeverage;
@@ -1987,7 +2065,7 @@ export function filterBaristaOrders(
 
 export function filterChefOrders(orders: Order[], hotelName: string): Order[] {
   return orders.filter((order) => {
-    const isSameHotel = order.HotelName === hotelName;
+    const isSameHotel = rowHotelMatchesTenantScope(order.HotelName, hotelName);
     const isPending = order.status === null || order.status === "Pending";
     const isFood =
       order.category?.toLowerCase() === "food" ||
@@ -2001,7 +2079,7 @@ export function filterUnpaidOrders(
   hotelName: string,
 ): Order[] {
   return orders.filter((order) => {
-    const isSameHotel = order.HotelName === hotelName;
+    const isSameHotel = rowHotelMatchesTenantScope(order.HotelName, hotelName);
     const isUnpaid = order.payment !== "Paid";
 
     const notCancelled = order.status?.toLowerCase() !== "cancelled";
@@ -2097,8 +2175,12 @@ function filterReportOrders(orders: Order[], filter: ReportFilter): Order[] {
   return orders.filter((order) => {
     const orderDate = new Date(order.createdAt);
     const filterDate = filter.date;
-    const isSameHotel = order.HotelName === filter.HotelName;
-    const isPaid = order.payment === "Paid";
+    const isSameHotel = rowHotelMatchesTenantScope(
+      order.HotelName,
+      filter.HotelName,
+    );
+    const isPaid =
+      String(order.payment ?? "").trim().toLowerCase() === "paid";
 
     if (!isSameHotel || !isPaid) return false;
 
@@ -2148,7 +2230,7 @@ export async function generateReport(
   });
 
   const totalCashouts = filteredCashouts.reduce(
-    (sum, cashout) => sum + cashout.totalCalc,
+    (sum, cashout) => sum + (Number(cashout.totalCalc) || 0),
     0,
   );
   const netSales = totalSales - totalCashouts;
@@ -2195,12 +2277,14 @@ export function prepareReportExportData(
     if (order.credit === true) paymentMethod = "Credit";
     else if (order.withBank === true) paymentMethod = "Bank";
 
+    const lineTotal =
+      (Number(order.price) || 0) * (Number(order.orderAmount) || 0);
     return {
       "Item Name": order.title,
       Category: order.category,
       Price: order.price,
       "Order Amount": order.orderAmount,
-      "Total Amount": order.price * order.orderAmount,
+      "Total Amount": lineTotal,
       "Order Date": new Date(order.createdAt).toLocaleDateString(),
       Status: order.status || "Pending",
       Payment: order.payment,
@@ -2266,7 +2350,9 @@ export function transformOrderDataForWaiterUpdate(
   orders: Order[],
   waiterId: number,
 ) {
-  const paidOrders = orders.filter((order) => order.payment === "Paid");
+  const paidOrders = orders.filter(
+    (order) => String(order.payment ?? "").toLowerCase() === "paid",
+  );
   const recordedAt = new Date().toISOString();
 
   return {
@@ -2285,14 +2371,19 @@ export function transformOrderDataForTableUpdate(
   tableNo: number,
 ) {
   const paidOrders = orders.filter(
-    (order) => order.payment === "Paid" && order.tableNo === tableNo,
+    (order) =>
+      String(order.payment ?? "").toLowerCase() === "paid" &&
+      order.tableNo === tableNo,
   );
   const recordedAt = new Date().toISOString();
 
   return {
     id: tableId,
     payment: paidOrders.map((order) => order.payment),
-    price: paidOrders.map((order) => order.price * order.orderAmount),
+    price: paidOrders.map(
+      (order) =>
+        (Number(order.price) || 0) * (Number(order.orderAmount) || 0),
+    ),
     incomeAt: paidOrders.map(() => recordedAt),
     HotelName: orders[0]?.HotelName || "",
   };

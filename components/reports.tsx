@@ -58,6 +58,7 @@ import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
 import { Cashout, fetchCashout } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import Cashouts from "@/app/CashoutTable/page";
 
 const COLORS = [
@@ -135,7 +136,8 @@ export default function Reports({
       const data = await onGenerateReport({ date, type: reportType });
       setReportData(data);
       const filtered = orders.filter((order: any) => {
-        if (order.HotelName !== hotelName) return false;
+        if (!rowHotelMatchesTenantScope(order.HotelName, hotelName))
+          return false;
         const orderDate = new Date(order.createdAt);
         return reportType === "Daily"
           ? orderDate.toDateString() === date.toDateString()

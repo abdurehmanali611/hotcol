@@ -12,6 +12,7 @@ import {
   Table,
   OrderCreationData,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import {
@@ -54,8 +55,12 @@ export default function OrderDetailsModal({
       (async () => {
         const [w, t] = await Promise.all([fetchWaiters(), fetchTables()]);
         setData({
-          waiters: w.filter((x) => x.HotelName === hotelName),
-          tables: t.filter((x) => x.HotelName === hotelName),
+          waiters: w.filter((x) =>
+            rowHotelMatchesTenantScope(x.HotelName, hotelName),
+          ),
+          tables: t.filter((x) =>
+            rowHotelMatchesTenantScope(x.HotelName, hotelName),
+          ),
         });
         form.reset({ tableNo: 0, waiterName: "", orderAmount: 1 });
       })();

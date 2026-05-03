@@ -17,6 +17,7 @@ import {
   checkCreditRegistrantBalance,
   deductFromCreditRegistrant,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +118,7 @@ export default function PaymentComponent({
         const data = await fetchCreditRegistrations();
         if (Array.isArray(data)) {
           const hotelCredittor = data.filter(
-            (item) => item.HotelName === hotelName,
+            (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
           );
           setCredittors(hotelCredittor);
         } else {
@@ -318,7 +319,7 @@ export default function PaymentComponent({
 
       // Update waiter records
       const waiters = (await fetchWaiters()).filter(
-        (item) => item.HotelName === hotelName,
+        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
       );
       const ordersByWaiter = updatedOrders.reduce(
         (acc, order) => {
@@ -344,7 +345,7 @@ export default function PaymentComponent({
 
       // Update table record
       const tables = (await fetchTables()).filter(
-        (item) => item.HotelName === hotelName,
+        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
       );
       const table = tables.find((item) => item.tableNo === tableNo);
       if (table) {
@@ -414,7 +415,7 @@ export default function PaymentComponent({
 
       // Update waiter records
       const waiters = (await fetchWaiters()).filter(
-        (item) => item.HotelName === hotelName,
+        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
       );
       const ordersByWaiter = updatedOrders.reduce(
         (acc, order) => {
@@ -440,7 +441,7 @@ export default function PaymentComponent({
 
       // Update table record
       const tables = (await fetchTables()).filter(
-        (item) => item.HotelName === hotelName,
+        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
       );
       const table = tables.find((item) => item.tableNo === tableNo);
       if (table) {
@@ -504,14 +505,14 @@ export default function PaymentComponent({
   const findWaiterForHotel = async (waiterName: string) => {
     const waiters = await fetchWaiters();
     return waiters.find(
-      (item) => item.name === waiterName && item.HotelName === hotelName,
+      (item) => item.name === waiterName && rowHotelMatchesTenantScope(item.HotelName, hotelName),
     );
   };
 
   const findTableForHotel = async (tableNo: number) => {
     const tables = await fetchTables();
     return tables.find(
-      (item) => item.tableNo === tableNo && item.HotelName === hotelName,
+      (item) => item.tableNo === tableNo && rowHotelMatchesTenantScope(item.HotelName, hotelName),
     );
   };
 

@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,18 +14,30 @@ import {
 } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldAlert, Users, KeyRound, RefreshCcw } from "lucide-react";
+import { ShieldAlert, Users, KeyRound, RefreshCcw, UserMinus } from "lucide-react";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import {
+  deleteCredentialSchema,
   updateAdminPasswordSchema,
   updateCredentialSchema,
 } from "@/lib/validations";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function UpdateCredential({
   credentials,
   hotelName,
   onUpdateCredential,
   onUpdateAdminPassword,
+  onDeleteCredential,
 }: any) {
   const adminForm = useForm({
     resolver: zodResolver(updateAdminPasswordSchema),
@@ -45,6 +59,35 @@ export default function UpdateCredential({
       HotelName: hotelName,
     },
   });
+
+  const deleteForm = useForm<z.infer<typeof deleteCredentialSchema>>({
+    resolver: zodResolver(deleteCredentialSchema),
+    defaultValues: { UserName: "" },
+  });
+
+  const [currentUserName, setCurrentUserName] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setCurrentUserName(
+      typeof window !== "undefined"
+        ? (localStorage.getItem("user_name")?.trim() ?? "")
+        : "",
+    );
+  }, []);
+
+  const nonAdminStaff = useMemo(
+    () => (credentials as any[]).filter((c) => c.Role !== "Admin"),
+    [credentials],
+  );
+
+  const deletableStaff = useMemo(
+    () =>
+      nonAdminStaff.filter(
+        (c) => String(c.UserName).trim() !== currentUserName,
+      ),
+    [nonAdminStaff, currentUserName],
+  );
 
   return (
     <Tabs defaultValue="staff" className="max-w-4xl mx-auto">
@@ -76,7 +119,7 @@ export default function UpdateCredential({
                     control={staffForm.control}
                     name="UserName"
                     fieldType={formFieldTypes.SELECT}
-                    listdisplay={credentials.map((cred: any) => ({
+                    listdisplay={nonAdminStaff.map((cred: any) => ({
                       id: cred.id,
                       name: cred.UserName,
                     }))}
@@ -118,6 +161,81 @@ export default function UpdateCredential({
                 </Button>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6 border-destructive/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <UserMinus className="h-5 w-5" />
+              Remove staff access
+            </CardTitle>
+            <CardDescription>
+              Permanently delete a staff login. Admin accounts cannot be removed
+              here, and you cannot delete your own session.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...deleteForm}>
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                <div className="flex-1">
+                  <CustomFormField
+                    control={deleteForm.control}
+                    name="UserName"
+                    fieldType={formFieldTypes.SELECT}
+                    listdisplay={deletableStaff.map((cred: any) => ({
+                      id: cred.id,
+                      name: cred.UserName,
+                    }))}
+                    label="Staff member"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="cursor-pointer shrink-0"
+                  onClick={async () => {
+                    const ok = await deleteForm.trigger("UserName");
+                    if (ok) setDeleteDialogOpen(true);
+                  }}
+                >
+                  Delete account
+                </Button>
+              </div>
+            </Form>
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove this staff account?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    User{" "}
+                    <strong>{deleteForm.watch("UserName")}</strong> will no longer
+                    be able to sign in. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="cursor-pointer">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      const name = deleteForm.getValues("UserName");
+                      try {
+                        await onDeleteCredential(name);
+                        deleteForm.reset({ UserName: "" });
+                        setDeleteDialogOpen(false);
+                      } catch {
+                        // Toasts handled in deleteCredential / server layer
+                      }
+                    }}
+                  >
+                    Delete permanently
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </TabsContent>

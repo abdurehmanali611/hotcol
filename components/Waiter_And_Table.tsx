@@ -29,6 +29,7 @@ import TableTable from "@/app/TableTable/page";
 import AdminIncomeRankings from "@/components/AdminIncomeRankings";
 import { useState } from "react";
 import { prepareWaiterExportData, prepareTableExportData, exportToExcel } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 
 export default function WaiterAndTable({
   waiters,
@@ -39,8 +40,12 @@ export default function WaiterAndTable({
 }: any) {
   const [waiterOpen, setWaiterOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
-  const hotelWaiters = waiters.filter((item: any) => item.HotelName === hotelName);
-  const hotelTables = tables.filter((item: any) => item.HotelName === hotelName);
+  const hotelWaiters = waiters.filter((item: any) =>
+    rowHotelMatchesTenantScope(item.HotelName, hotelName),
+  );
+  const hotelTables = tables.filter((item: any) =>
+    rowHotelMatchesTenantScope(item.HotelName, hotelName),
+  );
   const waiterForm = useForm<z.infer<typeof createWaiterSchema>>({
     resolver: zodResolver(createWaiterSchema) as any,
     defaultValues: {

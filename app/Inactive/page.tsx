@@ -1,6 +1,7 @@
 "use client";
 
 import { fetchItemStatus, ItemStatus } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
 import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,7 +26,9 @@ export default function Inactive({
     try {
       const response = await fetchItemStatus();
       if (Array.isArray(response)) {
-        const hotelItems = response.filter((item) => item.HotelName === hotelName);
+        const hotelItems = response.filter((item) =>
+          rowHotelMatchesTenantScope(item.HotelName, hotelName ?? ""),
+        );
         setData(hotelItems);
       }
     } catch (error) {

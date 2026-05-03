@@ -100,8 +100,11 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
     header: "Completed Orders",
     cell: ({ row }) => {
       const waiter = row.original;
-      const completedOrders =
-        Array.isArray(waiter.payment) ? waiter.payment.filter((p) => p === "Paid").length : 0;
+      const completedOrders = Array.isArray(waiter.payment)
+        ? waiter.payment.filter(
+            (p) => String(p ?? "").toLowerCase() === "paid",
+          ).length
+        : 0;
 
       return <div className="ml-5">{completedOrders}</div>;
     },

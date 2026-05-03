@@ -26,13 +26,17 @@ import OrderComponent from "@/components/Order";
 import PaymentComponent from "@/components/Payment";
 import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Button } from "@/components/ui/button";
-import CreditRegistrationForm from "../../components/CreditRegistration";
+import CreditRegistrationForm from "../../../components/CreditRegistration";
 import CashoutForm from "@/components/CashoutForm";
 import { Icon } from "@iconify/react";
+import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
 function CashierContent() {
   const searchParams = useSearchParams();
-  const hotelName = searchParams.get("hotel") || "Hotel";
+  const { tenantScope, displayName } = useTenantScopeAndDisplay(
+    searchParams.get("hotel"),
+  );
+  const displayLabel = displayName || "Hotel";
   const logoUrl = searchParams.get("logo") || "";
 
   const [activeView, setActiveView] = useState<
@@ -61,10 +65,10 @@ function CashierContent() {
   };
 
   useEffect(() => {
-    if (hotelName) {
+    if (tenantScope) {
       loadData();
     }
-  }, [hotelName]);
+  }, [tenantScope]);
 
   const handleItemSelect = (item: Item) => {
     setSelectedItem(item);
@@ -91,7 +95,7 @@ function CashierContent() {
       tableNo: data.tableNo,
       waiterName: data.waiterName,
       orderAmount: data.orderAmount,
-      HotelName: hotelName,
+      HotelName: tenantScope,
       status: "Pending",
       payment: "Unpaid",
       category: selectedItem.category,
@@ -161,7 +165,7 @@ function CashierContent() {
               <Avatar className="h-12 w-12 border-2 border-primary/10">
                 <AvatarImage
                   src={logoUrl}
-                  alt={hotelName}
+                  alt={displayLabel}
                   className="object-cover"
                 />
                 <AvatarFallback className="bg-primary/5">
@@ -170,7 +174,7 @@ function CashierContent() {
               </Avatar>
               <div className="flex flex-col">
                 <h1 className="text-xl font-bold tracking-tight">
-                  {hotelName}
+                  {displayLabel}
                 </h1>
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
                   Cashier Terminal
@@ -236,7 +240,7 @@ function CashierContent() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <OrderComponent
                 items={items}
-                hotelName={hotelName}
+                hotelName={tenantScope}
                 onItemSelect={handleItemSelect}
                 onGoToPayment={() => setActiveView("payment")}
                 onBatchOrderSuccess={handleBatchOrderSuccess}
@@ -246,18 +250,18 @@ function CashierContent() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <PaymentComponent
                 orders={orders}
-                hotelName={hotelName}
+                hotelName={tenantScope}
                 onHandlePayment={handlePayment}
                 onRefresh={loadData}
               />
             </div>
           ) : activeView === "credit" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <CreditRegistrationForm hotelName={hotelName} />
+              <CreditRegistrationForm hotelName={tenantScope} />
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <CashoutForm hotelName={hotelName} />
+              <CashoutForm hotelName={tenantScope} />
             </div>
           )}
         </div>
@@ -270,7 +274,7 @@ function CashierContent() {
           setShowOrderModal(false);
           setSelectedItem(null);
         }}
-        hotelName={hotelName}
+        hotelName={tenantScope}
         onSubmit={handleOrderSubmit}
       />
     </div>

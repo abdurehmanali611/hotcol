@@ -16,7 +16,6 @@ import { Button } from "./ui/button";
 import { useState } from "react";
 import { LoginAction } from "@/lib/actions";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 const Login = () => {
   const [loading, setLoading] = useState(false);

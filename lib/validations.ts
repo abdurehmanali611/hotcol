@@ -1,16 +1,74 @@
 import { z } from "zod";
+import {
+  BUSINESS_TYPES,
+  MODULE_OPTIONS,
+  SIGNUP_REQUIRED_MODULES_CAFE,
+  SIGNUP_REQUIRED_MODULES_LODGING,
+} from "@/constants";
 
 export const login = z.object({
-  UserName: z.string().min(2, "Username must be at least 2 characters long"),
+  UserName: z.string().trim().min(2, "Username must be at least 2 characters long"),
   Password: z.string().min(6, "Password must be at least 6 characters long"),
 });
 
-export const SignUpSchema = z.object({
-  HotelName: z.string().min(1, "Hotel name is required"),
-  LogoUrl: z.string().min(2, "Please Upload the Logo for your hotel"),
-  UserName: z.string().min(2, "Make sure to enter username"),
-  Password: z.string().min(2, "Please Enter a password"),
+const signUpBusinessTypeEnum = z.enum(BUSINESS_TYPES, {
+  message: "Please Select the type of your business",
 });
+const signUpModuleEnum = z.enum(MODULE_OPTIONS, {
+  message: "Please Select the modules you want to use",
+});
+
+export const SignUpSchema = z
+  .object({
+    HotelName: z.string().min(1, "Hotel name is required"),
+    LogoUrl: z.string().min(2, "Please Upload the Logo for your hotel"),
+    UserName: z
+      .string()
+      .trim()
+      .min(2, "Make sure to enter username"),
+    Password: z.string().min(2, "Please Enter a password"),
+    tinNumber: z
+      .string()
+      .refine(
+        (s) => {
+          const t = s.trim();
+          return t === "" || /^\d{10}$/.test(t);
+        },
+        {
+          message:
+            "TIN must be exactly 10 digits, or leave blank for a server-assigned random id",
+        },
+      ),
+    type: signUpBusinessTypeEnum,
+    modules: z
+      .array(signUpModuleEnum)
+      .min(1, "Please select at least one module"),
+  })
+  .superRefine((data, ctx) => {
+    const selected = new Set(data.modules);
+
+    if (data.type === "Cafe and Restaurant") {
+      for (const req of SIGNUP_REQUIRED_MODULES_CAFE) {
+        if (!selected.has(req)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Cafe and Restaurant registration must include the "${req}" module`,
+            path: ["modules"],
+          });
+        }
+      }
+    } else {
+      for (const req of SIGNUP_REQUIRED_MODULES_LODGING) {
+        if (!selected.has(req)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Hotel, Resort, and Pension registrations must include the "${req}" module`,
+            path: ["modules"],
+          });
+        }
+      }
+    }
+  });
 
 export const createItemSchema = z.object({
   name: z.string().min(1, "Item name is required").max(100, "Name is too long"),
@@ -49,6 +107,10 @@ export const createCredentialSchema = z
     message: "Passwords don't match",
     path: ["confirmPassword"],
   });
+
+export const deleteCredentialSchema = z.object({
+  UserName: z.string().min(2, "Select a staff member to remove"),
+});
 
 export const updateCredentialSchema = z
   .object({

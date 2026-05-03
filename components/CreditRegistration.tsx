@@ -24,6 +24,7 @@ import {
   fetchCreditRegistrations,
   uploadImage,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { useReactToPrint } from "react-to-print";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -53,7 +54,10 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
       creditLevel: "Bronze",
       registrationDate: new Date(),
       paidAmount: 0,
-      HotelName: localStorage.getItem("hotelName") || hotelName,
+      HotelName:
+        (typeof window !== "undefined" &&
+          localStorage.getItem("hotel_name")) ||
+        hotelName,
     },
   });
 
@@ -62,8 +66,8 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
       try {
         const data = await fetchCreditLevels();
         if (Array.isArray(data)) {
-          const filtered = data.filter(
-            (item: creditLevel) => item.HotelName === hotelName,
+          const filtered = data.filter((item: creditLevel) =>
+            rowHotelMatchesTenantScope(item.HotelName, hotelName),
           );
           setCreditLevels(filtered);
         }
@@ -75,8 +79,8 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
       try {
         const response = await fetchCreditRegistrations();
         if (Array.isArray(response)) {
-          const hotelReg = response.filter(
-            (item) => item.HotelName === hotelName,
+          const hotelReg = response.filter((item) =>
+            rowHotelMatchesTenantScope(item.HotelName, hotelName),
           );
           setCreditRegistrant(hotelReg);
         } else {

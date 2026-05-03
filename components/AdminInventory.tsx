@@ -27,6 +27,7 @@ import {
   fetchItemStatus,
   ItemStatus,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { toast } from "sonner";
 import { Trash, Wallet, ArrowUpRight, BadgeCheck } from "lucide-react";
 import {
@@ -77,7 +78,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
 
       if (Array.isArray(cashData)) {
         const hotelPityCash = cashData.find(
-          (item) => item.HotelName === hotelName,
+          (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
         );
         setPityCashSummary(hotelPityCash || null);
         if (hotelPityCash) {
@@ -92,12 +93,12 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
 
       if (Array.isArray(itemData)) {
         setFetchedItems(
-          itemData.filter((item) => item.HotelName === hotelName),
+          itemData.filter((item) => rowHotelMatchesTenantScope(item.HotelName, hotelName)),
         );
       }
       if (Array.isArray(itemStatusData)) {
         setFetchedItemStatus(
-          itemStatusData.filter((item) => item.HotelName === hotelName),
+          itemStatusData.filter((item) => rowHotelMatchesTenantScope(item.HotelName, hotelName)),
         );
       }
     } catch (error: any) {
@@ -122,7 +123,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
       const response = await fetchPityCash();
       if (Array.isArray(response)) {
         const hotelPityCash = response.find(
-          (item) => item.HotelName === hotelName,
+          (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
         );
         setPityCashSummary(hotelPityCash);
       } else {
@@ -301,7 +302,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                             const response = await fetchPityCash();
                             if (Array.isArray(response)) {
                               const hotelPityCash = response.find(
-                                (item) => item.HotelName === hotelName,
+                                (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
                               );
                               setPityCashSummary(hotelPityCash);
                             } else {
