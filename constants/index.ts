@@ -70,6 +70,21 @@ export const ADMIN_SIDEBAR_ITEMS = [
 
 export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
 
+/** Manager (hotel) dashboard — stock & credential operations; expand later. */
+export const MANAGER_SIDEBAR_ITEMS = [
+  { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
+  { id: "cc-profiles", label: "Cost control IDs", icon: "UserCheck" },
+  { id: "reports-inventory", label: "Inventory snapshot", icon: "Package" },
+  { id: "reports-movements", label: "Stock movements", icon: "ArrowRightLeft" },
+  { id: "reports-purchases", label: "Purchase pipeline", icon: "ShoppingCart" },
+  { id: "reports-beginnings", label: "Chef / bar beginnings", icon: "ClipboardList" },
+  { id: "grant-credential", label: "Grant credential", icon: "Key" },
+  { id: "update-credential", label: "Update credential", icon: "RefreshCw" },
+] as const;
+
+export type ManagerSidebarItemId =
+  (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
+
 /** Legacy name — prefer `BUSINESS_TYPES`. */
 export const businessTypes = [...BUSINESS_TYPES] as BusinessType[];
 

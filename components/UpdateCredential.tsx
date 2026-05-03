@@ -38,6 +38,7 @@ export default function UpdateCredential({
   onUpdateCredential,
   onUpdateAdminPassword,
   onDeleteCredential,
+  variant = "cafe",
 }: any) {
   const adminForm = useForm({
     resolver: zodResolver(updateAdminPasswordSchema),
@@ -55,7 +56,7 @@ export default function UpdateCredential({
       UserName: "",
       Password: "",
       confirmPassword: "",
-      Role: "Kitchen",
+      Role: variant === "hotel" ? "Store" : "Kitchen",
       HotelName: hotelName,
     },
   });
@@ -77,8 +78,13 @@ export default function UpdateCredential({
   }, []);
 
   const nonAdminStaff = useMemo(
-    () => (credentials as any[]).filter((c) => c.Role !== "Admin"),
-    [credentials],
+    () =>
+      (credentials as any[]).filter((c) =>
+        variant === "hotel"
+          ? c.Role !== "Admin" && c.Role !== "Manager"
+          : c.Role !== "Admin",
+      ),
+    [credentials, variant],
   );
 
   const deletableStaff = useMemo(
@@ -96,7 +102,8 @@ export default function UpdateCredential({
           <Users className="h-4 w-4" /> Staff Accounts
         </TabsTrigger>
         <TabsTrigger value="admin" className="gap-2">
-          <ShieldAlert className="h-4 w-4" /> Admin Security
+          <ShieldAlert className="h-4 w-4" />{" "}
+          {variant === "hotel" ? "Manager password" : "Admin Security"}
         </TabsTrigger>
       </TabsList>
 
@@ -130,12 +137,20 @@ export default function UpdateCredential({
                     name="Role"
                     fieldType={formFieldTypes.SELECT}
                     label="Update Role"
-                    listdisplay={[
-                      { id: 1, name: "Kitchen" },
-                      { id: 2, name: "Barista" },
-                      { id: 3, name: "Cashier" },
-                      { id: 4, name: "Store" }
-                    ]}
+                    listdisplay={
+                      variant === "hotel"
+                        ? [
+                            { id: 1, name: "CostControl" },
+                            { id: 2, name: "Finance" },
+                            { id: 3, name: "Store" },
+                          ]
+                        : [
+                            { id: 1, name: "Kitchen" },
+                            { id: 2, name: "Barista" },
+                            { id: 3, name: "Cashier" },
+                            { id: 4, name: "Store" },
+                          ]
+                    }
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,7 +186,7 @@ export default function UpdateCredential({
               Remove staff access
             </CardTitle>
             <CardDescription>
-              Permanently delete a staff login. Admin accounts cannot be removed
+              Permanently delete a staff login. Owner accounts cannot be removed
               here, and you cannot delete your own session.
             </CardDescription>
           </CardHeader>
@@ -244,8 +259,8 @@ export default function UpdateCredential({
         <Card className="border-destructive/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-destructive" /> Change Admin
-              Password
+              <KeyRound className="h-5 w-5 text-destructive" /> Change{" "}
+              {variant === "hotel" ? "manager" : "admin"} password
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -285,7 +300,7 @@ export default function UpdateCredential({
                   type="submit"
                   className="w-full gap-2"
                 >
-                  <RefreshCcw className="h-4 w-4" /> Reset Admin Access
+                  <RefreshCcw className="h-4 w-4" /> Reset owner access
                 </Button>
               </form>
             </Form>

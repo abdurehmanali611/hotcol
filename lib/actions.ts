@@ -22,11 +22,20 @@ interface cloudinarySuccessResult {
 export interface User {
   id: number;
   UserName: string;
-  Role: "Admin" | "Cashier" | "Barista" | "Kitchen" | "Store";
+  Role:
+    | "Admin"
+    | "Manager"
+    | "Cashier"
+    | "Barista"
+    | "Kitchen"
+    | "Store"
+    | "CostControl"
+    | "Finance";
   /** Tenant id (matches `tinNumber` / Item.Order `HotelName` column). */
   HotelName: string;
   tinNumber?: string | null;
   LogoUrl?: string;
+  businessType?: string | null;
 }
 
 export interface Order {
@@ -64,7 +73,15 @@ export interface Credential {
   id: number;
   UserName: string;
   Password: string;
-  Role: "Kitchen" | "Barista" | "Cashier" | "Admin" | "Store";
+  Role:
+    | "Kitchen"
+    | "Barista"
+    | "Cashier"
+    | "Admin"
+    | "Manager"
+    | "Store"
+    | "CostControl"
+    | "Finance";
   HotelName: string;
   LogoUrl?: string;
 }
@@ -458,7 +475,7 @@ export async function handleCredential(
       variables: {
         UserName: values.UserName,
         Password: values.Password,
-        Role: "Admin",
+        Role: values.type === "Hotel" ? "Manager" : "Admin",
         HotelName: values.HotelName,
         LogoUrl: values.LogoUrl,
         tinNumber: tinRaw,
@@ -534,6 +551,7 @@ export async function LoginAction(
             HotelName
             tinNumber
             LogoUrl
+            businessType
           }
         }
       }
@@ -563,19 +581,41 @@ export async function LoginAction(
       localStorage.setItem("hotel_display_name", user.HotelName);
       localStorage.setItem("logo_url", user.LogoUrl || "");
       localStorage.setItem("user_name", user.UserName);
+      localStorage.setItem(
+        "business_type",
+        user.businessType != null && String(user.businessType).trim() !== ""
+          ? String(user.businessType).trim()
+          : "",
+      );
     }
 
     toast.success(`Welcome back, ${user.UserName}!`);
-   
+
     const queryParams = new URLSearchParams({
       hotel: user.HotelName || "",
       logo: user.LogoUrl || "",
       role: user.Role,
     });
 
+    const bt =
+      user.businessType != null && String(user.businessType).trim() !== ""
+        ? String(user.businessType).trim()
+        : "";
+    const lodgingStore =
+      bt === "Hotel" || bt === "Resort" || bt === "Pension";
+
     switch (user.Role) {
       case "Admin":
         router.push(`/Admin?${queryParams}`);
+        break;
+      case "Manager":
+        router.push(`/Manager?${queryParams}`);
+        break;
+      case "CostControl":
+        router.push(`/CostControl?${queryParams}`);
+        break;
+      case "Finance":
+        router.push(`/Finance?${queryParams}`);
         break;
       case "Cashier":
         router.push(`/Cashier?${queryParams}`);
@@ -587,7 +627,9 @@ export async function LoginAction(
         router.push(`/Chef?${queryParams}`);
         break;
       case "Store":
-        router.push(`/Store?${queryParams}`);
+        router.push(
+          lodgingStore ? `/HotelStore?${queryParams}` : `/Store?${queryParams}`,
+        );
         break;
       default:
         toast.error("No Role Found");
@@ -634,7 +676,7 @@ export async function LoginAction(
 export function logoutAction() {
   if (typeof window !== "undefined") {
     localStorage.clear();
-    window.location.href = "/login";
+    window.location.href = "/";
   }
 }
 
@@ -649,6 +691,7 @@ export function getCurrentUser(): User | null {
   if (!role || !hotelName) return null;
 
   const tin = localStorage.getItem("tin_number");
+  const businessType = localStorage.getItem("business_type");
 
   return {
     id: 0,
@@ -657,6 +700,7 @@ export function getCurrentUser(): User | null {
     HotelName: hotelName,
     tinNumber: tin || hotelName,
     LogoUrl: logoUrl || "",
+    businessType: businessType || null,
   };
 }
 
@@ -3242,4 +3286,521 @@ export async function DeleteItemStatus(id: number) {
     toast.error("Failed to Delete Item Status")
     throw error
   }
+}
+
+/* --- Hotel inventory workflow (GraphQL) --- */
+
+export interface PurchaseRequestRow {
+  id: number;
+  HotelName: string;
+  itemName: string;
+  quantity: number;
+  measuredBy: string;
+  notes: string;
+  estimatedUnitPrice: number;
+  supplierName: string;
+  supplierPhone: string;
+  category: string;
+  status: string;
+  storeUserName: string;
+  ccProfileId?: number | null;
+  ccActorName?: string | null;
+  ccApprovedAt?: string | null;
+  financeActorName?: string | null;
+  financeApprovedAt?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+}
+
+export interface StockOutRequestRow {
+  id: number;
+  HotelName: string;
+  itemRegistrationId: number;
+  /** From inventory registration; empty if row deleted */
+  itemName: string;
+  movementType: string;
+  amount: number;
+  stakeHolderOrReason: string;
+  status: string;
+  requestedByUserName: string;
+  ccProfileId?: number | null;
+  ccActorName?: string | null;
+  decidedAt?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+}
+
+export interface CostControllerProfileRow {
+  id: number;
+  displayName: string;
+  HotelName: string;
+  createdAt: string;
+}
+
+export interface KitchenBarBeginningRow {
+  id: number;
+  HotelName: string;
+  station: string;
+  itemName: string;
+  amount: number;
+  measuredBy: string;
+  monthPeriod: string;
+  notes: string;
+  createdAt: string;
+}
+
+export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
+  const query = `
+    query {
+      purchaseRequests {
+        id
+        HotelName
+        itemName
+        quantity
+        measuredBy
+        notes
+        estimatedUnitPrice
+        supplierName
+        supplierPhone
+        category
+        status
+        storeUserName
+        ccProfileId
+        ccActorName
+        ccApprovedAt
+        financeActorName
+        financeApprovedAt
+        rejectionReason
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load purchase requests",
+    );
+  }
+  return response.data.data.purchaseRequests || [];
+}
+
+export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
+  const query = `
+    query {
+      stockOutRequests {
+        id
+        HotelName
+        itemRegistrationId
+        itemName
+        movementType
+        amount
+        stakeHolderOrReason
+        status
+        requestedByUserName
+        ccProfileId
+        ccActorName
+        decidedAt
+        rejectionReason
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load stock-out requests",
+    );
+  }
+  return response.data.data.stockOutRequests || [];
+}
+
+export async function fetchCostControllerProfiles(): Promise<
+  CostControllerProfileRow[]
+> {
+  const query = `
+    query {
+      costControllerProfiles {
+        id
+        displayName
+        HotelName
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load CC profiles",
+    );
+  }
+  return response.data.data.costControllerProfiles || [];
+}
+
+export async function fetchKitchenBarBeginnings(): Promise<
+  KitchenBarBeginningRow[]
+> {
+  const query = `
+    query {
+      kitchenBarBeginnings {
+        id
+        HotelName
+        station
+        itemName
+        amount
+        measuredBy
+        monthPeriod
+        notes
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load beginnings",
+    );
+  }
+  return response.data.data.kitchenBarBeginnings || [];
+}
+
+export async function createPurchaseRequestApi(input: {
+  itemName: string;
+  quantity: number;
+  measuredBy: string;
+  notes?: string;
+  estimatedUnitPrice?: number;
+  supplierName?: string;
+  supplierPhone?: string;
+  category?: string;
+}) {
+  const mutation = `
+    mutation CreatePurchaseRequest(
+      $itemName: String!
+      $quantity: Float!
+      $measuredBy: String!
+      $notes: String
+      $estimatedUnitPrice: Float
+      $supplierName: String
+      $supplierPhone: String
+      $category: String
+    ) {
+      createPurchaseRequest(
+        itemName: $itemName
+        quantity: $quantity
+        measuredBy: $measuredBy
+        notes: $notes
+        estimatedUnitPrice: $estimatedUnitPrice
+        supplierName: $supplierName
+        supplierPhone: $supplierPhone
+        category: $category
+      ) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Request failed");
+  }
+  toast.success("Purchase request submitted");
+  return response.data.data.createPurchaseRequest;
+}
+
+export async function createStockOutRequestApi(input: {
+  itemRegistrationId: number;
+  movementType: string;
+  amount: number;
+  stakeHolderOrReason: string;
+}) {
+  const mutation = `
+    mutation CreateStockOutRequest(
+      $itemRegistrationId: Int!
+      $movementType: String!
+      $amount: Float!
+      $stakeHolderOrReason: String!
+    ) {
+      createStockOutRequest(
+        itemRegistrationId: $itemRegistrationId
+        movementType: $movementType
+        amount: $amount
+        stakeHolderOrReason: $stakeHolderOrReason
+      ) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Request failed");
+  }
+  toast.success("Movement submitted for cost control approval");
+  return response.data.data.createStockOutRequest;
+}
+
+export async function approvePurchaseRequestCCApi(
+  id: number,
+  costControllerProfileId: number,
+) {
+  const mutation = `
+    mutation ApproveCC($id: Int!, $costControllerProfileId: Int!) {
+      approvePurchaseRequestCC(id: $id, costControllerProfileId: $costControllerProfileId) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, costControllerProfileId },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approval failed");
+  }
+  toast.success("Forwarded to finance");
+  return response.data.data.approvePurchaseRequestCC;
+}
+
+export async function rejectPurchaseRequestCCApi(id: number, reason?: string) {
+  const mutation = `
+    mutation RejectCC($id: Int!, $reason: String) {
+      rejectPurchaseRequestCC(id: $id, reason: $reason) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  toast.success("Request rejected");
+  return response.data.data.rejectPurchaseRequestCC;
+}
+
+export async function approvePurchaseRequestFinanceApi(id: number) {
+  const mutation = `
+    mutation ApproveFin($id: Int!) {
+      approvePurchaseRequestFinance(id: $id) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approval failed");
+  }
+    toast.success(
+      "Payment approved — store registers stock when goods are received",
+    );
+  return response.data.data.approvePurchaseRequestFinance;
+}
+
+export async function rejectPurchaseRequestFinanceApi(
+  id: number,
+  reason?: string,
+) {
+  const mutation = `
+    mutation RejectFin($id: Int!, $reason: String) {
+      rejectPurchaseRequestFinance(id: $id, reason: $reason) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  toast.success("Request rejected");
+  return response.data.data.rejectPurchaseRequestFinance;
+}
+
+export async function approveStockOutRequestApi(
+  id: number,
+  costControllerProfileId: number,
+) {
+  const mutation = `
+    mutation ApproveSO($id: Int!, $costControllerProfileId: Int!) {
+      approveStockOutRequest(id: $id, costControllerProfileId: $costControllerProfileId) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, costControllerProfileId },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approval failed");
+  }
+  toast.success("Movement applied to inventory");
+  return response.data.data.approveStockOutRequest;
+}
+
+export async function rejectStockOutRequestApi(id: number, reason?: string) {
+  const mutation = `
+    mutation RejectSO($id: Int!, $reason: String) {
+      rejectStockOutRequest(id: $id, reason: $reason) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  toast.success("Request rejected");
+  return response.data.data.rejectStockOutRequest;
+}
+
+export async function createCostControllerProfileApi(displayName: string) {
+  const mutation = `
+    mutation Ccp($displayName: String!) {
+      createCostControllerProfile(displayName: $displayName) {
+        id
+        displayName
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { displayName },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Failed to add profile");
+  }
+  toast.success("Cost controller identity added");
+  return response.data.data.createCostControllerProfile;
+}
+
+export async function deleteCostControllerProfileApi(id: number) {
+  const mutation = `
+    mutation Dcp($id: Int!) {
+      deleteCostControllerProfile(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Delete failed");
+  }
+  toast.success("Profile removed");
+}
+
+export async function createKitchenBarBeginningApi(vars: {
+  station: string;
+  itemName: string;
+  amount: number;
+  measuredBy: string;
+  monthPeriod: string;
+  notes?: string;
+}) {
+  const mutation = `
+    mutation Kbb(
+      $station: String!
+      $itemName: String!
+      $amount: Float!
+      $measuredBy: String!
+      $monthPeriod: String!
+      $notes: String
+    ) {
+      createKitchenBarBeginning(
+        station: $station
+        itemName: $itemName
+        amount: $amount
+        measuredBy: $measuredBy
+        monthPeriod: $monthPeriod
+        notes: $notes
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query: mutation, variables: vars });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Save failed");
+  }
+  toast.success("Beginning recorded");
+  return response.data.data.createKitchenBarBeginning;
+}
+
+export async function updateKitchenBarBeginningApi(vars: {
+  id: number;
+  station: string;
+  itemName: string;
+  amount: number;
+  measuredBy: string;
+  monthPeriod: string;
+  notes?: string;
+}) {
+  const mutation = `
+    mutation Ukbb(
+      $id: Int!
+      $station: String!
+      $itemName: String!
+      $amount: Float!
+      $measuredBy: String!
+      $monthPeriod: String!
+      $notes: String
+    ) {
+      updateKitchenBarBeginning(
+        id: $id
+        station: $station
+        itemName: $itemName
+        amount: $amount
+        measuredBy: $measuredBy
+        monthPeriod: $monthPeriod
+        notes: $notes
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query: mutation, variables: vars });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  toast.success("Updated");
+  return response.data.data.updateKitchenBarBeginning;
+}
+
+export async function deleteKitchenBarBeginningApi(id: number) {
+  const mutation = `
+    mutation Dkbb($id: Int!) {
+      deleteKitchenBarBeginning(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Delete failed");
+  }
+  toast.success("Removed");
 }

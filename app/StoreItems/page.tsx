@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
 import { fetchItemRegistrations, ItemRegistration } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
 import UpdateStock from "@/components/UpdateStock";
 import {
@@ -14,8 +15,16 @@ import { Calendar } from "@/components/ui/calendar";
 
 export default function StoreItems({
   items = [],
+  hotelStockApprovals = false,
+  tenantScope = null,
+  embedded = false,
 }: {
   items?: ItemRegistration[];
+  hotelStockApprovals?: boolean;
+  /** When set, fetched rows are limited to this property (same as Store terminal). */
+  tenantScope?: string | null;
+  /** Nested under another page (e.g. cost control): compact chrome; parent loads initial rows. */
+  embedded?: boolean;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemRegistration | null>(null);
@@ -26,25 +35,36 @@ export default function StoreItems({
     Array.isArray(items) ? items : []
   );
 
+  const scopeRows = useCallback(
+    (rows: ItemRegistration[]) => {
+      const t = tenantScope?.trim();
+      if (!t) return rows;
+      return rows.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t));
+    },
+    [tenantScope],
+  );
+
   const refresh = useCallback(async () => {
     try {
       const freshData = await fetchItemRegistrations();
-      setData(freshData);
+      setData(scopeRows(freshData));
     } catch (error) {
       console.error("Failed to refresh data:", error);
     }
-  }, []);
+  }, [scopeRows]);
 
   useEffect(() => {
+    // Embedded views get initial rows from the parent; skip remote fetch on first paint only.
+    if (embedded && refreshTrigger === 0) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- refetch mutates local table state
     void refresh();
-  }, [refresh, refreshTrigger]);
+  }, [refresh, refreshTrigger, embedded]);
 
   // Keep local table in sync when parent passes new `items` (prop-driven refresh).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror props into editable list state
-    setData(Array.isArray(items) ? items : []);
-  }, [items]);
+    setData(scopeRows(Array.isArray(items) ? items : []));
+  }, [items, scopeRows]);
 
   const handleEdit = (item: ItemRegistration) => {
     setSelectedItem(item);
@@ -62,9 +82,20 @@ export default function StoreItems({
       )
     : data;
 
-  return (
-    <main className="container mx-auto py-8 px-4 md:px-8 space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b pb-6">
+  const Root = embedded ? "div" : "main";
+  const shellClass = embedded
+    ? "w-full space-y-4 animate-in fade-in duration-300"
+    : "container mx-auto py-8 px-4 md:px-8 space-y-8 animate-in fade-in duration-500";
+
+  const headerBlock = (
+    <div
+      className={
+        embedded
+          ? "flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-border/60 pb-4"
+          : "flex flex-col md:flex-row md:items-end justify-between gap-6 border-b pb-6"
+      }
+    >
+      {!embedded && (
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
             <LayoutGrid size={24} />
@@ -74,42 +105,64 @@ export default function StoreItems({
             Live stock tracking and supplier verification for Apex Solutions.
           </p>
         </div>
+      )}
 
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-px bg-border mx-2 hidden md:block" />
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Filter by Arrival</span>
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-56 justify-between border-dashed hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm"
-                >
-                  <span className="flex items-center gap-2 font-semibold">
-                    <CalendarIcon size={14} className="text-primary" />
-                    {date ? date.toLocaleDateString() : "All Historical Data"}
-                  </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 border-none shadow-2xl" align="end">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={(d) => { setDate(d); setOpen(false); }}
-                  initialFocus
-                  className="rounded-xl border bg-card"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+      <div
+        className={`flex items-center gap-3 ${embedded ? "w-full sm:w-auto sm:ml-auto" : ""}`}
+      >
+        {!embedded && <div className="h-10 w-px bg-border mx-2 hidden md:block" />}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
+            Filter by Arrival
+          </span>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={
+                  embedded
+                    ? "w-full sm:w-56 justify-between border-dashed border-primary/25 hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm"
+                    : "w-56 justify-between border-dashed hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm"
+                }
+              >
+                <span className="flex items-center gap-2 font-semibold">
+                  <CalendarIcon size={14} className="text-primary" />
+                  {date ? date.toLocaleDateString() : "All Historical Data"}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 border-none shadow-2xl" align="end">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(d) => {
+                  setDate(d);
+                  setOpen(false);
+                }}
+                initialFocus
+                className="rounded-xl border bg-card"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
+    </div>
+  );
 
-      <div className="bg-card rounded-2xl border border-border/60 shadow-xl shadow-black/2 overflow-hidden">
+  const tableShell = embedded
+    ? "rounded-xl border border-border/60 bg-card/80 shadow-inner overflow-hidden"
+    : "bg-card rounded-2xl border border-border/60 shadow-xl shadow-black/2 overflow-hidden";
+
+  return (
+    <Root className={shellClass}>
+      {headerBlock}
+
+      <div className={tableShell}>
         <DataTableClientWrapper
           data={filteredData}
           onEdit={handleEdit}
           refresh={refresh}
+          hotelStockApprovals={hotelStockApprovals}
         />
       </div>
 
@@ -119,6 +172,6 @@ export default function StoreItems({
         item={selectedItem}
         onUpdateSuccess={handleUpdateSuccess}
       />
-    </main>
+    </Root>
   );
 }

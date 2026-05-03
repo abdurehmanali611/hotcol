@@ -15,3 +15,8 @@ export function rowHotelMatchesTenantScope(
   if (display && row === display) return true;
   return false;
 }
+
+/** Compare inventory item names (trim + case-insensitive). */
+export function normalizeInventoryItemName(name: string): string {
+  return String(name ?? "").trim().toLowerCase();
+}

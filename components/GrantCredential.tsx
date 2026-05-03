@@ -19,9 +19,16 @@ interface GrantCredentialProps {
   hotelName: string;
   logoUrl?: string;
   onSubmit: (data: any) => Promise<void>;
+  /** Hotel manager grants cost control / finance / store roles */
+  variant?: "cafe" | "hotel";
 }
 
-export default function GrantCredential({ hotelName, logoUrl, onSubmit }: GrantCredentialProps) {
+export default function GrantCredential({
+  hotelName,
+  logoUrl,
+  onSubmit,
+  variant = "cafe",
+}: GrantCredentialProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof createCredentialSchema>>({
@@ -30,7 +37,7 @@ export default function GrantCredential({ hotelName, logoUrl, onSubmit }: GrantC
       UserName: "",
       Password: "",
       confirmPassword: "",
-      Role: "Kitchen",
+      Role: variant === "hotel" ? "Store" : "Kitchen",
       HotelName: hotelName,
       LogoUrl: logoUrl || "",
     },
@@ -55,7 +62,9 @@ export default function GrantCredential({ hotelName, logoUrl, onSubmit }: GrantC
             <CardTitle className="text-xl">Staff Access Management</CardTitle>
           </div>
           <CardDescription>
-            Create new login credentials for kitchen or bar staff members.
+            {variant === "hotel"
+              ? "Create access for cost control, finance, or hotel store staff."
+              : "Create new login credentials for kitchen or bar staff members."}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0">
@@ -89,10 +98,26 @@ export default function GrantCredential({ hotelName, logoUrl, onSubmit }: GrantC
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Kitchen">Kitchen (Chef)</SelectItem>
-                          <SelectItem value="Barista">Bar (Barista)</SelectItem>
-                          <SelectItem value="Cashier">Cash (Cashier)</SelectItem>
-                          <SelectItem value="Store">Store Keeper</SelectItem>
+                          {variant === "hotel" ? (
+                            <>
+                              <SelectItem value="CostControl">
+                                Cost control
+                              </SelectItem>
+                              <SelectItem value="Finance">Finance</SelectItem>
+                              <SelectItem value="Store">Hotel store</SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="Kitchen">
+                                Kitchen (Chef)
+                              </SelectItem>
+                              <SelectItem value="Barista">
+                                Bar (Barista)
+                              </SelectItem>
+                              <SelectItem value="Cashier">Cash (Cashier)</SelectItem>
+                              <SelectItem value="Store">Store Keeper</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />

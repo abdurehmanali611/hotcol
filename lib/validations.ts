@@ -97,9 +97,19 @@ export const createCredentialSchema = z
     UserName: z.string().min(2, "Username must be at least 2 characters long"),
     Password: z.string().min(6, "Password must be at least 6 characters long"),
     confirmPassword: z.string().min(6, "Please confirm your password"),
-    Role: z.enum(["Kitchen", "Barista", "Cashier", "Store"], {
-      message: "Invalid role",
-    }),
+    Role: z.enum(
+      [
+        "Kitchen",
+        "Barista",
+        "Cashier",
+        "Store",
+        "CostControl",
+        "Finance",
+      ],
+      {
+        message: "Invalid role",
+      },
+    ),
     HotelName: z.string().min(1, "Hotel name is required"),
     LogoUrl: z.string().url("Valid logo URL is required").optional(),
   })
@@ -118,9 +128,19 @@ export const updateCredentialSchema = z
     Password: z.string().min(6, "Password must be at least 6 characters long"),
     confirmPassword: z.string().min(6, "Please confirm your password"),
     HotelName: z.string().min(1, "Hotel name is required"),
-    Role: z.enum(["Kitchen", "Barista", "Cashier", "Store"], {
-      message: "Invalid role",
-    }),
+    Role: z.enum(
+      [
+        "Kitchen",
+        "Barista",
+        "Cashier",
+        "Store",
+        "CostControl",
+        "Finance",
+      ],
+      {
+        message: "Invalid role",
+      },
+    ),
   })
   .refine((data) => data.Password === data.confirmPassword, {
     message: "Passwords don't match",

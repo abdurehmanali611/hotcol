@@ -3,7 +3,7 @@
 import { fetchItemStatus, ItemStatus } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, FilterX } from "lucide-react";
@@ -12,13 +12,19 @@ import { Calendar } from "@/components/ui/calendar";
 export default function Inactive({
   items,
   admin,
-  hotelName
+  hotelName,
+  embedded = false,
 }: {
   items: ItemStatus[];
   admin: boolean;
   hotelName: string | null;
+  embedded?: boolean;
 }) {
   const [data, setData] = useState<ItemStatus[]>(items);
+
+  useEffect(() => {
+    setData(items);
+  }, [items]);
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(undefined);
 
@@ -41,16 +47,22 @@ export default function Inactive({
     : data;
 
   return (
-    <div className="flex flex-col gap-8 animate-in fade-in duration-700">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            Historical Audit Logs
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Tracking movement and payments for {hotelName}.
-          </p>
-        </div>
+    <div
+      className={`flex flex-col ${embedded ? "gap-4" : "gap-8"} animate-in fade-in duration-700`}
+    >
+      <div
+        className={`flex flex-col md:flex-row md:items-center gap-4 ${embedded ? "justify-end" : "justify-between"}`}
+      >
+        {!embedded && (
+          <div>
+            <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              Historical Audit Logs
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Tracking movement and payments for {hotelName}.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           {date && (
@@ -90,7 +102,13 @@ export default function Inactive({
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border/50 shadow-sm overflow-hidden">
+      <div
+        className={
+          embedded
+            ? "rounded-xl border border-border/60 bg-card/80 shadow-inner overflow-hidden"
+            : "bg-card rounded-xl border border-border/50 shadow-sm overflow-hidden"
+        }
+      >
         <DataTableClientWrapper data={filteredData ?? []} admin={admin} refresh={refreshData}/>
       </div>
     </div>

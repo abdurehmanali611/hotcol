@@ -22,6 +22,7 @@ import {
   fetchItemStatus,
   ItemRegistration,
   ItemStatus,
+  logoutAction,
   uploadImage,
 } from "@/lib/actions";
 import { useSearchParams } from "next/navigation";
@@ -29,29 +30,72 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Building,
+  ClipboardList,
   Edit,
   Loader2,
   MinusCircle,
   PackagePlus,
   RefreshCw,
+  Send,
   ShoppingCart,
   StoreIcon,
 } from "lucide-react";
+import PurchaseRequestsTab from "@/components/hotel/PurchaseRequestsTab";
+import StoreRequestStatusTab from "@/components/hotel/StoreRequestStatusTab";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import StoreItems from "../../StoreItems/page";
 import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
 import { Separator } from "@/components/ui/separator";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import {
+  normalizeInventoryItemName,
+  rowHotelMatchesTenantScope,
+} from "@/lib/tenantRowMatch";
 
-function StoreComponent() {
+type StoreView =
+  | "Register"
+  | "Active"
+  | "Supplier"
+  | "Inactive"
+  | "Purchases"
+  | "RequestStatus";
+
+const HOTEL_STORE_NAV: {
+  id: StoreView;
+  label: string;
+  icon: typeof PackagePlus;
+}[] = [
+  { id: "Register", label: "Register", icon: PackagePlus },
+  { id: "Active", label: "Inventory", icon: ShoppingCart },
+  { id: "Inactive", label: "Inactive", icon: MinusCircle },
+  { id: "Supplier", label: "Suppliers", icon: StoreIcon },
+  { id: "Purchases", label: "Purchase req.", icon: Send },
+  { id: "RequestStatus", label: "Request status", icon: ClipboardList },
+];
+
+export function StoreComponent({
+  hotelInventory = false,
+}: {
+  hotelInventory?: boolean;
+}) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeView, setActiveView] = useState<
-    "Register" | "Active" | "Supplier" | "Inactive"
-  >("Register");
+  const [activeView, setActiveView] = useState<StoreView>("Register");
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
   const searchedParams = useSearchParams();
@@ -124,18 +168,42 @@ function StoreComponent() {
     }
   }, [tenantScope, form]);
 
+  useEffect(() => {
+    if (hotelInventory) {
+      form.setValue("dutyFee", 0);
+    }
+  }, [hotelInventory, form]);
+
   const onSubmit = async (values: z.infer<typeof ItemRegistrationSchema>) => {
     try {
       setLoading(true)
-      const hasEnoughPityCash = await checkPityCashBalance(
-        values.HotelName,
-        values.amount * values.unitPrice + values.dutyFee,
-      );
-      if (!hasEnoughPityCash) {
-        toast.error("Insufficient Petty Cash balance");
-        return;
+      const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
+      const want = normalizeInventoryItemName(payload.name);
+      if (want.length > 0) {
+        const dup = storeItem.find(
+          (it) =>
+            rowHotelMatchesTenantScope(it.HotelName, tenantScope) &&
+            normalizeInventoryItemName(it.name) === want,
+        );
+        if (dup) {
+          toast.error(
+            "The item already exists. You can edit it from the Inventory tab.",
+          );
+          setLoading(false);
+          return;
+        }
       }
-      await CreateItemRegistration(values);
+      if (!hotelInventory) {
+        const hasEnoughPityCash = await checkPityCashBalance(
+          payload.HotelName,
+          payload.amount * payload.unitPrice + payload.dutyFee,
+        );
+        if (!hasEnoughPityCash) {
+          toast.error("Insufficient Petty Cash balance");
+          return;
+        }
+      }
+      await CreateItemRegistration(payload);
       toast.success("Item created successfully!");
       form.reset();
       setPreviewUrl(null);
@@ -147,54 +215,101 @@ function StoreComponent() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col gap-6 pb-10">
-      {/* Header with glassmorphism optimized for dark mode */}
-      <header className="bg-background/60 backdrop-blur-xl border-b border-border sticky top-0 z-30 transition-all">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8">
-          <div className="flex flex-col md:flex-row md:h-24 py-4 md:py-0 items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-              <div className="relative h-14 w-14 group">
-                <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-md transition-transform group-hover:scale-105">
-                  <AvatarImage
-                    src={logoUrl || ""}
-                    alt={displayLabel}
-                    className="object-cover"
-                  />
-                  <AvatarFallback className="bg-muted">
-                    <Building className="text-muted-foreground h-6 w-6" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-1 -right-1 bg-emerald-500 h-4 w-4 rounded-full border-2 border-background shadow-sm" />
+  const storeWorkspaceIntro: Record<
+    StoreView,
+    { title: string; description: string; Icon: typeof PackagePlus }
+  > = {
+    Register: {
+      title: "Register new items",
+      description:
+        "Create new inventory lines for this property. For hotels, duty fee is fixed to 0 to keep purchasing consistent.",
+      Icon: PackagePlus,
+    },
+    Active: {
+      title: "Active inventory",
+      description:
+        "Live quantities for this property — filter, edit, and approve movements where applicable.",
+      Icon: ShoppingCart,
+    },
+    Inactive: {
+      title: "Inactive items",
+      description:
+        "Depleted or written-off lines and movement history for auditing and review.",
+      Icon: MinusCircle,
+    },
+    Supplier: {
+      title: "Suppliers",
+      description:
+        "Supplier records linked to registered inventory for quick purchasing follow-ups.",
+      Icon: StoreIcon,
+    },
+    Purchases: {
+      title: "Purchase requests",
+      description:
+        "Create purchase requests for Cost Control and Finance approval, then register stock when goods arrive.",
+      Icon: Send,
+    },
+    RequestStatus: {
+      title: "Request status",
+      description:
+        "Track purchase and movement requests end-to-end with the latest approval status.",
+      Icon: ClipboardList,
+    },
+  };
+
+  const storeTerminalHeader = (
+    <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 backdrop-blur-xl shadow-sm transition-all supports-backdrop-filter:bg-background/75">
+      <div className="w-full px-3 md:px-6">
+        <div className="flex flex-col md:flex-row md:h-24 py-4 md:py-0 items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            {hotelInventory && (
+              <div className="-ml-1 mr-1 pr-3 flex items-center border-r border-border/60">
+                <SidebarTrigger className="size-9 shrink-0 md:size-8" />
               </div>
-              <div className="flex flex-col">
-                <h1 className="text-2xl font-bold tracking-tight leading-tight">
+            )}
+            <div className="relative h-14 w-14 group">
+              <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-md transition-transform group-hover:scale-105">
+                <AvatarImage
+                  src={logoUrl || ""}
+                  alt={displayLabel}
+                  className="object-cover"
+                />
+                <AvatarFallback className="bg-muted">
+                  <Building className="text-muted-foreground h-6 w-6" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -bottom-1 -right-1 bg-emerald-500 h-4 w-4 rounded-full border-2 border-background shadow-sm" />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">
                   {displayLabel}
                 </h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary border border-primary/20">
-                    Inventory Terminal
-                  </span>
-                </div>
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary border border-primary/20">
+                  Inventory Terminal
+                </span>
               </div>
+              <p className="text-xs text-muted-foreground truncate">
+                Register items, manage stock, and track requests
+              </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => loadData()}
-                disabled={loading}
-                className="rounded-full h-10 w-10 border-border hover:bg-accent"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-primary" : ""}`} />
-              </Button>
-              
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => loadData()}
+              disabled={loading}
+              className="rounded-full h-10 w-10 border-border hover:bg-accent"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-primary" : ""}`} />
+            </Button>
+
+            {!hotelInventory && (
               <Tabs
                 value={activeView}
-                onValueChange={(v) =>
-                  setActiveView(v as "Register" | "Active" | "Supplier" | "Inactive")
-                }
+                onValueChange={(v) => setActiveView(v as StoreView)}
                 className="w-auto"
               >
                 <TabsList className="h-12 items-center bg-muted/50 p-1.5 rounded-xl border border-border">
@@ -216,13 +331,15 @@ function StoreComponent() {
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
-            </div>
+            )}
           </div>
         </div>
-      </header>
+      </div>
+    </header>
+  );
 
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 w-full">
-        {activeView === "Register" ? (
+  const panels =
+        activeView === "Register" ? (
           <Card className="max-w-5xl mx-auto shadow-2xl border-border bg-card overflow-hidden">
             <div className="h-1.5 bg-linear-to-r from-emerald-600 via-emerald-400 to-cyan-500" />
             <CardHeader className="pb-4 space-y-1">
@@ -296,7 +413,9 @@ function StoreComponent() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div
+                      className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${hotelInventory ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}
+                    >
                       <CustomFormField
                         name="unitPrice"
                         control={form.control}
@@ -305,14 +424,16 @@ function StoreComponent() {
                         type="number"
                         inputClassName="h-fit p-2 w-56"
                       />
-                      <CustomFormField
-                        name="dutyFee"
-                        control={form.control}
-                        fieldType={formFieldTypes.INPUT}
-                        label="Duty Fee"
-                        type="number"
-                        inputClassName="h-fit p-2 w-56"
-                      />
+                      {!hotelInventory && (
+                        <CustomFormField
+                          name="dutyFee"
+                          control={form.control}
+                          fieldType={formFieldTypes.INPUT}
+                          label="Duty Fee"
+                          type="number"
+                          inputClassName="h-fit p-2 w-56"
+                        />
+                      )}
                       <CustomFormField
                         name="registrationDate"
                         control={form.control}
@@ -372,7 +493,7 @@ function StoreComponent() {
                         inputClassName="h-fit p-2 w-56"
                       />
                     </div>
-                    
+
                     <div className="flex flex-col md:flex-row gap-8 items-end bg-accent/30 p-6 rounded-xl border border-border">
                       <div className="flex-1 w-full">
                         <CustomFormField
@@ -416,7 +537,19 @@ function StoreComponent() {
           </Card>
         ) : activeView === "Active" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-            <StoreItems items={storeItem} />
+            <StoreItems
+              items={storeItem}
+              hotelStockApprovals={hotelInventory}
+              tenantScope={tenantScope}
+            />
+          </div>
+        ) : activeView === "Purchases" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <PurchaseRequestsTab onCreated={() => loadData()} />
+          </div>
+        ) : activeView === "RequestStatus" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300">
+            <StoreRequestStatusTab />
           </div>
         ) : activeView === "Inactive" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
@@ -426,24 +559,188 @@ function StoreComponent() {
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <Suppliers items={storeItem}/>
           </div>
-        )}
+        );
+
+  if (hotelInventory) {
+    return (
+      <SidebarProvider>
+        <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
+          <Sidebar
+            collapsible="icon"
+            className="border-r border-sidebar-border shadow-sm"
+          >
+            <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
+              <div className="flex h-full min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+                  <StoreIcon className="h-[18px] w-[18px]" />
+                </div>
+                <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+                    Terminal
+                  </p>
+                  <span className="block truncate font-semibold leading-tight">
+                    Hotel store
+                  </span>
+                </div>
+              </div>
+            </SidebarHeader>
+            <div className="shrink-0 px-3 pb-2 pt-3">
+              <SidebarSeparator className="bg-sidebar-border/80" />
+            </div>
+            <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
+              <SidebarMenu className="gap-1">
+                {HOTEL_STORE_NAV.map(({ id, label, icon: Icon }) => (
+                  <SidebarMenuItem key={id}>
+                    <SidebarMenuButton
+                      isActive={activeView === id}
+                      onClick={() => setActiveView(id)}
+                      tooltip={label}
+                      size="lg"
+                      className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                    >
+                      <Icon className="opacity-80" />
+                      <span>{label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarContent>
+          <SidebarFooter className="p-4 pt-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              onClick={() => logoutAction()}
+            >
+              <span>Sign out</span>
+            </Button>
+          </SidebarFooter>
+          </Sidebar>
+          <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10 py-4">
+            <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
+              <SidebarTrigger />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
+                  {displayLabel}
+                </h1>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => loadData()}
+                disabled={loading}
+                className={loading ? "animate-spin" : ""}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Avatar className="h-8 w-8 border shadow-sm">
+                <AvatarImage src={logoUrl || ""} alt={displayLabel} />
+                <AvatarFallback>{displayLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20 p-8">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-6 md:py-6 scroll-smooth">
+                <div className="mx-auto max-w-7xl space-y-10 pb-10">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/4 shadow-md overflow-hidden">
+                      <div className="h-0.5 bg-linear-to-r from-emerald-500/80 to-teal-400/60" />
+                      <CardHeader className="pb-2 pt-4">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2.5">
+                            <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <div className="min-w-0 space-y-1">
+                            <CardDescription>Active inventory lines</CardDescription>
+                            <CardTitle className="text-3xl tabular-nums tracking-tight">
+                              {storeItem.length}
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              Registered items for this property
+                            </p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                    <Card className="border-violet-500/20 bg-linear-to-br from-card to-violet-500/5 shadow-md overflow-hidden">
+                      <div className="h-0.5 bg-linear-to-r from-violet-500/70 to-indigo-400/50" />
+                      <CardHeader className="pb-2 pt-4">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-2.5">
+                            <MinusCircle className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                          </div>
+                          <div className="min-w-0 space-y-1">
+                            <CardDescription>Status / inactive rows</CardDescription>
+                            <CardTitle className="text-3xl tabular-nums tracking-tight">
+                              {itemStatus.length}
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              Tracked movements & inactive lines
+                            </p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  </div>
+                  {(() => {
+                    const {
+                      title,
+                      description,
+                      Icon: IntroIcon,
+                    } = storeWorkspaceIntro[activeView];
+                    return (
+                      <Card className="border-primary/15 bg-card/95 shadow-lg backdrop-blur-sm overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+                        <div className="h-1 bg-linear-to-r from-primary/60 via-violet-500/50 to-cyan-500/40" />
+                        <CardHeader className="pb-3 pt-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                            <div className="flex h-fit shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 p-2.5">
+                              <IntroIcon className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="min-w-0 space-y-1">
+                              <CardTitle className="text-xl tracking-tight sm:text-2xl">
+                                {title}
+                              </CardTitle>
+                              <CardDescription className="max-w-2xl text-pretty leading-relaxed">
+                                {description}
+                              </CardDescription>
+                            </div>
+                          </div>
+                        </CardHeader>
+                      </Card>
+                    );
+                  })()}
+                  {panels}
+                </div>
+              </div>
+            </div>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col gap-6 pb-10">
+      {storeTerminalHeader}
+      <main className="p-3 md:p-6">
+        <div className="mx-auto max-w-7xl w-full">
+          {panels}
+        </div>
       </main>
     </div>
   );
 }
 export default function Store() {
   return (
-      <Suspense
-        fallback={
-          <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-muted-foreground animate-pulse">
-              Initializing Terminal...
-            </p>
-          </div>
-        }
-      >
-        <StoreComponent />
-      </Suspense>
-    );
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">
+            Initializing Terminal...
+          </p>
+        </div>
+      }
+    >
+      <StoreComponent hotelInventory={false} />
+    </Suspense>
+  );
 }
