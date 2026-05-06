@@ -6,12 +6,16 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   approvePurchaseRequestFinanceApi,
+  fetchItemRegistrations,
   fetchPurchaseRequests,
   rejectPurchaseRequestFinanceApi,
   logoutAction,
+  type ItemRegistration,
   type PurchaseRequestRow,
 } from "@/lib/actions";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import StoreItems from "@/app/StoreItems/page";
 import {
   Card,
   CardDescription,
@@ -38,6 +42,7 @@ import {
   RefreshCw,
   Wallet,
   XCircle,
+  LayoutGrid,
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import { formatPurchaseStatus } from "@/lib/hotelDisplayLabels";
@@ -46,25 +51,36 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function FinanceInner() {
   const searchParams = useSearchParams();
-  const { displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
+  const { displayName, tenantScope } = useTenantScopeAndDisplay(
+    searchParams.get("hotel"),
+  );
   const logoUrl = searchParams.get("logo") || "";
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
+  const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const all = await fetchPurchaseRequests();
+      const [all, regs] = await Promise.all([
+        fetchPurchaseRequests(),
+        fetchItemRegistrations(),
+      ]);
       setRows(all);
+      const t = String(tenantScope ?? "").trim();
+      const regList = regs as ItemRegistration[];
+      setInventoryRows(
+        t ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t)) : regList,
+      );
     } catch (e: any) {
       toast.error(e?.message || "Failed to load");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [tenantScope]);
 
   useEffect(() => {
     void load();
@@ -184,6 +200,10 @@ function FinanceInner() {
             <TabsTrigger value="history" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <History className="h-4 w-4 opacity-80" />
               History
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <LayoutGrid className="h-4 w-4 opacity-80" />
+              Active inventory
             </TabsTrigger>
           </TabsList>
 
@@ -397,6 +417,30 @@ function FinanceInner() {
             </div>
           )}
         </section>
+          </TabsContent>
+
+          <TabsContent value="inventory" className="space-y-4 mt-2">
+            <section className="space-y-4">
+              <Card className="border-violet-500/15 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+                <div className="h-0.5 bg-linear-to-r from-violet-500/60 to-primary/40" />
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg sm:text-xl tracking-tight">
+                    Active inventory & supplier payment
+                  </CardTitle>
+                  <CardDescription className="text-pretty max-w-2xl">
+                    Read-only mirror of store stock lines with fully paid vs on-credit
+                    status — same totals cost control sees.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+              <StoreItems
+                items={inventoryRows}
+                tenantScope={tenantScope}
+                embedded
+                readOnly
+                showPaymentSummary
+              />
+            </section>
           </TabsContent>
         </Tabs>
 

@@ -50,6 +50,7 @@ interface AdminInventoryProps {
 }
 
 const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
+  const [displayName, setDisplayName] = useState(hotelName);
   const [loading, setLoading] = useState(false);
   const [pityCashSummary, setPityCashSummary] = useState<PityCashType | null>(
     null,
@@ -111,6 +112,11 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
     loadData();
   }, [hotelName, form]);
 
+  useEffect(() => {
+    const d = localStorage.getItem("hotel_display_name")?.trim();
+    if (d) setDisplayName(d);
+  }, []);
+
   const onSubmit = async (values: z.infer<typeof pityCashSchema>) => {
     try {
       setLoading(true);
@@ -152,7 +158,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
           Inventory & Liquidity
         </h1>
         <p className="text-muted-foreground">
-          Manage {hotelName}&apos;s petty cash and supplier stock cycles.
+          Manage {displayName}&apos;s petty cash and supplier stock cycles.
         </p>
       </header>
 
@@ -232,7 +238,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                     </span>
                   </div>
                   <p className="text-zinc-400 text-sm font-medium">
-                    {hotelName} Admin Card
+                    {displayName} Admin Card
                   </p>
                 </div>
                 <Wallet className="text-white/20" size={32} />
@@ -288,7 +294,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-zinc-400">
                           This will wipe the current cash records for{" "}
-                          {hotelName}. This action cannot be undone.
+                          {displayName}. This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

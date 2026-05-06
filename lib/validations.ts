@@ -105,6 +105,7 @@ export const createCredentialSchema = z
         "Store",
         "CostControl",
         "Finance",
+        "HotelCashier",
       ],
       {
         message: "Invalid role",
@@ -136,6 +137,7 @@ export const updateCredentialSchema = z
         "Store",
         "CostControl",
         "Finance",
+        "HotelCashier",
       ],
       {
         message: "Invalid role",
@@ -290,6 +292,84 @@ export const creditLevelSchema = z.object({
 
 export const creditLevelSchemaUpdate = creditLevelSchema.extend({
   id: z.number().min(1, "Credit Level ID is required"),
+});
+
+/** Manager-defined hotel corporate (B2B) credit tiers — used by ManagerCorporateCreditTiers + cashier company deals. */
+export const HOTEL_CORPORATE_CREDIT_TIMEFRAMES = [
+  "Daily",
+  "Weekly",
+  "Monthly",
+  "Yearly",
+] as const;
+
+export type HotelCorporateCreditTimeframe =
+  (typeof HOTEL_CORPORATE_CREDIT_TIMEFRAMES)[number];
+
+/** Café AdminCredit `timeFrame` values — corporate tier form matches café exactly. */
+export const CAFE_CREDIT_TIMEFRAMES = ["Daily", "Weekly", "Monthly"] as const;
+
+export type CafeCreditTimeframe = (typeof CAFE_CREDIT_TIMEFRAMES)[number];
+
+/** Café-style tier levels (same as `creditLevelSchema.level`). */
+export const CAFE_CREDIT_LEVELS = ["Bronze", "Silver", "Gold"] as const;
+
+export type CafeCreditLevel = (typeof CAFE_CREDIT_LEVELS)[number];
+
+/** Hotel manager corporate tiers — café levels plus Platinum (top tier). */
+export const HOTEL_CORPORATE_CREDIT_TIER_LEVELS = [
+  "Platinum",
+  "Gold",
+  "Silver",
+  "Bronze",
+] as const;
+
+export type HotelCorporateCreditTierLevelName =
+  (typeof HOTEL_CORPORATE_CREDIT_TIER_LEVELS)[number];
+
+/** Display / card ordering: Platinum first, then Gold → Bronze. */
+export const HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER: Record<
+  HotelCorporateCreditTierLevelName,
+  number
+> = {
+  Platinum: 0,
+  Gold: 1,
+  Silver: 2,
+  Bronze: 3,
+};
+
+/** Manager corporate tier config — same fields/logic as café credit tiers. */
+export const hotelCorporateCreditTierFormSchema = z.object({
+  name: z.enum(HOTEL_CORPORATE_CREDIT_TIER_LEVELS, {
+    message: "Select a tier level",
+  }),
+  creditCeiling: z.number().min(0, "Amount must be positive"),
+  timeInterval: z.number().min(0, "Please Enter Valid Number"),
+  timeFrame: z.enum(CAFE_CREDIT_TIMEFRAMES, {
+    message: "Time frame must be Daily, Weekly, or Monthly",
+  }),
+  sortOrder: z.number().min(0),
+});
+
+export const hotelCreditCompanyDealFormSchema = z.object({
+  companyName: z.string().min(2, "Company name is required"),
+  contactName: z.string().optional(),
+  phoneNumber: z.string().min(8, "Phone number is required"),
+  email: z
+    .union([z.literal(""), z.string().email("Enter a valid email")])
+    .optional(),
+  dealNotes: z.string().optional(),
+  hotelCorporateCreditTierId: z
+    .number()
+    .min(1, "Select a manager-defined tier"),
+});
+
+export const hotelCreditPartyQuickFormSchema = z.object({
+  displayName: z.string().min(2, "Guest or staff name is required"),
+  phoneNumber: z.string().optional(),
+});
+
+export const hotelCreditConsumptionMetaFormSchema = z.object({
+  occurredAt: z.string().min(1, "Date and time are required"),
 });
 
 export const creditRegistrationSchema = z.object({

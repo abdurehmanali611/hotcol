@@ -36,7 +36,7 @@ function CashierContent() {
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
   );
-  const displayLabel = displayName || "Hotel";
+  const displayLabel = displayName || "Cafe";
   const logoUrl = searchParams.get("logo") || "";
 
   const [activeView, setActiveView] = useState<
@@ -257,7 +257,10 @@ function CashierContent() {
             </div>
           ) : activeView === "credit" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <CreditRegistrationForm hotelName={tenantScope} />
+              <CreditRegistrationForm
+                hotelName={tenantScope}
+                businessDisplayName={displayLabel}
+              />
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">

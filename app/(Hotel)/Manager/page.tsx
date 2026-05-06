@@ -10,21 +10,27 @@ import UpdateCredential from "@/components/UpdateCredential";
 import {
   createCredential,
   createCostControllerProfileApi,
+  createItem,
   deleteCostControllerProfileApi,
   deleteCredential,
+  deleteItem,
   fetchCostControllerProfiles,
   fetchCredentials,
   fetchItemRegistrations,
   fetchItemStatus,
+  fetchItems,
   fetchKitchenBarBeginnings,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
   updateAdminPassword,
   updateCredential,
+  uploadImage,
   type CostControllerProfileRow,
+  type Item,
   type ItemRegistration,
 } from "@/lib/actions";
+import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
 import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
 import {
   LayoutDashboard,
@@ -37,6 +43,9 @@ import {
   ClipboardList,
   UserCheck,
   Loader2,
+  BadgePercent,
+  PlusCircle,
+  Edit,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -63,6 +72,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { lineOwedETB } from "@/lib/hotelInventoryPayment";
+import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
+import ItemCreationForm from "@/components/ItemCreation";
+import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 
 type TabId = (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
 
@@ -71,14 +84,21 @@ const sidebarIconMap: Record<
   LucideIcon
 > = {
   LayoutDashboard,
+  PlusCircle,
+  Edit,
   UserCheck,
   Package,
   ArrowRightLeft,
   ShoppingCart,
   ClipboardList,
+  BadgePercent,
   Key,
   RefreshCw,
 };
+
+function round2(n: number): number {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
 
 function ManagerContent() {
   const searchParams = useSearchParams();
@@ -99,6 +119,7 @@ function ManagerContent() {
   const [beginnings, setBeginnings] = useState<any[]>([]);
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [newCcName, setNewCcName] = useState("");
+  const [menuItems, setMenuItems] = useState<Item[]>([]);
 
   const loadData = useCallback(
     async (isRefresh = false) => {
@@ -114,6 +135,7 @@ function ManagerContent() {
           so,
           kb,
           ccp,
+          rawMenu,
         ] = await Promise.all([
           fetchCredentials(),
           fetchItemRegistrations(),
@@ -122,6 +144,7 @@ function ManagerContent() {
           fetchStockOutRequests(),
           fetchKitchenBarBeginnings(),
           fetchCostControllerProfiles(),
+          fetchItems(),
         ]);
         setCredentials(creds);
         setItems(
@@ -138,6 +161,13 @@ function ManagerContent() {
         setStockReqs(so);
         setBeginnings(kb);
         setCcProfiles(ccp);
+        setMenuItems(
+          Array.isArray(rawMenu)
+            ? (rawMenu as Item[]).filter((i) =>
+                rowHotelMatchesTenantScope(i.HotelName, tenantScope),
+              )
+            : [],
+        );
       } catch {
         toast.error("Could not load dashboard data");
       } finally {
@@ -169,6 +199,45 @@ function ManagerContent() {
     ["PENDING_CC", "PENDING_FINANCE"].includes(p.status),
   ).length;
   const pendingStock = stockReqs.filter((s) => s.status === "PENDING").length;
+  const beginningDerivedById = useMemo(() => {
+    const implied = new Map<number, number | null>();
+    const dayUsage = new Map<number, number | null>();
+    const groups = new Map<string, any[]>();
+    for (const b of beginnings) {
+      const k = `${String(b.station || "").trim().toUpperCase()}\t${String(b.itemName || "")
+        .trim()
+        .toLowerCase()}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(b);
+    }
+    for (const [, list] of groups) {
+      list.sort((a, b) =>
+        String(a.calendarDate || "").localeCompare(String(b.calendarDate || "")),
+      );
+      for (let i = 0; i < list.length; i++) {
+        if (i === 0) {
+          implied.set(list[i].id, null);
+          dayUsage.set(list[i].id, null);
+        } else {
+          const prev = list[i - 1];
+          const prevLights =
+            Number(prev.closingOnHand) > 0
+              ? Number(prev.closingOnHand)
+              : Number(prev.amount);
+          implied.set(
+            list[i].id,
+            round2(
+              Number(prev.amount) +
+                Number(prev.stockOutDay) -
+                Number(list[i].amount),
+            ),
+          );
+          dayUsage.set(list[i].id, round2(Number(list[i].amount) - prevLights));
+        }
+      }
+    }
+    return { implied, dayUsage };
+  }, [beginnings]);
 
   const renderContent = () => {
     if (loading) {
@@ -278,17 +347,17 @@ function ManagerContent() {
 
       case "cc-profiles":
         return (
-          <div className="p-4 md:p-6 space-y-6 max-w-lg">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cost controller identities</CardTitle>
+          <div className="p-4 md:p-6 space-y-6 max-w-3xl">
+            <Card className="border-border/80 shadow-sm bg-card/95 overflow-hidden">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg md:text-xl">Cost controller identities</CardTitle>
                 <CardDescription>
                   Shared login selects one of these names when approving (audit for the manager).
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
                 <form
-                  className="flex flex-col sm:flex-row gap-2"
+                  className="rounded-xl border border-border/70 bg-muted/20 p-3 sm:p-4"
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (!newCcName.trim()) return;
@@ -297,25 +366,30 @@ function ManagerContent() {
                     loadData(true);
                   }}
                 >
-                  <Input
-                    placeholder="Full name on duty"
-                    value={newCcName}
-                    onChange={(e) => setNewCcName(e.target.value)}
-                  />
-                  <Button type="submit">Add</Button>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                    <Input
+                      placeholder="Full name on duty"
+                      value={newCcName}
+                      onChange={(e) => setNewCcName(e.target.value)}
+                      className="h-10 w-full border-border/70 bg-background"
+                    />
+                    <Button type="submit" className="h-10 px-5 sm:min-w-28">
+                      Add identity
+                    </Button>
+                  </div>
                 </form>
-                <ul className="divide-y rounded-lg border">
+                <ul className="divide-y rounded-xl border border-border/70 bg-background/70">
                   {ccProfiles.map((p) => (
                     <li
                       key={p.id}
-                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
                     >
-                      <span>{p.displayName}</span>
+                      <span className="font-medium">{p.displayName}</span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="text-destructive"
+                        className="text-destructive hover:text-destructive"
                         onClick={async () => {
                           await deleteCostControllerProfileApi(p.id);
                           loadData(true);
@@ -328,6 +402,45 @@ function ManagerContent() {
                 </ul>
               </CardContent>
             </Card>
+          </div>
+        );
+
+      case "menu-create-item":
+        return (
+          <div className="p-4 md:p-8">
+            <ItemCreationForm
+              hotelName={tenantScope || ""}
+              onSubmit={async (data) => {
+                await createItem({
+                  name: data.name,
+                  price: data.price,
+                  category: data.category,
+                  type: data.type,
+                  imageUrl: data.imageUrl,
+                });
+                loadData(true);
+              }}
+              onImageUpload={uploadImage}
+            />
+          </div>
+        );
+
+      case "menu-update-item":
+        return (
+          <div className="p-4 md:p-8">
+            <UpdateDeleteIntro
+              items={menuItems}
+              hotelName={tenantScope || ""}
+              onUpdate={() => loadData(true)}
+              onDelete={async (id: number) => {
+                try {
+                  await deleteItem(id);
+                  loadData(true);
+                } catch (err: any) {
+                  toast.error(`Failed to delete: ${err.message}`);
+                }
+              }}
+            />
           </div>
         );
 
@@ -350,7 +463,7 @@ function ManagerContent() {
                     <TableCell>{it.amount}</TableCell>
                     <TableCell>{it.measuredBy}</TableCell>
                     <TableCell>
-                      ETB {(it.amount * it.unitPrice).toLocaleString()}
+                      ETB {lineOwedETB(it).toLocaleString()}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -423,18 +536,30 @@ function ManagerContent() {
           </div>
         );
 
+      case "corporate-credit-tiers":
+        return (
+          <div className="p-4 md:p-6">
+            <ManagerCorporateCreditTiers />
+          </div>
+        );
+
       case "reports-beginnings":
         return (
           <div className="p-4 md:p-6 overflow-x-auto">
             <p className="text-sm text-muted-foreground mb-4">
-              Monthly chef / bar beginnings (maintained by cost control). Read-only here.
+              Daily station counts from Cost Control. Stock-out is approved store outflow; lights-out and day usage are derived with the same rules as Cost Control.
             </p>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Date</TableHead>
                   <TableHead>Station</TableHead>
                   <TableHead>Item</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Opening pulse</TableHead>
+                  <TableHead>Approved stock-out</TableHead>
+                  <TableHead>Lights-out</TableHead>
+                  <TableHead>Day usage</TableHead>
+                  <TableHead>Sealed movement</TableHead>
                   <TableHead>Month</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
@@ -442,10 +567,29 @@ function ManagerContent() {
               <TableBody>
                 {beginnings.map((b) => (
                   <TableRow key={b.id}>
-                    <TableCell>{b.station}</TableCell>
+                    <TableCell className="tabular-nums whitespace-nowrap">
+                      {b.calendarDate || `${b.monthPeriod}-01`}
+                    </TableCell>
+                    <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
                     <TableCell>{b.itemName}</TableCell>
                     <TableCell>
                       {b.amount} {b.measuredBy}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {Number(b.stockOutDay ?? 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {Number(b.closingOnHand ?? 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {beginningDerivedById.dayUsage.get(b.id) == null
+                        ? "—"
+                        : Number(beginningDerivedById.dayUsage.get(b.id)).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {beginningDerivedById.implied.get(b.id) == null
+                        ? "—"
+                        : Number(beginningDerivedById.implied.get(b.id)).toFixed(2)}
                     </TableCell>
                     <TableCell>{b.monthPeriod}</TableCell>
                     <TableCell className="max-w-[200px] truncate">
@@ -568,8 +712,12 @@ function ManagerContent() {
                 <h2 className="text-xl md:text-2xl font-bold tracking-tight">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Stock-focused reporting and hotel staff access.
+                <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                  {activeTab === "menu-create-item" || activeTab === "menu-update-item"
+                    ? "Same POS menu as café admin: dishes and drinks with photo, price, and category — visible to hotel cashier corporate deals."
+                    : activeTab === "corporate-credit-tiers"
+                      ? "Cashiers attach these tiers to companies; they cannot invent credit limits."
+                      : "Stock-focused reporting and hotel staff access."}
                 </p>
               </div>
               <Card className="border-none shadow-lg bg-card overflow-hidden">

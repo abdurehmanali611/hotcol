@@ -27,11 +27,26 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} min-h-dvh antialiased`}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
           {children}
-          <Toaster position="top-right" richColors />
+          <Toaster
+            position="top-right"
+            richColors
+            closeButton
+            toastOptions={{
+              classNames: {
+                toast:
+                  "rounded-lg border border-border/60 shadow-lg backdrop-blur-sm",
+              },
+            }}
+          />
         </ThemeProvider>
       </body>
     </html>

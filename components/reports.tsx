@@ -109,12 +109,18 @@ export default function Reports({
   orders,
   hotelName,
 }: any) {
+  const [displayName, setDisplayName] = useState(hotelName);
   const [date, setDate] = useState<Date>(new Date());
   const [reportType, setReportType] = useState<"Daily" | "Monthly">("Daily");
   const [reportData, setReportData] = useState<any>(null);
   const [cashouts, setCashouts] = useState<Cashout[]>([]);
   const [loading, setLoading] = useState(false);
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    const d = localStorage.getItem("hotel_display_name")?.trim();
+    if (d) setDisplayName(d);
+  }, []);
 
   useEffect(() => {
     const loadCashouts = async () => {
@@ -237,7 +243,7 @@ export default function Reports({
             Financial Reports
           </CardTitle>
           <CardDescription>
-            Generate and export sales data for {hotelName}.
+            Generate and export sales data for {displayName}.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">

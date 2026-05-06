@@ -2,12 +2,19 @@ import { Box, CreditCard } from "lucide-react";
 import AdminCredit from "./AdminCredit";
 import AdminInventory from "./AdminInventory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { useState } from "react";
 
 interface InventoryAndCreditProps {
   hotelName: string;
 }
 
 const InventoryAndCredit = ({ hotelName }: InventoryAndCreditProps) => {
+  const [displayName] = useState(() => {
+    if (typeof window === "undefined") return hotelName;
+    const d = localStorage.getItem("hotel_display_name")?.trim();
+    return d || hotelName;
+  });
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <Tabs defaultValue="inventory" className="w-full px-4">
@@ -33,7 +40,7 @@ const InventoryAndCredit = ({ hotelName }: InventoryAndCreditProps) => {
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent/30 border border-border/50">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              {hotelName} Management
+              {displayName} Management
             </span>
           </div>
         </div>

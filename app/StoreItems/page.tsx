@@ -4,6 +4,7 @@ import { fetchItemRegistrations, ItemRegistration } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
 import UpdateStock from "@/components/UpdateStock";
+import { ActiveInventoryPaymentSummary } from "@/components/hotel/ActiveInventoryPaymentSummary";
 import {
   Popover,
   PopoverContent,
@@ -18,6 +19,8 @@ export default function StoreItems({
   hotelStockApprovals = false,
   tenantScope = null,
   embedded = false,
+  readOnly = false,
+  showPaymentSummary = false,
 }: {
   items?: ItemRegistration[];
   hotelStockApprovals?: boolean;
@@ -25,6 +28,10 @@ export default function StoreItems({
   tenantScope?: string | null;
   /** Nested under another page (e.g. cost control): compact chrome; parent loads initial rows. */
   embedded?: boolean;
+  /** Hide row actions (e.g. finance read-only view). */
+  readOnly?: boolean;
+  /** Show paid vs on-credit counts above the table. */
+  showPaymentSummary?: boolean;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemRegistration | null>(null);
@@ -67,6 +74,7 @@ export default function StoreItems({
   }, [items, scopeRows]);
 
   const handleEdit = (item: ItemRegistration) => {
+    if (readOnly) return;
     setSelectedItem(item);
     setIsEditOpen(true);
   };
@@ -157,21 +165,28 @@ export default function StoreItems({
     <Root className={shellClass}>
       {headerBlock}
 
+      {showPaymentSummary && (
+        <ActiveInventoryPaymentSummary items={filteredData} />
+      )}
+
       <div className={tableShell}>
         <DataTableClientWrapper
           data={filteredData}
           onEdit={handleEdit}
           refresh={refresh}
           hotelStockApprovals={hotelStockApprovals}
+          readOnly={readOnly}
         />
       </div>
 
-      <UpdateStock
-        isOpen={isEditOpen}
-        onOpenChange={setIsEditOpen}
-        item={selectedItem}
-        onUpdateSuccess={handleUpdateSuccess}
-      />
+      {!readOnly && (
+        <UpdateStock
+          isOpen={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          item={selectedItem}
+          onUpdateSuccess={handleUpdateSuccess}
+        />
+      )}
     </Root>
   );
 }

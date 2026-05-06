@@ -31,7 +31,7 @@ function BaristaContent() {
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
   );
-  const displayLabel = displayName || "Hotel";
+  const displayLabel = displayName || "Cafe";
   const logoUrl = searchParams.get("logo") || "";
 
   const [orders, setOrders] = useState<Order[]>([]);

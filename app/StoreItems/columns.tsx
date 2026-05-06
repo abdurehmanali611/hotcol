@@ -39,6 +39,12 @@ import {
   UpdateItemRegistration,
   createStockOutRequestApi,
 } from "@/lib/actions";
+import {
+  itemPaymentBucket,
+  itemPaymentLabel,
+  lineOwedETB,
+} from "@/lib/hotelInventoryPayment";
+import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, MoreVertical, Truck } from "lucide-react";
 import { useState } from "react";
@@ -254,14 +260,8 @@ const StockOut = ({
               <SelectContent>
                 <SelectGroup>
                   <SelectLabel>Stakeholders:</SelectLabel>
-                  {[
-                    "Kitchen",
-                    "Barista",
-                    "Juicer",
-                    "Cleaning Service",
-                    "Admin",
-                  ].map((item, index) => (
-                    <SelectItem key={index} value={item}>
+                  {HOTEL_STORE_STOCK_OUT_STAKEHOLDERS.map((item) => (
+                    <SelectItem key={item} value={item}>
                       {item}
                     </SelectItem>
                   ))}
@@ -537,8 +537,9 @@ const Returned = ({
 export const columns = (
   onEdit?: (item: items) => void,
   refresh?: () => void,
-  opts?: { hotelStockApprovals?: boolean },
-): ColumnDef<items>[] => [
+  opts?: { hotelStockApprovals?: boolean; readOnly?: boolean },
+): ColumnDef<items>[] => {
+  const defs: ColumnDef<items>[] = [
   {
     accessorKey: "name",
     header: "Product Detail",
@@ -577,7 +578,7 @@ export const columns = (
     id: "totalValue",
     header: "Value + Fees",
     cell: ({ row }) => {
-      const total = row.original.amount * row.original.unitPrice + row.original.dutyFee;
+      const total = lineOwedETB(row.original);
       return (
         <div className="flex flex-col">
           <span className="text-sm font-bold text-primary">ETB {total.toLocaleString()}</span>
@@ -619,27 +620,45 @@ export const columns = (
   },
   {
     accessorKey: "paidAmount",
-    header: "Payment Status",
+    header: "Supplier payment",
     cell: ({ row }) => {
-      const total = row.original.amount * row.original.unitPrice;
-      const pct = Math.min((row.original.paidAmount / total) * 100, 100);
+      const owed = lineOwedETB(row.original);
+      const paid = row.original.paidAmount;
+      const bucket = itemPaymentBucket(row.original);
+      const pct = owed > 0.01 ? Math.min((paid / owed) * 100, 100) : paid > 0 ? 100 : 0;
+      const label = itemPaymentLabel(bucket);
       return (
-        <div className="w-40 space-y-1.5">
+        <div className="w-44 space-y-1.5">
+          <Badge
+            variant={
+              bucket === "paid"
+                ? "default"
+                : bucket === "credit"
+                  ? "secondary"
+                  : "outline"
+            }
+            className="text-[9px] font-semibold tracking-tight"
+          >
+            {label}
+          </Badge>
           <div className="flex justify-between text-[10px] font-medium">
-            <span>ETB {row.original.paidAmount.toLocaleString()}</span>
-            <span className={pct === 100 ? "text-green-600" : ""}>{Math.round(pct)}%</span>
+            <span>ETB {paid.toLocaleString()} / {owed.toLocaleString()}</span>
+            <span className={pct >= 99.5 ? "text-green-600" : ""}>{Math.round(pct)}%</span>
           </div>
           <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-500 ${pct === 100 ? "bg-green-500" : "bg-primary"}`} 
-              style={{ width: `${pct}%` }} 
+            <div
+              className={`h-full transition-all duration-500 ${pct >= 99.5 ? "bg-green-500" : "bg-primary"}`}
+              style={{ width: `${Math.min(pct, 100)}%` }}
             />
           </div>
         </div>
       );
     },
   },
-  {
+  ];
+
+  if (!opts?.readOnly) {
+    defs.push({
     id: "actions",
     header: "",
     cell: ({ row }) => {
@@ -694,5 +713,8 @@ export const columns = (
         </DropdownMenu>
       );
     },
-  },
-];
+  });
+  }
+
+  return defs;
+};

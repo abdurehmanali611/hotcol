@@ -35,6 +35,7 @@ import {
   fetchCreditLevels,
   UpdateCreditRegistration,
 } from "@/lib/actions";
+import { formatCreditCycle } from "@/lib/creditCycleLabel";
 import { creditRegistrationSchemaUpdate } from "@/lib/validations";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
@@ -326,8 +327,7 @@ export const columns = (refresh: () => void): ColumnDef<Credittors>[] => [
           {row.original.amount.toLocaleString()} ETB
         </span>
         <span className="text-[10px] text-muted-foreground">
-          {row.original.timeInterval}{" "}
-          {row.original.timeFrame.replace("ly", "").replace("i", "y")} Cycle
+          {formatCreditCycle(row.original.timeInterval, row.original.timeFrame)}
         </span>
       </div>
     ),

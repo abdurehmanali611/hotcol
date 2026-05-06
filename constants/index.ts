@@ -73,17 +73,51 @@ export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
 /** Manager (hotel) dashboard — stock & credential operations; expand later. */
 export const MANAGER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
+  { id: "menu-create-item", label: "Add menu item", icon: "PlusCircle" },
+  { id: "menu-update-item", label: "Menu items", icon: "Edit" },
   { id: "cc-profiles", label: "Cost control IDs", icon: "UserCheck" },
   { id: "reports-inventory", label: "Inventory snapshot", icon: "Package" },
   { id: "reports-movements", label: "Stock movements", icon: "ArrowRightLeft" },
   { id: "reports-purchases", label: "Purchase pipeline", icon: "ShoppingCart" },
-  { id: "reports-beginnings", label: "Chef / bar beginnings", icon: "ClipboardList" },
+  { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
+  {
+    id: "corporate-credit-tiers",
+    label: "Corporate credit tiers",
+    icon: "BadgePercent",
+  },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },
   { id: "update-credential", label: "Update credential", icon: "RefreshCw" },
 ] as const;
 
 export type ManagerSidebarItemId =
   (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
+
+/** Hotel cashier terminal — sidebar keys match Lucide icon names used in the page. */
+export const HOTEL_CASHIER_NAV_ITEMS = [
+  {
+    id: "companies",
+    label: "Company deals",
+    icon: "Building2",
+    description:
+      "Corporate accounts, credit tiers, allowed dishes & drinks, deal sheet.",
+  },
+  {
+    id: "usage",
+    label: "Record usage",
+    icon: "Receipt",
+    description:
+      "Bill meals to a company guest: lines, quantities, and date/time.",
+  },
+  {
+    id: "report",
+    label: "Usage report",
+    icon: "Table2",
+    description: "Summarize posted corporate consumption over a date range.",
+  },
+] as const;
+
+export type HotelCashierNavId =
+  (typeof HOTEL_CASHIER_NAV_ITEMS)[number]["id"];
 
 /** Legacy name — prefer `BUSINESS_TYPES`. */
 export const businessTypes = [...BUSINESS_TYPES] as BusinessType[];

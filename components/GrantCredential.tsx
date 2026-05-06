@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -30,6 +30,12 @@ export default function GrantCredential({
   variant = "cafe",
 }: GrantCredentialProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [displayName, setDisplayName] = useState(hotelName);
+
+  useEffect(() => {
+    const d = localStorage.getItem("hotel_display_name")?.trim();
+    if (d) setDisplayName(d);
+  }, []);
 
   const form = useForm<z.infer<typeof createCredentialSchema>>({
     resolver: zodResolver(createCredentialSchema),
@@ -105,6 +111,9 @@ export default function GrantCredential({
                               </SelectItem>
                               <SelectItem value="Finance">Finance</SelectItem>
                               <SelectItem value="Store">Hotel store</SelectItem>
+                              <SelectItem value="HotelCashier">
+                                Hotel cashier (corporate credit)
+                              </SelectItem>
                             </>
                           ) : (
                             <>
@@ -161,7 +170,7 @@ export default function GrantCredential({
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-primary">Target Location</p>
                   <p className="text-sm text-muted-foreground">
-                    These credentials will grant access specifically to the <strong>{hotelName}</strong> terminal.
+                    These credentials will grant access specifically to the <strong>{displayName}</strong> terminal.
                   </p>
                 </div>
               </div>

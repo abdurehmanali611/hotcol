@@ -39,12 +39,14 @@ import {
 } from "./ui/alert-dialog";
 import Credittor from "@/app/Credittor/page";
 import { Separator } from "./ui/separator";
+import { formatCreditCycle } from "@/lib/creditCycleLabel";
 
 interface AdminCreditProps {
   hotelName: string;
 }
 
 const AdminCredit = ({ hotelName }: AdminCreditProps) => {
+  const [displayName, setDisplayName] = useState(hotelName);
   const [loading, setLoading] = useState(false);
   const [creditLevels, setCreditLevels] = useState<creditLevel[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -66,6 +68,11 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
     fetchCreditLevelsData();
     fetchingPersons();
   }, [hotelName]);
+
+  useEffect(() => {
+    const d = localStorage.getItem("hotel_display_name")?.trim();
+    if (d) setDisplayName(d);
+  }, []);
 
   const fetchingPersons = async () => {
     try {
@@ -266,7 +273,7 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
           <div className="space-y-6">
             <div className="text-center">
               <h3 className="text-xl font-bold">Active Credit Tiers</h3>
-              <p className="text-sm text-muted-foreground">Current levels available for {hotelName}</p>
+              <p className="text-sm text-muted-foreground">Current levels available for {displayName}</p>
             </div>
 
             {isFetching ? (
@@ -338,7 +345,9 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
                             <Clock className="w-4 h-4" />
                             Cycle
                           </div>
-                          <span className="font-medium">{level.timeInterval} {level.timeFrame}</span>
+                          <span className="font-medium">
+                            {formatCreditCycle(level.timeInterval, level.timeFrame)}
+                          </span>
                         </div>
                       </div>
                     </CardContent>

@@ -19,7 +19,7 @@ import {
 } from "@/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -39,7 +39,10 @@ export default function SignUp() {
     },
   });
 
-  const businessType = form.watch("type");
+  const businessType = useWatch({
+    control: form.control,
+    name: "type",
+  });
 
   useEffect(() => {
     const required =

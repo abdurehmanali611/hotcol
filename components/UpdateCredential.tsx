@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -65,17 +65,17 @@ export default function UpdateCredential({
     resolver: zodResolver(deleteCredentialSchema),
     defaultValues: { UserName: "" },
   });
+  const deleteUserName = useWatch({
+    control: deleteForm.control,
+    name: "UserName",
+  });
 
-  const [currentUserName, setCurrentUserName] = useState("");
+  const [currentUserName] = useState(() =>
+    typeof window !== "undefined"
+      ? (localStorage.getItem("user_name")?.trim() ?? "")
+      : "",
+  );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-  useEffect(() => {
-    setCurrentUserName(
-      typeof window !== "undefined"
-        ? (localStorage.getItem("user_name")?.trim() ?? "")
-        : "",
-    );
-  }, []);
 
   const nonAdminStaff = useMemo(
     () =>
@@ -143,6 +143,7 @@ export default function UpdateCredential({
                             { id: 1, name: "CostControl" },
                             { id: 2, name: "Finance" },
                             { id: 3, name: "Store" },
+                            { id: 4, name: "HotelCashier" },
                           ]
                         : [
                             { id: 1, name: "Kitchen" },
@@ -224,7 +225,7 @@ export default function UpdateCredential({
                   <AlertDialogTitle>Remove this staff account?</AlertDialogTitle>
                   <AlertDialogDescription>
                     User{" "}
-                    <strong>{deleteForm.watch("UserName")}</strong> will no longer
+                    <strong>{deleteUserName}</strong> will no longer
                     be able to sign in. This cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>

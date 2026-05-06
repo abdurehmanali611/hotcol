@@ -81,7 +81,8 @@ export interface Credential {
     | "Manager"
     | "Store"
     | "CostControl"
-    | "Finance";
+    | "Finance"
+    | "HotelCashier";
   HotelName: string;
   LogoUrl?: string;
 }
@@ -318,6 +319,8 @@ export interface ItemRegistration {
   supplierLevel: string;
   Address: string;
   paidAmount: number;
+  registeredAmount?: number;
+  registeredValue?: number;
   statusBy?: string;
   HotelName: string;
 }
@@ -630,6 +633,13 @@ export async function LoginAction(
         router.push(
           lodgingStore ? `/HotelStore?${queryParams}` : `/Store?${queryParams}`,
         );
+        break;
+      case "HotelCashier":
+        if (!lodgingStore) {
+          toast.error("Hotel cashier is only for hotel / resort / pension accounts.");
+          break;
+        }
+        router.push(`/HotelCashier?${queryParams}`);
         break;
       default:
         toast.error("No Role Found");
@@ -3043,6 +3053,8 @@ export async function fetchItemRegistrations() {
           supplierLevel
           Address
           paidAmount
+          registeredAmount
+          registeredValue
           statusBy
           HotelName
         }
@@ -3345,8 +3357,73 @@ export interface KitchenBarBeginningRow {
   amount: number;
   measuredBy: string;
   monthPeriod: string;
+  calendarDate: string;
+  stockOutDay: number;
+  closingOnHand: number;
   notes: string;
   createdAt: string;
+}
+
+export interface KitchenBarMonthlySnapshotRow {
+  id: number;
+  HotelName: string;
+  station: string;
+  itemName: string;
+  monthPeriod: string;
+  totalImpliedSales: number;
+  lastDayClosingOnHand: number;
+  syncedAt: string;
+}
+
+export interface HotelCorporateCreditTierRow {
+  id: number;
+  HotelName: string;
+  name: string;
+  creditCeiling: number;
+  timeInterval: number;
+  timeFrame: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface HotelCreditCompanyRow {
+  id: number;
+  HotelName: string;
+  companyName: string;
+  contactName: string;
+  phoneNumber: string;
+  email: string;
+  creditLevel: string;
+  creditLimit: number;
+  timeInterval: number;
+  timeFrame: string;
+  hotelCorporateCreditTierId?: number | null;
+  allowedMenuJson: string;
+  dealNotes: string;
+  imageUrl: string;
+  createdAt: string;
+}
+
+export interface HotelCreditPartyRow {
+  id: number;
+  HotelName: string;
+  companyId: number;
+  displayName: string;
+  phoneNumber: string;
+  sex: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface HotelCreditConsumptionRow {
+  id: number;
+  HotelName: string;
+  companyId: number;
+  partyId: number;
+  linesJson: string;
+  totalAmount: number;
+  occurredAt: string;
+  recordedBy: string;
 }
 
 export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
@@ -3449,6 +3526,9 @@ export async function fetchKitchenBarBeginnings(): Promise<
         amount
         measuredBy
         monthPeriod
+        calendarDate
+        stockOutDay
+        closingOnHand
         notes
         createdAt
       }
@@ -3717,7 +3797,8 @@ export async function createKitchenBarBeginningApi(vars: {
   itemName: string;
   amount: number;
   measuredBy: string;
-  monthPeriod: string;
+  monthPeriod?: string;
+  calendarDate: string;
   notes?: string;
 }) {
   const mutation = `
@@ -3726,7 +3807,8 @@ export async function createKitchenBarBeginningApi(vars: {
       $itemName: String!
       $amount: Float!
       $measuredBy: String!
-      $monthPeriod: String!
+      $monthPeriod: String
+      $calendarDate: String!
       $notes: String
     ) {
       createKitchenBarBeginning(
@@ -3735,6 +3817,7 @@ export async function createKitchenBarBeginningApi(vars: {
         amount: $amount
         measuredBy: $measuredBy
         monthPeriod: $monthPeriod
+        calendarDate: $calendarDate
         notes: $notes
       ) {
         id
@@ -3755,7 +3838,8 @@ export async function updateKitchenBarBeginningApi(vars: {
   itemName: string;
   amount: number;
   measuredBy: string;
-  monthPeriod: string;
+  monthPeriod?: string;
+  calendarDate: string;
   notes?: string;
 }) {
   const mutation = `
@@ -3765,7 +3849,8 @@ export async function updateKitchenBarBeginningApi(vars: {
       $itemName: String!
       $amount: Float!
       $measuredBy: String!
-      $monthPeriod: String!
+      $monthPeriod: String
+      $calendarDate: String!
       $notes: String
     ) {
       updateKitchenBarBeginning(
@@ -3775,6 +3860,7 @@ export async function updateKitchenBarBeginningApi(vars: {
         amount: $amount
         measuredBy: $measuredBy
         monthPeriod: $monthPeriod
+        calendarDate: $calendarDate
         notes: $notes
       ) {
         id
@@ -3803,4 +3889,459 @@ export async function deleteKitchenBarBeginningApi(id: number) {
     throw new Error(response.data.errors[0]?.message || "Delete failed");
   }
   toast.success("Removed");
+}
+
+export async function fetchKitchenBarMonthlySnapshots(
+  monthPeriod: string,
+): Promise<KitchenBarMonthlySnapshotRow[]> {
+  const query = `
+    query Snap($monthPeriod: String!) {
+      kitchenBarMonthlySnapshots(monthPeriod: $monthPeriod) {
+        id
+        HotelName
+        station
+        itemName
+        monthPeriod
+        totalImpliedSales
+        lastDayClosingOnHand
+        syncedAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { monthPeriod },
+  });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load monthly snapshots",
+    );
+  }
+  return response.data.data.kitchenBarMonthlySnapshots || [];
+}
+
+export async function syncKitchenBarMonthlyApi(monthPeriod: string) {
+  const mutation = `
+    mutation Sync($monthPeriod: String!) {
+      syncKitchenBarMonthly(monthPeriod: $monthPeriod) {
+        id
+        itemName
+        station
+        totalImpliedSales
+        lastDayClosingOnHand
+        syncedAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { monthPeriod },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Sync failed");
+  }
+  toast.success("Monthly inventory synced from daily rows");
+  return response.data.data.syncKitchenBarMonthly;
+}
+
+export async function fetchHotelCreditCompanies(): Promise<
+  HotelCreditCompanyRow[]
+> {
+  const query = `
+    query {
+      hotelCreditCompanies {
+        id
+        HotelName
+        companyName
+        contactName
+        phoneNumber
+        email
+        creditLevel
+        creditLimit
+        timeInterval
+        timeFrame
+        hotelCorporateCreditTierId
+        allowedMenuJson
+        dealNotes
+        imageUrl
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load companies",
+    );
+  }
+  return response.data.data.hotelCreditCompanies || [];
+}
+
+export async function fetchHotelCorporateCreditTiers(): Promise<
+  HotelCorporateCreditTierRow[]
+> {
+  const query = `
+    query {
+      hotelCorporateCreditTiers {
+        id
+        HotelName
+        name
+        creditCeiling
+        timeInterval
+        timeFrame
+        sortOrder
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load credit tiers",
+    );
+  }
+  return response.data.data.hotelCorporateCreditTiers || [];
+}
+
+export async function fetchHotelCreditParties(
+  companyId: number,
+): Promise<HotelCreditPartyRow[]> {
+  const query = `
+    query Hcp($companyId: Int!) {
+      hotelCreditParties(companyId: $companyId) {
+        id
+        HotelName
+        companyId
+        displayName
+        phoneNumber
+        sex
+        notes
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { companyId },
+  });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load parties",
+    );
+  }
+  return response.data.data.hotelCreditParties || [];
+}
+
+export async function fetchHotelCreditConsumptions(
+  fromIso: string,
+  toIso: string,
+): Promise<HotelCreditConsumptionRow[]> {
+  const query = `
+    query Hcc($from: DateTime!, $to: DateTime!) {
+      hotelCreditConsumptions(from: $from, to: $to) {
+        id
+        HotelName
+        companyId
+        partyId
+        linesJson
+        totalAmount
+        occurredAt
+        recordedBy
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { from: fromIso, to: toIso },
+  });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load consumptions",
+    );
+  }
+  return response.data.data.hotelCreditConsumptions || [];
+}
+
+export async function createHotelCreditCompanyApi(input: {
+  companyName: string;
+  contactName?: string;
+  phoneNumber: string;
+  email?: string;
+  hotelCorporateCreditTierId: number;
+  allowedMenuJson: string;
+  dealNotes?: string;
+  imageUrl?: string;
+}) {
+  const mutation = `
+    mutation HccCreate(
+      $companyName: String!
+      $contactName: String
+      $phoneNumber: String!
+      $email: String
+      $hotelCorporateCreditTierId: Int!
+      $allowedMenuJson: String!
+      $dealNotes: String
+      $imageUrl: String
+    ) {
+      createHotelCreditCompany(
+        companyName: $companyName
+        contactName: $contactName
+        phoneNumber: $phoneNumber
+        email: $email
+        hotelCorporateCreditTierId: $hotelCorporateCreditTierId
+        allowedMenuJson: $allowedMenuJson
+        dealNotes: $dealNotes
+        imageUrl: $imageUrl
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Save failed");
+  }
+  toast.success("Company credit registered");
+  return response.data.data.createHotelCreditCompany;
+}
+
+export async function updateHotelCreditCompanyApi(input: {
+  id: number;
+  companyName: string;
+  contactName?: string;
+  phoneNumber: string;
+  email?: string;
+  hotelCorporateCreditTierId?: number | null;
+  allowedMenuJson: string;
+  dealNotes?: string;
+  imageUrl?: string;
+}) {
+  const mutation = `
+    mutation HccUp(
+      $id: Int!
+      $companyName: String!
+      $contactName: String
+      $phoneNumber: String!
+      $email: String
+      $hotelCorporateCreditTierId: Int
+      $allowedMenuJson: String!
+      $dealNotes: String
+      $imageUrl: String
+    ) {
+      updateHotelCreditCompany(
+        id: $id
+        companyName: $companyName
+        contactName: $contactName
+        phoneNumber: $phoneNumber
+        email: $email
+        hotelCorporateCreditTierId: $hotelCorporateCreditTierId
+        allowedMenuJson: $allowedMenuJson
+        dealNotes: $dealNotes
+        imageUrl: $imageUrl
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  toast.success("Company updated");
+  return response.data.data.updateHotelCreditCompany;
+}
+
+export async function deleteHotelCreditCompanyApi(id: number) {
+  const mutation = `
+    mutation HccDel($id: Int!) {
+      deleteHotelCreditCompany(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Delete failed");
+  }
+  toast.success("Company removed");
+}
+
+export async function createHotelCorporateCreditTierApi(input: {
+  name: string;
+  creditCeiling: number;
+  timeInterval: number;
+  timeFrame: string;
+  sortOrder?: number;
+}) {
+  const mutation = `
+    mutation HtCreate(
+      $name: String!
+      $creditCeiling: Float!
+      $timeInterval: Int!
+      $timeFrame: String!
+      $sortOrder: Int
+    ) {
+      createHotelCorporateCreditTier(
+        name: $name
+        creditCeiling: $creditCeiling
+        timeInterval: $timeInterval
+        timeFrame: $timeFrame
+        sortOrder: $sortOrder
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Save failed");
+  }
+  toast.success("Credit tier saved");
+  return response.data.data.createHotelCorporateCreditTier;
+}
+
+export async function updateHotelCorporateCreditTierApi(input: {
+  id: number;
+  name: string;
+  creditCeiling: number;
+  timeInterval: number;
+  timeFrame: string;
+  sortOrder?: number;
+}) {
+  const mutation = `
+    mutation HtUp(
+      $id: Int!
+      $name: String!
+      $creditCeiling: Float!
+      $timeInterval: Int!
+      $timeFrame: String!
+      $sortOrder: Int
+    ) {
+      updateHotelCorporateCreditTier(
+        id: $id
+        name: $name
+        creditCeiling: $creditCeiling
+        timeInterval: $timeInterval
+        timeFrame: $timeFrame
+        sortOrder: $sortOrder
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  toast.success("Tier updated");
+  return response.data.data.updateHotelCorporateCreditTier;
+}
+
+export async function deleteHotelCorporateCreditTierApi(id: number) {
+  const mutation = `
+    mutation HtDel($id: Int!) {
+      deleteHotelCorporateCreditTier(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Delete failed");
+  }
+  toast.success("Tier removed");
+}
+
+export async function createHotelCreditPartyApi(input: {
+  companyId: number;
+  displayName: string;
+  phoneNumber?: string;
+  sex?: string;
+  notes?: string;
+}) {
+  const mutation = `
+    mutation HcpCreate(
+      $companyId: Int!
+      $displayName: String!
+      $phoneNumber: String
+      $sex: String
+      $notes: String
+    ) {
+      createHotelCreditParty(
+        companyId: $companyId
+        displayName: $displayName
+        phoneNumber: $phoneNumber
+        sex: $sex
+        notes: $notes
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Save failed");
+  }
+  toast.success("Guest / staff registered");
+  return response.data.data.createHotelCreditParty;
+}
+
+export async function createHotelCreditConsumptionApi(input: {
+  companyId: number;
+  partyId?: number;
+  guestName?: string;
+  guestPhone?: string;
+  linesJson: string;
+  totalAmount: number;
+  occurredAt?: string;
+}) {
+  const mutation = `
+    mutation Hccon(
+      $companyId: Int!
+      $partyId: Int
+      $guestName: String
+      $guestPhone: String
+      $linesJson: String!
+      $totalAmount: Float!
+      $occurredAt: DateTime
+    ) {
+      createHotelCreditConsumption(
+        companyId: $companyId
+        partyId: $partyId
+        guestName: $guestName
+        guestPhone: $guestPhone
+        linesJson: $linesJson
+        totalAmount: $totalAmount
+        occurredAt: $occurredAt
+      ) {
+        id
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: input,
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Could not save usage");
+  }
+  toast.success("Consumption recorded");
+  return response.data.data.createHotelCreditConsumption;
 }

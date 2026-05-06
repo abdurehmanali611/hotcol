@@ -20,6 +20,8 @@ import {
   CreateCreditRegistration,
   creditLevel,
   CreditRegistration,
+  Item,
+  fetchItems,
   fetchCreditLevels,
   fetchCreditRegistrations,
   uploadImage,
@@ -29,13 +31,22 @@ import { useReactToPrint } from "react-to-print";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import Image from "next/image";
+import { ScrollArea } from "./ui/scroll-area";
+import { Checkbox } from "./ui/checkbox";
 import Credittor from "@/app/Credittor/page";
+import { formatCreditCycle } from "@/lib/creditCycleLabel";
 
 interface CreditRegistrationProps {
   hotelName: string;
+  businessDisplayName?: string;
 }
 
-const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
+const CreditRegistrationForm = ({
+  hotelName,
+  businessDisplayName,
+}: CreditRegistrationProps) => {
+  const businessNameLabel = (businessDisplayName || "").trim() || "Cafe";
   const [loading, setLoading] = useState(false);
   const [creditLevels, setCreditLevels] = useState<creditLevel[]>([]);
   const agreementRef = useRef<HTMLDivElement>(null);
@@ -43,6 +54,8 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
   const [creditRegistrant, setCreditRegistrant] = useState<
     CreditRegistration[]
   >([]);
+  const [menuItems, setMenuItems] = useState<Item[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Record<number, boolean>>({});
 
   const form = useForm<z.infer<typeof creditRegistrationSchema>>({
     resolver: zodResolver(creditRegistrationSchema),
@@ -91,11 +104,34 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
         throw error;
       }
     };
+    const fetchingMenuItems = async () => {
+      try {
+        const rows = await fetchItems();
+        if (Array.isArray(rows)) {
+          const filtered = rows.filter((it: Item) =>
+            rowHotelMatchesTenantScope(it.HotelName, hotelName),
+          );
+          setMenuItems(filtered);
+        } else {
+          setMenuItems([]);
+        }
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to fetch items");
+      }
+    };
     fetchingCreditLevel();
     fetchingRegistrant();
+    fetchingMenuItems();
   }, [hotelName]);
 
   const watchedValues = form.watch();
+  const selectedItemNames = useMemo(
+    () =>
+      menuItems
+        .filter((it) => selectedItems[it.id])
+        .map((it) => it.name),
+    [menuItems, selectedItems],
+  );
 
   const selectedLevelDetails = useMemo(() => {
     return creditLevels.find(
@@ -124,7 +160,7 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
 
       const pdf = new jsPDF("p", "mm", "a4");
 
-      const img = new Image();
+      const img = new window.Image();
       img.src = dataUrl;
 
       img.onload = () => {
@@ -181,7 +217,7 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
         </CardTitle>
         <CardDescription>
           Managing credit users for{" "}
-          <span className="font-semibold text-primary">{hotelName}</span>
+          <span className="font-semibold text-primary">{businessNameLabel}</span>
         </CardDescription>
       </CardHeader>
 
@@ -264,6 +300,63 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     uploadImage(result, form, setPreviewUrl, "imageUrl")
                   }
                 />
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-semibold">Select allowed items</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Same style as hotel cashier: pick dishes/drinks this credit user can take.
+                    </p>
+                  </div>
+                  <ScrollArea className="h-[min(22rem,45vh)] rounded-xl border border-border/70 bg-muted/10">
+                    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+                      {menuItems.map((it) => (
+                        <div
+                          key={it.id}
+                          className={`rounded-xl border bg-card overflow-hidden shadow-sm transition-all ${
+                            selectedItems[it.id]
+                              ? "ring-2 ring-primary border-primary/35 shadow-md"
+                              : "border-border/70 hover:border-primary/25"
+                          }`}
+                        >
+                          <div className="relative aspect-video bg-muted">
+                            {it.imageUrl ? (
+                              <Image
+                                src={it.imageUrl}
+                                alt={it.name}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width:640px) 90vw, 45vw"
+                              />
+                            ) : null}
+                            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/50 to-transparent px-2.5 pb-2 pt-6">
+                              <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white">
+                                {it.name}
+                              </p>
+                              <p className="mt-1 text-[10px] tabular-nums text-emerald-200">
+                                ETB {Number(it.price).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="border-t border-border/60 bg-card/95 p-3">
+                            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+                              <Checkbox
+                                checked={!!selectedItems[it.id]}
+                                onCheckedChange={(ck) =>
+                                  setSelectedItems((prev) => ({
+                                    ...prev,
+                                    [it.id]: ck === true,
+                                  }))
+                                }
+                                className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                              />
+                              Select item
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
                 <Button
                   disabled={loading}
                   type="submit"
@@ -285,10 +378,10 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                 <Avatar>
                   <AvatarImage
                     src={localStorage.getItem("logo_url") || undefined}
-                    alt={hotelName}
+                    alt={businessNameLabel}
                   />
                   <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                    {hotelName.substring(0, 2).toUpperCase()}
+                    {businessNameLabel.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-center space-y-1 mb-4">
@@ -296,7 +389,7 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     Credit Agreement
                   </h2>
                   <p className="text-xs text-zinc-400 italic">
-                    {hotelName} and {watchedValues.name}
+                    {businessNameLabel} and {watchedValues.name}
                   </p>
                 </div>
                 <Avatar>
@@ -336,10 +429,10 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                 <div className="pt-2 flex justify-between">
                   <span className="text-zinc-400 italic">Term:</span>
                   <span>
-                    {selectedLevelDetails?.timeInterval}{" "}
-                    {selectedLevelDetails?.timeFrame
-                      ?.replace("ly", "")
-                      .replace("i", "y")}
+                    {formatCreditCycle(
+                      selectedLevelDetails?.timeInterval || 0,
+                      selectedLevelDetails?.timeFrame || "",
+                    )}
                   </span>
                 </div>
                 <div className="pt-2 flex justify-between border-b pb-2">
@@ -348,6 +441,12 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     {watchedValues.registrationDate
                       ? new Date(watchedValues.registrationDate).toDateString()
                       : "---"}
+                  </span>
+                </div>
+                <div className="pt-2">
+                  <span className="text-zinc-400 italic block mb-1">Allowed Items:</span>
+                  <span className="text-right block">
+                    {selectedItemNames.length > 0 ? selectedItemNames.join(", ") : "---"}
                   </span>
                 </div>
               </div>
@@ -375,7 +474,7 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     <div className="flex flex-col items-center">
                       <div className="w-full border-b border-zinc-500 h-7"></div>
                       <span className="mt-2 text-zinc-400">
-                        {hotelName} Representative
+                        {businessNameLabel} Representative
                       </span>
                     </div>
                   </div>
@@ -388,10 +487,10 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                 <Avatar>
                   <AvatarImage
                     src={localStorage.getItem("logo_url") || undefined}
-                    alt={hotelName}
+                    alt={businessNameLabel}
                   />
                   <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                    {hotelName.substring(0, 2).toUpperCase()}
+                    {businessNameLabel.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-center space-y-1 mb-4">
@@ -399,7 +498,7 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     Credit Agreement
                   </h2>
                   <p className="text-xs text-zinc-400 italic">
-                    {hotelName} and {watchedValues.name}
+                    {businessNameLabel} and {watchedValues.name}
                   </p>
                 </div>
                 <Avatar>
@@ -439,10 +538,10 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                 <div className="pt-2 flex justify-between">
                   <span className="text-zinc-400 italic">Term:</span>
                   <span>
-                    {selectedLevelDetails?.timeInterval}{" "}
-                    {selectedLevelDetails?.timeFrame
-                      ?.replace("ly", "")
-                      .replace("i", "y")}
+                    {formatCreditCycle(
+                      selectedLevelDetails?.timeInterval || 0,
+                      selectedLevelDetails?.timeFrame || "",
+                    )}
                   </span>
                 </div>
                 <div className="pt-2 flex justify-between border-b pb-2">
@@ -451,6 +550,12 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     {watchedValues.registrationDate
                       ? new Date(watchedValues.registrationDate).toDateString()
                       : "---"}
+                  </span>
+                </div>
+                <div className="pt-2">
+                  <span className="text-zinc-400 italic block mb-1">Allowed Items:</span>
+                  <span className="text-right block">
+                    {selectedItemNames.length > 0 ? selectedItemNames.join(", ") : "---"}
                   </span>
                 </div>
               </div>
@@ -478,7 +583,7 @@ const CreditRegistrationForm = ({ hotelName }: CreditRegistrationProps) => {
                     <div className="flex flex-col items-center">
                       <div className="w-full border-b border-zinc-500 h-7"></div>
                       <span className="mt-2 text-zinc-400">
-                        {hotelName} Representative
+                        {businessNameLabel} Representative
                       </span>
                     </div>
                   </div>

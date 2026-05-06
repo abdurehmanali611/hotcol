@@ -21,10 +21,15 @@ export default function Inactive({
   embedded?: boolean;
 }) {
   const [data, setData] = useState<ItemStatus[]>(items);
+  const [displayName, setDisplayName] = useState(hotelName || "");
 
   useEffect(() => {
     setData(items);
   }, [items]);
+  useEffect(() => {
+    const d = localStorage.getItem("hotel_display_name")?.trim();
+    if (d) setDisplayName(d);
+  }, []);
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(undefined);
 
@@ -59,7 +64,7 @@ export default function Inactive({
               Historical Audit Logs
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Tracking movement and payments for {hotelName}.
+              Tracking movement and payments for {displayName || hotelName}.
             </p>
           </div>
         )}

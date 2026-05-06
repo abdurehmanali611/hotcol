@@ -80,16 +80,32 @@ const SECTIONS: Record<
       ],
     },
     {
-      title: "Chef & bar beginnings",
+      title: "Station daily counts (kitchen, bar, etc.)",
       items: [
         {
-          term: "Beginning balance",
+          term: "Opening pulse",
           definition:
-            "Opening count for a month at CHEF (kitchen) or BAR, used for monthly inventory and variance checks.",
+            "Physical count when the day starts at the station (kitchen/chef is one station; bar, juicer, cleaning, and other stakeholders match store stock-out labels).",
         },
         {
-          term: "YYYY-MM",
-          definition: "Reporting month, e.g. 2026-05 (year-month).",
+          term: "Approved stock-out",
+          definition:
+            "Total quantity moved from the store to that station on the calendar day, only after you approve the store’s stock-out request — you do not type this on the daily form.",
+        },
+        {
+          term: "Lights-out",
+          definition:
+            "System-calculated on-hand at close from opening pulse, approved stock-out that day, and usage since the prior day (today’s opening minus the previous day’s lights-out when a prior row exists).",
+        },
+        {
+          term: "Sealed movement",
+          definition:
+            "When the next day’s opening pulse exists: prior opening + prior approved stock-out − today’s opening (first day in a chain has no prior seal).",
+        },
+        {
+          term: "Sync monthly inventory",
+          definition:
+            "Rolls daily rows into a month: sums sealed movement for the month and stores last lights-out on-hand for finance and managers.",
         },
       ],
     },

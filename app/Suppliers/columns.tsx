@@ -1,6 +1,7 @@
 "use client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { ColumnDef } from "@tanstack/react-table";
 import { Package, Shield, ShieldAlert, ShieldCheck, Truck } from "lucide-react";
 
@@ -20,6 +21,8 @@ export type items = {
   Address: string;
   supplierLevel: string;
   paidAmount: number;
+  registeredAmount?: number;
+  registeredValue?: number;
   status?: string;
   statusBy?: string;
   HotelName: string;
@@ -144,7 +147,7 @@ export const columns: ColumnDef<items>[] = [
     accessorKey: "paidAmount",
     header: "Payment Completion",
     cell: ({ row }) => {
-      const total = row.original.amount * row.original.unitPrice;
+      const total = lineOwedETB(row.original);
       const pct = total > 0 ? (row.original.paidAmount / total) * 100 : 0;
       return (
         <div className="w-44 space-y-1.5">

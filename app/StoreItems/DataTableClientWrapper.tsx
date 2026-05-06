@@ -8,6 +8,7 @@ interface WrapperProps {
   onEdit?: (item: items) => void;
   refresh?: () => void;
   hotelStockApprovals?: boolean;
+  readOnly?: boolean;
 }
 
 export function DataTableClientWrapper({
@@ -15,10 +16,11 @@ export function DataTableClientWrapper({
   onEdit,
   refresh,
   hotelStockApprovals,
+  readOnly,
 }: WrapperProps) {
   const memoizedColumns = useMemo(
-    () => columns(onEdit, refresh, { hotelStockApprovals }),
-    [onEdit, refresh, hotelStockApprovals],
+    () => columns(onEdit, refresh, { hotelStockApprovals, readOnly }),
+    [onEdit, refresh, hotelStockApprovals, readOnly],
   );
   
   return <DataTable columns={memoizedColumns} data={data}/>

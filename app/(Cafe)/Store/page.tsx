@@ -541,6 +541,7 @@ export function StoreComponent({
               items={storeItem}
               hotelStockApprovals={hotelInventory}
               tenantScope={tenantScope}
+              showPaymentSummary={hotelInventory}
             />
           </div>
         ) : activeView === "Purchases" && hotelInventory ? (
@@ -637,7 +638,7 @@ export function StoreComponent({
                 <AvatarFallback>{displayLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
             </header>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20 p-8">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-6 md:py-6 scroll-smooth">
                 <div className="mx-auto max-w-7xl space-y-10 pb-10">
                   <div className="grid gap-4 sm:grid-cols-2">

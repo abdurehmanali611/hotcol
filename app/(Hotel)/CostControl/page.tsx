@@ -15,6 +15,8 @@ import {
   fetchPurchaseRequests,
   fetchStockOutRequests,
   fetchKitchenBarBeginnings,
+  fetchKitchenBarMonthlySnapshots,
+  syncKitchenBarMonthlyApi,
   rejectPurchaseRequestCCApi,
   rejectStockOutRequestApi,
   updateKitchenBarBeginningApi,
@@ -22,6 +24,7 @@ import {
   type ItemRegistration,
   type ItemStatus,
   type KitchenBarBeginningRow,
+  type KitchenBarMonthlySnapshotRow,
   type PurchaseRequestRow,
   type StockOutRequestRow,
   type CostControllerProfileRow,
@@ -54,7 +57,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  CalendarIcon,
   CheckCircle2,
   ClipboardList,
   LayoutGrid,
@@ -67,6 +73,12 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
+import {
+  HOTEL_DAILY_COUNT_STATIONS,
+  displayKitchenBarStation,
+  normalizeKitchenBarStationKey,
+  summarizeApprovedStockOutForDay,
+} from "@/lib/hotelDailyStation";
 import {
   formatMovementType,
   formatPurchaseStatus,
@@ -104,6 +116,23 @@ const BEGINNING_UNIT_OPTIONS = [
   "Other",
 ] as const;
 
+function parseYmdToDate(ymd: string): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return undefined;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function toYmdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function round2(n: number): number {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
 function CostControlInner() {
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(searchParams.get("hotel"));
@@ -114,13 +143,20 @@ function CostControlInner() {
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
   const [beginnings, setBeginnings] = useState<KitchenBarBeginningRow[]>([]);
+  const [monthlySnapshots, setMonthlySnapshots] = useState<
+    KitchenBarMonthlySnapshotRow[]
+  >([]);
+  const [snapshotMonth, setSnapshotMonth] = useState(() =>
+    new Date().toISOString().slice(0, 7),
+  );
   const [ccPick, setCcPick] = useState<Record<number, string>>({});
   const [beginForm, setBeginForm] = useState({
-    station: "CHEF",
+    station: "KITCHEN",
     itemName: "",
     amount: 0,
     measuredBy: "Piece",
     monthPeriod: new Date().toISOString().slice(0, 7),
+    calendarDate: new Date().toISOString().slice(0, 10),
     notes: "",
   });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -143,15 +179,101 @@ function CostControlInner() {
     return [...BEGINNING_UNIT_OPTIONS];
   }, [beginForm.measuredBy]);
 
+  const beginningDerivedById = useMemo(() => {
+    const implied = new Map<number, number | null>();
+    const daySales = new Map<number, number | null>();
+    const t = String(tenantScope ?? "").trim();
+    const scoped = t
+      ? beginnings.filter((b) => rowHotelMatchesTenantScope(b.HotelName, t))
+      : beginnings;
+    const groups = new Map<string, KitchenBarBeginningRow[]>();
+    for (const b of scoped) {
+      const k = `${normalizeKitchenBarStationKey(b.station)}\t${b.itemName.trim().toLowerCase()}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(b);
+    }
+    for (const [, list] of groups) {
+      list.sort((a, b) =>
+        String(a.calendarDate || "").localeCompare(String(b.calendarDate || "")),
+      );
+      for (let i = 0; i < list.length; i++) {
+        if (i === 0) {
+          implied.set(list[i].id, null);
+          daySales.set(list[i].id, null);
+        } else {
+          const prev = list[i - 1];
+          const prevLights =
+            Number(prev.closingOnHand) > 0
+              ? Number(prev.closingOnHand)
+              : Number(prev.amount);
+          implied.set(
+            list[i].id,
+            round2(
+              Number(prev.amount) +
+                Number(prev.stockOutDay) -
+                Number(list[i].amount),
+            ),
+          );
+          daySales.set(list[i].id, round2(Number(list[i].amount) - prevLights));
+        }
+      }
+    }
+    return { implied, daySales };
+  }, [beginnings, tenantScope]);
+
+  const dailyFormPreview = useMemo(() => {
+    const stationKey = normalizeKitchenBarStationKey(beginForm.station);
+    const item = beginForm.itemName.trim();
+    const cal = beginForm.calendarDate;
+    const t = String(tenantScope ?? "").trim();
+    const scopedBeg = t
+      ? beginnings.filter((b) => rowHotelMatchesTenantScope(b.HotelName, t))
+      : beginnings;
+    let prev: KitchenBarBeginningRow | null = null;
+    if (item) {
+      const candidates = scopedBeg.filter((b) => {
+        if (b.itemName.trim().toLowerCase() !== item.toLowerCase()) {
+          return false;
+        }
+        if (normalizeKitchenBarStationKey(b.station) !== stationKey) {
+          return false;
+        }
+        if (String(b.calendarDate || "").slice(0, 10) >= cal) return false;
+        if (editingId != null && b.id === editingId) return false;
+        return true;
+      });
+      candidates.sort((a, b) =>
+        String(b.calendarDate || "").localeCompare(String(a.calendarDate || "")),
+      );
+      prev = candidates[0] ?? null;
+    }
+    const stockOut =
+      item === ""
+        ? 0
+        : round2(summarizeApprovedStockOutForDay(stocks, stationKey, item, cal));
+    const opening = round2(Number(beginForm.amount));
+    const prevLights =
+      prev != null
+        ? Number(prev.closingOnHand) > 0
+          ? Number(prev.closingOnHand)
+          : Number(prev.amount)
+        : null;
+    const usageDay = prevLights != null ? round2(opening - prevLights) : null;
+    // Lights-out here is defined as opening + approved stock-out for the day.
+    const lightsOut = round2(opening + stockOut);
+    return { stockOut, lightsOut, usageDay };
+  }, [beginForm, stocks, beginnings, tenantScope, editingId]);
+
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [p, pr, so, kb, regs, stats] = await Promise.all([
+      const [p, pr, so, kb, snaps, regs, stats] = await Promise.all([
         fetchCostControllerProfiles(),
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
         fetchKitchenBarBeginnings(),
+        fetchKitchenBarMonthlySnapshots(snapshotMonth),
         fetchItemRegistrations(),
         fetchItemStatus(),
       ]);
@@ -159,6 +281,7 @@ function CostControlInner() {
       setPurchases(pr);
       setStocks(so);
       setBeginnings(kb);
+      setMonthlySnapshots(snaps);
       const t = String(tenantScope ?? "").trim();
       const regList = regs as ItemRegistration[];
       const statList = stats as ItemStatus[];
@@ -176,7 +299,7 @@ function CostControlInner() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantScope]);
+  }, [tenantScope, snapshotMonth]);
 
   useEffect(() => {
     void load();
@@ -205,7 +328,7 @@ function CostControlInner() {
     },
     {
       section: "beginnings" as const,
-      label: "Chef & bar beginnings",
+      label: "Daily chef & bar counts",
       icon: LayoutGrid,
     },
     {
@@ -244,9 +367,9 @@ function CostControlInner() {
       Icon: Package,
     },
     beginnings: {
-      title: "Chef & bar beginnings",
+      title: "Daily chef & bar counts",
       description:
-        "Monthly opening balances by station — same units as inventory for consistent reporting.",
+        "Opening pulse, documented stock-out, and lights-out snapshot per day — then sync a monthly roll-up.",
       Icon: LayoutGrid,
     },
     "request-status": {
@@ -547,6 +670,7 @@ function CostControlInner() {
                   hotelStockApprovals
                   tenantScope={tenantScope}
                   embedded
+                  showPaymentSummary
                 />
               </CardContent>
             </Card>
@@ -833,17 +957,109 @@ function CostControlInner() {
           <div className="space-y-6">
             <Card className="border-primary/15 shadow-lg bg-card/90 backdrop-blur-sm overflow-hidden">
               <div className="h-1 bg-linear-to-r from-violet-500/50 via-primary/40 to-cyan-500/40" />
+              <CardHeader className="space-y-4">
+                <div>
+                  <CardTitle>Monthly roll-up from daily counts</CardTitle>
+                  <CardDescription className="text-pretty max-w-2xl">
+                    Pick the month to view stored roll-ups, then run{" "}
+                    <strong className="text-foreground">Sync monthly inventory</strong>{" "}
+                    to stamp totals from the daily grid (implied movement sum + last
+                    lights-out on-hand).
+                  </CardDescription>
+                </div>
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
+                  <HotelFormFieldStack className="min-w-[200px]">
+                    <Label htmlFor="snap-month">Roll-up month</Label>
+                    <Input
+                      id="snap-month"
+                      type="month"
+                      value={snapshotMonth}
+                      onChange={(e) => setSnapshotMonth(e.target.value)}
+                      className="h-10 border-border/80 shadow-sm"
+                    />
+                  </HotelFormFieldStack>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shadow-sm"
+                    onClick={() => load(true)}
+                  >
+                    Refresh roll-ups
+                  </Button>
+                  <Button
+                    type="button"
+                    className="shadow-sm"
+                    onClick={async () => {
+                      try {
+                        await syncKitchenBarMonthlyApi(snapshotMonth);
+                        await load(true);
+                      } catch (e: any) {
+                        toast.error(e?.message || "Sync failed");
+                      }
+                    }}
+                  >
+                    Sync monthly inventory
+                  </Button>
+                </div>
+              </CardHeader>
+              {monthlySnapshots.length > 0 && (
+                <CardContent className="pt-0 pb-6 px-5 sm:px-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                    Stored roll-ups — {snapshotMonth}
+                  </p>
+                  <div className="rounded-lg border border-border/70 overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/40">
+                          <TableHead>Station</TableHead>
+                          <TableHead>Item</TableHead>
+                          <TableHead className="text-right">Σ implied movement</TableHead>
+                          <TableHead className="text-right">Last lights-out on-hand</TableHead>
+                          <TableHead>Synced</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {monthlySnapshots.map((s) => (
+                          <TableRow key={s.id}>
+                            <TableCell>
+                              {displayKitchenBarStation(s.station)}
+                            </TableCell>
+                            <TableCell className="font-medium">{s.itemName}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {Number(s.totalImpliedSales).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {Number(s.lastDayClosingOnHand).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(s.syncedAt).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
               <CardHeader>
-                <CardTitle>Monthly beginning balances</CardTitle>
-                <CardDescription className="text-pretty max-w-2xl">
-                  Record opening quantities for chef or bar areas by month. Edit
-                  or delete rows when figures change after monthly inventory.
+                <CardTitle className="text-lg">Register a day</CardTitle>
+                <CardDescription>
+                  <strong className="text-foreground">Opening pulse</strong> is the
+                  count when the day starts at the station.{" "}
+                  <strong className="text-foreground">Stock out</strong> is summed from{" "}
+                  <em>approved</em> store requests to that station for the same calendar day (you do not type it).{" "}
+                  <strong className="text-foreground">Lights-out</strong> is calculated from opening, that stock-out, and
+                  usage since the prior day (opening today minus prior lights-out when a prior row exists).{" "}
+                  <em>Sealed movement</em> still compares consecutive openings when the next day is recorded.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-1 pb-8 px-5 sm:px-6">
                 <HotelFormSection
-                  title="Period & station"
-                  description="Which month you are reporting and whether this balance is for the kitchen or the bar."
+                  title="Station & calendar day"
+                  description="One row per station, ingredient, and date. The month is taken from the date."
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <HotelFormFieldStack>
@@ -861,32 +1077,52 @@ function CostControlInner() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="CHEF">Chef (kitchen)</SelectItem>
-                          <SelectItem value="BAR">Bar</SelectItem>
+                          {HOTEL_DAILY_COUNT_STATIONS.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>
+                              {s.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </HotelFormFieldStack>
                     <HotelFormFieldStack>
-                      <Label htmlFor="kb-month">Month</Label>
-                      <Input
-                        id="kb-month"
-                        type="month"
-                        value={beginForm.monthPeriod}
-                        onChange={(e) =>
-                          setBeginForm((f) => ({
-                            ...f,
-                            monthPeriod: e.target.value,
-                          }))
-                        }
-                        className="h-10 border-border/80 shadow-sm"
-                      />
+                      <Label htmlFor="kb-day">Calendar date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="kb-day"
+                            type="button"
+                            variant="outline"
+                            className="h-10 w-full justify-start border-border/80 shadow-sm font-normal"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {beginForm.calendarDate || "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={parseYmdToDate(beginForm.calendarDate)}
+                            onSelect={(d) => {
+                              if (!d) return;
+                              const v = toYmdLocal(d);
+                              setBeginForm((f) => ({
+                                ...f,
+                                calendarDate: v,
+                                monthPeriod: v.slice(0, 7),
+                              }));
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </HotelFormFieldStack>
                   </div>
                 </HotelFormSection>
 
                 <HotelFormSection
-                  title="Item & quantity"
-                  description="Opening amount and unit of measure — same unit labels as store inventory."
+                  title="Item & counts"
+                  description="Units match store inventory labels."
                 >
                   <HotelFormFieldStack>
                     <Label htmlFor="kb-item">Item or ingredient</Label>
@@ -900,11 +1136,11 @@ function CostControlInner() {
                       className="h-10 border-border/80 shadow-sm"
                     />
                   </HotelFormFieldStack>
-                  <div className="grid gap-4 sm:grid-cols-2 pt-1">
+                  <div className="grid gap-4 sm:grid-cols-3 pt-2">
                     <HotelFormFieldStack>
-                      <Label htmlFor="kb-amount">Amount</Label>
+                      <Label htmlFor="kb-opening">Opening pulse</Label>
                       <Input
-                        id="kb-amount"
+                        id="kb-opening"
                         type="number"
                         min={0}
                         step={0.01}
@@ -912,12 +1148,43 @@ function CostControlInner() {
                         onChange={(e) =>
                           setBeginForm((f) => ({
                             ...f,
-                            amount: Number(e.target.value),
+                            amount: Number.isFinite(Number(e.target.value))
+                              ? Number(e.target.value)
+                              : 0,
+                          }))
+                        }
+                        onBlur={() =>
+                          setBeginForm((f) => ({
+                            ...f,
+                            amount: round2(Number(f.amount) || 0),
                           }))
                         }
                         className="h-10 tabular-nums border-border/80 shadow-sm"
                       />
                     </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label>Approved stock-out (today)</Label>
+                      <div className="h-10 flex items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums">
+                        {dailyFormPreview.stockOut.toFixed(2)}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        From store requests you approved for this station, item, and date.
+                      </p>
+                    </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label>Computed lights-out</Label>
+                      <div className="h-10 flex items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums">
+                        {dailyFormPreview.lightsOut.toFixed(2)}
+                      </div>
+                      {dailyFormPreview.usageDay != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Day usage (opening − prior lights-out):{" "}
+                          {dailyFormPreview.usageDay.toFixed(2)}
+                        </p>
+                      )}
+                    </HotelFormFieldStack>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-1 pt-2 max-w-xs">
                     <HotelFormFieldStack>
                       <Label>Unit</Label>
                       <Select
@@ -943,7 +1210,7 @@ function CostControlInner() {
 
                 <HotelFormSection
                   title="Notes"
-                  description="Optional — adjustments, batch references, or who counted."
+                  description="Optional — batch references or who counted."
                 >
                   <HotelFormFieldStack>
                     <Label htmlFor="kb-notes">Notes</Label>
@@ -954,7 +1221,7 @@ function CostControlInner() {
                         setBeginForm((f) => ({ ...f, notes: e.target.value }))
                       }
                       rows={3}
-                      placeholder="Optional detail for your records"
+                      placeholder="Optional detail"
                       className="min-h-22 resize-y border-border/80 shadow-sm"
                     />
                   </HotelFormFieldStack>
@@ -965,27 +1232,37 @@ function CostControlInner() {
                     type="button"
                     className="shadow-sm"
                     onClick={async () => {
-                      if (editingId) {
-                        await updateKitchenBarBeginningApi({
-                          id: editingId,
-                          ...beginForm,
+                      try {
+                        if (editingId) {
+                          await updateKitchenBarBeginningApi({
+                            id: editingId,
+                            ...beginForm,
+                            amount: round2(Number(beginForm.amount) || 0),
+                          });
+                          setEditingId(null);
+                        } else {
+                          await createKitchenBarBeginningApi({
+                            ...beginForm,
+                            amount: round2(Number(beginForm.amount) || 0),
+                          });
+                        }
+                        const today = new Date().toISOString().slice(0, 10);
+                        setBeginForm({
+                          station: "KITCHEN",
+                          itemName: "",
+                          amount: 0,
+                          measuredBy: "Piece",
+                          monthPeriod: today.slice(0, 7),
+                          calendarDate: today,
+                          notes: "",
                         });
-                        setEditingId(null);
-                      } else {
-                        await createKitchenBarBeginningApi(beginForm);
+                        load();
+                      } catch (e: any) {
+                        toast.error(e?.message || "Save failed");
                       }
-                      setBeginForm({
-                        station: "CHEF",
-                        itemName: "",
-                        amount: 0,
-                        measuredBy: "Piece",
-                        monthPeriod: new Date().toISOString().slice(0, 7),
-                        notes: "",
-                      });
-                      load();
                     }}
                   >
-                    {editingId ? "Save changes" : "Add record"}
+                    {editingId ? "Save changes" : "Add daily row"}
                   </Button>
                   {editingId && (
                     <Button
@@ -993,12 +1270,14 @@ function CostControlInner() {
                       variant="ghost"
                       onClick={() => {
                         setEditingId(null);
+                        const today = new Date().toISOString().slice(0, 10);
                         setBeginForm({
-                          station: "CHEF",
+                          station: "KITCHEN",
                           itemName: "",
                           amount: 0,
                           measuredBy: "Piece",
-                          monthPeriod: new Date().toISOString().slice(0, 7),
+                          monthPeriod: today.slice(0, 7),
+                          calendarDate: today,
                           notes: "",
                         });
                       }}
@@ -1014,34 +1293,63 @@ function CostControlInner() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead>Date</TableHead>
                     <TableHead>Station</TableHead>
                     <TableHead>Item</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Month</TableHead>
+                    <TableHead className="text-right">Opening pulse</TableHead>
+                    <TableHead className="text-right">Approved stock-out</TableHead>
+                    <TableHead className="text-right">Lights-out</TableHead>
+                    <TableHead className="text-right">Day usage</TableHead>
+                    <TableHead className="text-right">Sealed movement</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {beginnings.map((b) => (
+                  {beginnings.map((b) => {
+                    const implied = beginningDerivedById.implied.get(b.id);
+                    const usage = beginningDerivedById.daySales.get(b.id);
+                    const lightsOut = round2(
+                      Number(b.amount || 0) + Number(b.stockOutDay ?? 0),
+                    );
+                    return (
                     <TableRow key={b.id} className="hover:bg-muted/30">
-                      <TableCell>{b.station === "CHEF" ? "Chef" : "Bar"}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">
+                        {b.calendarDate || `${b.monthPeriod}-01`}
+                      </TableCell>
+                      <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
                       <TableCell className="font-medium">{b.itemName}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-right tabular-nums">
                         {b.amount} {b.measuredBy}
                       </TableCell>
-                      <TableCell className="tabular-nums">{b.monthPeriod}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {Number(b.stockOutDay ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {lightsOut.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {usage == null ? "—" : usage.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {implied == null ? "—" : implied.toFixed(2)}
+                      </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => {
                             setEditingId(b.id);
+                            const cd =
+                              b.calendarDate && b.calendarDate.length >= 10
+                                ? b.calendarDate.slice(0, 10)
+                                : `${b.monthPeriod}-01`;
                             setBeginForm({
-                              station: b.station,
+                              station: normalizeKitchenBarStationKey(b.station),
                               itemName: b.itemName,
                               amount: b.amount,
                               measuredBy: b.measuredBy,
                               monthPeriod: b.monthPeriod,
+                              calendarDate: cd,
                               notes: b.notes,
                             });
                           }}
@@ -1061,7 +1369,8 @@ function CostControlInner() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );
+                  })}
                 </TableBody>
               </Table>
             </div>
