@@ -129,9 +129,12 @@ export function HotelCashierDashboard() {
     null,
   );
   const [reportRows, setReportRows] = useState<HotelCreditConsumptionRow[]>([]);
-  const [reportPartyNames, setReportPartyNames] = useState<Map<number, string>>(
-    () => new Map(),
-  );
+  const [reportPartyById, setReportPartyById] = useState<
+    Map<number, HotelCreditPartyRow>
+  >(() => new Map());
+  const [reportCompanyFilter, setReportCompanyFilter] = useState("all");
+  const [reportSearchDraft, setReportSearchDraft] = useState("");
+  const [reportSearchTerm, setReportSearchTerm] = useState("");
   const [reportFrom, setReportFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -166,8 +169,6 @@ export function HotelCashierDashboard() {
   const [lineRows, setLineRows] = useState<
     { name: string; qty: number; unitPrice: number }[]
   >([{ name: "", qty: 1, unitPrice: 0 }]);
-  const [usageGuestName, setUsageGuestName] = useState("");
-  const [usageGuestPhone, setUsageGuestPhone] = useState("");
 
   const [activeSection, setActiveSection] =
     useState<HotelCashierNavId>("companies");
@@ -344,22 +345,61 @@ export function HotelCashierDashboard() {
       const to = new Date(`${reportTo}T23:59:59`).toISOString();
       const rows = await fetchHotelCreditConsumptions(from, to);
       setReportRows(rows);
-      const pmap = new Map<number, string>();
+      const pmap = new Map<number, HotelCreditPartyRow>();
       const companyIds = [...new Set(rows.map((r) => r.companyId))];
       for (const cid of companyIds) {
         try {
           const plist: HotelCreditPartyRow[] =
             await fetchHotelCreditParties(cid);
-          for (const p of plist) pmap.set(p.id, p.displayName);
+          for (const p of plist) pmap.set(p.id, p);
         } catch {
           /* ignore */
         }
       }
-      setReportPartyNames(pmap);
+      setReportPartyById(pmap);
     } catch (e: any) {
       toast.error(e?.message || "Report failed");
     }
   };
+
+  const reportCompanyOptions = useMemo(() => {
+    const ids = [...new Set(reportRows.map((r) => r.companyId))];
+    return ids.map((id) => ({
+      id: String(id),
+      label: companyNameById.get(id) ?? `Company #${id}`,
+    }));
+  }, [reportRows, companyNameById]);
+
+  const visibleReportRows = useMemo(() => {
+    const term = reportSearchTerm.trim().toLowerCase();
+    return reportRows.filter((r) => {
+      if (
+        reportCompanyFilter !== "all" &&
+        String(r.companyId) !== reportCompanyFilter
+      ) {
+        return false;
+      }
+      if (!term) return true;
+      const party = reportPartyById.get(r.partyId);
+      const hay = `${party?.displayName ?? ""} ${party?.phoneNumber ?? ""}`.toLowerCase();
+      return hay.includes(term);
+    });
+  }, [reportRows, reportCompanyFilter, reportSearchTerm, reportPartyById]);
+
+  const formatUsageLines = useCallback((linesJson: string) => {
+    try {
+      const parsed = JSON.parse(linesJson);
+      if (!Array.isArray(parsed)) return [linesJson];
+      return parsed.map((line: any) => {
+        const name = String(line?.name ?? "Item");
+        const qty = Number(line?.qty ?? 0);
+        const unitPrice = Number(line?.unitPrice ?? 0);
+        return `${name} × ${qty} @ ETB ${unitPrice.toLocaleString()}`;
+      });
+    } catch {
+      return [linesJson];
+    }
+  }, []);
 
   useEffect(() => {
     if (!tiers.length || editingCompanyId != null) return;
@@ -1276,8 +1316,14 @@ export function HotelCashierDashboard() {
                                 }));
                               await createHotelCreditConsumptionApi({
                                 companyId: selCompany.id,
-                                guestName: usageGuestName.trim() || undefined,
-                                guestPhone: usageGuestPhone.trim() || undefined,
+                                guestName:
+                                  consumptionMetaForm
+                                    .getValues("guestName")
+                                    ?.trim() || undefined,
+                                guestPhone:
+                                  consumptionMetaForm
+                                    .getValues("guestPhone")
+                                    ?.trim() || undefined,
                                 linesJson: JSON.stringify(lines),
                                 totalAmount: lineTotal,
                                 occurredAt: new Date(
@@ -1285,10 +1331,10 @@ export function HotelCashierDashboard() {
                                 ).toISOString(),
                               });
                               setLineRows([{ name: "", qty: 1, unitPrice: 0 }]);
-                              setUsageGuestName("");
-                              setUsageGuestPhone("");
                               consumptionMetaForm.reset({
                                 occurredAt: defaultOccurredAtLocal(),
+                                guestName: "",
+                                guestPhone: "",
                               });
                             }}
                           >
@@ -1344,6 +1390,48 @@ export function HotelCashierDashboard() {
                             Run report
                           </Button>
                         </div>
+                        <div className="flex flex-wrap items-end gap-4 md:gap-5">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Company
+                            </Label>
+                            <Select
+                              value={reportCompanyFilter}
+                              onValueChange={setReportCompanyFilter}
+                            >
+                              <SelectTrigger className="h-10 w-[220px]">
+                                <SelectValue placeholder="All companies" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All companies</SelectItem>
+                                {reportCompanyOptions.map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Staff / Phone search
+                            </Label>
+                            <Input
+                              value={reportSearchDraft}
+                              onChange={(e) => setReportSearchDraft(e.target.value)}
+                              placeholder="Search person name or phone"
+                              className="h-10 w-[260px]"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="min-h-11 px-6"
+                            onClick={() => setReportSearchTerm(reportSearchDraft)}
+                          >
+                            Search
+                          </Button>
+                        </div>
                         <div className="overflow-hidden rounded-xl border border-border/70">
                           <Table>
                             <TableHeader>
@@ -1369,17 +1457,17 @@ export function HotelCashierDashboard() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {reportRows.length === 0 ? (
+                              {visibleReportRows.length === 0 ? (
                                 <TableRow>
                                   <TableCell
                                     colSpan={6}
                                     className="py-12 text-center text-muted-foreground"
                                   >
-                                    Run a date range to load rows.
+                                    No usage rows match your filters.
                                   </TableCell>
                                 </TableRow>
                               ) : (
-                                reportRows.map((r) => (
+                                visibleReportRows.map((r) => (
                                   <TableRow
                                     key={r.id}
                                     className="hover:bg-muted/25"
@@ -1392,14 +1480,30 @@ export function HotelCashierDashboard() {
                                         r.companyId}
                                     </TableCell>
                                     <TableCell className="px-4 py-3.5 align-top text-sm">
-                                      {reportPartyNames.get(r.partyId) ??
-                                        `#${r.partyId}`}
+                                      <div className="space-y-0.5">
+                                        <div>
+                                          {reportPartyById.get(r.partyId)
+                                            ?.displayName ?? `#${r.partyId}`}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {reportPartyById.get(r.partyId)
+                                            ?.phoneNumber ?? "No phone"}
+                                        </div>
+                                      </div>
                                     </TableCell>
                                     <TableCell className="px-4 py-3.5 text-right tabular-nums align-top">
                                       {r.totalAmount.toLocaleString()}
                                     </TableCell>
-                                    <TableCell className="max-w-[200px] truncate px-4 py-3.5 align-top text-xs text-muted-foreground">
-                                      {r.linesJson}
+                                    <TableCell className="max-w-[360px] px-4 py-3.5 align-top text-xs text-muted-foreground">
+                                      <div className="space-y-1 whitespace-normal wrap-break-word">
+                                        {formatUsageLines(r.linesJson).map(
+                                          (line, idx) => (
+                                            <p key={`${r.id}-line-${idx}`}>
+                                              {line}
+                                            </p>
+                                          ),
+                                        )}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="px-4 py-3.5 align-top text-xs">
                                       {r.recordedBy}
