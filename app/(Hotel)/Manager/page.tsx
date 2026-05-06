@@ -20,15 +20,18 @@ import {
   fetchItemStatus,
   fetchItems,
   fetchKitchenBarBeginnings,
+  fetchKitchenBarMonthlySnapshots,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
+  syncKitchenBarMonthlyApi,
   updateAdminPassword,
   updateCredential,
   uploadImage,
   type CostControllerProfileRow,
   type Item,
   type ItemRegistration,
+  type KitchenBarMonthlySnapshotRow,
 } from "@/lib/actions";
 import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
 import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
@@ -117,6 +120,12 @@ function ManagerContent() {
   const [purchases, setPurchases] = useState<any[]>([]);
   const [stockReqs, setStockReqs] = useState<any[]>([]);
   const [beginnings, setBeginnings] = useState<any[]>([]);
+  const [monthlySnapshots, setMonthlySnapshots] = useState<
+    KitchenBarMonthlySnapshotRow[]
+  >([]);
+  const [snapshotMonth, setSnapshotMonth] = useState(
+    new Date().toISOString().slice(0, 7),
+  );
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [newCcName, setNewCcName] = useState("");
   const [menuItems, setMenuItems] = useState<Item[]>([]);
@@ -134,6 +143,7 @@ function ManagerContent() {
           pr,
           so,
           kb,
+          snaps,
           ccp,
           rawMenu,
         ] = await Promise.all([
@@ -143,6 +153,7 @@ function ManagerContent() {
           fetchPurchaseRequests(),
           fetchStockOutRequests(),
           fetchKitchenBarBeginnings(),
+          fetchKitchenBarMonthlySnapshots(snapshotMonth),
           fetchCostControllerProfiles(),
           fetchItems(),
         ]);
@@ -160,6 +171,7 @@ function ManagerContent() {
         setPurchases(pr);
         setStockReqs(so);
         setBeginnings(kb);
+        setMonthlySnapshots(snaps);
         setCcProfiles(ccp);
         setMenuItems(
           Array.isArray(rawMenu)
@@ -175,7 +187,7 @@ function ManagerContent() {
         setRefreshing(false);
       }
     },
-    [tenantScope],
+    [tenantScope, snapshotMonth],
   );
 
   useEffect(() => {
@@ -545,60 +557,152 @@ function ManagerContent() {
 
       case "reports-beginnings":
         return (
-          <div className="p-4 md:p-6 overflow-x-auto">
+          <div className="p-4 md:p-6 space-y-6">
             <p className="text-sm text-muted-foreground mb-4">
               Daily station counts from Cost Control. Stock-out is approved store outflow; lights-out and day usage are derived with the same rules as Cost Control.
             </p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Station</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Opening pulse</TableHead>
-                  <TableHead>Approved stock-out</TableHead>
-                  <TableHead>Lights-out</TableHead>
-                  <TableHead>Day usage</TableHead>
-                  <TableHead>Sealed movement</TableHead>
-                  <TableHead>Month</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {beginnings.map((b) => (
-                  <TableRow key={b.id}>
-                    <TableCell className="tabular-nums whitespace-nowrap">
-                      {b.calendarDate || `${b.monthPeriod}-01`}
-                    </TableCell>
-                    <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
-                    <TableCell>{b.itemName}</TableCell>
-                    <TableCell>
-                      {b.amount} {b.measuredBy}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {Number(b.stockOutDay ?? 0).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {Number(b.closingOnHand ?? 0).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {beginningDerivedById.dayUsage.get(b.id) == null
-                        ? "—"
-                        : Number(beginningDerivedById.dayUsage.get(b.id)).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {beginningDerivedById.implied.get(b.id) == null
-                        ? "—"
-                        : Number(beginningDerivedById.implied.get(b.id)).toFixed(2)}
-                    </TableCell>
-                    <TableCell>{b.monthPeriod}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {b.notes}
-                    </TableCell>
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly roll-up from daily counts</CardTitle>
+                <CardDescription>
+                  Sync monthly inventory to stamp totals from daily rows.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="manager-snapshot-month"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Roll-up month
+                    </label>
+                    <Input
+                      id="manager-snapshot-month"
+                      type="month"
+                      value={snapshotMonth}
+                      onChange={(e) => setSnapshotMonth(e.target.value)}
+                      className="h-10 w-[200px]"
+                    />
+                  </div>
+                  <Button variant="secondary" onClick={() => loadData(true)}>
+                    Refresh roll-ups
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await syncKitchenBarMonthlyApi(snapshotMonth);
+                        await loadData(true);
+                      } catch (err: any) {
+                        toast.error(err?.message || "Sync failed");
+                      }
+                    }}
+                  >
+                    Sync monthly inventory
+                  </Button>
+                </div>
+                <div className="overflow-x-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Station</TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-right">Σ implied movement</TableHead>
+                        <TableHead className="text-right">Last lights-out on-hand</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
+                        <TableHead>Synced</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monthlySnapshots.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                            No monthly rows for this month yet.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        monthlySnapshots.map((s) => {
+                          const remaining =
+                            Number(s.lastDayClosingOnHand) -
+                            Number(s.totalImpliedSales);
+                          return (
+                            <TableRow key={s.id}>
+                              <TableCell>{displayKitchenBarStation(s.station)}</TableCell>
+                              <TableCell className="font-medium">{s.itemName}</TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {Number(s.totalImpliedSales).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {Number(s.lastDayClosingOnHand).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {remaining.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                {new Date(s.syncedAt).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Station</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Opening pulse</TableHead>
+                    <TableHead>Approved stock-out</TableHead>
+                    <TableHead>Lights-out</TableHead>
+                    <TableHead>Day usage</TableHead>
+                    <TableHead>Sealed movement</TableHead>
+                    <TableHead>Month</TableHead>
+                    <TableHead>Notes</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {beginnings.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell className="tabular-nums whitespace-nowrap">
+                        {b.calendarDate || `${b.monthPeriod}-01`}
+                      </TableCell>
+                      <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
+                      <TableCell>{b.itemName}</TableCell>
+                      <TableCell>
+                        {b.amount} {b.measuredBy}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {Number(b.stockOutDay ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {Number(b.closingOnHand ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {beginningDerivedById.dayUsage.get(b.id) == null
+                          ? "—"
+                          : Number(beginningDerivedById.dayUsage.get(b.id)).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {beginningDerivedById.implied.get(b.id) == null
+                          ? "—"
+                          : Number(beginningDerivedById.implied.get(b.id)).toFixed(2)}
+                      </TableCell>
+                      <TableCell>{b.monthPeriod}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {b.notes}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         );
 

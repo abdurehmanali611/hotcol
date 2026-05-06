@@ -1015,6 +1015,7 @@ function CostControlInner() {
                           <TableHead>Item</TableHead>
                           <TableHead className="text-right">Σ implied movement</TableHead>
                           <TableHead className="text-right">Last lights-out on-hand</TableHead>
+                          <TableHead className="text-right">Remaining</TableHead>
                           <TableHead>Synced</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1030,6 +1031,12 @@ function CostControlInner() {
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
                               {Number(s.lastDayClosingOnHand).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {(
+                                Number(s.lastDayClosingOnHand) -
+                                Number(s.totalImpliedSales)
+                              ).toFixed(2)}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {new Date(s.syncedAt).toLocaleString()}
