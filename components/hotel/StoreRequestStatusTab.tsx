@@ -10,6 +10,7 @@ import {
 import {
   formatPurchaseStatus,
   formatMovementType,
+  formatQtyWithUnit,
   formatStockOutRequestStatus,
 } from "@/lib/hotelDisplayLabels";
 import {
@@ -152,7 +153,7 @@ export default function StoreRequestStatusTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Quantity</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Updated</TableHead>
                 </TableRow>
@@ -161,8 +162,8 @@ export default function StoreRequestStatusTab() {
                 {sortByDateDesc(myPurchases).map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.itemName}</TableCell>
-                    <TableCell>
-                      {r.quantity} {r.measuredBy}
+                    <TableCell className="tabular-nums whitespace-nowrap">
+                      {formatQtyWithUnit(r.quantity, r.measuredBy)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={purchaseBadgeVariant(r.status)}>
@@ -203,7 +204,7 @@ export default function StoreRequestStatusTab() {
                 <TableRow>
                   <TableHead>Item</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Quantity</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>When</TableHead>
                 </TableRow>
@@ -214,12 +215,14 @@ export default function StoreRequestStatusTab() {
                     <TableCell className="font-medium max-w-[200px] truncate">
                       {r.itemName?.trim()
                         ? r.itemName
-                        : `Row #${r.itemRegistrationId}`}
+                        : "Unknown item (saved name missing)"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {formatMovementType(r.movementType)}
                     </TableCell>
-                    <TableCell>{r.amount}</TableCell>
+                    <TableCell className="tabular-nums whitespace-nowrap">
+                      {formatQtyWithUnit(r.amount, "")}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={stockBadgeVariant(r.status)}>
                         {formatStockOutRequestStatus(r.status)}

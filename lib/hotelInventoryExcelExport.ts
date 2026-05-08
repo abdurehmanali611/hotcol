@@ -1,0 +1,140 @@
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import type { ItemRegistration, ItemStatus, PurchaseRequestRow } from "@/lib/actions";
+import {
+  itemPaymentBucket,
+  itemPaymentLabel,
+  lineOwedETB,
+} from "@/lib/hotelInventoryPayment";
+import {
+  formatPurchaseStatus,
+  formatQtyWithUnit,
+} from "@/lib/hotelDisplayLabels";
+
+function vatLabel(v: boolean | undefined): string {
+  return v === true ? "With VAT" : "Without VAT";
+}
+
+/** One workbook, multiple sheets: inventory, pipeline, inactive, supplier payment detail. */
+export function exportHotelInventoryWorkbook(
+  fileBase: string,
+  data: {
+    inventoryItems: ItemRegistration[];
+    purchasePipeline: PurchaseRequestRow[];
+    inactiveItems: ItemStatus[];
+  },
+): void {
+  const wb = XLSX.utils.book_new();
+
+  const invRows = data.inventoryItems.map((r) => ({
+    id: r.id,
+    item_name: r.name,
+    category: r.category,
+    quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
+    unit_price_etb: r.unitPrice,
+    line_value_etb: lineOwedETB(r),
+    supplier_name: r.supplierName,
+    supplier_phone: r.supplierPhone,
+    supplier_address: r.Address,
+    supplier_tin: r.supplierTinNumber ?? "",
+    purchase_includes_vat: vatLabel(r.purchaseWithVat),
+    paid_etb: r.paidAmount,
+    payment_status: itemPaymentLabel(itemPaymentBucket(r)),
+    registered_on: r.registrationDate
+      ? new Date(r.registrationDate).toISOString().slice(0, 10)
+      : "",
+  }));
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(invRows),
+    "Inventory_items",
+  );
+
+  const prRows = data.purchasePipeline.map((r) => ({
+    id: r.id,
+    item_name: r.itemName,
+    quantity_with_unit: formatQtyWithUnit(r.quantity, r.measuredBy),
+    estimated_unit_price: r.estimatedUnitPrice,
+    line_estimate_etb: (r.estimatedUnitPrice || 0) * (r.quantity || 0),
+    supplier_name: r.supplierName,
+    supplier_phone: r.supplierPhone,
+    category: r.category,
+    status: formatPurchaseStatus(r.status),
+    store_user: r.storeUserName,
+    created: r.createdAt,
+  }));
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(prRows),
+    "Purchase_pipeline",
+  );
+
+  const inRows = data.inactiveItems.map((r) => ({
+    id: r.id,
+    item_name: r.name,
+    movement: r.status,
+    quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
+    unit_price_etb: r.unitPrice,
+    supplier_name: r.supplierName,
+    supplier_phone: r.supplierPhone,
+    supplier_address: r.Address,
+    supplier_tin: r.supplierTinNumber ?? "",
+    purchase_includes_vat: vatLabel(r.purchaseWithVat),
+    recorded_by: r.statusBy,
+    action_date: r.actionDate
+      ? new Date(r.actionDate).toISOString().slice(0, 10)
+      : "",
+  }));
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(inRows),
+    "Inactive_movements",
+  );
+
+  const payRows = data.inventoryItems.map((r) => ({
+    id: r.id,
+    item_name: r.name,
+    quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
+    line_value_etb: lineOwedETB(r),
+    paid_etb: r.paidAmount,
+    payment_status: itemPaymentLabel(itemPaymentBucket(r)),
+    supplier_name: r.supplierName,
+    supplier_phone: r.supplierPhone,
+    supplier_address: r.Address,
+    supplier_tin: r.supplierTinNumber ?? "",
+    purchase_includes_vat: vatLabel(r.purchaseWithVat),
+  }));
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(payRows),
+    "Supplier_payment_VAT",
+  );
+
+  const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const safe = fileBase.replace(/[^\w\-]+/g, "_").slice(0, 80);
+  saveAs(
+    new Blob([out], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${safe}_inventory_export.xlsx`,
+  );
+}
+
+/** Single-sheet export (e.g. current on-screen filter). */
+export function exportRowsExcel(
+  fileBase: string,
+  sheetName: string,
+  rows: Record<string, unknown>[],
+): void {
+  const wb = XLSX.utils.book_new();
+  const sn = sheetName.replace(/[[\]:*?/\\]/g, "_").slice(0, 31) || "Sheet1";
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sn);
+  const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const safe = fileBase.replace(/[^\w\-]+/g, "_").slice(0, 80);
+  saveAs(
+    new Blob([out], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${safe}.xlsx`,
+  );
+}

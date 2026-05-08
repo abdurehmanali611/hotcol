@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Variant = "costControl" | "finance";
+type Variant = "costControl" | "finance" | "manager";
 
 const SECTIONS: Record<
   Variant,
@@ -176,6 +176,68 @@ const SECTIONS: Record<
           term: "Status labels",
           definition:
             "“Awaiting finance” means ready for you. “Approved by finance (awaiting store receipt)” means payment is cleared; the store still registers the item when delivered.",
+        },
+      ],
+    },
+  ],
+  manager: [
+    {
+      title: "Manager cockpit",
+      items: [
+        {
+          term: "Inventory items",
+          definition:
+            "Live, active stock lines for the selected property with quantity and value signals.",
+        },
+        {
+          term: "Open purchase steps",
+          definition:
+            "Requests still moving through cost control or finance approvals.",
+        },
+        {
+          term: "Stock movements pending CC",
+          definition:
+            "Store movement requests waiting for cost-control decision before affecting stock.",
+        },
+      ],
+    },
+    {
+      title: "Daily station counts",
+      items: [
+        {
+          term: "Opening pulse",
+          definition:
+            "Physical opening quantity counted at station start for a selected day.",
+        },
+        {
+          term: "Approved stock-out",
+          definition:
+            "Total approved store-to-station quantity for that item and day.",
+        },
+        {
+          term: "Lights-out",
+          definition:
+            "Computed close-of-day station on-hand after approved stock-out and management issue.",
+        },
+        {
+          term: "Sealed movement",
+          definition:
+            "Cross-day implied movement derived from consecutive daily opening rows.",
+        },
+      ],
+    },
+    {
+      title: "Credit controls",
+      items: [
+        {
+          term: "Corporate credit tiers",
+          definition:
+            "Manager-defined credit ceilings and periods that cashiers must reuse for company deals.",
+        },
+        {
+          term: "Creditor staff usage report",
+          definition:
+            "Live report of corporate-credit consumptions with filters and Excel export.",
         },
       ],
     },

@@ -31,6 +31,7 @@ import {
   type CostControllerProfileRow,
   type Item,
   type ItemRegistration,
+  type ItemStatus,
   type KitchenBarMonthlySnapshotRow,
 } from "@/lib/actions";
 import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
@@ -49,12 +50,16 @@ import {
   BadgePercent,
   PlusCircle,
   Edit,
+  Receipt,
+  Table2,
   type LucideIcon,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
+  SidebarSeparator,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -77,8 +82,17 @@ import {
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
+import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
+import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
+import {
+  formatMovementType,
+  formatPurchaseStatus,
+  formatQtyWithUnit,
+  HOTEL_INVENTORY_COPY,
+} from "@/lib/hotelDisplayLabels";
 
 type TabId = (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
 
@@ -94,6 +108,8 @@ const sidebarIconMap: Record<
   ArrowRightLeft,
   ShoppingCart,
   ClipboardList,
+  Receipt,
+  Table2,
   BadgePercent,
   Key,
   RefreshCw,
@@ -211,11 +227,37 @@ function ManagerContent() {
     ["PENDING_CC", "PENDING_FINANCE"].includes(p.status),
   ).length;
   const pendingStock = stockReqs.filter((s) => s.status === "PENDING").length;
+  const beginningsUnique = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const b of beginnings) {
+      const day = String(b.calendarDate || "").slice(0, 10) || "";
+      const fallbackDay = b.monthPeriod ? `${b.monthPeriod}-01` : "";
+      const calendarDay = day || fallbackDay;
+      const key = `${String(b.station || "")
+        .trim()
+        .toUpperCase()}\t${String(b.itemName || "")
+        .trim()
+        .toLowerCase()}\t${calendarDay}`;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, b);
+        continue;
+      }
+      // Prefer the most recently created duplicate (older rows may exist from pre-policy data).
+      const prevT = new Date(existing.createdAt || 0).getTime();
+      const curT = new Date(b.createdAt || 0).getTime();
+      if (curT >= prevT) map.set(key, b);
+    }
+    return [...map.values()].sort((a, b) =>
+      String(a.calendarDate || "").localeCompare(String(b.calendarDate || "")),
+    );
+  }, [beginnings]);
+
   const beginningDerivedById = useMemo(() => {
     const implied = new Map<number, number | null>();
     const dayUsage = new Map<number, number | null>();
     const groups = new Map<string, any[]>();
-    for (const b of beginnings) {
+    for (const b of beginningsUnique) {
       const k = `${String(b.station || "").trim().toUpperCase()}\t${String(b.itemName || "")
         .trim()
         .toLowerCase()}`;
@@ -249,7 +291,7 @@ function ManagerContent() {
       }
     }
     return { implied, dayUsage };
-  }, [beginnings]);
+  }, [beginningsUnique]);
 
   const renderContent = () => {
     if (loading) {
@@ -264,34 +306,34 @@ function ManagerContent() {
     switch (activeTab) {
       case "dashboard":
         return (
-          <div className="p-4 md:p-6 space-y-6">
+          <div className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>SKU lines</CardDescription>
-                  <CardTitle className="text-3xl">{items.length}</CardTitle>
+              <Card className="border-primary/15 bg-linear-to-br from-card to-primary/5 shadow-md overflow-hidden">
+                <CardHeader className="pb-2 pt-4">
+                  <CardDescription>{HOTEL_INVENTORY_COPY.inventoryItems}</CardDescription>
+                  <CardTitle className="text-3xl tabular-nums tracking-tight">{items.length}</CardTitle>
                 </CardHeader>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
+              <Card className="border-violet-500/20 bg-linear-to-br from-card to-violet-500/5 shadow-md overflow-hidden">
+                <CardHeader className="pb-2 pt-4">
                   <CardDescription>Open purchase steps</CardDescription>
-                  <CardTitle className="text-3xl">{pendingPurchases}</CardTitle>
+                  <CardTitle className="text-3xl tabular-nums tracking-tight">{pendingPurchases}</CardTitle>
                 </CardHeader>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
+              <Card className="border-amber-500/20 bg-linear-to-br from-card to-amber-500/5 shadow-md overflow-hidden">
+                <CardHeader className="pb-2 pt-4">
                   <CardDescription>Stock movements pending CC</CardDescription>
-                  <CardTitle className="text-3xl">{pendingStock}</CardTitle>
+                  <CardTitle className="text-3xl tabular-nums tracking-tight">{pendingStock}</CardTitle>
                 </CardHeader>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
+              <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/5 shadow-md overflow-hidden">
+                <CardHeader className="pb-2 pt-4">
                   <CardDescription>Movement lines (history)</CardDescription>
-                  <CardTitle className="text-3xl">{statuses.length}</CardTitle>
+                  <CardTitle className="text-3xl tabular-nums tracking-tight">{statuses.length}</CardTitle>
                 </CardHeader>
               </Card>
             </div>
-            <Card>
+            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden">
               <CardHeader>
                 <CardTitle>Recent purchase requests</CardTitle>
                 <CardDescription>Latest 8 rows</CardDescription>
@@ -310,7 +352,7 @@ function ManagerContent() {
                     {purchases.slice(0, 8).map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.itemName}</TableCell>
-                        <TableCell>{p.status}</TableCell>
+                        <TableCell>{formatPurchaseStatus(p.status)}</TableCell>
                         <TableCell>{p.storeUserName}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {new Date(p.createdAt).toLocaleString()}
@@ -321,7 +363,7 @@ function ManagerContent() {
                 </Table>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden">
               <CardHeader>
                 <CardTitle>Recent stock-out requests</CardTitle>
               </CardHeader>
@@ -330,23 +372,23 @@ function ManagerContent() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Item</TableHead>
-                      <TableHead>Reg. ID</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Qty</TableHead>
+                      <TableHead>Quantity</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {stockReqs.slice(0, 8).map((s) => (
                       <TableRow key={s.id}>
-                        <TableCell className="font-medium max-w-[180px] truncate">
+                        <TableCell className="font-medium max-w-[220px] truncate">
                           {s.itemName?.trim()
                             ? s.itemName
-                            : `— (#${s.itemRegistrationId})`}
+                            : "Unknown item (stock line may have been removed)"}
                         </TableCell>
-                        <TableCell>{s.itemRegistrationId}</TableCell>
-                        <TableCell>{s.movementType}</TableCell>
-                        <TableCell>{s.amount}</TableCell>
+                        <TableCell>{formatMovementType(s.movementType)}</TableCell>
+                        <TableCell>
+                          {formatQtyWithUnit(s.amount, items.find((it) => it.id === s.itemRegistrationId)?.measuredBy || "units")}
+                        </TableCell>
                         <TableCell>{s.status}</TableCell>
                       </TableRow>
                     ))}
@@ -463,8 +505,7 @@ function ManagerContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Unit</TableHead>
+                  <TableHead>Quantity</TableHead>
                   <TableHead>Value est.</TableHead>
                 </TableRow>
               </TableHeader>
@@ -472,8 +513,9 @@ function ManagerContent() {
                 {items.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="font-medium">{it.name}</TableCell>
-                    <TableCell>{it.amount}</TableCell>
-                    <TableCell>{it.measuredBy}</TableCell>
+                    <TableCell className="tabular-nums whitespace-nowrap">
+                      {formatQtyWithUnit(it.amount, it.measuredBy)}
+                    </TableCell>
                     <TableCell>
                       ETB {lineOwedETB(it).toLocaleString()}
                     </TableCell>
@@ -492,7 +534,7 @@ function ManagerContent() {
                 <TableRow>
                   <TableHead>Item</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Quantity</TableHead>
                   <TableHead>By</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
@@ -502,7 +544,9 @@ function ManagerContent() {
                   <TableRow key={s.id}>
                     <TableCell>{s.name}</TableCell>
                     <TableCell>{s.status}</TableCell>
-                    <TableCell>{s.amount}</TableCell>
+                    <TableCell className="tabular-nums whitespace-nowrap">
+                      {formatQtyWithUnit(s.amount, s.measuredBy)}
+                    </TableCell>
                     <TableCell>{s.statusBy}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(s.actionDate).toLocaleString()}
@@ -521,7 +565,7 @@ function ManagerContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Quantity</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>CC by</TableHead>
                   <TableHead>Finance</TableHead>
@@ -533,9 +577,9 @@ function ManagerContent() {
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.itemName}</TableCell>
                     <TableCell>
-                      {p.quantity} {p.measuredBy}
+                      {formatQtyWithUnit(p.quantity, p.measuredBy)}
                     </TableCell>
-                    <TableCell>{p.status}</TableCell>
+                    <TableCell>{formatPurchaseStatus(p.status)}</TableCell>
                     <TableCell>{p.ccActorName ?? "—"}</TableCell>
                     <TableCell>{p.financeActorName ?? "—"}</TableCell>
                     <TableCell className="text-sm">
@@ -545,6 +589,27 @@ function ManagerContent() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        );
+
+      case "inventory-payment-vat":
+        return (
+          <div className="p-4 md:p-6">
+            <HotelInventoryPaymentVatPanel
+              tenantLabel={displayName || headerLabel}
+              inventoryItems={items}
+              purchasePipeline={purchases.filter((p) =>
+                rowHotelMatchesTenantScope(p.HotelName, tenantScope || ""),
+              )}
+              inactiveItems={statuses as ItemStatus[]}
+            />
+          </div>
+        );
+
+      case "creditor-usage-report":
+        return (
+          <div className="p-4 md:p-6">
+            <HotelCreditorUsageReportPanel tenantLabel={displayName || headerLabel} />
           </div>
         );
 
@@ -668,7 +733,7 @@ function ManagerContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {beginnings.map((b) => (
+                  {beginningsUnique.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell className="tabular-nums whitespace-nowrap">
                         {b.calendarDate || `${b.monthPeriod}-01`}
@@ -748,25 +813,36 @@ function ManagerContent() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-muted/40">
-        <Sidebar collapsible="icon" className="border-r">
-          <SidebarHeader className="h-16 flex items-center px-4 border-b">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary rounded-lg p-1.5 text-primary-foreground">
-                <LayoutDashboard className="h-5 w-5" />
+      <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
+        <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
+          <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
+            <div className="flex h-full min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+                <LayoutDashboard className="h-[18px] w-[18px]" />
               </div>
-              <span className="font-bold text-lg truncate">Manager</span>
+              <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+                  Terminal
+                </p>
+                <span className="block truncate font-semibold leading-tight">
+                  Manager
+                </span>
+              </div>
             </div>
           </SidebarHeader>
-          <SidebarContent className="py-4">
-            <SidebarMenu>
+          <div className="shrink-0 px-3 pb-2 pt-3">
+            <SidebarSeparator className="bg-sidebar-border/80" />
+          </div>
+          <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
+            <SidebarMenu className="gap-1">
               {sidebarItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     isActive={activeTab === item.id}
                     onClick={() => setActiveTab(item.id)}
                     tooltip={item.label}
-                    className="cursor-pointer"
+                    size="lg"
+                    className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
                   >
                     {item.icon}
                     <span>{item.label}</span>
@@ -774,26 +850,29 @@ function ManagerContent() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-            <div className="mt-auto px-4 pb-4">
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                onClick={() => logoutAction()}
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Sign out</span>
-              </Button>
-            </div>
           </SidebarContent>
+          <SidebarFooter className="p-4 pt-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              onClick={() => logoutAction()}
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sign out</span>
+            </Button>
+          </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="flex flex-col">
+        <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
           <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
             <SidebarTrigger />
             <div className="flex-1 min-w-0">
               <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
                 {headerLabel}
               </h1>
+              <p className="text-sm md:text-base font-semibold text-foreground truncate">
+                {sidebarItems.find((i) => i.id === activeTab)?.label}
+              </p>
             </div>
             <Button
               variant="ghost"
@@ -810,23 +889,22 @@ function ManagerContent() {
             </Avatar>
           </header>
 
-          <main className="flex-1 p-3 md:p-6">
-            <div className="mx-auto max-w-6xl">
-              <div className="mb-4 md:mb-6">
-                <h2 className="text-xl md:text-2xl font-bold tracking-tight">
+          <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
+            <div className="mx-auto max-w-6xl space-y-8 pb-10">
+              <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-6 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-8">
+                <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
                   {activeTab === "menu-create-item" || activeTab === "menu-update-item"
-                    ? "Same POS menu as café admin: dishes and drinks with photo, price, and category — visible to hotel cashier corporate deals."
+                    ? "Same POS menu as cafe admin: dishes and drinks with image, price, and category; also used in hotel cashier corporate deals."
                     : activeTab === "corporate-credit-tiers"
-                      ? "Cashiers attach these tiers to companies; they cannot invent credit limits."
-                      : "Stock-focused reporting and hotel staff access."}
+                      ? "Cashiers attach these tiers to companies. Credit limits and periods are managed centrally from this terminal."
+                      : "Unified manager cockpit for approvals, stock visibility, station daily counts, and creditor usage oversight."}
                 </p>
               </div>
-              <Card className="border-none shadow-lg bg-card overflow-hidden">
-                <CardContent className="p-0">{renderContent()}</CardContent>
-              </Card>
+              <HotelWorkflowGlossary variant="manager" />
+              {renderContent()}
             </div>
           </main>
         </SidebarInset>

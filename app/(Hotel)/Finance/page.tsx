@@ -1,21 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   approvePurchaseRequestFinanceApi,
   fetchItemRegistrations,
+  fetchItemStatus,
   fetchPurchaseRequests,
   rejectPurchaseRequestFinanceApi,
   logoutAction,
   type ItemRegistration,
+  type ItemStatus,
   type PurchaseRequestRow,
 } from "@/lib/actions";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import StoreItems from "@/app/StoreItems/page";
+import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import {
   Card,
   CardDescription,
@@ -23,7 +27,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import {
   Table,
   TableBody,
@@ -43,11 +59,24 @@ import {
   Wallet,
   XCircle,
   LayoutGrid,
+  Receipt,
+  Table2,
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
-import { formatPurchaseStatus } from "@/lib/hotelDisplayLabels";
+import {
+  formatPurchaseStatus,
+  formatQtyWithUnit,
+  HOTEL_INVENTORY_COPY,
+} from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+type FinanceSection =
+  | "queue"
+  | "history"
+  | "inventory"
+  | "payment-vat"
+  | "creditor-usage";
 
 function FinanceInner() {
   const searchParams = useSearchParams();
@@ -59,20 +88,27 @@ function FinanceInner() {
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
+  const [inactiveRows, setInactiveRows] = useState<ItemStatus[]>([]);
+  const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [all, regs] = await Promise.all([
+      const [all, regs, stat] = await Promise.all([
         fetchPurchaseRequests(),
         fetchItemRegistrations(),
+        fetchItemStatus(),
       ]);
       setRows(all);
       const t = String(tenantScope ?? "").trim();
       const regList = regs as ItemRegistration[];
       setInventoryRows(
         t ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t)) : regList,
+      );
+      const statList = stat as ItemStatus[];
+      setInactiveRows(
+        t ? statList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t)) : statList,
       );
     } catch (e: any) {
       toast.error(e?.message || "Failed to load");
@@ -86,8 +122,16 @@ function FinanceInner() {
     void load();
   }, [load]);
 
-  const pending = rows.filter((r) => r.status === "PENDING_FINANCE");
-  const history = rows.filter((r) =>
+  const scopedPurchases = useMemo(
+    () =>
+      rows.filter((r) =>
+        rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
+      ),
+    [rows, tenantScope],
+  );
+
+  const pending = scopedPurchases.filter((r) => r.status === "PENDING_FINANCE");
+  const history = scopedPurchases.filter((r) =>
     ["APPROVED_FINANCE", "REJECTED_FINANCE"].includes(r.status),
   );
   const pendingLineTotal = pending.reduce(
@@ -105,46 +149,113 @@ function FinanceInner() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-muted/40 text-foreground pb-16">
-      <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
-        <Avatar className="h-8 w-8 border shadow-sm">
-          <AvatarImage src={logoUrl} alt={displayName || "Property"} />
-          <AvatarFallback>
-            {(displayName || "P").slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
-            {displayName || "Property"}
-          </h1>
-          <p className="text-sm md:text-base font-semibold text-foreground truncate">
-            Finance
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className={refreshing ? "animate-spin" : ""}
-          aria-label="Refresh"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => logoutAction()}
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline">Sign out</span>
-        </Button>
-      </header>
+  const financeNavItems: {
+    section: FinanceSection;
+    label: string;
+    icon: typeof Inbox;
+  }[] = [
+    { section: "queue", label: "Payment queue", icon: Inbox },
+    { section: "history", label: "History", icon: History },
+    {
+      section: "inventory",
+      label: HOTEL_INVENTORY_COPY.inventoryItems,
+      icon: LayoutGrid,
+    },
+    {
+      section: "payment-vat",
+      label: HOTEL_INVENTORY_COPY.paymentAndTax,
+      icon: Receipt,
+    },
+    {
+      section: "creditor-usage",
+      label: "Creditor staff usage report",
+      icon: Table2,
+    },
+  ];
 
-      <main className="p-3 md:p-6">
-        <div className="mx-auto max-w-6xl space-y-10">
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
+        <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
+          <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
+            <div className="flex h-full min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+                <Wallet className="h-[18px] w-[18px]" />
+              </div>
+              <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+                  Terminal
+                </p>
+                <span className="block truncate font-semibold leading-tight">
+                  Finance
+                </span>
+              </div>
+            </div>
+          </SidebarHeader>
+          <div className="shrink-0 px-3 pb-2 pt-3">
+            <SidebarSeparator className="bg-sidebar-border/80" />
+          </div>
+          <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
+            <SidebarMenu className="gap-1">
+              {financeNavItems.map(({ section, label, icon: Icon }) => (
+                <SidebarMenuItem key={section}>
+                  <SidebarMenuButton
+                    isActive={financeSection === section}
+                    onClick={() => setFinanceSection(section)}
+                    tooltip={label}
+                    size="lg"
+                    className="h-auto min-h-10 cursor-pointer py-2 text-[13px] data-[active=true]:shadow-sm"
+                  >
+                    <Icon className="opacity-80 shrink-0" />
+                    <span className="text-left leading-snug">{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarContent>
+          <SidebarFooter className="p-4 pt-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              onClick={() => logoutAction()}
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sign out</span>
+            </Button>
+          </SidebarFooter>
+        </Sidebar>
+
+        <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20">
+          <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-6">
+            <SidebarTrigger />
+            <Avatar className="h-8 w-8 border shadow-sm">
+              <AvatarImage src={logoUrl} alt={displayName || "Property"} />
+              <AvatarFallback>
+                {(displayName || "P").slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
+                {displayName || "Property"}
+              </h1>
+              <p className="text-sm md:text-base font-semibold text-foreground truncate">
+                Finance
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => load(true)}
+              disabled={refreshing}
+              className={refreshing ? "animate-spin" : ""}
+              aria-label="Refresh"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </header>
+
+          <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
+        <div className="mx-auto max-w-6xl space-y-10 pb-16">
         <HotelWorkflowGlossary variant="finance" />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -191,23 +302,7 @@ function FinanceInner() {
           </Card>
         </div>
 
-        <Tabs defaultValue="queue" className="space-y-4">
-          <TabsList className="h-12 items-center bg-muted/50 p-1.5 rounded-xl border border-border w-fit">
-            <TabsTrigger value="queue" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Inbox className="h-4 w-4 opacity-80" />
-              Queue
-            </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <History className="h-4 w-4 opacity-80" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="inventory" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <LayoutGrid className="h-4 w-4 opacity-80" />
-              Active inventory
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="queue" className="space-y-4 mt-2">
+        {financeSection === "queue" && (
         <section className="space-y-4">
           <Card className="border-primary/15 shadow-lg bg-card/95 backdrop-blur-sm overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
             <div className="h-1 bg-linear-to-r from-primary/60 via-violet-500/50 to-cyan-500/40" />
@@ -281,11 +376,8 @@ function FinanceInner() {
                       <TableCell className="font-medium align-middle">
                         {r.itemName}
                       </TableCell>
-                      <TableCell className="align-middle">
-                        <span className="tabular-nums">{r.quantity}</span>{" "}
-                        <span className="text-muted-foreground text-xs">
-                          {r.measuredBy}
-                        </span>
+                      <TableCell className="align-middle tabular-nums whitespace-nowrap">
+                        {formatQtyWithUnit(r.quantity, r.measuredBy)}
                       </TableCell>
                       <TableCell className="tabular-nums font-medium align-middle">
                         {(
@@ -335,9 +427,9 @@ function FinanceInner() {
             </div>
           )}
         </section>
-          </TabsContent>
+        )}
 
-          <TabsContent value="history" className="space-y-4 mt-2">
+        {financeSection === "history" && (
         <section className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="p-2 rounded-lg bg-muted/60 border border-border/60">
@@ -417,15 +509,15 @@ function FinanceInner() {
             </div>
           )}
         </section>
-          </TabsContent>
+        )}
 
-          <TabsContent value="inventory" className="space-y-4 mt-2">
+        {financeSection === "inventory" && (
             <section className="space-y-4">
               <Card className="border-violet-500/15 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
                 <div className="h-0.5 bg-linear-to-r from-violet-500/60 to-primary/40" />
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg sm:text-xl tracking-tight">
-                    Active inventory & supplier payment
+                    {HOTEL_INVENTORY_COPY.inventoryItems} & supplier payment
                   </CardTitle>
                   <CardDescription className="text-pretty max-w-2xl">
                     Read-only mirror of store stock lines with fully paid vs on-credit
@@ -441,12 +533,30 @@ function FinanceInner() {
                 showPaymentSummary
               />
             </section>
-          </TabsContent>
-        </Tabs>
+        )}
+
+        {financeSection === "payment-vat" && (
+          <section className="space-y-4">
+            <HotelInventoryPaymentVatPanel
+              tenantLabel={displayName || "Property"}
+              inventoryItems={inventoryRows}
+              purchasePipeline={scopedPurchases}
+              inactiveItems={inactiveRows}
+            />
+          </section>
+        )}
+
+        {financeSection === "creditor-usage" && (
+          <section className="space-y-4">
+            <HotelCreditorUsageReportPanel tenantLabel={displayName || "Property"} />
+          </section>
+        )}
 
         </div>
       </main>
-    </div>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 }
 

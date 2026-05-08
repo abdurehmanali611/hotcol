@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { ItemRegistrationSchema } from "@/lib/validations";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -20,10 +20,12 @@ import {
   CreateItemRegistration,
   fetchItemRegistrations,
   fetchItemStatus,
+  fetchPurchaseRequests,
   ItemRegistration,
   ItemStatus,
   logoutAction,
   uploadImage,
+  type PurchaseRequestRow,
 } from "@/lib/actions";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,7 @@ import {
   Loader2,
   MinusCircle,
   PackagePlus,
+  Receipt,
   RefreshCw,
   Send,
   ShoppingCart,
@@ -66,6 +69,9 @@ import {
   normalizeInventoryItemName,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
+import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 
 type StoreView =
   | "Register"
@@ -73,7 +79,8 @@ type StoreView =
   | "Supplier"
   | "Inactive"
   | "Purchases"
-  | "RequestStatus";
+  | "RequestStatus"
+  | "PaymentVat";
 
 const HOTEL_STORE_NAV: {
   id: StoreView;
@@ -84,8 +91,9 @@ const HOTEL_STORE_NAV: {
   { id: "Active", label: "Inventory", icon: ShoppingCart },
   { id: "Inactive", label: "Inactive", icon: MinusCircle },
   { id: "Supplier", label: "Suppliers", icon: StoreIcon },
-  { id: "Purchases", label: "Purchase req.", icon: Send },
+  { id: "Purchases", label: "Purchase pipeline", icon: Send },
   { id: "RequestStatus", label: "Request status", icon: ClipboardList },
+  { id: "PaymentVat", label: "Inventory payment & tax", icon: Receipt },
 ];
 
 export function StoreComponent({
@@ -98,6 +106,7 @@ export function StoreComponent({
   const [activeView, setActiveView] = useState<StoreView>("Register");
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
+  const [purchaseRows, setPurchaseRows] = useState<PurchaseRequestRow[]>([]);
   const searchedParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchedParams.get("hotel"),
@@ -108,12 +117,13 @@ export function StoreComponent({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [itemData, itemStatusData] = await Promise.all([
+      const [itemData, itemStatusData, prData] = await Promise.all([
         fetchItemRegistrations(),
-        fetchItemStatus()
+        fetchItemStatus(),
+        hotelInventory ? fetchPurchaseRequests() : Promise.resolve([]),
       ]);
-       const response = itemData as ItemRegistration[];
-       const statusResponse = itemStatusData as ItemStatus[];
+      const response = itemData as ItemRegistration[];
+      const statusResponse = itemStatusData as ItemStatus[];
       if (Array.isArray(response)) {
         const hotelItem = response.filter(
           (item) => item.HotelName === tenantScope,
@@ -130,6 +140,15 @@ export function StoreComponent({
       } else {
         setItemStatus([]);
       }
+      if (hotelInventory && Array.isArray(prData)) {
+        setPurchaseRows(
+          (prData as PurchaseRequestRow[]).filter((p) =>
+            rowHotelMatchesTenantScope(p.HotelName, tenantScope),
+          ),
+        );
+      } else {
+        setPurchaseRows([]);
+      }
     } catch {
       toast.error("Failed to load data");
     } finally {
@@ -141,8 +160,9 @@ export function StoreComponent({
     loadData();
   }, [tenantScope]);
 
-  const form = useForm<z.infer<typeof ItemRegistrationSchema>>({
-    resolver: zodResolver(ItemRegistrationSchema),
+  type ItemRegForm = z.infer<typeof ItemRegistrationSchema>;
+  const form = useForm<ItemRegForm>({
+    resolver: zodResolver(ItemRegistrationSchema) as Resolver<ItemRegForm>,
     defaultValues: {
       name: "",
       imageUrl: "",
@@ -156,7 +176,9 @@ export function StoreComponent({
       supplierName: "",
       supplierPhone: "",
       Address: "",
-      supplierLevel: "Bronze",
+      supplierLevel: "",
+      purchaseWithVat: false,
+      supplierTinNumber: "",
       paidAmount: 0,
       HotelName: tenantScope || "",
     },
@@ -174,7 +196,7 @@ export function StoreComponent({
     }
   }, [hotelInventory, form]);
 
-  const onSubmit = async (values: z.infer<typeof ItemRegistrationSchema>) => {
+  const onSubmit = async (values: ItemRegForm) => {
     try {
       setLoading(true)
       const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
@@ -226,7 +248,7 @@ export function StoreComponent({
       Icon: PackagePlus,
     },
     Active: {
-      title: "Active inventory",
+      title: HOTEL_INVENTORY_COPY.inventoryItems,
       description:
         "Live quantities for this property — filter, edit, and approve movements where applicable.",
       Icon: ShoppingCart,
@@ -244,7 +266,7 @@ export function StoreComponent({
       Icon: StoreIcon,
     },
     Purchases: {
-      title: "Purchase requests",
+      title: HOTEL_INVENTORY_COPY.purchasePipeline,
       description:
         "Create purchase requests for Cost Control and Finance approval, then register stock when goods arrive.",
       Icon: Send,
@@ -254,6 +276,12 @@ export function StoreComponent({
       description:
         "Track purchase and movement requests end-to-end with the latest approval status.",
       Icon: ClipboardList,
+    },
+    PaymentVat: {
+      title: HOTEL_INVENTORY_COPY.paymentAndTax,
+      description:
+        "Filter by supplier payment (credit or paid) and VAT, and download Excel for finance.",
+      Icon: Receipt,
     },
   };
 
@@ -401,14 +429,10 @@ export function StoreComponent({
                         control={form.control}
                         fieldType={formFieldTypes.SELECT}
                         label="Unit"
-                        listdisplay={[
-                          { id: 1, name: "Litre" },
-                          { id: 2, name: "Kilogram" },
-                          { id: 3, name: "Piece" },
-                          { id: 4, name: "Packet" },
-                          { id: 5, name: "Dozen" },
-                          { id: 6, name: "Other" },
-                        ]}
+                        listdisplay={INVENTORY_UNIT_SELECT_OPTIONS.map((u) => ({
+                          id: u.id,
+                          name: u.name,
+                        }))}
                         inputClassName="h-fit p-2 w-56"
                       />
                     </div>
@@ -495,13 +519,20 @@ export function StoreComponent({
                     </div>
 
                     <div className="flex flex-col md:flex-row gap-8 items-end bg-accent/30 p-6 rounded-xl border border-border">
-                      <div className="flex-1 w-full">
+                      <div className="flex-1 w-full space-y-4">
                         <CustomFormField
-                          name="supplierLevel"
+                          name="purchaseWithVat"
                           control={form.control}
-                          fieldType={formFieldTypes.RADIO_BUTTON}
-                          label="Supplier Tier"
-                          listdisplay={["Bronze", "Silver", "Gold"]}
+                          fieldType={formFieldTypes.SWITCH}
+                          label="Purchase price includes VAT"
+                        />
+                        <CustomFormField
+                          name="supplierTinNumber"
+                          control={form.control}
+                          fieldType={formFieldTypes.INPUT}
+                          label="Supplier TIN (tax ID)"
+                          placeholder="e.g. 10-digit TIN"
+                          inputClassName="h-fit p-2 w-full max-w-md"
                         />
                       </div>
                       <div className="w-full md:w-64">
@@ -551,6 +582,15 @@ export function StoreComponent({
         ) : activeView === "RequestStatus" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <StoreRequestStatusTab />
+          </div>
+        ) : activeView === "PaymentVat" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <HotelInventoryPaymentVatPanel
+              tenantLabel={displayLabel}
+              inventoryItems={storeItem}
+              purchasePipeline={purchaseRows}
+              inactiveItems={itemStatus}
+            />
           </div>
         ) : activeView === "Inactive" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
@@ -650,7 +690,7 @@ export function StoreComponent({
                             <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                           </div>
                           <div className="min-w-0 space-y-1">
-                            <CardDescription>Active inventory lines</CardDescription>
+                            <CardDescription>{HOTEL_INVENTORY_COPY.inventoryItems}</CardDescription>
                             <CardTitle className="text-3xl tabular-nums tracking-tight">
                               {storeItem.length}
                             </CardTitle>

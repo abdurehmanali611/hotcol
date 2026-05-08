@@ -68,9 +68,11 @@ import {
   LogOut,
   MinusCircle,
   Package,
+  Receipt,
   RefreshCw,
   Send,
   ShoppingCart,
+  Table2,
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import {
@@ -82,6 +84,7 @@ import {
 import {
   formatMovementType,
   formatPurchaseStatus,
+  formatQtyWithUnit,
   formatStockOutRequestStatus,
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
@@ -92,6 +95,10 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
+import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
+import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
 import {
   Sidebar,
   SidebarContent,
@@ -105,16 +112,6 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-
-/** Same labels as Store inventory “Unit” so chef/bar beginnings stay consistent. */
-const BEGINNING_UNIT_OPTIONS = [
-  "Litre",
-  "Kilogram",
-  "Piece",
-  "Packet",
-  "Dozen",
-  "Other",
-] as const;
 
 function parseYmdToDate(ymd: string): Date | undefined {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
@@ -154,11 +151,15 @@ function CostControlInner() {
     station: "KITCHEN",
     itemName: "",
     amount: 0,
+    managementTakenDay: 0,
     measuredBy: "Piece",
     monthPeriod: new Date().toISOString().slice(0, 7),
     calendarDate: new Date().toISOString().slice(0, 10),
     notes: "",
   });
+  const [selectedDailyDate, setSelectedDailyDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
   const [editingId, setEditingId] = useState<number | null>(null);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const [statusRows, setStatusRows] = useState<ItemStatus[]>([]);
@@ -168,15 +169,27 @@ function CostControlInner() {
     | "inactive"
     | "stock"
     | "request-status"
-    | "beginnings";
+    | "beginnings"
+    | "payment-vat"
+    | "creditor-usage";
   const [activeSection, setActiveSection] = useState<CostSection>("purchases");
 
-  const beginningUnitSelectItems = useMemo(() => {
-    const m = beginForm.measuredBy.trim();
-    if (m && !BEGINNING_UNIT_OPTIONS.includes(m as (typeof BEGINNING_UNIT_OPTIONS)[number])) {
-      return [m, ...BEGINNING_UNIT_OPTIONS];
+  const inventoryItemOptions = useMemo(() => {
+    return inventoryRows
+      .filter((r) => Number(r.amount) > 0)
+      .map((r) => ({
+        name: r.name,
+        measuredBy: r.measuredBy,
+      }));
+  }, [inventoryRows]);
+
+  const dailyUnitOptions = useMemo(() => {
+    const current = String(beginForm.measuredBy || "").trim();
+    if (!current) return [...INVENTORY_UNIT_NAMES];
+    if ((INVENTORY_UNIT_NAMES as readonly string[]).includes(current)) {
+      return [...INVENTORY_UNIT_NAMES];
     }
-    return [...BEGINNING_UNIT_OPTIONS];
+    return [current, ...INVENTORY_UNIT_NAMES];
   }, [beginForm.measuredBy]);
 
   const beginningDerivedById = useMemo(() => {
@@ -224,7 +237,7 @@ function CostControlInner() {
   const dailyFormPreview = useMemo(() => {
     const stationKey = normalizeKitchenBarStationKey(beginForm.station);
     const item = beginForm.itemName.trim();
-    const cal = beginForm.calendarDate;
+    const cal = selectedDailyDate;
     const t = String(tenantScope ?? "").trim();
     const scopedBeg = t
       ? beginnings.filter((b) => rowHotelMatchesTenantScope(b.HotelName, t))
@@ -259,10 +272,27 @@ function CostControlInner() {
           : Number(prev.amount)
         : null;
     const usageDay = prevLights != null ? round2(opening - prevLights) : null;
-    // Lights-out here is defined as opening + approved stock-out for the day.
-    const lightsOut = round2(opening + stockOut);
-    return { stockOut, lightsOut, usageDay };
-  }, [beginForm, stocks, beginnings, tenantScope, editingId]);
+    const managementTaken = round2(Number(beginForm.managementTakenDay) || 0);
+    // Lights-out = opening + approved stock-out - movement issued to management from station.
+    const lightsOut = round2(opening + stockOut - managementTaken);
+    return { stockOut, lightsOut, usageDay, managementTaken };
+  }, [beginForm, stocks, beginnings, tenantScope, editingId, selectedDailyDate]);
+
+  const visibleBeginnings = useMemo(() => {
+    const day = String(selectedDailyDate || "").slice(0, 10);
+    if (!day) return beginnings;
+    return beginnings.filter((b) => String(b.calendarDate || "").slice(0, 10) === day);
+  }, [beginnings, selectedDailyDate]);
+
+  useEffect(() => {
+    const day = String(selectedDailyDate || "").slice(0, 10);
+    if (!day) return;
+    setBeginForm((f) => ({
+      ...f,
+      calendarDate: day,
+      monthPeriod: day.slice(0, 7),
+    }));
+  }, [selectedDailyDate]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -336,6 +366,16 @@ function CostControlInner() {
       label: "Request status",
       icon: ClipboardList,
     },
+    {
+      section: "payment-vat" as const,
+      label: HOTEL_INVENTORY_COPY.paymentAndTax,
+      icon: Receipt,
+    },
+    {
+      section: "creditor-usage" as const,
+      label: "Creditor staff usage report",
+      icon: Table2,
+    },
   ];
 
   const workspaceIntro: Record<
@@ -349,9 +389,9 @@ function CostControlInner() {
       Icon: Send,
     },
     inventory: {
-      title: "Active inventory",
+      title: HOTEL_INVENTORY_COPY.inventoryItems,
       description:
-        "Live quantities and stock movements for this property — aligned with the hotel store terminal.",
+        "Live quantities for this property — same list as the hotel store “Inventory” screen.",
       Icon: ShoppingCart,
     },
     inactive: {
@@ -377,6 +417,18 @@ function CostControlInner() {
       description:
         "Full purchase and stock-movement history with current status across cost control and finance.",
       Icon: ClipboardList,
+    },
+    "payment-vat": {
+      title: HOTEL_INVENTORY_COPY.paymentAndTax,
+      description:
+        "Filter inventory by supplier payment (credit vs paid) and VAT, and export Excel for finance.",
+      Icon: Receipt,
+    },
+    "creditor-usage": {
+      title: "Creditor staff usage report",
+      description:
+        "Live corporate-credit staff usage rows with Excel export for audit and finance handoff.",
+      Icon: Table2,
     },
   };
 
@@ -896,7 +948,7 @@ function CostControlInner() {
                       <TableRow>
                         <TableHead>Item</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead>Qty</TableHead>
+                        <TableHead>Quantity</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Requested by</TableHead>
                         <TableHead>CC reviewer</TableHead>
@@ -912,15 +964,21 @@ function CostControlInner() {
                         )
                         .map((r) => (
                           <TableRow key={r.id}>
-                            <TableCell className="font-medium max-w-[160px] truncate">
+                            <TableCell className="font-medium max-w-[200px] truncate">
                               {r.itemName?.trim()
                                 ? r.itemName
-                                : `#${r.itemRegistrationId}`}
+                                : "Unknown item (stock line may have been removed)"}
                             </TableCell>
                             <TableCell className="text-sm whitespace-nowrap">
                               {formatMovementType(r.movementType)}
                             </TableCell>
-                            <TableCell>{r.amount}</TableCell>
+                            <TableCell className="tabular-nums whitespace-nowrap">
+                              {formatQtyWithUnit(
+                                r.amount,
+                                inventoryRows.find((it) => it.id === r.itemRegistrationId)
+                                  ?.measuredBy || "units",
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Badge
                                 variant={
@@ -951,6 +1009,25 @@ function CostControlInner() {
               </CardContent>
             </Card>
           </div>
+          )}
+
+          {activeSection === "payment-vat" && (
+            <div className="space-y-6">
+              <HotelInventoryPaymentVatPanel
+                tenantLabel={displayName || "Property"}
+                inventoryItems={inventoryRows}
+                purchasePipeline={purchases.filter((p) =>
+                  rowHotelMatchesTenantScope(p.HotelName, tenantScope || ""),
+                )}
+                inactiveItems={statusRows}
+              />
+            </div>
+          )}
+
+          {activeSection === "creditor-usage" && (
+            <div className="space-y-6">
+              <HotelCreditorUsageReportPanel tenantLabel={displayName || "Property"} />
+            </div>
           )}
 
           {activeSection === "beginnings" && (
@@ -1058,17 +1135,18 @@ function CostControlInner() {
                   count when the day starts at the station.{" "}
                   <strong className="text-foreground">Stock out</strong> is summed from{" "}
                   <em>approved</em> store requests to that station for the same calendar day (you do not type it).{" "}
+                  <strong className="text-foreground">Issued to management</strong> is entered here when station stock is taken by management.{" "}
                   <strong className="text-foreground">Lights-out</strong> is calculated from opening, that stock-out, and
-                  usage since the prior day (opening today minus prior lights-out when a prior row exists).{" "}
+                  management issue, plus usage since the prior day (opening today minus prior lights-out when a prior row exists).{" "}
                   <em>Sealed movement</em> still compares consecutive openings when the next day is recorded.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-1 pb-8 px-5 sm:px-6">
                 <HotelFormSection
                   title="Station & calendar day"
-                  description="One row per station, ingredient, and date. The month is taken from the date."
+                  description="One row per station and item on the selected calendar day. Date is selected from the first Date cell in the grid below."
                 >
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-1">
                     <HotelFormFieldStack>
                       <Label htmlFor="kb-station">Station</Label>
                       <Select
@@ -1092,58 +1170,39 @@ function CostControlInner() {
                         </SelectContent>
                       </Select>
                     </HotelFormFieldStack>
-                    <HotelFormFieldStack>
-                      <Label htmlFor="kb-day">Calendar date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            id="kb-day"
-                            type="button"
-                            variant="outline"
-                            className="h-10 w-full justify-start border-border/80 shadow-sm font-normal"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {beginForm.calendarDate || "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={parseYmdToDate(beginForm.calendarDate)}
-                            onSelect={(d) => {
-                              if (!d) return;
-                              const v = toYmdLocal(d);
-                              setBeginForm((f) => ({
-                                ...f,
-                                calendarDate: v,
-                                monthPeriod: v.slice(0, 7),
-                              }));
-                            }}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </HotelFormFieldStack>
                   </div>
                 </HotelFormSection>
 
                 <HotelFormSection
                   title="Item & counts"
-                  description="Units match store inventory labels."
+                  description="Select an item from active inventory. Daily rows cannot be created for out-of-stock items."
                 >
                   <HotelFormFieldStack>
                     <Label htmlFor="kb-item">Item or ingredient</Label>
-                    <Input
-                      id="kb-item"
+                    <Select
                       value={beginForm.itemName}
-                      onChange={(e) =>
-                        setBeginForm((f) => ({ ...f, itemName: e.target.value }))
-                      }
-                      placeholder="e.g. Cooking oil, tonic water"
-                      className="h-10 border-border/80 shadow-sm"
-                    />
+                      onValueChange={(v) => {
+                        const hit = inventoryItemOptions.find((x) => x.name === v);
+                        setBeginForm((f) => ({
+                          ...f,
+                          itemName: v,
+                          measuredBy: hit?.measuredBy || f.measuredBy,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger id="kb-item" className="h-10 w-full border-border/80 shadow-sm">
+                        <SelectValue placeholder="Select item from inventory" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryItemOptions.map((it) => (
+                          <SelectItem key={it.name} value={it.name}>
+                            {it.name} ({it.measuredBy})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </HotelFormFieldStack>
-                  <div className="grid gap-4 sm:grid-cols-3 pt-2">
+                  <div className="grid gap-4 sm:grid-cols-4 pt-2">
                     <HotelFormFieldStack>
                       <Label htmlFor="kb-opening">Opening pulse</Label>
                       <Input
@@ -1190,6 +1249,28 @@ function CostControlInner() {
                         </p>
                       )}
                     </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label htmlFor="kb-management-taken">Issued to management</Label>
+                      <Input
+                        id="kb-management-taken"
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={beginForm.managementTakenDay}
+                        onChange={(e) =>
+                          setBeginForm((f) => ({
+                            ...f,
+                            managementTakenDay: Number.isFinite(Number(e.target.value))
+                              ? Number(e.target.value)
+                              : 0,
+                          }))
+                        }
+                        className="h-10 tabular-nums border-border/80 shadow-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Units issued from station stock to management.
+                      </p>
+                    </HotelFormFieldStack>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-1 pt-2 max-w-xs">
                     <HotelFormFieldStack>
@@ -1204,7 +1285,7 @@ function CostControlInner() {
                           <SelectValue placeholder="Select unit" />
                         </SelectTrigger>
                         <SelectContent>
-                          {beginningUnitSelectItems.map((u) => (
+                          {dailyUnitOptions.map((u) => (
                             <SelectItem key={u} value={u}>
                               {u}
                             </SelectItem>
@@ -1245,22 +1326,29 @@ function CostControlInner() {
                             id: editingId,
                             ...beginForm,
                             amount: round2(Number(beginForm.amount) || 0),
+                            managementTakenDay: round2(
+                              Number(beginForm.managementTakenDay) || 0,
+                            ),
                           });
                           setEditingId(null);
                         } else {
                           await createKitchenBarBeginningApi({
                             ...beginForm,
                             amount: round2(Number(beginForm.amount) || 0),
+                            managementTakenDay: round2(
+                              Number(beginForm.managementTakenDay) || 0,
+                            ),
                           });
                         }
-                        const today = new Date().toISOString().slice(0, 10);
+                        const day = selectedDailyDate || new Date().toISOString().slice(0, 10);
                         setBeginForm({
                           station: "KITCHEN",
                           itemName: "",
                           amount: 0,
+                          managementTakenDay: 0,
                           measuredBy: "Piece",
-                          monthPeriod: today.slice(0, 7),
-                          calendarDate: today,
+                          monthPeriod: day.slice(0, 7),
+                          calendarDate: day,
                           notes: "",
                         });
                         load();
@@ -1277,14 +1365,15 @@ function CostControlInner() {
                       variant="ghost"
                       onClick={() => {
                         setEditingId(null);
-                        const today = new Date().toISOString().slice(0, 10);
+                        const day = selectedDailyDate || new Date().toISOString().slice(0, 10);
                         setBeginForm({
                           station: "KITCHEN",
                           itemName: "",
                           amount: 0,
+                          managementTakenDay: 0,
                           measuredBy: "Piece",
-                          monthPeriod: today.slice(0, 7),
-                          calendarDate: today,
+                          monthPeriod: day.slice(0, 7),
+                          calendarDate: day,
                           notes: "",
                         });
                       }}
@@ -1300,11 +1389,40 @@ function CostControlInner() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead>Date</TableHead>
+                    <TableHead>
+                      <div className="flex flex-col gap-1">
+                        <span>Date</span>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              id="kb-grid-day"
+                              type="button"
+                              variant="outline"
+                              className="h-8 w-[170px] justify-start border-border/80 px-2 text-xs font-normal"
+                            >
+                              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                              {selectedDailyDate || "Pick a date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={parseYmdToDate(selectedDailyDate)}
+                              onSelect={(d) => {
+                                if (!d) return;
+                                setSelectedDailyDate(toYmdLocal(d));
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </TableHead>
                     <TableHead>Station</TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead className="text-right">Opening pulse</TableHead>
                     <TableHead className="text-right">Approved stock-out</TableHead>
+                    <TableHead className="text-right">Issued to management</TableHead>
                     <TableHead className="text-right">Lights-out</TableHead>
                     <TableHead className="text-right">Day usage</TableHead>
                     <TableHead className="text-right">Sealed movement</TableHead>
@@ -1312,11 +1430,13 @@ function CostControlInner() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {beginnings.map((b) => {
+                  {visibleBeginnings.map((b) => {
                     const implied = beginningDerivedById.implied.get(b.id);
                     const usage = beginningDerivedById.daySales.get(b.id);
                     const lightsOut = round2(
-                      Number(b.amount || 0) + Number(b.stockOutDay ?? 0),
+                      Number(b.amount || 0) +
+                        Number(b.stockOutDay ?? 0) -
+                        Number(b.managementTakenDay ?? 0),
                     );
                     return (
                     <TableRow key={b.id} className="hover:bg-muted/30">
@@ -1330,6 +1450,9 @@ function CostControlInner() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {Number(b.stockOutDay ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {Number(b.managementTakenDay ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {lightsOut.toFixed(2)}
@@ -1350,10 +1473,14 @@ function CostControlInner() {
                               b.calendarDate && b.calendarDate.length >= 10
                                 ? b.calendarDate.slice(0, 10)
                                 : `${b.monthPeriod}-01`;
+                            setSelectedDailyDate(cd);
                             setBeginForm({
                               station: normalizeKitchenBarStationKey(b.station),
                               itemName: b.itemName,
                               amount: b.amount,
+                              managementTakenDay: Number(
+                                b.managementTakenDay ?? 0,
+                              ),
                               measuredBy: b.measuredBy,
                               monthPeriod: b.monthPeriod,
                               calendarDate: cd,

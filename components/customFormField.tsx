@@ -244,7 +244,12 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
     case formFieldTypes.SWITCH:
       return (
         <FormControl>
-          <Switch {...field} id={props.placeholder} disabled={props.disabled} />
+          <Switch
+            id={props.placeholder}
+            disabled={props.disabled}
+            checked={Boolean(field.value)}
+            onCheckedChange={field.onChange}
+          />
         </FormControl>
       );
 

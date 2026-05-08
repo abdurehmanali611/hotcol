@@ -1,5 +1,23 @@
 /** User-facing labels for hotel inventory workflow codes */
 
+/** Show quantity together with the unit of measure (e.g. stock movements, purchases). */
+export function formatQtyWithUnit(qty: number, measuredBy: string): string {
+  const u = String(measuredBy ?? "").trim() || "units";
+  const q = Number(qty);
+  const n = Number.isFinite(q) ? q : 0;
+  return `${n} ${u}`;
+}
+
+/** Consistent, beginner-friendly names for the same concepts across hotel terminals. */
+export const HOTEL_INVENTORY_COPY = {
+  /** Rows in master inventory (what was labeled “SKU” in some dashboards). */
+  inventoryItems: "Inventory items",
+  /** Purchase requests not yet fully received / closed. */
+  purchasePipeline: "Purchase pipeline",
+  /** Payment & VAT overview sidebar section. */
+  paymentAndTax: "Inventory payment & tax",
+} as const;
+
 export function formatMovementType(code: string): string {
   switch (code) {
     case "STOCK_OUT":

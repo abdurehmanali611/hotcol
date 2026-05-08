@@ -317,6 +317,8 @@ export interface ItemRegistration {
   supplierName: string;
   supplierPhone: string;
   supplierLevel: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
   Address: string;
   paidAmount: number;
   registeredAmount?: number;
@@ -338,6 +340,8 @@ export interface createItemRegistration {
   supplierName: string;
   supplierPhone: string;
   supplierLevel: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
   Address: string;
   paidAmount: number;
   HotelName: string;
@@ -360,6 +364,8 @@ export interface ItemStatus {
   supplierPhone: string;
   Address: string;
   supplierLevel: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
   paidAmount: number;
   status: string;
   statusBy: string;
@@ -378,6 +384,8 @@ export interface CreatingItemStatus {
   supplierPhone: string;
   Address: string;
   supplierLevel: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
   paidAmount: number;
   status: string;
   statusBy: string;
@@ -2905,6 +2913,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
         $supplierPhone: String!,
         $Address: String!,
         $supplierLevel: String!,
+        $purchaseWithVat: Boolean,
+        $supplierTinNumber: String,
         $paidAmount: Float!,
         $HotelName: String!
       ) {
@@ -2922,6 +2932,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           supplierPhone: $supplierPhone,
           Address: $Address,
           supplierLevel: $supplierLevel,
+          purchaseWithVat: $purchaseWithVat,
+          supplierTinNumber: $supplierTinNumber,
           paidAmount: $paidAmount,
           HotelName: $HotelName
         ) {
@@ -2938,6 +2950,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           supplierPhone
           Address
           supplierLevel
+          purchaseWithVat
+          supplierTinNumber
           paidAmount
           HotelName
         }
@@ -2966,6 +2980,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       supplierPhone: values.supplierPhone || "",
       Address: values.Address || "",
       supplierLevel: values.supplierLevel || "",
+      purchaseWithVat: values.purchaseWithVat === true,
+      supplierTinNumber: (values.supplierTinNumber || "").trim(),
       paidAmount: values.paidAmount || 0,
       HotelName: values.HotelName,
     };
@@ -3051,6 +3067,8 @@ export async function fetchItemRegistrations() {
           supplierName
           supplierPhone
           supplierLevel
+          purchaseWithVat
+          supplierTinNumber
           Address
           paidAmount
           registeredAmount
@@ -3095,6 +3113,8 @@ export async function UpdateItemRegistration(
         $supplierPhone: String!,
         $Address: String!,
         $supplierLevel: String!,
+        $purchaseWithVat: Boolean,
+        $supplierTinNumber: String,
         $paidAmount: Float!
       ) {
         UpdateItemRegistration(
@@ -3112,6 +3132,8 @@ export async function UpdateItemRegistration(
           supplierPhone: $supplierPhone,
           Address: $Address,
           supplierLevel: $supplierLevel,
+          purchaseWithVat: $purchaseWithVat,
+          supplierTinNumber: $supplierTinNumber,
           paidAmount: $paidAmount
         ) {
           id
@@ -3128,6 +3150,8 @@ export async function UpdateItemRegistration(
           supplierPhone
           Address
           supplierLevel
+          purchaseWithVat
+          supplierTinNumber
           paidAmount
         }
       }
@@ -3194,10 +3218,12 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
     $supplierPhone: String!,   
     $Address:       String!,
     $supplierLevel: String!,
+    $purchaseWithVat: Boolean,
+    $supplierTinNumber: String,
     $paidAmount: Float!,
     $status: String!,
     $statusBy: String!, $HotelName: String!) {
-      CreateItemStatus(name: $name, imageUrl: $imageUrl, category: $category, amount: $amount, measuredBy: $measuredBy, unitPrice: $unitPrice, actionDate: $actionDate, supplierName: $supplierName, supplierPhone: $supplierPhone, Address: $Address, supplierLevel: $supplierLevel, paidAmount: $paidAmount, status: $status, statusBy: $statusBy, HotelName: $HotelName) {
+      CreateItemStatus(name: $name, imageUrl: $imageUrl, category: $category, amount: $amount, measuredBy: $measuredBy, unitPrice: $unitPrice, actionDate: $actionDate, supplierName: $supplierName, supplierPhone: $supplierPhone, Address: $Address, supplierLevel: $supplierLevel, purchaseWithVat: $purchaseWithVat, supplierTinNumber: $supplierTinNumber, paidAmount: $paidAmount, status: $status, statusBy: $statusBy, HotelName: $HotelName) {
        name
        imageUrl
        category
@@ -3209,6 +3235,8 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
        supplierPhone
        Address
        supplierLevel
+       purchaseWithVat
+       supplierTinNumber
        paidAmount
        status
        statusBy
@@ -3218,7 +3246,11 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: data,
+      variables: {
+        ...data,
+        purchaseWithVat: data.purchaseWithVat === true,
+        supplierTinNumber: (data.supplierTinNumber || "").trim(),
+      },
     });
 
     if (response.data.errors) {
@@ -3253,6 +3285,8 @@ export async function fetchItemStatus() {
           supplierPhone
           Address
           supplierLevel
+          purchaseWithVat
+          supplierTinNumber
           paidAmount
           status
           statusBy
@@ -3359,6 +3393,7 @@ export interface KitchenBarBeginningRow {
   monthPeriod: string;
   calendarDate: string;
   stockOutDay: number;
+  managementTakenDay: number;
   closingOnHand: number;
   notes: string;
   createdAt: string;
@@ -3528,6 +3563,7 @@ export async function fetchKitchenBarBeginnings(): Promise<
         monthPeriod
         calendarDate
         stockOutDay
+        managementTakenDay
         closingOnHand
         notes
         createdAt
@@ -3797,6 +3833,7 @@ export async function createKitchenBarBeginningApi(vars: {
   itemName: string;
   amount: number;
   measuredBy: string;
+  managementTakenDay?: number;
   monthPeriod?: string;
   calendarDate: string;
   notes?: string;
@@ -3807,6 +3844,7 @@ export async function createKitchenBarBeginningApi(vars: {
       $itemName: String!
       $amount: Float!
       $measuredBy: String!
+      $managementTakenDay: Float
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -3816,6 +3854,7 @@ export async function createKitchenBarBeginningApi(vars: {
         itemName: $itemName
         amount: $amount
         measuredBy: $measuredBy
+        managementTakenDay: $managementTakenDay
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes
@@ -3838,6 +3877,7 @@ export async function updateKitchenBarBeginningApi(vars: {
   itemName: string;
   amount: number;
   measuredBy: string;
+  managementTakenDay?: number;
   monthPeriod?: string;
   calendarDate: string;
   notes?: string;
@@ -3849,6 +3889,7 @@ export async function updateKitchenBarBeginningApi(vars: {
       $itemName: String!
       $amount: Float!
       $measuredBy: String!
+      $managementTakenDay: Float
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -3859,6 +3900,7 @@ export async function updateKitchenBarBeginningApi(vars: {
         itemName: $itemName
         amount: $amount
         measuredBy: $measuredBy
+        managementTakenDay: $managementTakenDay
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes

@@ -49,6 +49,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, MoreVertical, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 
 export type items = {
   id: number;
@@ -65,11 +66,21 @@ export type items = {
   supplierPhone: string;
   Address: string;
   supplierLevel: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
   paidAmount: number;
   status?: string;
   statusBy?: string;
   HotelName: string;
 };
+
+function statusExtrasFromItem(d: items) {
+  return {
+    supplierLevel: d.supplierLevel ?? "",
+    purchaseWithVat: d.purchaseWithVat === true,
+    supplierTinNumber: (d.supplierTinNumber ?? "").trim(),
+  };
+}
 
 function getRemainingDays(expireDate: Date): number {
   const today = new Date();
@@ -208,7 +219,7 @@ const StockOut = ({
           supplierName: data.supplierName,
           supplierPhone: data.supplierPhone,
           Address: data.Address,
-          supplierLevel: data.supplierLevel,
+          ...statusExtrasFromItem(data),
           paidAmount: data.paidAmount,
           status: "Stock Out",
           statusBy: statusBy,
@@ -268,7 +279,7 @@ const StockOut = ({
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <Label htmlFor="Amount">Amount:</Label>
+            <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"
               value={amountDeduct}
@@ -338,7 +349,7 @@ const Wastage = ({
           supplierName: data.supplierName,
           supplierPhone: data.supplierPhone,
           Address: data.Address,
-          supplierLevel: data.supplierLevel,
+          ...statusExtrasFromItem(data),
           paidAmount: data.paidAmount,
           status: "Wastage",
           statusBy: statusBy,
@@ -388,7 +399,7 @@ const Wastage = ({
               placeholder="Enter reason..."
               className="h-fit p-2 w-full"
             />
-            <Label htmlFor="Amount">Amount:</Label>
+            <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"
               value={amountDeduct}
@@ -458,7 +469,7 @@ const Returned = ({
           supplierName: data.supplierName,
           supplierPhone: data.supplierPhone,
           Address: data.Address,
-          supplierLevel: data.supplierLevel,
+          ...statusExtrasFromItem(data),
           paidAmount: data.paidAmount,
           status: "Returned to Supplier",
           statusBy: statusBy,
@@ -508,7 +519,7 @@ const Returned = ({
               placeholder="Enter reason..."
               className="h-fit p-2 w-full"
             />
-            <Label htmlFor="Amount">Amount:</Label>
+            <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"
               value={amountDeduct}
@@ -576,15 +587,12 @@ export const columns = (
   },
   {
     id: "totalValue",
-    header: "Value + Fees",
+    header: "Value",
     cell: ({ row }) => {
       const total = lineOwedETB(row.original);
       return (
         <div className="flex flex-col">
           <span className="text-sm font-bold text-primary">ETB {total.toLocaleString()}</span>
-          {row.original.dutyFee > 0 && (
-            <span className="text-[10px] text-orange-600 font-medium">Incl. ETB {row.original.dutyFee} fee</span>
-          )}
         </div>
       );
     },
@@ -612,9 +620,19 @@ export const columns = (
           <Truck size={12} className="text-muted-foreground" />
           {row.original.supplierName}
         </div>
-        <Badge variant="outline" className="w-fit text-[9px] h-4 px-1.5 border-primary/20 bg-primary/5 text-primary">
-          {row.original.supplierLevel} Grade
-        </Badge>
+        <div className="flex flex-col gap-0.5">
+          <Badge
+            variant="outline"
+            className="w-fit text-[9px] h-4 px-1.5 border-primary/20 bg-primary/5 text-primary"
+          >
+            {row.original.purchaseWithVat === true ? "With VAT" : "Without VAT"}
+          </Badge>
+          {(row.original.supplierTinNumber || "").trim() ? (
+            <span className="text-[10px] text-muted-foreground">
+              TIN: {(row.original.supplierTinNumber || "").trim()}
+            </span>
+          ) : null}
+        </div>
       </div>
     ),
   },

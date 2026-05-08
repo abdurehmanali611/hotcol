@@ -404,7 +404,13 @@ export const ItemRegistrationSchema = z.object({
   supplierName: z.string().min(2, "Supplier name is required"),
   supplierPhone: z.string().min(3, "Please Enter Valid Phone Number"),
   Address: z.string().min(2, "Please Enter Valid Address"),
-  supplierLevel: z.enum(["Bronze", "Silver", "Gold"], {message: "Supplier Level must be selected"}),
+  /** Café: Bronze, Silver, or Gold. Hotel store: leave blank (supplier tier is not used). */
+  supplierLevel: z.union([
+    z.enum(["Bronze", "Silver", "Gold"]),
+    z.literal(""),
+  ]),
+  purchaseWithVat: z.boolean(),
+  supplierTinNumber: z.string().max(20),
   paidAmount: z.number().min(0, "paid Amount must be greater than or equal to 0"),
   HotelName: z.string().min(1, "Hotel name is required"),
 })

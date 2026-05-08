@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { ColumnDef } from "@tanstack/react-table";
-import { Package, Shield, ShieldAlert, ShieldCheck, Truck } from "lucide-react";
+import { Package, Receipt, Truck } from "lucide-react";
 
 export type items = {
   id: number;
@@ -20,6 +20,8 @@ export type items = {
   supplierPhone: string;
   Address: string;
   supplierLevel: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
   paidAmount: number;
   registeredAmount?: number;
   registeredValue?: number;
@@ -126,22 +128,19 @@ export const columns: ColumnDef<items>[] = [
     ),
   },
   {
-    accessorKey: "supplierLevel",
-    header: "Tier",
-    cell: ({ row }) => {
-      const level = row.original.supplierLevel;
-      const styles = 
-        level === "Gold" ? "text-amber-600 bg-amber-50" : 
-        level === "Silver" ? "text-slate-600 bg-slate-50" : 
-        "text-orange-600 bg-orange-50";
-      
-      return (
-        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md w-fit font-bold text-[10px] uppercase ${styles}`}>
-          {level === "Gold" ? <ShieldCheck size={12} /> : level === "Silver" ? <Shield size={12} /> : <ShieldAlert size={12} />}
-          {level}
+    id: "taxInfo",
+    header: "Tax",
+    cell: ({ row }) => (
+      <div className="space-y-1">
+        <Badge variant="outline" className="w-fit text-[10px]">
+          {row.original.purchaseWithVat === true ? "With VAT" : "Without VAT"}
+        </Badge>
+        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <Receipt size={10} />
+          TIN: {(row.original.supplierTinNumber || "").trim() || "—"}
         </div>
-      );
-    },
+      </div>
+    ),
   },
   {
     accessorKey: "paidAmount",

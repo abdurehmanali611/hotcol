@@ -1,4 +1,4 @@
-/** Line total owed to supplier for a stock row (matches Value + Fees column). */
+/** Line value for a stock row (quantity * unit price; excludes fee columns). */
 export function lineOwedETB(item: {
   amount: number;
   unitPrice: number;
@@ -10,12 +10,11 @@ export function lineOwedETB(item: {
   if (Number.isFinite(rv) && rv > 0) return rv;
   const ra = Number(item.registeredAmount);
   if (Number.isFinite(ra) && ra > 0) {
-    return ra * (Number(item.unitPrice) || 0) + (Number(item.dutyFee) || 0);
+    return ra * (Number(item.unitPrice) || 0);
   }
   const a = Number(item.amount) || 0;
   const u = Number(item.unitPrice) || 0;
-  const d = Number(item.dutyFee) || 0;
-  return a * u + d;
+  return a * u;
 }
 
 export type InventoryPaymentBucket = "paid" | "credit" | "none";

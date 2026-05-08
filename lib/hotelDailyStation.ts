@@ -9,7 +9,7 @@ export const HOTEL_DAILY_COUNT_STATIONS = [
   { value: "JUICER", label: "Juicer" },
   { value: "CLEANING", label: "Cleaning" },
   { value: "HOUSEKEEPING", label: "Housekeeping" },
-  { value: "ADMIN", label: "Admin" },
+  { value: "MANAGEMENT", label: "Management" },
   { value: "MAINTENANCE", label: "Maintenance" },
   { value: "OTHER", label: "Other" },
 ] as const;
@@ -22,7 +22,6 @@ export const HOTEL_STORE_STOCK_OUT_STAKEHOLDERS = [
   "Juicer",
   "Cleaning Service",
   "Housekeeping",
-  "Admin",
   "Maintenance",
 ] as const;
 
@@ -41,7 +40,7 @@ export function normalizeKitchenBarStationKey(raw: string): string {
   if (s === "juicer") return "JUICER";
   if (s === "cleaning service" || s === "cleaning") return "CLEANING";
   if (s === "housekeeping") return "HOUSEKEEPING";
-  if (s === "admin") return "ADMIN";
+  if (s === "admin" || s === "management" || s === "manager") return "MANAGEMENT";
   if (s === "maintenance") return "MAINTENANCE";
   const up = String(raw ?? "").trim().toUpperCase();
   if (up === "CHEF" || up === "KITCHEN") return "KITCHEN";

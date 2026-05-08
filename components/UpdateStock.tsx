@@ -12,7 +12,7 @@ import {
 import { UpdateItemRegistration, ItemRegistration } from "@/lib/actions";
 import { toast } from "sonner";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ItemRegistrationSchema } from "@/lib/validations";
 import { Form } from "@/components/ui/form";
@@ -36,8 +36,9 @@ const UpdateStock = ({
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const form = useForm<z.infer<typeof ItemRegistrationSchema>>({
-    resolver: zodResolver(ItemRegistrationSchema),
+  type ItemRegForm = z.infer<typeof ItemRegistrationSchema>;
+  const form = useForm<ItemRegForm>({
+    resolver: zodResolver(ItemRegistrationSchema) as Resolver<ItemRegForm>,
     defaultValues: {
       name: "",
       imageUrl: "",
@@ -52,6 +53,8 @@ const UpdateStock = ({
       supplierPhone: "",
       Address: "",
       supplierLevel: "Bronze",
+      purchaseWithVat: false,
+      supplierTinNumber: "",
       paidAmount: 0,
       HotelName: "",
     },
@@ -78,7 +81,13 @@ const UpdateStock = ({
         supplierName: item.supplierName,
         supplierPhone: item.supplierPhone,
         Address: item.Address,
-        supplierLevel: item.supplierLevel as "Bronze" | "Silver" | "Gold",
+        supplierLevel: (item.supplierLevel === "Bronze" ||
+        item.supplierLevel === "Silver" ||
+        item.supplierLevel === "Gold"
+          ? item.supplierLevel
+          : "") as "Bronze" | "Silver" | "Gold" | "",
+        purchaseWithVat: item.purchaseWithVat === true,
+        supplierTinNumber: (item.supplierTinNumber || "").trim(),
         paidAmount: item.paidAmount,
         HotelName: item.HotelName,
       });
@@ -328,14 +337,22 @@ const UpdateStock = ({
                   placeholder="123 street"
                   inputClassName="h-fit p-2 w-56"
                 />
-                <CustomFormField
-                  name="supplierLevel"
-                  control={form.control}
-                  fieldType={formFieldTypes.RADIO_BUTTON}
-                  label="Supplier Level:"
-                  listdisplay={["Bronze", "Silver", "Gold"]}
-                  inputClassName="h-fit p-2 w-56"
-                />
+                <>
+                  <CustomFormField
+                    name="purchaseWithVat"
+                    control={form.control}
+                    fieldType={formFieldTypes.SWITCH}
+                    label="Purchase price includes VAT"
+                  />
+                  <CustomFormField
+                    name="supplierTinNumber"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Supplier TIN (tax ID)"
+                    placeholder="10-digit TIN"
+                    inputClassName="h-fit p-2 w-56"
+                  />
+                </>
               </div>
 
               <CustomFormField

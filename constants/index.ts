@@ -76,10 +76,20 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "menu-create-item", label: "Add menu item", icon: "PlusCircle" },
   { id: "menu-update-item", label: "Menu items", icon: "Edit" },
   { id: "cc-profiles", label: "Cost control IDs", icon: "UserCheck" },
-  { id: "reports-inventory", label: "Inventory snapshot", icon: "Package" },
+  { id: "reports-inventory", label: "Inventory items (list)", icon: "Package" },
   { id: "reports-movements", label: "Stock movements", icon: "ArrowRightLeft" },
   { id: "reports-purchases", label: "Purchase pipeline", icon: "ShoppingCart" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
+  {
+    id: "inventory-payment-vat",
+    label: "Inventory payment & tax",
+    icon: "Receipt",
+  },
+  {
+    id: "creditor-usage-report",
+    label: "Creditor staff usage report",
+    icon: "Table2",
+  },
   {
     id: "corporate-credit-tiers",
     label: "Corporate credit tiers",
