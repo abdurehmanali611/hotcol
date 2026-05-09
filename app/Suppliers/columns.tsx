@@ -1,7 +1,7 @@
 "use client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { lineOwedETB } from "@/lib/hotelInventoryPayment";
+import { isVatEnabled, lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { ColumnDef } from "@tanstack/react-table";
 import { Package, Receipt, Truck } from "lucide-react";
 
@@ -133,7 +133,7 @@ export const columns: ColumnDef<items>[] = [
     cell: ({ row }) => (
       <div className="space-y-1">
         <Badge variant="outline" className="w-fit text-[10px]">
-          {row.original.purchaseWithVat === true ? "With VAT" : "Without VAT"}
+          {isVatEnabled(row.original.purchaseWithVat) ? "With VAT" : "Without VAT"}
         </Badge>
         <div className="text-[11px] text-muted-foreground flex items-center gap-1">
           <Receipt size={10} />

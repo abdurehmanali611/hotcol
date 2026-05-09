@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ItemRegistration, ItemStatus, PurchaseRequestRow } from "@/lib/actions";
 import {
+  isVatEnabled,
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
@@ -49,7 +50,7 @@ export function HotelInventoryPaymentVatPanel({
     return inventoryItems.filter((r) => {
       const bucket = itemPaymentBucket(r);
       if (payFilter !== "all" && bucket !== payFilter) return false;
-      const withVat = r.purchaseWithVat === true;
+      const withVat = isVatEnabled(r.purchaseWithVat);
       if (vatFilter === "with" && !withVat) return false;
       if (vatFilter === "without" && withVat) return false;
       return true;
@@ -166,8 +167,9 @@ export function HotelInventoryPaymentVatPanel({
                   quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
                   line_value_etb: lineOwedETB(r),
                   payment_status: itemPaymentLabel(itemPaymentBucket(r)),
-                  purchase_includes_vat:
-                    r.purchaseWithVat === true ? "With VAT" : "Without VAT",
+                  purchase_includes_vat: isVatEnabled(r.purchaseWithVat)
+                    ? "With VAT"
+                    : "Without VAT",
                   supplier_name: r.supplierName,
                   supplier_phone: r.supplierPhone,
                   supplier_tin: (r.supplierTinNumber || "").trim(),
@@ -214,7 +216,7 @@ export function HotelInventoryPaymentVatPanel({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {r.purchaseWithVat === true ? "With VAT" : "Without VAT"}
+                    {isVatEnabled(r.purchaseWithVat) ? "With VAT" : "Without VAT"}
                   </TableCell>
                   <TableCell className="max-w-[180px] truncate">
                     {r.supplierName}

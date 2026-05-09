@@ -1,10 +1,20 @@
 export const INVENTORY_VAT_RATE = 0.15;
 
+export function isVatEnabled(flag: unknown): boolean {
+  if (flag === true) return true;
+  if (typeof flag === "string") {
+    const v = flag.trim().toLowerCase();
+    return v === "true" || v === "1" || v === "yes";
+  }
+  if (typeof flag === "number") return flag === 1;
+  return false;
+}
+
 export function computeInventoryVatETB(
   subtotal: number,
-  purchaseWithVat?: boolean,
+  purchaseWithVat?: unknown,
 ): number {
-  if (purchaseWithVat !== true) return 0;
+  if (!isVatEnabled(purchaseWithVat)) return 0;
   return subtotal * INVENTORY_VAT_RATE;
 }
 
@@ -13,7 +23,7 @@ export function lineOwedETB(item: {
   amount: number;
   unitPrice: number;
   dutyFee: number;
-  purchaseWithVat?: boolean;
+  purchaseWithVat?: unknown;
   registeredAmount?: number;
   registeredValue?: number;
 }): number {
@@ -32,6 +42,7 @@ export function itemPaymentBucket(item: {
   unitPrice: number;
   dutyFee: number;
   paidAmount: number;
+  purchaseWithVat?: unknown;
   registeredAmount?: number;
   registeredValue?: number;
 }): InventoryPaymentBucket {
@@ -60,6 +71,7 @@ export function summarizeInventoryPayment<T>(
     unitPrice: number;
     dutyFee: number;
     paidAmount: number;
+    purchaseWithVat?: unknown;
     registeredAmount?: number;
     registeredValue?: number;
   },

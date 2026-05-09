@@ -40,6 +40,7 @@ import {
   createStockOutRequestApi,
 } from "@/lib/actions";
 import {
+  isVatEnabled,
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
@@ -77,7 +78,7 @@ export type items = {
 function statusExtrasFromItem(d: items) {
   return {
     supplierLevel: d.supplierLevel ?? "",
-    purchaseWithVat: d.purchaseWithVat === true,
+    purchaseWithVat: isVatEnabled(d.purchaseWithVat),
     supplierTinNumber: (d.supplierTinNumber ?? "").trim(),
   };
 }
@@ -625,7 +626,7 @@ export const columns = (
             variant="outline"
             className="w-fit text-[9px] h-4 px-1.5 border-primary/20 bg-primary/5 text-primary"
           >
-            {row.original.purchaseWithVat === true ? "With VAT" : "Without VAT"}
+            {isVatEnabled(row.original.purchaseWithVat) ? "With VAT" : "Without VAT"}
           </Badge>
           {(row.original.supplierTinNumber || "").trim() ? (
             <span className="text-[10px] text-muted-foreground">

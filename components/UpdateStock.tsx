@@ -19,6 +19,7 @@ import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
 import { ImageIcon } from "lucide-react";
 import Image from "next/image";
+import { isVatEnabled } from "@/lib/hotelInventoryPayment";
 
 interface UpdateStockProps {
   isOpen: boolean;
@@ -88,7 +89,7 @@ const UpdateStock = ({
         item.supplierLevel === "Gold"
           ? item.supplierLevel
           : "") as "Bronze" | "Silver" | "Gold" | "",
-        purchaseWithVat: item.purchaseWithVat === true,
+        purchaseWithVat: isVatEnabled(item.purchaseWithVat),
         supplierTinNumber: (item.supplierTinNumber || "").trim(),
         paidAmount: item.paidAmount,
         HotelName: item.HotelName,

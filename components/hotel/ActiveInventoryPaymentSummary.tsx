@@ -15,6 +15,7 @@ export function ActiveInventoryPaymentSummary({
     unitPrice: r.unitPrice,
     dutyFee: r.dutyFee,
     paidAmount: r.paidAmount,
+    purchaseWithVat: r.purchaseWithVat,
     registeredAmount: r.registeredAmount,
     registeredValue: r.registeredValue,
   }));
