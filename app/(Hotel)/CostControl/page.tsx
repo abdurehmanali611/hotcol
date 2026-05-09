@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -111,6 +118,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 function parseYmdToDate(ymd: string): Date | undefined {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
@@ -139,6 +147,7 @@ function CostControlInner() {
   const logoUrl = searchParams.get("logo") || "";
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isFirstLoadRef = useRef(true);
   const [profiles, setProfiles] = useState<CostControllerProfileRow[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
@@ -191,6 +200,7 @@ function CostControlInner() {
     | "payment-vat"
     | "creditor-usage";
   const [activeSection, setActiveSection] = useState<CostSection>("purchases");
+  const [rollupSyncPending, setRollupSyncPending] = useState(false);
 
   const inventoryItemOptions = useMemo(() => {
     return inventoryRows
@@ -393,17 +403,12 @@ function CostControlInner() {
   }, [tenantScope, rollupFromYmd, rollupToYmd]);
 
   useEffect(() => {
-    void load();
+    const isRefresh = isFirstLoadRef.current;
+    isFirstLoadRef.current = true;
+    void load(isRefresh);
   }, [load]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-linear-to-b from-background via-muted/15 to-muted/40">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Loading cost control…</span>
-      </div>
-    );
-  }
+  const insetBusy = loading || refreshing;
 
   const pendingPr = purchases.filter((x) => x.status === "PENDING_CC");
   const pendingSo = stocks.filter((x) => x.status === "PENDING");
@@ -560,8 +565,9 @@ function CostControlInner() {
               variant="ghost"
               size="icon"
               onClick={() => load(true)}
-              disabled={refreshing}
-              className={refreshing ? "animate-spin" : ""}
+              disabled={insetBusy}
+              aria-busy={insetBusy}
+              className={insetBusy ? "animate-spin" : ""}
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -573,8 +579,27 @@ function CostControlInner() {
             </Avatar>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20 p-4">
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-6 md:py-6 scroll-smooth">
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20 p-4">
+            {insetBusy ? (
+              <div
+                className="absolute inset-0 z-20 flex items-center justify-center bg-background/35 backdrop-blur-[2px] px-4"
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-card/95 px-5 py-4 shadow-lg">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {loading ? "Loading…" : "Updating…"}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-6 md:py-6 scroll-smooth transition-[filter,opacity]",
+                insetBusy && "pointer-events-none blur-[1.5px] opacity-75",
+              )}
+            >
               <div className="mx-auto max-w-6xl space-y-10 pb-10">
         <HotelWorkflowGlossary variant="costControl" />
 
@@ -730,7 +755,7 @@ function CostControlInner() {
                               return;
                             }
                             await approvePurchaseRequestCCApi(r.id, pid);
-                            load();
+                            load(true);
                           }}
                         >
                           Approve → finance
@@ -743,7 +768,7 @@ function CostControlInner() {
                               r.id,
                               "Rejected by cost control",
                             );
-                            load();
+                            load(true);
                           }}
                         >
                           Reject
@@ -893,7 +918,7 @@ function CostControlInner() {
                             return;
                           }
                           await approveStockOutRequestApi(r.id, pid);
-                          load();
+                          load(true);
                         }}
                       >
                         Approve & update stock
@@ -906,7 +931,7 @@ function CostControlInner() {
                             r.id,
                             "Rejected by cost control",
                           );
-                          load();
+                          load(true);
                         }}
                       >
                         Reject
@@ -1129,13 +1154,23 @@ function CostControlInner() {
                     variant="secondary"
                     className="shadow-sm"
                     onClick={() => load(true)}
+                    disabled={insetBusy}
                   >
-                    Refresh roll-ups
+                    {insetBusy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {loading ? "Loading…" : "Refreshing…"}
+                      </>
+                    ) : (
+                      "Refresh roll-ups"
+                    )}
                   </Button>
                   <Button
                     type="button"
                     className="shadow-sm"
+                    disabled={insetBusy || rollupSyncPending}
                     onClick={async () => {
+                      setRollupSyncPending(true);
                       try {
                         normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
                         await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
@@ -1148,10 +1183,19 @@ function CostControlInner() {
                           e?.message ||
                             "Choose valid from and to dates (YYYY-MM-DD)",
                         );
+                      } finally {
+                        setRollupSyncPending(false);
                       }
                     }}
                   >
-                    Sync Monthly Data
+                    {rollupSyncPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Syncing…
+                      </>
+                    ) : (
+                      "Sync Monthly Data"
+                    )}
                   </Button>
                 </div>
               </CardHeader>
@@ -1451,7 +1495,7 @@ function CostControlInner() {
                           calendarDate: day,
                           notes: "",
                         });
-                        load();
+                        load(true);
                       } catch (e: any) {
                         toast.error(e?.message || "Save failed");
                       }
@@ -1592,7 +1636,7 @@ function CostControlInner() {
                           className="text-destructive hover:text-destructive"
                           onClick={async () => {
                             await deleteKitchenBarBeginningApi(b.id);
-                            load();
+                            load(true);
                           }}
                         >
                           Delete
@@ -1619,8 +1663,9 @@ export default function CostControlPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-background to-muted/30">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <div className="min-h-svh flex flex-col items-center justify-center gap-3 bg-background text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="text-xs">Preparing cost control…</span>
         </div>
       }
     >
