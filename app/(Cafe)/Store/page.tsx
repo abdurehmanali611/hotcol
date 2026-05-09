@@ -65,6 +65,7 @@ import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
 import { Separator } from "@/components/ui/separator";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { computeInventoryVatETB } from "@/lib/hotelInventoryPayment";
 import {
   normalizeInventoryItemName,
   rowHotelMatchesTenantScope,
@@ -81,13 +82,6 @@ type StoreView =
   | "Purchases"
   | "RequestStatus"
   | "PaymentVat";
-
-const VAT_RATE = 0.15;
-
-function computeVatAmount(subtotal: number, purchaseWithVat?: boolean): number {
-  if (purchaseWithVat !== true) return 0;
-  return subtotal * VAT_RATE;
-}
 
 const HOTEL_STORE_NAV: {
   id: StoreView;
@@ -224,7 +218,10 @@ export function StoreComponent({
       }
       if (!hotelInventory) {
         const subtotal = payload.amount * payload.unitPrice;
-        const vatAmount = computeVatAmount(subtotal, payload.purchaseWithVat);
+        const vatAmount = computeInventoryVatETB(
+          subtotal,
+          payload.purchaseWithVat,
+        );
         const hasEnoughPityCash = await checkPityCashBalance(
           payload.HotelName,
           subtotal + payload.dutyFee + vatAmount,

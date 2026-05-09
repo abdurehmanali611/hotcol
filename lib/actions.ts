@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
 import { rowHotelMatchesTenantScope } from "./tenantRowMatch";
+import { computeInventoryVatETB } from "./hotelInventoryPayment";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -402,12 +403,6 @@ function normalizeGraphqlHttpUrl(raw: string | undefined): string {
 }
 
 const API_URL = normalizeGraphqlHttpUrl(process.env.NEXT_PUBLIC_GRAPHQL_URL);
-const INVENTORY_VAT_RATE = 0.15;
-
-function computeInventoryVat(subtotal: number, purchaseWithVat?: boolean): number {
-  if (purchaseWithVat !== true) return 0;
-  return subtotal * INVENTORY_VAT_RATE;
-}
 
 const api = axios.create({
   timeout: 30000,
@@ -3030,7 +3025,10 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           (p: any) => p.HotelName === values.HotelName,
         );
         const subtotal = values.amount * values.unitPrice;
-        const vatAmount = computeInventoryVat(subtotal, values.purchaseWithVat);
+        const vatAmount = computeInventoryVatETB(
+          subtotal,
+          values.purchaseWithVat,
+        );
         const totalCalc = subtotal + values.dutyFee + vatAmount;
 
         if (currentPityCash) {

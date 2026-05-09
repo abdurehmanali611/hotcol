@@ -1,20 +1,28 @@
-/** Line value for a stock row (quantity * unit price; excludes fee columns). */
+export const INVENTORY_VAT_RATE = 0.15;
+
+export function computeInventoryVatETB(
+  subtotal: number,
+  purchaseWithVat?: boolean,
+): number {
+  if (purchaseWithVat !== true) return 0;
+  return subtotal * INVENTORY_VAT_RATE;
+}
+
+/** Canonical inventory total: subtotal + duty fee + VAT(15% when enabled). */
 export function lineOwedETB(item: {
   amount: number;
   unitPrice: number;
   dutyFee: number;
+  purchaseWithVat?: boolean;
   registeredAmount?: number;
   registeredValue?: number;
 }): number {
-  const rv = Number(item.registeredValue);
-  if (Number.isFinite(rv) && rv > 0) return rv;
-  const ra = Number(item.registeredAmount);
-  if (Number.isFinite(ra) && ra > 0) {
-    return ra * (Number(item.unitPrice) || 0);
-  }
   const a = Number(item.amount) || 0;
   const u = Number(item.unitPrice) || 0;
-  return a * u;
+  const duty = Number(item.dutyFee) || 0;
+  const subtotal = a * u;
+  const vat = computeInventoryVatETB(subtotal, item.purchaseWithVat);
+  return subtotal + duty + vat;
 }
 
 export type InventoryPaymentBucket = "paid" | "credit" | "none";
