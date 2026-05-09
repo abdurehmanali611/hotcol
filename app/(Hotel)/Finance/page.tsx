@@ -139,6 +139,14 @@ function FinanceInner() {
       sum + (Number(r.estimatedUnitPrice) || 0) * (Number(r.quantity) || 0),
     0,
   );
+  const financeInventoryTotalEtb = useMemo(
+    () =>
+      inventoryRows.reduce(
+        (sum, r) => sum + (Number(r.amount) || 0) * (Number(r.unitPrice) || 0),
+        0,
+      ),
+    [inventoryRows],
+  );
 
   if (loading) {
     return (
@@ -523,6 +531,19 @@ function FinanceInner() {
                     Read-only mirror of store stock lines with fully paid vs on-credit
                     status — same totals cost control sees.
                   </CardDescription>
+                </CardHeader>
+              </Card>
+              <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/5 shadow-sm overflow-hidden">
+                <CardHeader className="py-4">
+                  <CardDescription>
+                    Overall inventory value (sum of amount × unit price)
+                  </CardDescription>
+                  <CardTitle className="text-2xl tabular-nums tracking-tight">
+                    {financeInventoryTotalEtb.toLocaleString()}{" "}
+                    <span className="text-base font-semibold text-muted-foreground">
+                      ETB
+                    </span>
+                  </CardTitle>
                 </CardHeader>
               </Card>
               <StoreItems

@@ -130,6 +130,10 @@ function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
+function normalizeItemNameForValueKey(name: string): string {
+  return String(name || "").trim().toLowerCase();
+}
+
 function CostControlInner() {
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(searchParams.get("hotel"));
@@ -283,6 +287,32 @@ function CostControlInner() {
     if (!day) return beginnings;
     return beginnings.filter((b) => String(b.calendarDate || "").slice(0, 10) === day);
   }, [beginnings, selectedDailyDate]);
+
+  const unitPriceByItemName = useMemo(() => {
+    const byName = new Map<string, number>();
+    for (const row of inventoryRows) {
+      const key = normalizeItemNameForValueKey(row.name);
+      if (!key) continue;
+      if (!byName.has(key)) byName.set(key, Number(row.unitPrice) || 0);
+    }
+    return byName;
+  }, [inventoryRows]);
+
+  const selectedDayTotalCountedEtb = useMemo(() => {
+    return visibleBeginnings.reduce((sum, row) => {
+      const key = normalizeItemNameForValueKey(row.itemName);
+      const price = unitPriceByItemName.get(key) || 0;
+      return sum + (Number(row.amount) || 0) * price;
+    }, 0);
+  }, [visibleBeginnings, unitPriceByItemName]);
+
+  const monthlyTotalEtb = useMemo(() => {
+    return monthlySnapshots.reduce((sum, row) => {
+      const key = normalizeItemNameForValueKey(row.itemName);
+      const price = unitPriceByItemName.get(key) || 0;
+      return sum + (Number(row.lastDayClosingOnHand) || 0) * price;
+    }, 0);
+  }, [monthlySnapshots, unitPriceByItemName]);
 
   useEffect(() => {
     const day = String(selectedDailyDate || "").slice(0, 10);
@@ -1081,6 +1111,17 @@ function CostControlInner() {
               </CardHeader>
               {monthlySnapshots.length > 0 && (
                 <CardContent className="pt-0 pb-6 px-5 sm:px-6">
+                  <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total value for {snapshotMonth}
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums">
+                      {monthlyTotalEtb.toLocaleString()}{" "}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        ETB
+                      </span>
+                    </p>
+                  </div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                     Stored roll-ups — {snapshotMonth}
                   </p>
@@ -1386,6 +1427,17 @@ function CostControlInner() {
             </Card>
 
             <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+              <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Total counted value (selected day)
+                </p>
+                <p className="text-lg font-semibold tabular-nums">
+                  {selectedDayTotalCountedEtb.toLocaleString()}{" "}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    ETB
+                  </span>
+                </p>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
