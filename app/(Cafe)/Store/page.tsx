@@ -233,7 +233,26 @@ export function StoreComponent({
       }
       await CreateItemRegistration(payload);
       toast.success("Item created successfully!");
-      form.reset();
+      form.reset({
+        ...form.getValues(),
+        name: "",
+        imageUrl: "",
+        category: "Food",
+        amount: 0,
+        measuredBy: "Litre",
+        unitPrice: 0,
+        registrationDate: new Date(),
+        expireDate: new Date(),
+        dutyFee: 0,
+        supplierName: "",
+        supplierPhone: "",
+        Address: "",
+        supplierLevel: "",
+        purchaseWithVat: true,
+        supplierTinNumber: "",
+        paidAmount: 0,
+        HotelName: tenantScope || "",
+      });
       setPreviewUrl(null);
       loadData();
     } catch (error: any) {
