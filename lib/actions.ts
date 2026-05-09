@@ -3411,6 +3411,8 @@ export interface KitchenBarMonthlySnapshotRow {
   station: string;
   itemName: string;
   monthPeriod: string;
+  periodFrom: string;
+  periodTo: string;
   totalImpliedSales: number;
   lastDayClosingOnHand: number;
   syncedAt: string;
@@ -3939,17 +3941,20 @@ export async function deleteKitchenBarBeginningApi(id: number) {
   toast.success("Removed");
 }
 
-export async function fetchKitchenBarMonthlySnapshots(
-  monthPeriod: string,
+export async function fetchKitchenBarRollupSnapshots(
+  fromYmd: string,
+  toYmd: string,
 ): Promise<KitchenBarMonthlySnapshotRow[]> {
   const query = `
-    query Snap($monthPeriod: String!) {
-      kitchenBarMonthlySnapshots(monthPeriod: $monthPeriod) {
+    query RollupSnap($fromYmd: String!, $toYmd: String!) {
+      kitchenBarRollupSnapshots(fromYmd: $fromYmd, toYmd: $toYmd) {
         id
         HotelName
         station
         itemName
         monthPeriod
+        periodFrom
+        periodTo
         totalImpliedSales
         lastDayClosingOnHand
         syncedAt
@@ -3958,23 +3963,24 @@ export async function fetchKitchenBarMonthlySnapshots(
   `;
   const response = await api.post(API_URL, {
     query,
-    variables: { monthPeriod },
+    variables: { fromYmd, toYmd },
   });
   if (response.data.errors) {
     throw new Error(
-      response.data.errors[0]?.message || "Failed to load monthly snapshots",
+      response.data.errors[0]?.message || "Failed to load roll-up snapshots",
     );
   }
-  return response.data.data.kitchenBarMonthlySnapshots || [];
+  return response.data.data.kitchenBarRollupSnapshots || [];
 }
 
-export async function syncKitchenBarMonthlyApi(
-  monthPeriod: string,
+export async function syncKitchenBarRollupApi(
+  fromYmd: string,
+  toYmd: string,
   options?: { quiet?: boolean },
 ) {
   const mutation = `
-    mutation Sync($monthPeriod: String!) {
-      syncKitchenBarMonthly(monthPeriod: $monthPeriod) {
+    mutation SyncRollup($fromYmd: String!, $toYmd: String!) {
+      syncKitchenBarRollup(fromYmd: $fromYmd, toYmd: $toYmd) {
         id
         itemName
         station
@@ -3986,15 +3992,15 @@ export async function syncKitchenBarMonthlyApi(
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { monthPeriod },
+    variables: { fromYmd, toYmd },
   });
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Sync failed");
   }
   if (!options?.quiet) {
-    toast.success("Monthly inventory synced from daily rows");
+    toast.success("Roll-up synced from daily rows for selected dates");
   }
-  return response.data.data.syncKitchenBarMonthly;
+  return response.data.data.syncKitchenBarRollup;
 }
 
 export async function fetchHotelCreditCompanies(): Promise<

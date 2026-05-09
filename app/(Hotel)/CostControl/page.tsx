@@ -15,8 +15,8 @@ import {
   fetchPurchaseRequests,
   fetchStockOutRequests,
   fetchKitchenBarBeginnings,
-  fetchKitchenBarMonthlySnapshots,
-  syncKitchenBarMonthlyApi,
+  fetchKitchenBarRollupSnapshots,
+  syncKitchenBarRollupApi,
   rejectPurchaseRequestCCApi,
   rejectStockOutRequestApi,
   updateKitchenBarBeginningApi,
@@ -97,7 +97,7 @@ import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorU
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
-import { monthPeriodsBetweenInclusive } from "@/lib/kitchenBarMonthlyRange";
+import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import {
   Sidebar,
   SidebarContent,
@@ -153,24 +153,17 @@ function CostControlInner() {
   const [rollupToYmd, setRollupToYmd] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
-  /** YYYY-MM: which synced month the table loads (any month in the From–To range). */
-  const [rollupTableMonth, setRollupTableMonth] = useState(() => {
-    const to = new Date().toISOString().slice(0, 10);
-    return to.slice(0, 7);
-  });
-  const monthsInRollupRange = useMemo(
-    () => monthPeriodsBetweenInclusive(rollupFromYmd, rollupToYmd),
-    [rollupFromYmd, rollupToYmd],
-  );
-
-  useEffect(() => {
-    const months = monthsInRollupRange;
-    if (!months.length) return;
-    setRollupTableMonth((prev) => {
-      if (prev && months.includes(prev)) return prev;
-      return months[months.length - 1]!;
-    });
-  }, [monthsInRollupRange]);
+  const rollupRangeLabel = useMemo(() => {
+    try {
+      const { fromYmd, toYmd } = normalizeRollupRangeYmd(
+        rollupFromYmd,
+        rollupToYmd,
+      );
+      return `${fromYmd} → ${toYmd}`;
+    } catch {
+      return `${rollupFromYmd} → ${rollupToYmd}`;
+    }
+  }, [rollupFromYmd, rollupToYmd]);
   const [ccPick, setCcPick] = useState<Record<number, string>>({});
   const [beginForm, setBeginForm] = useState({
     station: "KITCHEN",
@@ -354,12 +347,24 @@ function CostControlInner() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
+      let snapPromise: Promise<KitchenBarMonthlySnapshotRow[]> = Promise.resolve(
+        [],
+      );
+      try {
+        const { fromYmd, toYmd } = normalizeRollupRangeYmd(
+          rollupFromYmd,
+          rollupToYmd,
+        );
+        snapPromise = fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
+      } catch {
+        snapPromise = Promise.resolve([]);
+      }
       const [p, pr, so, kb, snaps, regs, stats] = await Promise.all([
         fetchCostControllerProfiles(),
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
         fetchKitchenBarBeginnings(),
-        fetchKitchenBarMonthlySnapshots(rollupTableMonth),
+        snapPromise,
         fetchItemRegistrations(),
         fetchItemStatus(),
       ]);
@@ -385,7 +390,7 @@ function CostControlInner() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantScope, rollupTableMonth]);
+  }, [tenantScope, rollupFromYmd, rollupToYmd]);
 
   useEffect(() => {
     void load();
@@ -1092,15 +1097,14 @@ function CostControlInner() {
               <div className="h-1 bg-linear-to-r from-violet-500/50 via-primary/40 to-cyan-500/40" />
               <CardHeader className="space-y-4">
                 <div>
-                  <CardTitle>Monthly roll-up from daily counts</CardTitle>
+                  <CardTitle>Date range roll-up from daily counts</CardTitle>
                   <CardDescription className="text-pretty max-w-2xl">
-                    Choose a from–to range to sync stored roll-ups (each calendar month
-                    in the range is stamped from the daily grid). Use{" "}
-                    <strong className="text-foreground">View month</strong> to load that
-                    month&apos;s stored rows. Run{" "}
+                    Totals use only daily rows with calendar dates between{" "}
+                    <strong className="text-foreground">From</strong> and{" "}
+                    <strong className="text-foreground">To</strong> (inclusive)—not whole
+                    calendar months. Run{" "}
                     <strong className="text-foreground">Sync Monthly Data</strong> to
-                    refresh those months from implied movement and first lights-out
-                    on-hand.
+                    stamp this range from implied movement and first lights-out on-hand.
                   </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
@@ -1120,29 +1124,6 @@ function CostControlInner() {
                       onChange={setRollupToYmd}
                     />
                   </HotelFormFieldStack>
-                  {monthsInRollupRange.length > 0 ? (
-                    <HotelFormFieldStack className="min-w-[200px]">
-                      <Label htmlFor="rollup-view-month">View month</Label>
-                      <Select
-                        value={rollupTableMonth}
-                        onValueChange={setRollupTableMonth}
-                      >
-                        <SelectTrigger
-                          id="rollup-view-month"
-                          className="h-10 border-border/80 shadow-sm"
-                        >
-                          <SelectValue placeholder="Month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {monthsInRollupRange.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </HotelFormFieldStack>
-                  ) : null}
                   <Button
                     type="button"
                     variant="secondary"
@@ -1156,25 +1137,17 @@ function CostControlInner() {
                     className="shadow-sm"
                     onClick={async () => {
                       try {
-                        const months = monthPeriodsBetweenInclusive(
-                          rollupFromYmd,
-                          rollupToYmd,
-                        );
-                        if (!months.length) {
-                          toast.error("Choose a valid from and to date");
-                          return;
-                        }
-                        for (const mp of months) {
-                          await syncKitchenBarMonthlyApi(mp, { quiet: true });
-                        }
-                        toast.success(
-                          months.length === 1
-                            ? "Monthly data synced"
-                            : `Monthly data synced (${months.length} months)`,
-                        );
+                        normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
+                        await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
+                          quiet: true,
+                        });
+                        toast.success("Roll-up data synced for selected dates");
                         await load(true);
                       } catch (e: any) {
-                        toast.error(e?.message || "Sync failed");
+                        toast.error(
+                          e?.message ||
+                            "Choose valid from and to dates (YYYY-MM-DD)",
+                        );
                       }
                     }}
                   >
@@ -1187,7 +1160,7 @@ function CostControlInner() {
                   <>
                     <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Total implied movement value — {rollupTableMonth}
+                        Total implied movement value — {rollupRangeLabel}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Σ (unit price × Σ implied movement) per item row below
@@ -1200,7 +1173,7 @@ function CostControlInner() {
                       </p>
                     </div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                      Stored roll-ups — {rollupTableMonth}
+                      Stored roll-ups — {rollupRangeLabel}
                     </p>
                     <div className="rounded-lg border border-border/70 overflow-x-auto">
                       <Table>
@@ -1244,8 +1217,10 @@ function CostControlInner() {
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground py-8 text-center text-pretty max-w-lg mx-auto">
-                    No stored roll-ups for <span className="font-medium text-foreground">{rollupTableMonth}</span>.
-                    Choose another <strong className="text-foreground">View month</strong> in the range, or run{" "}
+                    No stored roll-ups for{" "}
+                    <span className="font-medium text-foreground">{rollupRangeLabel}</span>.
+                    Adjust <strong className="text-foreground">From</strong> /{" "}
+                    <strong className="text-foreground">To</strong> or run{" "}
                     <strong className="text-foreground">Sync Monthly Data</strong>.
                   </p>
                 )}

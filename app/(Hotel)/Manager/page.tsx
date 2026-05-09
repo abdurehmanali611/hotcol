@@ -20,11 +20,11 @@ import {
   fetchItemStatus,
   fetchItems,
   fetchKitchenBarBeginnings,
-  fetchKitchenBarMonthlySnapshots,
+  fetchKitchenBarRollupSnapshots,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
-  syncKitchenBarMonthlyApi,
+  syncKitchenBarRollupApi,
   updateAdminPassword,
   updateCredential,
   uploadImage,
@@ -69,17 +69,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { Input } from "@/components/ui/input";
-import { monthPeriodsBetweenInclusive } from "@/lib/kitchenBarMonthlyRange";
+import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   Table,
@@ -156,23 +148,17 @@ function ManagerContent() {
   const [rollupToYmd, setRollupToYmd] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
-  const [rollupTableMonth, setRollupTableMonth] = useState(() => {
-    const to = new Date().toISOString().slice(0, 10);
-    return to.slice(0, 7);
-  });
-  const monthsInRollupRange = useMemo(
-    () => monthPeriodsBetweenInclusive(rollupFromYmd, rollupToYmd),
-    [rollupFromYmd, rollupToYmd],
-  );
-
-  useEffect(() => {
-    const months = monthsInRollupRange;
-    if (!months.length) return;
-    setRollupTableMonth((prev) => {
-      if (prev && months.includes(prev)) return prev;
-      return months[months.length - 1]!;
-    });
-  }, [monthsInRollupRange]);
+  const rollupRangeLabel = useMemo(() => {
+    try {
+      const { fromYmd, toYmd } = normalizeRollupRangeYmd(
+        rollupFromYmd,
+        rollupToYmd,
+      );
+      return `${fromYmd} → ${toYmd}`;
+    } catch {
+      return `${rollupFromYmd} → ${rollupToYmd}`;
+    }
+  }, [rollupFromYmd, rollupToYmd]);
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [newCcName, setNewCcName] = useState("");
   const [menuItems, setMenuItems] = useState<Item[]>([]);
@@ -183,6 +169,18 @@ function ManagerContent() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       try {
+        let snapPromise: Promise<KitchenBarMonthlySnapshotRow[]> = Promise.resolve(
+          [],
+        );
+        try {
+          const { fromYmd, toYmd } = normalizeRollupRangeYmd(
+            rollupFromYmd,
+            rollupToYmd,
+          );
+          snapPromise = fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
+        } catch {
+          snapPromise = Promise.resolve([]);
+        }
         const [
           creds,
           regs,
@@ -200,7 +198,7 @@ function ManagerContent() {
           fetchPurchaseRequests(),
           fetchStockOutRequests(),
           fetchKitchenBarBeginnings(),
-          fetchKitchenBarMonthlySnapshots(rollupTableMonth),
+          snapPromise,
           fetchCostControllerProfiles(),
           fetchItems(),
         ]);
@@ -234,7 +232,7 @@ function ManagerContent() {
         setRefreshing(false);
       }
     },
-    [tenantScope, rollupTableMonth],
+    [tenantScope, rollupFromYmd, rollupToYmd],
   );
 
   useEffect(() => {
@@ -659,11 +657,11 @@ function ManagerContent() {
             </p>
             <Card>
               <CardHeader>
-                <CardTitle>Monthly roll-up from daily counts</CardTitle>
+                <CardTitle>Date range roll-up from daily counts</CardTitle>
                 <CardDescription>
-                  Pick a from–to range and run <strong>Sync Monthly Data</strong> to
-                  stamp each calendar month in that range. Use <strong>View month</strong>{" "}
-                  to load that month&apos;s stored rows in the table.
+                  Totals use daily rows dated between <strong>From</strong> and{" "}
+                  <strong>To</strong> (inclusive). Run <strong>Sync Monthly Data</strong>{" "}
+                  to stamp this range (Cost Control role).
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -682,59 +680,32 @@ function ManagerContent() {
                     onChange={setRollupToYmd}
                     className="min-w-[200px]"
                   />
-                  {monthsInRollupRange.length > 0 ? (
-                    <div className="space-y-1.5 min-w-[200px]">
-                      <Label htmlFor="manager-rollup-view-month" className="text-xs text-muted-foreground">
-                        View month
-                      </Label>
-                      <Select
-                        value={rollupTableMonth}
-                        onValueChange={setRollupTableMonth}
-                      >
-                        <SelectTrigger id="manager-rollup-view-month" className="h-10">
-                          <SelectValue placeholder="Month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {monthsInRollupRange.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
                   <Button variant="secondary" onClick={() => loadData(true)}>
                     Refresh roll-ups
                   </Button>
                   <Button
                     onClick={async () => {
                       try {
-                        const months = monthPeriodsBetweenInclusive(
-                          rollupFromYmd,
-                          rollupToYmd,
-                        );
-                        if (!months.length) {
-                          toast.error("Choose a valid from and to date");
-                          return;
-                        }
-                        for (const mp of months) {
-                          await syncKitchenBarMonthlyApi(mp, { quiet: true });
-                        }
-                        toast.success(
-                          months.length === 1
-                            ? "Monthly data synced"
-                            : `Monthly data synced (${months.length} months)`,
-                        );
+                        normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
+                        await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
+                          quiet: true,
+                        });
+                        toast.success("Roll-up data synced for selected dates");
                         await loadData(true);
                       } catch (err: any) {
-                        toast.error(err?.message || "Sync failed");
+                        toast.error(
+                          err?.message ||
+                            "Choose valid dates or sync from Cost Control",
+                        );
                       }
                     }}
                   >
                     Sync Monthly Data
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Showing stored roll-up for <span className="font-medium text-foreground">{rollupRangeLabel}</span>.
+                </p>
                 <div className="overflow-x-auto rounded-lg border">
                   <Table>
                     <TableHeader>
@@ -751,7 +722,7 @@ function ManagerContent() {
                       {monthlySnapshots.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            No monthly rows for {rollupTableMonth} yet.
+                            No roll-up rows for {rollupRangeLabel} yet.
                           </TableCell>
                         </TableRow>
                       ) : (

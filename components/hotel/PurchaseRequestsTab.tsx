@@ -78,7 +78,7 @@ export default function PurchaseRequestsTab({
 
   return (
     <Card className="max-w-3xl mx-auto border-primary/20 shadow-xl overflow-hidden bg-card/95 backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10">
-      <div className="h-1 bg-gradient-to-r from-primary/55 via-violet-500/45 to-cyan-500/40" />
+      <div className="h-1 bg-linear-to-r from-primary/55 via-violet-500/45 to-cyan-500/40" />
       <CardHeader className="pb-2">
         <CardTitle className="text-xl">Purchase request (missing stock)</CardTitle>
         <CardDescription className="text-pretty max-w-2xl">
@@ -210,7 +210,7 @@ export default function PurchaseRequestsTab({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Any detail for cost control / finance"
                 rows={3}
-                className="min-h-[5.5rem] resize-y border-border/80 shadow-sm"
+                className="min-h-22 resize-y border-border/80 shadow-sm"
               />
             </HotelFormFieldStack>
           </HotelFormSection>

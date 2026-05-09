@@ -1,3 +1,19 @@
+const ROLLUP_YMD_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Inclusive calendar range; swaps if from > to. Matches backend storage key `from|to`. */
+export function normalizeRollupRangeYmd(
+  fromYmd: string,
+  toYmd: string,
+): { fromYmd: string; toYmd: string; rangeKey: string } {
+  let a = String(fromYmd || "").trim();
+  let b = String(toYmd || "").trim();
+  if (!ROLLUP_YMD_RE.test(a) || !ROLLUP_YMD_RE.test(b)) {
+    throw new Error("fromYmd and toYmd must be YYYY-MM-DD");
+  }
+  if (a > b) [a, b] = [b, a];
+  return { fromYmd: a, toYmd: b, rangeKey: `${a}|${b}` };
+}
+
 /** YYYY-MM list from calendar-day range (inclusive). Swaps if from > to. */
 export function monthPeriodsBetweenInclusive(
   fromYmd: string,
