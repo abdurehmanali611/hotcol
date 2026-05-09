@@ -3968,7 +3968,10 @@ export async function fetchKitchenBarMonthlySnapshots(
   return response.data.data.kitchenBarMonthlySnapshots || [];
 }
 
-export async function syncKitchenBarMonthlyApi(monthPeriod: string) {
+export async function syncKitchenBarMonthlyApi(
+  monthPeriod: string,
+  options?: { quiet?: boolean },
+) {
   const mutation = `
     mutation Sync($monthPeriod: String!) {
       syncKitchenBarMonthly(monthPeriod: $monthPeriod) {
@@ -3988,7 +3991,9 @@ export async function syncKitchenBarMonthlyApi(monthPeriod: string) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Sync failed");
   }
-  toast.success("Monthly inventory synced from daily rows");
+  if (!options?.quiet) {
+    toast.success("Monthly inventory synced from daily rows");
+  }
   return response.data.data.syncKitchenBarMonthly;
 }
 

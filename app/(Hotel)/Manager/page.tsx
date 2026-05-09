@@ -71,6 +71,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { monthPeriodsBetweenInclusive } from "@/lib/kitchenBarMonthlyRange";
 import {
   Table,
   TableBody,
@@ -139,8 +141,19 @@ function ManagerContent() {
   const [monthlySnapshots, setMonthlySnapshots] = useState<
     KitchenBarMonthlySnapshotRow[]
   >([]);
-  const [snapshotMonth, setSnapshotMonth] = useState(
-    new Date().toISOString().slice(0, 7),
+  const [rollupFromYmd, setRollupFromYmd] = useState(() => {
+    const to = new Date().toISOString().slice(0, 10);
+    return `${to.slice(0, 7)}-01`;
+  });
+  const [rollupToYmd, setRollupToYmd] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const rollupViewMonth = useMemo(
+    () =>
+      String(rollupToYmd || "")
+        .trim()
+        .slice(0, 7) || new Date().toISOString().slice(0, 7),
+    [rollupToYmd],
   );
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [newCcName, setNewCcName] = useState("");
@@ -169,7 +182,7 @@ function ManagerContent() {
           fetchPurchaseRequests(),
           fetchStockOutRequests(),
           fetchKitchenBarBeginnings(),
-          fetchKitchenBarMonthlySnapshots(snapshotMonth),
+          fetchKitchenBarMonthlySnapshots(rollupViewMonth),
           fetchCostControllerProfiles(),
           fetchItems(),
         ]);
@@ -203,7 +216,7 @@ function ManagerContent() {
         setRefreshing(false);
       }
     },
-    [tenantScope, snapshotMonth],
+    [tenantScope, rollupViewMonth],
   );
 
   useEffect(() => {
@@ -630,24 +643,35 @@ function ManagerContent() {
               <CardHeader>
                 <CardTitle>Monthly roll-up from daily counts</CardTitle>
                 <CardDescription>
-                  Sync monthly inventory to stamp totals from daily rows.
+                  Pick a from–to range and run <strong>Sync data</strong> to stamp each
+                  calendar month in that range from daily rows. The table shows the month
+                  of the <strong>To</strong> date.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-1">
-                    <label
-                      htmlFor="manager-snapshot-month"
-                      className="text-xs text-muted-foreground"
-                    >
-                      Roll-up month
-                    </label>
+                  <div className="space-y-1.5 min-w-[160px]">
+                    <Label htmlFor="manager-rollup-from" className="text-xs text-muted-foreground">
+                      From
+                    </Label>
                     <Input
-                      id="manager-snapshot-month"
-                      type="month"
-                      value={snapshotMonth}
-                      onChange={(e) => setSnapshotMonth(e.target.value)}
-                      className="h-10 w-[200px]"
+                      id="manager-rollup-from"
+                      type="date"
+                      value={rollupFromYmd}
+                      onChange={(e) => setRollupFromYmd(e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-1.5 min-w-[160px]">
+                    <Label htmlFor="manager-rollup-to" className="text-xs text-muted-foreground">
+                      To
+                    </Label>
+                    <Input
+                      id="manager-rollup-to"
+                      type="date"
+                      value={rollupToYmd}
+                      onChange={(e) => setRollupToYmd(e.target.value)}
+                      className="h-10"
                     />
                   </div>
                   <Button variant="secondary" onClick={() => loadData(true)}>
@@ -656,14 +680,29 @@ function ManagerContent() {
                   <Button
                     onClick={async () => {
                       try {
-                        await syncKitchenBarMonthlyApi(snapshotMonth);
+                        const months = monthPeriodsBetweenInclusive(
+                          rollupFromYmd,
+                          rollupToYmd,
+                        );
+                        if (!months.length) {
+                          toast.error("Choose a valid from and to date");
+                          return;
+                        }
+                        for (const mp of months) {
+                          await syncKitchenBarMonthlyApi(mp, { quiet: true });
+                        }
+                        toast.success(
+                          months.length === 1
+                            ? "Sync data completed"
+                            : `Sync data completed (${months.length} months)`,
+                        );
                         await loadData(true);
                       } catch (err: any) {
                         toast.error(err?.message || "Sync failed");
                       }
                     }}
                   >
-                    Sync monthly inventory
+                    Sync data
                   </Button>
                 </div>
                 <div className="overflow-x-auto rounded-lg border">
@@ -673,7 +712,7 @@ function ManagerContent() {
                         <TableHead>Station</TableHead>
                         <TableHead>Item</TableHead>
                         <TableHead className="text-right">Σ implied movement</TableHead>
-                        <TableHead className="text-right">Last lights-out on-hand</TableHead>
+                        <TableHead className="text-right">First lights-out on-hand</TableHead>
                         <TableHead className="text-right">Remaining</TableHead>
                         <TableHead>Synced</TableHead>
                       </TableRow>
@@ -682,7 +721,7 @@ function ManagerContent() {
                       {monthlySnapshots.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            No monthly rows for this month yet.
+                            No monthly rows for {rollupViewMonth} yet.
                           </TableCell>
                         </TableRow>
                       ) : (
