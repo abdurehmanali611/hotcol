@@ -153,13 +153,24 @@ function CostControlInner() {
   const [rollupToYmd, setRollupToYmd] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
-  const rollupViewMonth = useMemo(
-    () =>
-      String(rollupToYmd || "")
-        .trim()
-        .slice(0, 7) || new Date().toISOString().slice(0, 7),
-    [rollupToYmd],
+  /** YYYY-MM: which synced month the table loads (any month in the From–To range). */
+  const [rollupTableMonth, setRollupTableMonth] = useState(() => {
+    const to = new Date().toISOString().slice(0, 10);
+    return to.slice(0, 7);
+  });
+  const monthsInRollupRange = useMemo(
+    () => monthPeriodsBetweenInclusive(rollupFromYmd, rollupToYmd),
+    [rollupFromYmd, rollupToYmd],
   );
+
+  useEffect(() => {
+    const months = monthsInRollupRange;
+    if (!months.length) return;
+    setRollupTableMonth((prev) => {
+      if (prev && months.includes(prev)) return prev;
+      return months[months.length - 1]!;
+    });
+  }, [monthsInRollupRange]);
   const [ccPick, setCcPick] = useState<Record<number, string>>({});
   const [beginForm, setBeginForm] = useState({
     station: "KITCHEN",
@@ -348,7 +359,7 @@ function CostControlInner() {
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
         fetchKitchenBarBeginnings(),
-        fetchKitchenBarMonthlySnapshots(rollupViewMonth),
+        fetchKitchenBarMonthlySnapshots(rollupTableMonth),
         fetchItemRegistrations(),
         fetchItemStatus(),
       ]);
@@ -374,7 +385,7 @@ function CostControlInner() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantScope, rollupViewMonth]);
+  }, [tenantScope, rollupTableMonth]);
 
   useEffect(() => {
     void load();
@@ -1084,10 +1095,11 @@ function CostControlInner() {
                   <CardTitle>Monthly roll-up from daily counts</CardTitle>
                   <CardDescription className="text-pretty max-w-2xl">
                     Choose a from–to range to sync stored roll-ups (each calendar month
-                    in the range is stamped from the daily grid). The table shows the
-                    month of the <strong className="text-foreground">To</strong> date.
-                    Run <strong className="text-foreground">Sync Monthly Data</strong>{" "}
-                    to refresh those months from implied movement and first lights-out
+                    in the range is stamped from the daily grid). Use{" "}
+                    <strong className="text-foreground">View month</strong> to load that
+                    month&apos;s stored rows. Run{" "}
+                    <strong className="text-foreground">Sync Monthly Data</strong> to
+                    refresh those months from implied movement and first lights-out
                     on-hand.
                   </CardDescription>
                 </div>
@@ -1108,6 +1120,29 @@ function CostControlInner() {
                       onChange={setRollupToYmd}
                     />
                   </HotelFormFieldStack>
+                  {monthsInRollupRange.length > 0 ? (
+                    <HotelFormFieldStack className="min-w-[200px]">
+                      <Label htmlFor="rollup-view-month">View month</Label>
+                      <Select
+                        value={rollupTableMonth}
+                        onValueChange={setRollupTableMonth}
+                      >
+                        <SelectTrigger
+                          id="rollup-view-month"
+                          className="h-10 border-border/80 shadow-sm"
+                        >
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {monthsInRollupRange.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </HotelFormFieldStack>
+                  ) : null}
                   <Button
                     type="button"
                     variant="secondary"
@@ -1147,66 +1182,74 @@ function CostControlInner() {
                   </Button>
                 </div>
               </CardHeader>
-              {monthlySnapshots.length > 0 && (
-                <CardContent className="pt-0 pb-6 px-5 sm:px-6">
-                  <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Total implied movement value — {rollupViewMonth}
+              <CardContent className="pt-0 pb-6 px-5 sm:px-6">
+                {monthlySnapshots.length > 0 ? (
+                  <>
+                    <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Total implied movement value — {rollupTableMonth}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Σ (unit price × Σ implied movement) per item row below
+                      </p>
+                      <p className="text-xl font-semibold tabular-nums mt-1">
+                        {monthlyTotalEtb.toLocaleString()}{" "}
+                        <span className="text-sm font-medium text-muted-foreground">
+                          ETB
+                        </span>
+                      </p>
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                      Stored roll-ups — {rollupTableMonth}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Σ (unit price × Σ implied movement) per item row below
-                    </p>
-                    <p className="text-xl font-semibold tabular-nums mt-1">
-                      {monthlyTotalEtb.toLocaleString()}{" "}
-                      <span className="text-sm font-medium text-muted-foreground">
-                        ETB
-                      </span>
-                    </p>
-                  </div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    Stored roll-ups — {rollupViewMonth}
-                  </p>
-                  <div className="rounded-lg border border-border/70 overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/40">
-                          <TableHead>Station</TableHead>
-                          <TableHead>Item</TableHead>
-                          <TableHead className="text-right">Σ implied movement</TableHead>
-                          <TableHead className="text-right">First lights-out on-hand</TableHead>
-                          <TableHead className="text-right">Remaining</TableHead>
-                          <TableHead>Synced</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {monthlySnapshots.map((s) => (
-                          <TableRow key={s.id}>
-                            <TableCell>
-                              {displayKitchenBarStation(s.station)}
-                            </TableCell>
-                            <TableCell className="font-medium">{s.itemName}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {Number(s.totalImpliedSales).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {Number(s.lastDayClosingOnHand).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {(
-                                Number(s.lastDayClosingOnHand) -
-                                Number(s.totalImpliedSales)
-                              ).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              {new Date(s.syncedAt).toLocaleString()}
-                            </TableCell>
+                    <div className="rounded-lg border border-border/70 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/40">
+                            <TableHead>Station</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead className="text-right">Σ implied movement</TableHead>
+                            <TableHead className="text-right">First lights-out on-hand</TableHead>
+                            <TableHead className="text-right">Remaining</TableHead>
+                            <TableHead>Synced</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              )}
+                        </TableHeader>
+                        <TableBody>
+                          {monthlySnapshots.map((s) => (
+                            <TableRow key={s.id}>
+                              <TableCell>
+                                {displayKitchenBarStation(s.station)}
+                              </TableCell>
+                              <TableCell className="font-medium">{s.itemName}</TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {Number(s.totalImpliedSales).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {Number(s.lastDayClosingOnHand).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {(
+                                  Number(s.lastDayClosingOnHand) -
+                                  Number(s.totalImpliedSales)
+                                ).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                {new Date(s.syncedAt).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-8 text-center text-pretty max-w-lg mx-auto">
+                    No stored roll-ups for <span className="font-medium text-foreground">{rollupTableMonth}</span>.
+                    Choose another <strong className="text-foreground">View month</strong> in the range, or run{" "}
+                    <strong className="text-foreground">Sync Monthly Data</strong>.
+                  </p>
+                )}
+              </CardContent>
             </Card>
 
             <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">

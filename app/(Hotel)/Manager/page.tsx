@@ -69,6 +69,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { Input } from "@/components/ui/input";
 import { monthPeriodsBetweenInclusive } from "@/lib/kitchenBarMonthlyRange";
@@ -148,13 +156,23 @@ function ManagerContent() {
   const [rollupToYmd, setRollupToYmd] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
-  const rollupViewMonth = useMemo(
-    () =>
-      String(rollupToYmd || "")
-        .trim()
-        .slice(0, 7) || new Date().toISOString().slice(0, 7),
-    [rollupToYmd],
+  const [rollupTableMonth, setRollupTableMonth] = useState(() => {
+    const to = new Date().toISOString().slice(0, 10);
+    return to.slice(0, 7);
+  });
+  const monthsInRollupRange = useMemo(
+    () => monthPeriodsBetweenInclusive(rollupFromYmd, rollupToYmd),
+    [rollupFromYmd, rollupToYmd],
   );
+
+  useEffect(() => {
+    const months = monthsInRollupRange;
+    if (!months.length) return;
+    setRollupTableMonth((prev) => {
+      if (prev && months.includes(prev)) return prev;
+      return months[months.length - 1]!;
+    });
+  }, [monthsInRollupRange]);
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [newCcName, setNewCcName] = useState("");
   const [menuItems, setMenuItems] = useState<Item[]>([]);
@@ -182,7 +200,7 @@ function ManagerContent() {
           fetchPurchaseRequests(),
           fetchStockOutRequests(),
           fetchKitchenBarBeginnings(),
-          fetchKitchenBarMonthlySnapshots(rollupViewMonth),
+          fetchKitchenBarMonthlySnapshots(rollupTableMonth),
           fetchCostControllerProfiles(),
           fetchItems(),
         ]);
@@ -216,7 +234,7 @@ function ManagerContent() {
         setRefreshing(false);
       }
     },
-    [tenantScope, rollupViewMonth],
+    [tenantScope, rollupTableMonth],
   );
 
   useEffect(() => {
@@ -644,8 +662,8 @@ function ManagerContent() {
                 <CardTitle>Monthly roll-up from daily counts</CardTitle>
                 <CardDescription>
                   Pick a from–to range and run <strong>Sync Monthly Data</strong> to
-                  stamp each calendar month in that range from daily rows. The table
-                  shows the month of the <strong>To</strong> date.
+                  stamp each calendar month in that range. Use <strong>View month</strong>{" "}
+                  to load that month&apos;s stored rows in the table.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -664,6 +682,28 @@ function ManagerContent() {
                     onChange={setRollupToYmd}
                     className="min-w-[200px]"
                   />
+                  {monthsInRollupRange.length > 0 ? (
+                    <div className="space-y-1.5 min-w-[200px]">
+                      <Label htmlFor="manager-rollup-view-month" className="text-xs text-muted-foreground">
+                        View month
+                      </Label>
+                      <Select
+                        value={rollupTableMonth}
+                        onValueChange={setRollupTableMonth}
+                      >
+                        <SelectTrigger id="manager-rollup-view-month" className="h-10">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {monthsInRollupRange.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
                   <Button variant="secondary" onClick={() => loadData(true)}>
                     Refresh roll-ups
                   </Button>
@@ -711,7 +751,7 @@ function ManagerContent() {
                       {monthlySnapshots.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            No monthly rows for {rollupViewMonth} yet.
+                            No monthly rows for {rollupTableMonth} yet.
                           </TableCell>
                         </TableRow>
                       ) : (
