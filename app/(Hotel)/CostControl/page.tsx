@@ -1140,7 +1140,7 @@ function CostControlInner() {
                           <TableHead>Station</TableHead>
                           <TableHead>Item</TableHead>
                           <TableHead className="text-right">Σ implied movement</TableHead>
-                          <TableHead className="text-right">Last lights-out on-hand</TableHead>
+                          <TableHead className="text-right">First lights-out on-hand</TableHead>
                           <TableHead className="text-right">Remaining</TableHead>
                           <TableHead>Synced</TableHead>
                         </TableRow>
