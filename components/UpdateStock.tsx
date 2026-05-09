@@ -24,6 +24,7 @@ interface UpdateStockProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   item: ItemRegistration | null;
+  hotelInventory?: boolean;
   onUpdateSuccess: () => void;
 }
 
@@ -31,6 +32,7 @@ const UpdateStock = ({
   isOpen,
   onOpenChange,
   item,
+  hotelInventory = false,
   onUpdateSuccess,
 }: UpdateStockProps) => {
   const [loading, setLoading] = useState(false);
@@ -53,7 +55,7 @@ const UpdateStock = ({
       supplierPhone: "",
       Address: "",
       supplierLevel: "Bronze",
-      purchaseWithVat: false,
+      purchaseWithVat: true,
       supplierTinNumber: "",
       paidAmount: 0,
       HotelName: "",
@@ -138,6 +140,7 @@ const UpdateStock = ({
       const updateData = {
         ...values,
         id: item.id,
+        dutyFee: hotelInventory ? 0 : values.dutyFee,
       };
 
       await UpdateItemRegistration(updateData);
@@ -228,14 +231,16 @@ const UpdateStock = ({
                   type="number"
                   inputClassName="h-fit p-2 w-56"
                 />
-                <CustomFormField
-                  name="dutyFee"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Duty Fee:"
-                  type="number"
-                  inputClassName="h-fit p-2 w-56"
-                />
+                {!hotelInventory && (
+                  <CustomFormField
+                    name="dutyFee"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Duty Fee:"
+                    type="number"
+                    inputClassName="h-fit p-2 w-56"
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

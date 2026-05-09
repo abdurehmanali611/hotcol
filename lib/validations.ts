@@ -409,8 +409,13 @@ export const ItemRegistrationSchema = z.object({
     z.enum(["Bronze", "Silver", "Gold"]),
     z.literal(""),
   ]),
-  purchaseWithVat: z.boolean(),
-  supplierTinNumber: z.string().max(20),
+  purchaseWithVat: z.boolean().default(true),
+  supplierTinNumber: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .or(z.literal("")),
   paidAmount: z.number().min(0, "paid Amount must be greater than or equal to 0"),
   HotelName: z.string().min(1, "Hotel name is required"),
 })

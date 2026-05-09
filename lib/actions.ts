@@ -402,6 +402,12 @@ function normalizeGraphqlHttpUrl(raw: string | undefined): string {
 }
 
 const API_URL = normalizeGraphqlHttpUrl(process.env.NEXT_PUBLIC_GRAPHQL_URL);
+const INVENTORY_VAT_RATE = 0.15;
+
+function computeInventoryVat(subtotal: number, purchaseWithVat?: boolean): number {
+  if (purchaseWithVat !== true) return 0;
+  return subtotal * INVENTORY_VAT_RATE;
+}
 
 const api = axios.create({
   timeout: 30000,
@@ -2980,8 +2986,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       supplierPhone: values.supplierPhone || "",
       Address: values.Address || "",
       supplierLevel: values.supplierLevel || "",
-      purchaseWithVat: values.purchaseWithVat === true,
-      supplierTinNumber: (values.supplierTinNumber || "").trim(),
+      purchaseWithVat: values.purchaseWithVat !== false,
+      supplierTinNumber: (values.supplierTinNumber || "").trim() || null,
       paidAmount: values.paidAmount || 0,
       HotelName: values.HotelName,
     };
@@ -3023,7 +3029,9 @@ export async function CreateItemRegistration(values: createItemRegistration) {
         const currentPityCash = pityCashList.find(
           (p: any) => p.HotelName === values.HotelName,
         );
-        const totalCalc = values.amount * values.unitPrice + values.dutyFee;
+        const subtotal = values.amount * values.unitPrice;
+        const vatAmount = computeInventoryVat(subtotal, values.purchaseWithVat);
+        const totalCalc = subtotal + values.dutyFee + vatAmount;
 
         if (currentPityCash) {
           const newAmount = currentPityCash.amount - totalCalc;
@@ -3248,8 +3256,8 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
       query: mutation,
       variables: {
         ...data,
-        purchaseWithVat: data.purchaseWithVat === true,
-        supplierTinNumber: (data.supplierTinNumber || "").trim(),
+        purchaseWithVat: data.purchaseWithVat !== false,
+        supplierTinNumber: (data.supplierTinNumber || "").trim() || null,
       },
     });
 

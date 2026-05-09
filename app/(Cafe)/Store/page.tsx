@@ -82,6 +82,13 @@ type StoreView =
   | "RequestStatus"
   | "PaymentVat";
 
+const VAT_RATE = 0.15;
+
+function computeVatAmount(subtotal: number, purchaseWithVat?: boolean): number {
+  if (purchaseWithVat !== true) return 0;
+  return subtotal * VAT_RATE;
+}
+
 const HOTEL_STORE_NAV: {
   id: StoreView;
   label: string;
@@ -177,7 +184,7 @@ export function StoreComponent({
       supplierPhone: "",
       Address: "",
       supplierLevel: "",
-      purchaseWithVat: false,
+      purchaseWithVat: true,
       supplierTinNumber: "",
       paidAmount: 0,
       HotelName: tenantScope || "",
@@ -216,9 +223,11 @@ export function StoreComponent({
         }
       }
       if (!hotelInventory) {
+        const subtotal = payload.amount * payload.unitPrice;
+        const vatAmount = computeVatAmount(subtotal, payload.purchaseWithVat);
         const hasEnoughPityCash = await checkPityCashBalance(
           payload.HotelName,
-          payload.amount * payload.unitPrice + payload.dutyFee,
+          subtotal + payload.dutyFee + vatAmount,
         );
         if (!hasEnoughPityCash) {
           toast.error("Insufficient Petty Cash balance");

@@ -184,6 +184,7 @@ export default function StoreItems({
           isOpen={isEditOpen}
           onOpenChange={setIsEditOpen}
           item={selectedItem}
+          hotelInventory={hotelStockApprovals}
           onUpdateSuccess={handleUpdateSuccess}
         />
       )}
