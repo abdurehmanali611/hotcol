@@ -27,7 +27,11 @@ export function lineOwedETB(item: {
   registeredAmount?: number;
   registeredValue?: number;
 }): number {
-  const a = Number(item.amount) || 0;
+  const registeredAmount = Number(item.registeredAmount);
+  const a =
+    Number.isFinite(registeredAmount) && registeredAmount > 0
+      ? registeredAmount
+      : Number(item.amount) || 0;
   const u = Number(item.unitPrice) || 0;
   const duty = Number(item.dutyFee) || 0;
   const subtotal = a * u;
