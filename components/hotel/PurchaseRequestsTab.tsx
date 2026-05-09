@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,16 @@ import {
   HotelFormFieldStack,
   HotelFormSection,
 } from "@/components/hotel/HotelTerminalInitFormLayout";
+
+const PhoneInput = dynamic(
+  () => import("@/components/phone-input").then((m) => m.PhoneInput),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+    ),
+  },
+);
 
 export default function PurchaseRequestsTab({
   onCreated,
@@ -177,11 +188,14 @@ export default function PurchaseRequestsTab({
               </HotelFormFieldStack>
               <HotelFormFieldStack className="sm:col-span-2">
                 <Label htmlFor="pr-phone">Supplier phone (optional)</Label>
-                <Input
+                <PhoneInput
                   id="pr-phone"
-                  value={supplierPhone}
-                  onChange={(e) => setSupplierPhone(e.target.value)}
-                  className="h-10 border-border/80 shadow-sm"
+                  defaultCountry="ET"
+                  countryCallingCodeEditable
+                  international
+                  value={supplierPhone || undefined}
+                  onChange={(v) => setSupplierPhone((v as string) || "")}
+                  className="w-full"
                 />
               </HotelFormFieldStack>
             </div>

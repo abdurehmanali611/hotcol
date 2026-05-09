@@ -57,10 +57,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  CalendarIcon,
   CheckCircle2,
   ClipboardList,
   LayoutGrid,
@@ -97,6 +94,7 @@ import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
 import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
 import { monthPeriodsBetweenInclusive } from "@/lib/kitchenBarMonthlyRange";
@@ -1088,30 +1086,26 @@ function CostControlInner() {
                     Choose a from–to range to sync stored roll-ups (each calendar month
                     in the range is stamped from the daily grid). The table shows the
                     month of the <strong className="text-foreground">To</strong> date.
-                    Run <strong className="text-foreground">Sync data</strong> to
-                    refresh those months from implied movement and first lights-out
+                    Run <strong className="text-foreground">Sync Monthly Data</strong>{" "}
+                    to refresh those months from implied movement and first lights-out
                     on-hand.
                   </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
-                  <HotelFormFieldStack className="min-w-[160px]">
-                    <Label htmlFor="rollup-from">From</Label>
-                    <Input
+                  <HotelFormFieldStack className="min-w-[200px]">
+                    <HotelDayPicker
+                      label="From"
                       id="rollup-from"
-                      type="date"
                       value={rollupFromYmd}
-                      onChange={(e) => setRollupFromYmd(e.target.value)}
-                      className="h-10 border-border/80 shadow-sm"
+                      onChange={setRollupFromYmd}
                     />
                   </HotelFormFieldStack>
-                  <HotelFormFieldStack className="min-w-[160px]">
-                    <Label htmlFor="rollup-to">To</Label>
-                    <Input
+                  <HotelFormFieldStack className="min-w-[200px]">
+                    <HotelDayPicker
+                      label="To"
                       id="rollup-to"
-                      type="date"
                       value={rollupToYmd}
-                      onChange={(e) => setRollupToYmd(e.target.value)}
-                      className="h-10 border-border/80 shadow-sm"
+                      onChange={setRollupToYmd}
                     />
                   </HotelFormFieldStack>
                   <Button
@@ -1140,8 +1134,8 @@ function CostControlInner() {
                         }
                         toast.success(
                           months.length === 1
-                            ? "Sync data completed"
-                            : `Sync data completed (${months.length} months)`,
+                            ? "Monthly data synced"
+                            : `Monthly data synced (${months.length} months)`,
                         );
                         await load(true);
                       } catch (e: any) {
@@ -1149,7 +1143,7 @@ function CostControlInner() {
                       }
                     }}
                   >
-                    Sync data
+                    Sync Monthly Data
                   </Button>
                 </div>
               </CardHeader>
@@ -1494,30 +1488,12 @@ function CostControlInner() {
                     <TableHead>
                       <div className="flex flex-col gap-1">
                         <span>Date</span>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              id="kb-grid-day"
-                              type="button"
-                              variant="outline"
-                              className="h-8 w-[170px] justify-start border-border/80 px-2 text-xs font-normal"
-                            >
-                              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                              {selectedDailyDate || "Pick a date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={parseYmdToDate(selectedDailyDate)}
-                              onSelect={(d) => {
-                                if (!d) return;
-                                setSelectedDailyDate(toYmdLocal(d));
-                              }}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
+                        <HotelDayPicker
+                          id="kb-grid-day"
+                          value={selectedDailyDate}
+                          onChange={setSelectedDailyDate}
+                          buttonClassName="h-8 w-[170px] px-2 text-xs font-normal"
+                        />
                       </div>
                     </TableHead>
                     <TableHead>Station</TableHead>

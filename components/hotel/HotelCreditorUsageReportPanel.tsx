@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   Select,
   SelectContent,
@@ -133,14 +134,20 @@ export function HotelCreditorUsageReportPanel({
       </Card>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label>From</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-10 w-40" />
-        </div>
-        <div className="space-y-1">
-          <Label>To</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-10 w-40" />
-        </div>
+        <HotelDayPicker
+          label="From"
+          id="creditor-usage-from"
+          value={from}
+          onChange={setFrom}
+          className="w-44 sm:w-48"
+        />
+        <HotelDayPicker
+          label="To"
+          id="creditor-usage-to"
+          value={to}
+          onChange={setTo}
+          className="w-44 sm:w-48"
+        />
         <div className="space-y-1">
           <Label>Company</Label>
           <Select value={companyFilter} onValueChange={setCompanyFilter}>

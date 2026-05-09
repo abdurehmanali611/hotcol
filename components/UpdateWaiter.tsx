@@ -1,12 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { User, Phone, Briefcase, Save, Loader2 } from "lucide-react";
+
+const PhoneInput = dynamic(
+  () => import("@/components/phone-input").then((m) => m.PhoneInput),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+    ),
+  },
+);
 
 export default function UpdateWaiter({ waiter, hotelName, onUpdate }: any) {
   const [formData, setFormData] = useState({
@@ -76,9 +87,15 @@ export default function UpdateWaiter({ waiter, hotelName, onUpdate }: any) {
         </div>
         <div className="space-y-2">
           <Label className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground"/> Phone</Label>
-          <Input 
-            value={formData.phoneNumber} 
-            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} 
+          <PhoneInput
+            defaultCountry="ET"
+            countryCallingCodeEditable
+            international
+            value={formData.phoneNumber || undefined}
+            onChange={(v) =>
+              setFormData({ ...formData, phoneNumber: (v as string) || "" })
+            }
+            className="w-full"
           />
         </div>
       </div>

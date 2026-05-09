@@ -71,8 +71,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { monthPeriodsBetweenInclusive } from "@/lib/kitchenBarMonthlyRange";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   Table,
   TableBody,
@@ -643,37 +643,27 @@ function ManagerContent() {
               <CardHeader>
                 <CardTitle>Monthly roll-up from daily counts</CardTitle>
                 <CardDescription>
-                  Pick a from–to range and run <strong>Sync data</strong> to stamp each
-                  calendar month in that range from daily rows. The table shows the month
-                  of the <strong>To</strong> date.
+                  Pick a from–to range and run <strong>Sync Monthly Data</strong> to
+                  stamp each calendar month in that range from daily rows. The table
+                  shows the month of the <strong>To</strong> date.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-1.5 min-w-[160px]">
-                    <Label htmlFor="manager-rollup-from" className="text-xs text-muted-foreground">
-                      From
-                    </Label>
-                    <Input
-                      id="manager-rollup-from"
-                      type="date"
-                      value={rollupFromYmd}
-                      onChange={(e) => setRollupFromYmd(e.target.value)}
-                      className="h-10"
-                    />
-                  </div>
-                  <div className="space-y-1.5 min-w-[160px]">
-                    <Label htmlFor="manager-rollup-to" className="text-xs text-muted-foreground">
-                      To
-                    </Label>
-                    <Input
-                      id="manager-rollup-to"
-                      type="date"
-                      value={rollupToYmd}
-                      onChange={(e) => setRollupToYmd(e.target.value)}
-                      className="h-10"
-                    />
-                  </div>
+                  <HotelDayPicker
+                    label="From"
+                    id="manager-rollup-from"
+                    value={rollupFromYmd}
+                    onChange={setRollupFromYmd}
+                    className="min-w-[200px]"
+                  />
+                  <HotelDayPicker
+                    label="To"
+                    id="manager-rollup-to"
+                    value={rollupToYmd}
+                    onChange={setRollupToYmd}
+                    className="min-w-[200px]"
+                  />
                   <Button variant="secondary" onClick={() => loadData(true)}>
                     Refresh roll-ups
                   </Button>
@@ -693,8 +683,8 @@ function ManagerContent() {
                         }
                         toast.success(
                           months.length === 1
-                            ? "Sync data completed"
-                            : `Sync data completed (${months.length} months)`,
+                            ? "Monthly data synced"
+                            : `Monthly data synced (${months.length} months)`,
                         );
                         await loadData(true);
                       } catch (err: any) {
@@ -702,7 +692,7 @@ function ManagerContent() {
                       }
                     }}
                   >
-                    Sync data
+                    Sync Monthly Data
                   </Button>
                 </div>
                 <div className="overflow-x-auto rounded-lg border">
