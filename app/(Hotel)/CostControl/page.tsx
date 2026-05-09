@@ -173,6 +173,13 @@ function CostControlInner() {
       return `${rollupFromYmd} → ${rollupToYmd}`;
     }
   }, [rollupFromYmd, rollupToYmd]);
+  const rollupRangeRef = useRef({
+    from: rollupFromYmd,
+    to: rollupToYmd,
+  });
+  useEffect(() => {
+    rollupRangeRef.current = { from: rollupFromYmd, to: rollupToYmd };
+  }, [rollupFromYmd, rollupToYmd]);
   const [ccPick, setCcPick] = useState<Record<number, string>>({});
   const [beginForm, setBeginForm] = useState({
     station: "KITCHEN",
@@ -353,59 +360,62 @@ function CostControlInner() {
     }));
   }, [selectedDailyDate]);
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      let snapPromise: Promise<KitchenBarMonthlySnapshotRow[]> = Promise.resolve(
-        [],
-      );
+  const load = useCallback(
+    async (isRefresh = false, fetchRollupSnapshots = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       try {
-        const { fromYmd, toYmd } = normalizeRollupRangeYmd(
-          rollupFromYmd,
-          rollupToYmd,
-        );
-        snapPromise = fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
-      } catch {
-        snapPromise = Promise.resolve([]);
+        const snapP: Promise<KitchenBarMonthlySnapshotRow[] | null> =
+          fetchRollupSnapshots
+            ? (async () => {
+                try {
+                  const { from, to } = rollupRangeRef.current;
+                  const { fromYmd, toYmd } = normalizeRollupRangeYmd(from, to);
+                  return await fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
+                } catch {
+                  return [];
+                }
+              })()
+            : Promise.resolve(null);
+        const [p, pr, so, kb, regs, stats, snapsMaybe] = await Promise.all([
+          fetchCostControllerProfiles(),
+          fetchPurchaseRequests(),
+          fetchStockOutRequests(),
+          fetchKitchenBarBeginnings(),
+          fetchItemRegistrations(),
+          fetchItemStatus(),
+          snapP,
+        ]);
+        setProfiles(p);
+        setPurchases(pr);
+        setStocks(so);
+        setBeginnings(kb);
+        if (snapsMaybe !== null) setMonthlySnapshots(snapsMaybe);
+        const t = String(tenantScope ?? "").trim();
+        const regList = regs as ItemRegistration[];
+        const statList = stats as ItemStatus[];
+        const inv = t
+          ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
+          : regList;
+        const st = t
+          ? statList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
+          : statList;
+        setInventoryRows(inv);
+        setStatusRows(st);
+      } catch (e: any) {
+        toast.error(e?.message || "Load failed");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-      const [p, pr, so, kb, snaps, regs, stats] = await Promise.all([
-        fetchCostControllerProfiles(),
-        fetchPurchaseRequests(),
-        fetchStockOutRequests(),
-        fetchKitchenBarBeginnings(),
-        snapPromise,
-        fetchItemRegistrations(),
-        fetchItemStatus(),
-      ]);
-      setProfiles(p);
-      setPurchases(pr);
-      setStocks(so);
-      setBeginnings(kb);
-      setMonthlySnapshots(snaps);
-      const t = String(tenantScope ?? "").trim();
-      const regList = regs as ItemRegistration[];
-      const statList = stats as ItemStatus[];
-      const inv = t
-        ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
-        : regList;
-      const st = t
-        ? statList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
-        : statList;
-      setInventoryRows(inv);
-      setStatusRows(st);
-    } catch (e: any) {
-      toast.error(e?.message || "Load failed");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [tenantScope, rollupFromYmd, rollupToYmd]);
+    },
+    [tenantScope],
+  );
 
   useEffect(() => {
     const isRefresh = isFirstLoadRef.current;
     isFirstLoadRef.current = true;
-    void load(isRefresh);
+    void load(isRefresh, true);
   }, [load]);
 
   const insetBusy = loading || refreshing;
@@ -564,7 +574,7 @@ function CostControlInner() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => load(true)}
+              onClick={() => load(true, false)}
               disabled={insetBusy}
               aria-busy={insetBusy}
               className={insetBusy ? "animate-spin" : ""}
@@ -755,7 +765,7 @@ function CostControlInner() {
                               return;
                             }
                             await approvePurchaseRequestCCApi(r.id, pid);
-                            load(true);
+                            load(true, false);
                           }}
                         >
                           Approve → finance
@@ -768,7 +778,7 @@ function CostControlInner() {
                               r.id,
                               "Rejected by cost control",
                             );
-                            load(true);
+                            load(true, false);
                           }}
                         >
                           Reject
@@ -918,7 +928,7 @@ function CostControlInner() {
                             return;
                           }
                           await approveStockOutRequestApi(r.id, pid);
-                          load(true);
+                          load(true, false);
                         }}
                       >
                         Approve & update stock
@@ -931,7 +941,7 @@ function CostControlInner() {
                             r.id,
                             "Rejected by cost control",
                           );
-                          load(true);
+                          load(true, false);
                         }}
                       >
                         Reject
@@ -1126,10 +1136,12 @@ function CostControlInner() {
                   <CardDescription className="text-pretty max-w-2xl">
                     Totals use only daily rows with calendar dates between{" "}
                     <strong className="text-foreground">From</strong> and{" "}
-                    <strong className="text-foreground">To</strong> (inclusive)—not whole
-                    calendar months. Run{" "}
+                    <strong className="text-foreground">To</strong> (inclusive). Changing
+                    dates does not reload the table—use{" "}
+                    <strong className="text-foreground">Refresh roll-ups</strong> to load
+                    stored data for the range, or{" "}
                     <strong className="text-foreground">Sync Monthly Data</strong> to
-                    stamp this range from implied movement and first lights-out on-hand.
+                    stamp it from the daily grid.
                   </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
@@ -1153,7 +1165,7 @@ function CostControlInner() {
                     type="button"
                     variant="secondary"
                     className="shadow-sm"
-                    onClick={() => load(true)}
+                    onClick={() => load(true, true)}
                     disabled={insetBusy}
                   >
                     {insetBusy ? (
@@ -1177,7 +1189,7 @@ function CostControlInner() {
                           quiet: true,
                         });
                         toast.success("Roll-up data synced for selected dates");
-                        await load(true);
+                        await load(true, true);
                       } catch (e: any) {
                         toast.error(
                           e?.message ||
@@ -1495,7 +1507,7 @@ function CostControlInner() {
                           calendarDate: day,
                           notes: "",
                         });
-                        load(true);
+                        load(true, false);
                       } catch (e: any) {
                         toast.error(e?.message || "Save failed");
                       }
@@ -1636,7 +1648,7 @@ function CostControlInner() {
                           className="text-destructive hover:text-destructive"
                           onClick={async () => {
                             await deleteKitchenBarBeginningApi(b.id);
-                            load(true);
+                            load(true, false);
                           }}
                         >
                           Delete
