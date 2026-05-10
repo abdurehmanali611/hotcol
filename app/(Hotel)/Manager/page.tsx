@@ -24,6 +24,7 @@ import {
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
+  notifyApiFailure,
   syncKitchenBarRollupApi,
   updateAdminPassword,
   updateCredential,
@@ -225,8 +226,8 @@ function ManagerContent() {
               )
             : [],
         );
-      } catch {
-        toast.error("Could not load dashboard data");
+      } catch (e: unknown) {
+        notifyApiFailure(e, "Could not load dashboard data");
       } finally {
         setLoading(false);
         setRefreshing(false);

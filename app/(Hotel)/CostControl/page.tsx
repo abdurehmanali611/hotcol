@@ -28,6 +28,7 @@ import {
   rejectStockOutRequestApi,
   updateKitchenBarBeginningApi,
   logoutAction,
+  notifyApiFailure,
   type ItemRegistration,
   type ItemStatus,
   type KitchenBarBeginningRow,
@@ -764,8 +765,12 @@ function CostControlInner() {
                               toast.error("Select your cost controller identity");
                               return;
                             }
-                            await approvePurchaseRequestCCApi(r.id, pid);
-                            load(true, false);
+                            try {
+                              await approvePurchaseRequestCCApi(r.id, pid);
+                              await load(true, false);
+                            } catch (e: unknown) {
+                              notifyApiFailure(e, "Could not approve purchase request");
+                            }
                           }}
                         >
                           Approve → finance
@@ -774,11 +779,15 @@ function CostControlInner() {
                           variant="outline"
                           className="text-destructive border-destructive/30 hover:bg-destructive/10"
                           onClick={async () => {
-                            await rejectPurchaseRequestCCApi(
-                              r.id,
-                              "Rejected by cost control",
-                            );
-                            load(true, false);
+                            try {
+                              await rejectPurchaseRequestCCApi(
+                                r.id,
+                                "Rejected by cost control",
+                              );
+                              await load(true, false);
+                            } catch (e: unknown) {
+                              notifyApiFailure(e, "Could not reject purchase request");
+                            }
                           }}
                         >
                           Reject
@@ -927,8 +936,12 @@ function CostControlInner() {
                             toast.error("Select your cost controller identity");
                             return;
                           }
-                          await approveStockOutRequestApi(r.id, pid);
-                          load(true, false);
+                          try {
+                            await approveStockOutRequestApi(r.id, pid);
+                            await load(true, false);
+                          } catch (e: unknown) {
+                            notifyApiFailure(e, "Could not approve stock movement");
+                          }
                         }}
                       >
                         Approve & update stock
@@ -937,11 +950,15 @@ function CostControlInner() {
                         variant="outline"
                         className="text-destructive border-destructive/30 hover:bg-destructive/10"
                         onClick={async () => {
-                          await rejectStockOutRequestApi(
-                            r.id,
-                            "Rejected by cost control",
-                          );
-                          load(true, false);
+                          try {
+                            await rejectStockOutRequestApi(
+                              r.id,
+                              "Rejected by cost control",
+                            );
+                            await load(true, false);
+                          } catch (e: unknown) {
+                            notifyApiFailure(e, "Could not reject stock movement");
+                          }
                         }}
                       >
                         Reject

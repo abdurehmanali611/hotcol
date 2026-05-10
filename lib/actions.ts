@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
+import {
+  graphqlErrorsIndicateSessionExpiry,
+  isSessionExpiredError,
+  scheduleSessionExpiredRedirect,
+  SessionExpiredError,
+} from "./sessionExpiry";
 import { rowHotelMatchesTenantScope } from "./tenantRowMatch";
 import { computeInventoryVatETB } from "./hotelInventoryPayment";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
@@ -404,8 +410,11 @@ function normalizeGraphqlHttpUrl(raw: string | undefined): string {
 
 const API_URL = normalizeGraphqlHttpUrl(process.env.NEXT_PUBLIC_GRAPHQL_URL);
 
+/** Slow links (rural / shared Wi‑Fi): avoid aborting before the server responds. */
+const GRAPHQL_TIMEOUT_MS = 120_000;
+
 const api = axios.create({
-  timeout: 30000,
+  timeout: GRAPHQL_TIMEOUT_MS,
   headers: {
     "Content-Type": "application/json",
   },
@@ -428,20 +437,52 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
+    const errs = response.data?.errors as Array<{ message?: string }> | undefined;
+    if (graphqlErrorsIndicateSessionExpiry(errs)) {
+      scheduleSessionExpiredRedirect();
+      return Promise.reject(new SessionExpiredError());
+    }
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== "undefined") {
-        localStorage.clear();
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 1000);
-      }
+    if (isSessionExpiredError(error)) {
+      return Promise.reject(error);
+    }
+    if (error.response?.status === 401 && typeof window !== "undefined") {
+      scheduleSessionExpiredRedirect();
+      return Promise.reject(new SessionExpiredError());
     }
     return Promise.reject(error);
   },
 );
+
+/** UI catch helper: session expiry is already toasted + redirecting; surface timeouts/network clearly. */
+export function notifyApiFailure(error: unknown, fallback = "Request failed"): void {
+  if (typeof window === "undefined") return;
+  if (isSessionExpiredError(error)) return;
+  if (axios.isAxiosError(error)) {
+    if (error.code === "ECONNABORTED") {
+      toast.error(
+        `Request timed out (>${GRAPHQL_TIMEOUT_MS / 1000}s). If your connection is slow, wait and try again.`,
+      );
+      return;
+    }
+    if (!error.response && error.message === "Network Error") {
+      toast.error(
+        "Network error — check your internet connection or try another network.",
+      );
+      return;
+    }
+  }
+  const msg =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : fallback;
+  if (msg === "SESSION_EXPIRED") return;
+  toast.error(msg?.trim() ? msg : fallback);
+}
 
 export async function handleCredential(
   values: any,
@@ -498,7 +539,7 @@ export async function handleCredential(
       },
     };
 
-    const response = await axios.post(API_URL, graphqlQuery, {
+    const response = await api.post(API_URL, graphqlQuery, {
       headers: {
         "Content-Type": "application/json",
       },
@@ -1672,19 +1713,10 @@ async function UpdatePityDeduction(id: number, amount: number) {
       throw new Error("No authentication token found");
     }
 
-    const response = await axios.post(
-      API_URL,
-      {
-        query: mutation,
-        variables: { id, amount },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id, amount },
+    });
 
     if (response.data.errors) {
       throw new Error(
@@ -2019,15 +2051,6 @@ export async function CreateCashout(data: any) {
       const errorMessage =
         response.data.errors[0]?.message || "Failed to create cashout";
 
-      if (
-        errorMessage.includes("Not Authenticated") ||
-        errorMessage.includes("Unauthorized")
-      ) {
-        toast.error("Session expired. Please login again.");
-        logoutAction();
-        throw new Error("Authentication failed");
-      }
-
       toast.error(errorMessage);
       throw new Error(errorMessage);
     }
@@ -2035,6 +2058,7 @@ export async function CreateCashout(data: any) {
     toast.success("Cashout created successfully");
     return response.data.data.CreateCashout;
   } catch (error: any) {
+    if (isSessionExpiredError(error)) throw error;
     if (error.response?.data?.errors) {
       const graphqlErrors = error.response.data.errors;
       const errorMessages = graphqlErrors
@@ -2100,15 +2124,8 @@ export async function fetchCashout(HotelName?: string) {
     const cashouts = response.data.data.cashouts || [];
     return cashouts;
   } catch (error: any) {
-    if (
-      error.message?.includes("Not Authenticated") ||
-      error.response?.status === 401
-    ) {
-      toast.error("Session expired. Please login again.");
-      logoutAction();
-    } else {
-      toast.error("Failed to fetch cashout: " + error.message);
-    }
+    if (isSessionExpiredError(error)) throw error;
+    toast.error("Failed to fetch cashout: " + (error.message || "Unknown error"));
 
     throw error;
   }
@@ -3004,15 +3021,6 @@ export async function CreateItemRegistration(values: createItemRegistration) {
     if (response.data.errors) {
       const errorMessage =
         response.data.errors[0]?.message || "Failed to create item";
-
-      if (
-        errorMessage.includes("Not Authenticated") ||
-        errorMessage.includes("Unauthorized")
-      ) {
-        toast.error("Session expired. Please login again.");
-        logoutAction();
-        throw new Error("Authentication failed");
-      }
 
       toast.error(errorMessage);
       throw new Error(errorMessage);
