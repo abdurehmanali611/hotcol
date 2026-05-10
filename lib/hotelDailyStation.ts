@@ -5,7 +5,8 @@
 
 export const HOTEL_DAILY_COUNT_STATIONS = [
   { value: "KITCHEN", label: "Kitchen / Chef" },
-  { value: "BAR", label: "Bar" },
+  /** Canonical key stays `BAR` (DB / APIs); label matches store stock-out stakeholder "Barista". */
+  { value: "BAR", label: "Barista" },
   { value: "JUICER", label: "Juicer" },
   { value: "CLEANING", label: "Cleaning" },
   { value: "HOUSEKEEPING", label: "Housekeeping" },
@@ -17,7 +18,6 @@ export const HOTEL_DAILY_COUNT_STATIONS = [
 /** Store UI: value stored on StockOutRequest.stakeHolderOrReason (must map via normalize). */
 export const HOTEL_STORE_STOCK_OUT_STAKEHOLDERS = [
   "Kitchen",
-  "Bar",
   "Barista",
   "Juicer",
   "Cleaning Service",
