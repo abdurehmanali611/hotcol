@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
+import React from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteItemStatus } from "@/lib/actions";
 import { ColumnDef } from "@tanstack/react-table";
-import { Trash, Package, Phone, User, Receipt } from "lucide-react";
+import { Loader2, Trash, Package, Phone, User, Receipt } from "lucide-react";
 import { toast } from "sonner";
 
 export type itemStatus = {
@@ -148,6 +149,7 @@ export const columns = (
     id: "action",
     cell: ({ row }) => {
       if (!admin) return null;
+      const [deleting, setDeleting] = React.useState(false);
       return (
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -167,15 +169,33 @@ export const columns = (
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-2 sm:gap-0">
-              <AlertDialogCancel className="rounded-lg">Keep Entry</AlertDialogCancel>
+              <AlertDialogCancel className="rounded-lg" disabled={deleting}>
+                Keep Entry
+              </AlertDialogCancel>
               <AlertDialogAction
                 className="bg-red-500 hover:bg-red-600 rounded-lg"
-                onClick={async () => {
-                  await handleDelete(row.original.id);
-                  await refresh();
+                disabled={deleting}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void (async () => {
+                    setDeleting(true);
+                    try {
+                      await handleDelete(row.original.id);
+                      await refresh();
+                    } finally {
+                      setDeleting(false);
+                    }
+                  })();
                 }}
               >
-                Delete Record
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete Record"
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

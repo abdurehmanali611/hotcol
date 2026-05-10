@@ -20,6 +20,7 @@ import {
   fetchHotelCreditParties,
   fetchItems,
   logoutAction,
+  notifyApiFailure,
   updateHotelCreditCompanyApi,
   type HotelCorporateCreditTierRow,
   type HotelCreditCompanyRow,
@@ -34,6 +35,7 @@ import {
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Card,
   CardContent,
@@ -175,6 +177,10 @@ export function HotelCashierDashboard() {
   const [menuCategoryFilter, setMenuCategoryFilter] = useState<
     "all" | "Food" | "Beverage" | "Others"
   >("all");
+  const [companyDealSaving, setCompanyDealSaving] = useState(false);
+  const [companyDeleting, setCompanyDeleting] = useState(false);
+  const [consumptionSaving, setConsumptionSaving] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -195,8 +201,8 @@ export function HotelCashierDashboard() {
             : items,
         );
         setCompanies(co);
-      } catch (e: any) {
-        toast.error(e?.message || "Load failed");
+      } catch (e: unknown) {
+        notifyApiFailure(e, "Could not load cashier data");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -284,6 +290,7 @@ export function HotelCashierDashboard() {
       toast.error("Allow at least one menu item for this deal");
       return;
     }
+    setCompanyDealSaving(true);
     try {
       const allowedMenuJson = buildAllowedJson();
       const payload = {
@@ -305,8 +312,10 @@ export function HotelCashierDashboard() {
       }
       await load(true);
       resetCompanyForm();
-    } catch (e: any) {
-      toast.error(e?.message || "Save failed");
+    } catch (e: unknown) {
+      notifyApiFailure(e, "Could not save company deal");
+    } finally {
+      setCompanyDealSaving(false);
     }
   });
 
@@ -340,6 +349,7 @@ export function HotelCashierDashboard() {
   };
 
   const loadReport = async () => {
+    setReportLoading(true);
     try {
       const from = new Date(`${reportFrom}T00:00:00`).toISOString();
       const to = new Date(`${reportTo}T23:59:59`).toISOString();
@@ -357,8 +367,10 @@ export function HotelCashierDashboard() {
         }
       }
       setReportPartyById(pmap);
-    } catch (e: any) {
-      toast.error(e?.message || "Report failed");
+    } catch (e: unknown) {
+      notifyApiFailure(e, "Could not load usage report");
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -899,16 +911,17 @@ export function HotelCashierDashboard() {
                             </div>
 
                             <div className="flex flex-wrap gap-3 pt-1">
-                              <Button
+                              <PendingButton
                                 type="button"
                                 disabled={tiers.length === 0}
                                 className="min-h-11 px-6"
+                                pending={companyDealSaving}
                                 onClick={() => void saveCompanyDeal()}
                               >
                                 {editingCompanyId
                                   ? "Save company"
                                   : "Create company"}
-                              </Button>
+                              </PendingButton>
                               {editingCompanyId && (
                                 <>
                                   <Button
@@ -919,10 +932,11 @@ export function HotelCashierDashboard() {
                                   >
                                     Cancel
                                   </Button>
-                                  <Button
+                                  <PendingButton
                                     type="button"
                                     variant="destructive"
                                     className="min-h-11 px-5"
+                                    pending={companyDeleting}
                                     onClick={async () => {
                                       if (!editingCompanyId) return;
                                       if (
@@ -931,15 +945,25 @@ export function HotelCashierDashboard() {
                                         )
                                       )
                                         return;
-                                      await deleteHotelCreditCompanyApi(
-                                        editingCompanyId,
-                                      );
-                                      await load(true);
-                                      resetCompanyForm();
+                                      setCompanyDeleting(true);
+                                      try {
+                                        await deleteHotelCreditCompanyApi(
+                                          editingCompanyId,
+                                        );
+                                        await load(true);
+                                        resetCompanyForm();
+                                      } catch (e: unknown) {
+                                        notifyApiFailure(
+                                          e,
+                                          "Could not delete company",
+                                        );
+                                      } finally {
+                                        setCompanyDeleting(false);
+                                      }
                                     }}
                                   >
                                     Delete company
-                                  </Button>
+                                  </PendingButton>
                                 </>
                               )}
                             </div>
@@ -1294,12 +1318,13 @@ export function HotelCashierDashboard() {
                               ETB {lineTotal.toFixed(2)}
                             </span>
                           </div>
-                          <Button
+                          <PendingButton
                             type="button"
                             className="min-h-11 px-8 sm:shrink-0"
                             disabled={
                               !selCompany || lineRows.every((r) => !r.name)
                             }
+                            pending={consumptionSaving}
                             onClick={async () => {
                               const metaOk =
                                 await consumptionMetaForm.trigger();
@@ -1314,32 +1339,44 @@ export function HotelCashierDashboard() {
                                     r.unitPrice,
                                   ),
                                 }));
-                              await createHotelCreditConsumptionApi({
-                                companyId: selCompany.id,
-                                guestName:
-                                  consumptionMetaForm
-                                    .getValues("guestName")
-                                    ?.trim() || undefined,
-                                guestPhone:
-                                  consumptionMetaForm
-                                    .getValues("guestPhone")
-                                    ?.trim() || undefined,
-                                linesJson: JSON.stringify(lines),
-                                totalAmount: lineTotal,
-                                occurredAt: new Date(
-                                  consumptionMetaForm.getValues("occurredAt"),
-                                ).toISOString(),
-                              });
-                              setLineRows([{ name: "", qty: 1, unitPrice: 0 }]);
-                              consumptionMetaForm.reset({
-                                occurredAt: defaultOccurredAtLocal(),
-                                guestName: "",
-                                guestPhone: "",
-                              });
+                              setConsumptionSaving(true);
+                              try {
+                                await createHotelCreditConsumptionApi({
+                                  companyId: selCompany.id,
+                                  guestName:
+                                    consumptionMetaForm
+                                      .getValues("guestName")
+                                      ?.trim() || undefined,
+                                  guestPhone:
+                                    consumptionMetaForm
+                                      .getValues("guestPhone")
+                                      ?.trim() || undefined,
+                                  linesJson: JSON.stringify(lines),
+                                  totalAmount: lineTotal,
+                                  occurredAt: new Date(
+                                    consumptionMetaForm.getValues("occurredAt"),
+                                  ).toISOString(),
+                                });
+                                setLineRows([
+                                  { name: "", qty: 1, unitPrice: 0 },
+                                ]);
+                                consumptionMetaForm.reset({
+                                  occurredAt: defaultOccurredAtLocal(),
+                                  guestName: "",
+                                  guestPhone: "",
+                                });
+                              } catch (e: unknown) {
+                                notifyApiFailure(
+                                  e,
+                                  "Could not save consumption",
+                                );
+                              } finally {
+                                setConsumptionSaving(false);
+                              }
                             }}
                           >
                             Save consumption
-                          </Button>
+                          </PendingButton>
                         </div>
                       </CardContent>
                     </Card>
@@ -1382,13 +1419,14 @@ export function HotelCashierDashboard() {
                               className="h-10 w-[160px]"
                             />
                           </div>
-                          <Button
+                          <PendingButton
                             type="button"
                             className="min-h-11 px-6"
+                            pending={reportLoading}
                             onClick={() => void loadReport()}
                           >
                             Run report
-                          </Button>
+                          </PendingButton>
                         </div>
                         <div className="flex flex-wrap items-end gap-4 md:gap-5">
                           <div className="space-y-2">

@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { Input } from "@/components/ui/input";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
@@ -163,6 +164,10 @@ function ManagerContent() {
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [newCcName, setNewCcName] = useState("");
   const [menuItems, setMenuItems] = useState<Item[]>([]);
+  const [ccAddPending, setCcAddPending] = useState(false);
+  const [ccRemoveId, setCcRemoveId] = useState<number | null>(null);
+  const [managerRollupSyncPending, setManagerRollupSyncPending] =
+    useState(false);
 
   const loadData = useCallback(
     async (isRefresh = false) => {
@@ -445,9 +450,16 @@ function ManagerContent() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (!newCcName.trim()) return;
-                    await createCostControllerProfileApi(newCcName.trim());
-                    setNewCcName("");
-                    loadData(true);
+                    setCcAddPending(true);
+                    try {
+                      await createCostControllerProfileApi(newCcName.trim());
+                      setNewCcName("");
+                      loadData(true);
+                    } catch (err: unknown) {
+                      notifyApiFailure(err, "Could not add cost controller identity");
+                    } finally {
+                      setCcAddPending(false);
+                    }
                   }}
                 >
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -456,10 +468,15 @@ function ManagerContent() {
                       value={newCcName}
                       onChange={(e) => setNewCcName(e.target.value)}
                       className="h-10 w-full border-border/70 bg-background"
+                      disabled={ccAddPending}
                     />
-                    <Button type="submit" className="h-10 px-5 sm:min-w-28">
+                    <PendingButton
+                      type="submit"
+                      className="h-10 px-5 sm:min-w-28"
+                      pending={ccAddPending}
+                    >
                       Add identity
-                    </Button>
+                    </PendingButton>
                   </div>
                 </form>
                 <ul className="divide-y rounded-xl border border-border/70 bg-background/70">
@@ -469,18 +486,26 @@ function ManagerContent() {
                       className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
                     >
                       <span className="font-medium">{p.displayName}</span>
-                      <Button
+                      <PendingButton
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="text-destructive hover:text-destructive"
+                        pending={ccRemoveId === p.id}
                         onClick={async () => {
-                          await deleteCostControllerProfileApi(p.id);
-                          loadData(true);
+                          setCcRemoveId(p.id);
+                          try {
+                            await deleteCostControllerProfileApi(p.id);
+                            loadData(true);
+                          } catch (err: unknown) {
+                            notifyApiFailure(err, "Could not remove identity");
+                          } finally {
+                            setCcRemoveId(null);
+                          }
                         }}
                       >
                         Remove
-                      </Button>
+                      </PendingButton>
                     </li>
                   ))}
                 </ul>
@@ -495,14 +520,18 @@ function ManagerContent() {
             <ItemCreationForm
               hotelName={tenantScope || ""}
               onSubmit={async (data) => {
-                await createItem({
-                  name: data.name,
-                  price: data.price,
-                  category: data.category,
-                  type: data.type,
-                  imageUrl: data.imageUrl,
-                });
-                loadData(true);
+                try {
+                  await createItem({
+                    name: data.name,
+                    price: data.price,
+                    category: data.category,
+                    type: data.type,
+                    imageUrl: data.imageUrl,
+                  });
+                  loadData(true);
+                } catch (err: unknown) {
+                  notifyApiFailure(err, "Could not create menu item");
+                }
               }}
               onImageUpload={uploadImage}
             />
@@ -520,8 +549,8 @@ function ManagerContent() {
                 try {
                   await deleteItem(id);
                   loadData(true);
-                } catch (err: any) {
-                  toast.error(`Failed to delete: ${err.message}`);
+                } catch (err: unknown) {
+                  notifyApiFailure(err, "Could not delete menu item");
                 }
               }}
             />
@@ -684,8 +713,10 @@ function ManagerContent() {
                   <Button variant="secondary" onClick={() => loadData(true)}>
                     Refresh roll-ups
                   </Button>
-                  <Button
+                  <PendingButton
+                    pending={managerRollupSyncPending}
                     onClick={async () => {
+                      setManagerRollupSyncPending(true);
                       try {
                         normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
                         await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
@@ -693,16 +724,18 @@ function ManagerContent() {
                         });
                         toast.success("Roll-up data synced for selected dates");
                         await loadData(true);
-                      } catch (err: any) {
-                        toast.error(
-                          err?.message ||
-                            "Choose valid dates or sync from Cost Control",
+                      } catch (err: unknown) {
+                        notifyApiFailure(
+                          err,
+                          "Choose valid dates or sync from Cost Control",
                         );
+                      } finally {
+                        setManagerRollupSyncPending(false);
                       }
                     }}
                   >
                     Sync Monthly Data
-                  </Button>
+                  </PendingButton>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Showing stored roll-up for <span className="font-medium text-foreground">{rollupRangeLabel}</span>.

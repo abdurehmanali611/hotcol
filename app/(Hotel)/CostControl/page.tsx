@@ -47,6 +47,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Table,
   TableBody,
@@ -209,6 +210,12 @@ function CostControlInner() {
     | "creditor-usage";
   const [activeSection, setActiveSection] = useState<CostSection>("purchases");
   const [rollupSyncPending, setRollupSyncPending] = useState(false);
+  /** e.g. pr-a-12 = purchase approve id 12 */
+  const [ccMutation, setCcMutation] = useState<string | null>(null);
+  const [beginningSavePending, setBeginningSavePending] = useState(false);
+  const [beginningDeleteId, setBeginningDeleteId] = useState<number | null>(
+    null,
+  );
 
   const inventoryItemOptions = useMemo(() => {
     return inventoryRows
@@ -757,28 +764,34 @@ function CostControlInner() {
                         </Select>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button
+                        <PendingButton
                           className="shadow-sm"
+                          pending={ccMutation === `pr-a-${r.id}`}
                           onClick={async () => {
                             const pid = Number(ccPick[r.id]);
                             if (!pid) {
                               toast.error("Select your cost controller identity");
                               return;
                             }
+                            setCcMutation(`pr-a-${r.id}`);
                             try {
                               await approvePurchaseRequestCCApi(r.id, pid);
                               await load(true, false);
                             } catch (e: unknown) {
                               notifyApiFailure(e, "Could not approve purchase request");
+                            } finally {
+                              setCcMutation(null);
                             }
                           }}
                         >
                           Approve → finance
-                        </Button>
-                        <Button
+                        </PendingButton>
+                        <PendingButton
                           variant="outline"
                           className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                          pending={ccMutation === `pr-r-${r.id}`}
                           onClick={async () => {
+                            setCcMutation(`pr-r-${r.id}`);
                             try {
                               await rejectPurchaseRequestCCApi(
                                 r.id,
@@ -787,11 +800,13 @@ function CostControlInner() {
                               await load(true, false);
                             } catch (e: unknown) {
                               notifyApiFailure(e, "Could not reject purchase request");
+                            } finally {
+                              setCcMutation(null);
                             }
                           }}
                         >
                           Reject
-                        </Button>
+                        </PendingButton>
                       </div>
                     </CardContent>
                   </Card>
@@ -928,28 +943,34 @@ function CostControlInner() {
                       </Select>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button
+                      <PendingButton
                         className="shadow-sm"
+                        pending={ccMutation === `so-a-${r.id}`}
                         onClick={async () => {
                           const pid = Number(ccPick[-r.id]);
                           if (!pid) {
                             toast.error("Select your cost controller identity");
                             return;
                           }
+                          setCcMutation(`so-a-${r.id}`);
                           try {
                             await approveStockOutRequestApi(r.id, pid);
                             await load(true, false);
                           } catch (e: unknown) {
                             notifyApiFailure(e, "Could not approve stock movement");
+                          } finally {
+                            setCcMutation(null);
                           }
                         }}
                       >
                         Approve & update stock
-                      </Button>
-                      <Button
+                      </PendingButton>
+                      <PendingButton
                         variant="outline"
                         className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                        pending={ccMutation === `so-r-${r.id}`}
                         onClick={async () => {
+                          setCcMutation(`so-r-${r.id}`);
                           try {
                             await rejectStockOutRequestApi(
                               r.id,
@@ -958,11 +979,13 @@ function CostControlInner() {
                             await load(true, false);
                           } catch (e: unknown) {
                             notifyApiFailure(e, "Could not reject stock movement");
+                          } finally {
+                            setCcMutation(null);
                           }
                         }}
                       >
                         Reject
-                      </Button>
+                      </PendingButton>
                     </div>
                   </CardContent>
                 </Card>
@@ -1489,10 +1512,12 @@ function CostControlInner() {
                 </HotelFormSection>
 
                 <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
-                  <Button
+                  <PendingButton
                     type="button"
                     className="shadow-sm"
+                    pending={beginningSavePending}
                     onClick={async () => {
+                      setBeginningSavePending(true);
                       try {
                         if (editingId) {
                           await updateKitchenBarBeginningApi({
@@ -1525,13 +1550,15 @@ function CostControlInner() {
                           notes: "",
                         });
                         load(true, false);
-                      } catch (e: any) {
-                        toast.error(e?.message || "Save failed");
+                      } catch (e: unknown) {
+                        notifyApiFailure(e, "Could not save daily row");
+                      } finally {
+                        setBeginningSavePending(false);
                       }
                     }}
                   >
                     {editingId ? "Save changes" : "Add daily row"}
-                  </Button>
+                  </PendingButton>
                   {editingId && (
                     <Button
                       type="button"
@@ -1659,17 +1686,25 @@ function CostControlInner() {
                         >
                           Edit
                         </Button>
-                        <Button
+                        <PendingButton
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:text-destructive"
+                          pending={beginningDeleteId === b.id}
                           onClick={async () => {
-                            await deleteKitchenBarBeginningApi(b.id);
-                            load(true, false);
+                            setBeginningDeleteId(b.id);
+                            try {
+                              await deleteKitchenBarBeginningApi(b.id);
+                              await load(true, false);
+                            } catch (e: unknown) {
+                              notifyApiFailure(e, "Could not delete daily row");
+                            } finally {
+                              setBeginningDeleteId(null);
+                            }
                           }}
                         >
                           Delete
-                        </Button>
+                        </PendingButton>
                       </TableCell>
                     </TableRow>
                   );

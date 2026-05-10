@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Card,
   CardContent,
@@ -148,13 +148,13 @@ export default function ItemCreationForm({
                   }
                 />
               </div>
-              <Button
+              <PendingButton
                 type="submit"
                 className="w-full h-12 text-lg shadow-xl"
-                disabled={isSubmitting}
+                pending={isSubmitting}
               >
-                {isSubmitting ? "Saving to Database..." : "Create Menu Item"}
-              </Button>
+                Create Menu Item
+              </PendingButton>
             </form>
           </Form>
         </CardContent>

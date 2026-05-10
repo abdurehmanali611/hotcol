@@ -47,7 +47,7 @@ import {
 } from "@/lib/hotelInventoryPayment";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, MoreVertical, Truck } from "lucide-react";
+import { AlertTriangle, Loader2, MoreVertical, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
@@ -134,8 +134,10 @@ const DeleteButton = ({
   refresh?: () => void;
 }) => {
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
+    setDeleting(true);
     try {
       await DeleteItemRegistration(itemId);
       toast.success(`${itemName} deleted successfully`);
@@ -144,11 +146,19 @@ const DeleteButton = ({
       refresh?.();
     } catch {
       toast.error(`Failed to delete ${itemName}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && deleting) return;
+        setOpen(next);
+      }}
+    >
       <AlertDialogTrigger asChild>
         <Button className="cursor-pointer bg-red-600 hover:bg-red-700 w-64">
           Delete
@@ -163,12 +173,23 @@ const DeleteButton = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex items-center justify-end gap-2">
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-red-500 cursor-pointer hover:bg-red-600"
-            onClick={handleDelete}
+            disabled={deleting}
+            onClick={(e) => {
+              e.preventDefault();
+              void handleDelete();
+            }}
           >
-            Delete
+            {deleting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              "Delete"
+            )}
           </AlertDialogAction>
         </div>
       </AlertDialogContent>
@@ -188,8 +209,10 @@ const StockOut = ({
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleStockOut = async () => {
+    setSubmitting(true);
     try {
       if (!statusBy.trim()) {
         toast.error("Select or enter where stock is going");
@@ -243,11 +266,19 @@ const StockOut = ({
       const msg =
         e instanceof Error ? e.message : `Failed to update ${data.name} status`;
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && submitting) return;
+        setOpen(next);
+      }}
+    >
       <AlertDialogTrigger asChild>
         <Button className="cursor-pointer bg-blue-600 hover:bg-blue-700 w-64">
           Stock Out
@@ -290,14 +321,25 @@ const StockOut = ({
             />
           </div>
           <div className="flex items-center justify-end gap-7">
-            <AlertDialogCancel className="cursor-pointer">
+            <AlertDialogCancel className="cursor-pointer" disabled={submitting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               className="cursor-pointer bg-blue-600"
-              onClick={() => handleStockOut()}
+              disabled={submitting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleStockOut();
+              }}
             >
-              Stock Out
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Stock Out"
+              )}
             </AlertDialogAction>
           </div>
         </div>
@@ -318,8 +360,10 @@ const Wastage = ({
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleWastage = async () => {
+    setSubmitting(true);
     try {
       if (!statusBy.trim()) {
         toast.error("Enter a short reason for wastage");
@@ -373,11 +417,19 @@ const Wastage = ({
       const msg =
         e instanceof Error ? e.message : `Failed to update ${data.name} status`;
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && submitting) return;
+        setOpen(next);
+      }}
+    >
       <AlertDialogTrigger asChild>
         <Button className="cursor-pointer bg-yellow-600 hover:bg-yellow-700 w-28">
           Wastage
@@ -410,14 +462,25 @@ const Wastage = ({
             />
           </div>
           <div className="flex items-center justify-end gap-7">
-            <AlertDialogCancel className="cursor-pointer">
+            <AlertDialogCancel className="cursor-pointer" disabled={submitting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               className="cursor-pointer bg-yellow-600"
-              onClick={() => handleWastage()}
+              disabled={submitting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleWastage();
+              }}
             >
-              Wasted
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Wasted"
+              )}
             </AlertDialogAction>
           </div>
         </div>
@@ -438,8 +501,10 @@ const Returned = ({
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleReturned = async () => {
+    setSubmitting(true);
     try {
       if (!statusBy.trim()) {
         toast.error("Enter the return reason / reference");
@@ -493,11 +558,19 @@ const Returned = ({
       const msg =
         e instanceof Error ? e.message : `Failed to update ${data.name} status`;
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && submitting) return;
+        setOpen(next);
+      }}
+    >
       <AlertDialogTrigger asChild>
         <Button className="cursor-pointer bg-amber-600 hover:bg-amber-700 w-28">
           Returned
@@ -530,14 +603,25 @@ const Returned = ({
             />
           </div>
           <div className="flex items-center justify-end gap-7">
-            <AlertDialogCancel className="cursor-pointer">
+            <AlertDialogCancel className="cursor-pointer" disabled={submitting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               className="cursor-pointer bg-amber-600"
-              onClick={() => handleReturned()}
+              disabled={submitting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleReturned();
+              }}
             >
-              Done
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Done"
+              )}
             </AlertDialogAction>
           </div>
         </div>

@@ -21,6 +21,7 @@ import {
   type HotelCorporateCreditTierLevelName,
 } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Card,
   CardContent,
@@ -41,7 +42,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Clock, Coins, CreditCard, Edit, Plus, Trash } from "lucide-react";
+import {
+  Clock,
+  Coins,
+  CreditCard,
+  Edit,
+  Loader2,
+  Plus,
+  Trash,
+} from "lucide-react";
 
 const TIER_LEVEL_SELECT_OPTIONS = HOTEL_CORPORATE_CREDIT_TIER_LEVELS.map(
   (level, idx) => ({ id: idx + 1, name: level }),
@@ -52,6 +61,7 @@ export function ManagerCorporateCreditTiers() {
   const [rows, setRows] = useState<HotelCorporateCreditTierRow[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingTierId, setDeletingTierId] = useState<number | null>(null);
 
   const form = useForm<z.infer<typeof hotelCorporateCreditTierFormSchema>>({
     resolver: zodResolver(hotelCorporateCreditTierFormSchema),
@@ -259,17 +269,13 @@ export function ManagerCorporateCreditTiers() {
                 </div>
 
                 <div className="flex flex-row-reverse flex-wrap justify-center gap-3 pt-2">
-                  <Button
+                  <PendingButton
                     type="submit"
                     className="flex-1 font-medium shadow-sm transition-all active:scale-95 md:w-48 md:flex-none"
-                    disabled={submitting}
+                    pending={submitting}
                   >
-                    {submitting
-                      ? "Processing..."
-                      : editingId
-                        ? "Save Changes"
-                        : "Create Level"}
-                  </Button>
+                    {editingId ? "Save Changes" : "Create Level"}
+                  </PendingButton>
                   {editingId && (
                     <Button
                       type="button"
@@ -346,12 +352,32 @@ export function ManagerCorporateCreditTiers() {
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <div className="flex justify-end gap-3 pt-4">
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel disabled={deletingTierId === r.id}>
+                              Cancel
+                            </AlertDialogCancel>
                             <AlertDialogAction
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => void handleDelete(r.id)}
+                              disabled={deletingTierId === r.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                void (async () => {
+                                  setDeletingTierId(r.id);
+                                  try {
+                                    await handleDelete(r.id);
+                                  } finally {
+                                    setDeletingTierId(null);
+                                  }
+                                })();
+                              }}
                             >
-                              Confirm Delete
+                              {deletingTierId === r.id ? (
+                                <>
+                                  <Loader2 className="size-4 animate-spin" />
+                                  Deleting…
+                                </>
+                              ) : (
+                                "Confirm Delete"
+                              )}
                             </AlertDialogAction>
                           </div>
                         </AlertDialogContent>

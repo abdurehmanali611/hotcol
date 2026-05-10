@@ -3,7 +3,6 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { toast } from "sonner";
 import {
   approvePurchaseRequestFinanceApi,
   fetchItemRegistrations,
@@ -11,6 +10,7 @@ import {
   fetchPurchaseRequests,
   rejectPurchaseRequestFinanceApi,
   logoutAction,
+  notifyApiFailure,
   type ItemRegistration,
   type ItemStatus,
   type PurchaseRequestRow,
@@ -27,6 +27,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Sidebar,
   SidebarContent,
@@ -90,6 +91,9 @@ function FinanceInner() {
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const [inactiveRows, setInactiveRows] = useState<ItemStatus[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
+  const [financeMutation, setFinanceMutation] = useState<
+    { id: number; kind: "approve" | "reject" } | null
+  >(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -110,8 +114,8 @@ function FinanceInner() {
       setInactiveRows(
         t ? statList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t)) : statList,
       );
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load");
+    } catch (e: unknown) {
+      notifyApiFailure(e, "Failed to load finance data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -400,32 +404,54 @@ function FinanceInner() {
                       </TableCell>
                       <TableCell className="text-right align-middle">
                         <div className="flex flex-wrap justify-end gap-2">
-                          <Button
+                          <PendingButton
                             size="sm"
                             className="shadow-sm gap-1.5"
+                            pending={
+                              financeMutation?.id === r.id &&
+                              financeMutation.kind === "approve"
+                            }
                             onClick={async () => {
-                              await approvePurchaseRequestFinanceApi(r.id);
-                              load();
+                              setFinanceMutation({ id: r.id, kind: "approve" });
+                              try {
+                                await approvePurchaseRequestFinanceApi(r.id);
+                                await load();
+                              } catch (e: unknown) {
+                                notifyApiFailure(e, "Could not approve payment");
+                              } finally {
+                                setFinanceMutation(null);
+                              }
                             }}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
                             Approve payment
-                          </Button>
-                          <Button
+                          </PendingButton>
+                          <PendingButton
                             size="sm"
                             variant="outline"
                             className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
+                            pending={
+                              financeMutation?.id === r.id &&
+                              financeMutation.kind === "reject"
+                            }
                             onClick={async () => {
-                              await rejectPurchaseRequestFinanceApi(
-                                r.id,
-                                "Rejected by finance",
-                              );
-                              load();
+                              setFinanceMutation({ id: r.id, kind: "reject" });
+                              try {
+                                await rejectPurchaseRequestFinanceApi(
+                                  r.id,
+                                  "Rejected by finance",
+                                );
+                                await load();
+                              } catch (e: unknown) {
+                                notifyApiFailure(e, "Could not reject payment");
+                              } finally {
+                                setFinanceMutation(null);
+                              }
                             }}
                           >
                             <XCircle className="h-3.5 w-3.5 opacity-90" />
                             Reject
-                          </Button>
+                          </PendingButton>
                         </div>
                       </TableCell>
                     </TableRow>

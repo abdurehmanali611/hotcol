@@ -2,7 +2,7 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Edit, Trash } from "lucide-react";
+import { ArrowUpDown, Edit, Loader2, Trash } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -106,6 +106,7 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
     header: "Actions",
     cell: ({ row }) => {
       const [open, setOpen] = React.useState(false);
+      const [deleting, setDeleting] = React.useState(false);
       return (
         <div className="flex items-center">
           <Dialog open={open} onOpenChange={setOpen}>
@@ -147,17 +148,33 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="flex items-center gap-5 justify-end">
-                <AlertDialogCancel className="cursor-pointer">
+                <AlertDialogCancel className="cursor-pointer" disabled={deleting}>
                   Cancel
                 </AlertDialogCancel>
                 <AlertDialogAction
                   className="cursor-pointer bg-red-500"
-                  onClick={async () => {
-                    await deleteTable(row.original.id);
-                    await refresh();
+                  disabled={deleting}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void (async () => {
+                      setDeleting(true);
+                      try {
+                        await deleteTable(row.original.id);
+                        await refresh();
+                      } finally {
+                        setDeleting(false);
+                      }
+                    })();
                   }}
                 >
-                  Delete
+                  {deleting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    "Delete"
+                  )}
                 </AlertDialogAction>
               </div>
             </AlertDialogContent>

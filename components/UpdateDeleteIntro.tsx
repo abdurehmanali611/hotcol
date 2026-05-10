@@ -2,6 +2,7 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -31,6 +32,7 @@ export default function UpdateDeleteIntro({
 }: any) {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deletingItem, setDeletingItem] = useState<any>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const filteredItems = (cat: string) =>
     items.filter((i: any) => i.category.toLowerCase() === cat.toLowerCase());
@@ -102,7 +104,12 @@ export default function UpdateDeleteIntro({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deletingItem} onOpenChange={() => setDeletingItem(null)}>
+      <Dialog
+        open={!!deletingItem}
+        onOpenChange={(open) => {
+          if (!open && !deletePending) setDeletingItem(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
           </DialogHeader>
@@ -119,20 +126,28 @@ export default function UpdateDeleteIntro({
               <Button
                 variant="outline"
                 className="flex-1"
+                disabled={deletePending}
                 onClick={() => setDeletingItem(null)}
               >
                 Cancel
               </Button>
-              <Button
+              <PendingButton
                 variant="destructive"
                 className="flex-1"
-                onClick={() => {
-                  onDelete(deletingItem.id);
-                  setDeletingItem(null);
+                pending={deletePending}
+                onClick={async () => {
+                  if (!deletingItem) return;
+                  setDeletePending(true);
+                  try {
+                    await onDelete(deletingItem.id);
+                    setDeletingItem(null);
+                  } finally {
+                    setDeletePending(false);
+                  }
                 }}
               >
                 Delete Item
-              </Button>
+              </PendingButton>
             </div>
           </div>
         </DialogContent>

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send } from "lucide-react";
 import {
   HotelFormFieldStack,
   HotelFormSection,
@@ -215,18 +214,13 @@ export default function PurchaseRequestsTab({
             </HotelFormFieldStack>
           </HotelFormSection>
 
-          <Button
+          <PendingButton
             type="submit"
-            disabled={loading}
+            pending={loading}
             className="w-full h-11 gap-2 text-base shadow-md"
           >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
             Submit request
-          </Button>
+          </PendingButton>
         </form>
       </CardContent>
     </Card>
