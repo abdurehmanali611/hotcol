@@ -420,6 +420,14 @@ function resolveGraphqlTimeoutMs(): number {
 /** Default 60s; slow links: set `NEXT_PUBLIC_GRAPHQL_TIMEOUT_MS` (10000–300000). */
 const GRAPHQL_TIMEOUT_MS = resolveGraphqlTimeoutMs();
 
+/** Set `NEXT_PUBLIC_DEBUG_SLOW_GRAPHQL_MS` (e.g. 400) to log `[hotcol][graphql] <key> <ms>ms` in the browser console. */
+const GRAPHQL_SLOW_FETCH_LOG_MS = (() => {
+  const raw = process.env.NEXT_PUBLIC_DEBUG_SLOW_GRAPHQL_MS;
+  const n = raw ? Number.parseInt(String(raw).trim(), 10) : NaN;
+  if (Number.isFinite(n) && n >= 0) return n;
+  return -1;
+})();
+
 const api = axios.create({
   timeout: GRAPHQL_TIMEOUT_MS,
   headers: {
@@ -469,11 +477,25 @@ const hotelListReadInflight = new Map<string, Promise<unknown>>();
 function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> {
   const existing = hotelListReadInflight.get(key);
   if (existing) return existing as Promise<T>;
+  const startedAt =
+    GRAPHQL_SLOW_FETCH_LOG_MS >= 0 && typeof performance !== "undefined"
+      ? performance.now()
+      : null;
   const p = (async () => {
     try {
       return await run();
     } finally {
       hotelListReadInflight.delete(key);
+      if (
+        startedAt != null &&
+        GRAPHQL_SLOW_FETCH_LOG_MS >= 0 &&
+        typeof performance !== "undefined"
+      ) {
+        const ms = Math.round(performance.now() - startedAt);
+        if (ms >= GRAPHQL_SLOW_FETCH_LOG_MS) {
+          console.info(`[hotcol][graphql] ${key} ${ms}ms`);
+        }
+      }
     }
   })();
   hotelListReadInflight.set(key, p);
@@ -925,7 +947,8 @@ export async function deleteItem(id: number) {
 
 export async function fetchCredentials(): Promise<Credential[]> {
   try {
-    const query = `
+    return await dedupeHotelListRead("auth:users", async () => {
+      const query = `
       query {
         users {
           id
@@ -938,15 +961,16 @@ export async function fetchCredentials(): Promise<Credential[]> {
       }
     `;
 
-    const response = await api.post(API_URL, { query });
+      const response = await api.post(API_URL, { query });
 
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to fetch credentials",
-      );
-    }
+      if (response.data.errors) {
+        throw new Error(
+          response.data.errors[0]?.message || "Failed to fetch credentials",
+        );
+      }
 
-    return response.data.data.users || [];
+      return response.data.data.users || [];
+    });
   } catch (error: any) {
     toast.error("Unable to load user credentials.");
     throw error;
@@ -1134,7 +1158,7 @@ export async function verifyAdminPassword(
 }
 
 export async function fetchWaiters(): Promise<Waiter[]> {
-  try {
+  return dedupeHotelListRead("cafe:waiters", async () => {
     const query = `
       query {
         waiters {
@@ -1163,9 +1187,7 @@ export async function fetchWaiters(): Promise<Waiter[]> {
     }
 
     return response.data.data.waiters || [];
-  } catch (error: any) {
-    throw error;
-  }
+  });
 }
 
 export async function createWaiter(waiterData: CreateWaiterData) {
@@ -1270,7 +1292,7 @@ export async function deleteWaiter(id: number) {
 }
 
 export async function fetchTables(): Promise<Table[]> {
-  try {
+  return dedupeHotelListRead("cafe:tables", async () => {
     const query = `
       query {
         tables {
@@ -1295,9 +1317,7 @@ export async function fetchTables(): Promise<Table[]> {
     }
 
     return response.data.data.tables || [];
-  } catch (error: any) {
-    throw error;
-  }
+  });
 }
 
 export async function createTable(tableData: CreateTableData) {
@@ -1396,7 +1416,7 @@ export async function deleteTable(id: number) {
 }
 
 export async function fetchOrders(): Promise<Order[]> {
-  try {
+  return dedupeHotelListRead("cafe:orders", async () => {
     const query = `
       query {
         orders {
@@ -1430,9 +1450,7 @@ export async function fetchOrders(): Promise<Order[]> {
     }
 
     return response.data.data.orders || [];
-  } catch (error: any) {
-    throw error;
-  }
+  });
 }
 
 export async function createOrder(orderData: OrderCreationData) {
@@ -2110,7 +2128,16 @@ export async function CreateCashout(data: any) {
 
 export async function fetchCashout(HotelName?: string) {
   try {
-    const query = `
+    const currentUser = getCurrentUser();
+    const hotel = HotelName || currentUser?.HotelName;
+
+    if (!hotel) {
+      toast.error("Hotel name is required");
+      throw new Error("Hotel name is required");
+    }
+
+    return await dedupeHotelListRead(`finance:cashouts:${hotel}`, async () => {
+      const query = `
       query fetchCashouts {
         cashouts {
           id
@@ -2125,30 +2152,23 @@ export async function fetchCashout(HotelName?: string) {
       }
     `;
 
-    const currentUser = getCurrentUser();
-    const hotel = HotelName || currentUser?.HotelName;
+      const response = await api.post(API_URL, {
+        query: query,
+        variables: {
+          HotelName: hotel,
+        },
+      });
 
-    if (!hotel) {
-      toast.error("Hotel name is required");
-      throw new Error("Hotel name is required");
-    }
+      if (response.data.errors) {
+        const errorMessage =
+          response.data.errors[0]?.message || "Failed to fetch cashouts";
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
+      }
 
-    const response = await api.post(API_URL, {
-      query: query,
-      variables: {
-        HotelName: hotel,
-      },
+      const cashouts = response.data.data.cashouts || [];
+      return cashouts;
     });
-
-    if (response.data.errors) {
-      const errorMessage =
-        response.data.errors[0]?.message || "Failed to fetch cashouts";
-      toast.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    const cashouts = response.data.data.cashouts || [];
-    return cashouts;
   } catch (error: any) {
     if (isSessionExpiredError(error)) throw error;
     toast.error("Failed to fetch cashout: " + (error.message || "Unknown error"));
@@ -2533,7 +2553,8 @@ export async function CreateCreditLevel(values: CreateCreditLevel) {
 
 export async function fetchCreditLevels() {
   try {
-    const query = `
+    return await dedupeHotelListRead("finance:creditLevels", async () => {
+      const query = `
       query {
         creditLevel {  
           id
@@ -2546,17 +2567,18 @@ export async function fetchCreditLevels() {
       }
     `;
 
-    const response = await api.post(API_URL, { query });
+      const response = await api.post(API_URL, { query });
 
-    if (response.data.errors) {
-      console.error("GraphQL Errors:", response.data.errors);
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to fetch credit levels",
-      );
-    }
+      if (response.data.errors) {
+        console.error("GraphQL Errors:", response.data.errors);
+        throw new Error(
+          response.data.errors[0]?.message || "Failed to fetch credit levels",
+        );
+      }
 
-    console.log("Fetched credit levels:", response.data.data.creditLevel); // Add logging
-    return response.data.data.creditLevel || []; // Changed from 'creditLevels' to 'creditLevel'
+      console.log("Fetched credit levels:", response.data.data.creditLevel); // Add logging
+      return response.data.data.creditLevel || []; // Changed from 'creditLevels' to 'creditLevel'
+    });
   } catch (error: any) {
     console.error("Error fetching credit levels:", error);
     throw error;
@@ -2653,7 +2675,7 @@ export async function CreatePityCash(values: CreatePityCash) {
 }
 
 export async function fetchPityCash() {
-  try {
+  return dedupeHotelListRead("finance:pityCash", async () => {
     const query = `
       query {
         pityCash {
@@ -2674,9 +2696,7 @@ export async function fetchPityCash() {
       );
     }
     return response.data.data.pityCash || [];
-  } catch (error: any) {
-    throw error;
-  }
+  });
 }
 
 export async function UpdatePityCash(pityCashData: UpdatePityCash) {
@@ -2809,7 +2829,7 @@ export async function CreateCreditRegistration(
 }
 
 export async function fetchCreditRegistrations() {
-  try {
+  return dedupeHotelListRead("finance:creditRegistrations", async () => {
     const query = `
       query {
         CreditRegistration {
@@ -2838,9 +2858,7 @@ export async function fetchCreditRegistrations() {
       );
     }
     return response.data.data.CreditRegistration || [];
-  } catch (error: any) {
-    throw error;
-  }
+  });
 }
 
 export async function UpdateCreditRegistration(
@@ -4482,7 +4500,8 @@ export async function syncKitchenBarRollupApi(
 export async function fetchHotelCreditCompanies(): Promise<
   HotelCreditCompanyRow[]
 > {
-  const query = `
+  return dedupeHotelListRead("hotel:creditCompanies", async () => {
+    const query = `
     query {
       hotelCreditCompanies {
         id
@@ -4503,19 +4522,21 @@ export async function fetchHotelCreditCompanies(): Promise<
       }
     }
   `;
-  const response = await api.post(API_URL, { query });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load companies",
-    );
-  }
-  return response.data.data.hotelCreditCompanies || [];
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load companies",
+      );
+    }
+    return response.data.data.hotelCreditCompanies || [];
+  });
 }
 
 export async function fetchHotelCorporateCreditTiers(): Promise<
   HotelCorporateCreditTierRow[]
 > {
-  const query = `
+  return dedupeHotelListRead("hotel:corporateCreditTiers", async () => {
+    const query = `
     query {
       hotelCorporateCreditTiers {
         id
@@ -4529,19 +4550,21 @@ export async function fetchHotelCorporateCreditTiers(): Promise<
       }
     }
   `;
-  const response = await api.post(API_URL, { query });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load credit tiers",
-    );
-  }
-  return response.data.data.hotelCorporateCreditTiers || [];
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load credit tiers",
+      );
+    }
+    return response.data.data.hotelCorporateCreditTiers || [];
+  });
 }
 
 export async function fetchHotelCreditParties(
   companyId: number,
 ): Promise<HotelCreditPartyRow[]> {
-  const query = `
+  return dedupeHotelListRead(`hotel:creditParties:${companyId}`, async () => {
+    const query = `
     query Hcp($companyId: Int!) {
       hotelCreditParties(companyId: $companyId) {
         id
@@ -4555,23 +4578,26 @@ export async function fetchHotelCreditParties(
       }
     }
   `;
-  const response = await api.post(API_URL, {
-    query,
-    variables: { companyId },
+    const response = await api.post(API_URL, {
+      query,
+      variables: { companyId },
+    });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load parties",
+      );
+    }
+    return response.data.data.hotelCreditParties || [];
   });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load parties",
-    );
-  }
-  return response.data.data.hotelCreditParties || [];
 }
 
 export async function fetchHotelCreditConsumptions(
   fromIso: string,
   toIso: string,
 ): Promise<HotelCreditConsumptionRow[]> {
-  const query = `
+  const key = `hotel:creditConsumptions:${fromIso}:${toIso}`;
+  return dedupeHotelListRead(key, async () => {
+    const query = `
     query Hcc($from: DateTime!, $to: DateTime!) {
       hotelCreditConsumptions(from: $from, to: $to) {
         id
@@ -4585,16 +4611,17 @@ export async function fetchHotelCreditConsumptions(
       }
     }
   `;
-  const response = await api.post(API_URL, {
-    query,
-    variables: { from: fromIso, to: toIso },
+    const response = await api.post(API_URL, {
+      query,
+      variables: { from: fromIso, to: toIso },
+    });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load consumptions",
+      );
+    }
+    return response.data.data.hotelCreditConsumptions || [];
   });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load consumptions",
-    );
-  }
-  return response.data.data.hotelCreditConsumptions || [];
 }
 
 export async function createHotelCreditCompanyApi(input: {

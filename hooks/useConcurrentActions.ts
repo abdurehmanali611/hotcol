@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type ConcurrentRunOptions = {
@@ -56,5 +56,8 @@ export function useConcurrentActions() {
 
   const pendingCount = pendingRef.current.size;
 
-  return { isPending, run, pendingCount, tick };
+  return useMemo(
+    () => ({ isPending, run, pendingCount, tick }),
+    [isPending, run, pendingCount, tick],
+  );
 }

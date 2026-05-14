@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 export type LoadStaleCheck = () => boolean;
 
@@ -41,5 +41,5 @@ export function useLoadCoordinator() {
     generationRef.current += 1;
   }, []);
 
-  return { run, bump };
+  return useMemo(() => ({ run, bump }), [run, bump]);
 }

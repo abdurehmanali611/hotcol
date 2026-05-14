@@ -33,9 +33,14 @@ import {
   type Item,
   type ItemRegistration,
   type ItemStatus,
+  type KitchenBarBeginningRow,
   type KitchenBarMonthlySnapshotRow,
 } from "@/lib/actions";
-import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
+import {
+  displayKitchenBarStation,
+  normalizeKitchenBarStationKey,
+  summarizeApprovedStockOutForDay,
+} from "@/lib/hotelDailyStation";
 import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
 import {
   LayoutDashboard,
@@ -123,6 +128,10 @@ function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
+function normalizeItemNameForValueKey(name: string): string {
+  return String(name || "").trim().toLowerCase();
+}
+
 function ManagerContent() {
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
@@ -139,7 +148,7 @@ function ManagerContent() {
   const [statuses, setStatuses] = useState<any[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [stockReqs, setStockReqs] = useState<any[]>([]);
-  const [beginnings, setBeginnings] = useState<any[]>([]);
+  const [beginnings, setBeginnings] = useState<KitchenBarBeginningRow[]>([]);
   const [monthlySnapshots, setMonthlySnapshots] = useState<
     KitchenBarMonthlySnapshotRow[]
   >([]);
@@ -168,6 +177,9 @@ function ManagerContent() {
   const [ccRemoveId, setCcRemoveId] = useState<number | null>(null);
   const [managerRollupSyncPending, setManagerRollupSyncPending] =
     useState(false);
+  const [managerDailyReportDate, setManagerDailyReportDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
 
   const loadData = useCallback(
     async (isRefresh = false) => {
@@ -262,38 +274,18 @@ function ManagerContent() {
     ["PENDING_CC", "PENDING_FINANCE"].includes(p.status),
   ).length;
   const pendingStock = stockReqs.filter((s) => s.status === "PENDING").length;
-  const beginningsUnique = useMemo(() => {
-    const map = new Map<string, any>();
-    for (const b of beginnings) {
-      const day = String(b.calendarDate || "").slice(0, 10) || "";
-      const fallbackDay = b.monthPeriod ? `${b.monthPeriod}-01` : "";
-      const calendarDay = day || fallbackDay;
-      const key = `${String(b.station || "")
-        .trim()
-        .toUpperCase()}\t${String(b.itemName || "")
-        .trim()
-        .toLowerCase()}\t${calendarDay}`;
-      const existing = map.get(key);
-      if (!existing) {
-        map.set(key, b);
-        continue;
-      }
-      // Prefer the most recently created duplicate (older rows may exist from pre-policy data).
-      const prevT = new Date(existing.createdAt || 0).getTime();
-      const curT = new Date(b.createdAt || 0).getTime();
-      if (curT >= prevT) map.set(key, b);
-    }
-    return [...map.values()].sort((a, b) =>
-      String(a.calendarDate || "").localeCompare(String(b.calendarDate || "")),
-    );
-  }, [beginnings]);
+  const beginningsScoped = useMemo(() => {
+    const t = String(tenantScope ?? "").trim();
+    if (!t) return [];
+    return beginnings.filter((b) => rowHotelMatchesTenantScope(b.HotelName, t));
+  }, [beginnings, tenantScope]);
 
   const beginningDerivedById = useMemo(() => {
     const implied = new Map<number, number | null>();
-    const dayUsage = new Map<number, number | null>();
-    const groups = new Map<string, any[]>();
-    for (const b of beginningsUnique) {
-      const k = `${String(b.station || "").trim().toUpperCase()}\t${String(b.itemName || "")
+    const daySales = new Map<number, number | null>();
+    const groups = new Map<string, KitchenBarBeginningRow[]>();
+    for (const b of beginningsScoped) {
+      const k = `${normalizeKitchenBarStationKey(b.station)}\t${String(b.itemName || "")
         .trim()
         .toLowerCase()}`;
       if (!groups.has(k)) groups.set(k, []);
@@ -306,7 +298,7 @@ function ManagerContent() {
       for (let i = 0; i < list.length; i++) {
         if (i === 0) {
           implied.set(list[i].id, null);
-          dayUsage.set(list[i].id, null);
+          daySales.set(list[i].id, null);
         } else {
           const prev = list[i - 1];
           const prevLights =
@@ -321,12 +313,73 @@ function ManagerContent() {
                 Number(list[i].amount),
             ),
           );
-          dayUsage.set(list[i].id, round2(Number(list[i].amount) - prevLights));
+          daySales.set(list[i].id, round2(Number(list[i].amount) - prevLights));
         }
       }
     }
-    return { implied, dayUsage };
-  }, [beginningsUnique]);
+    return { implied, daySales };
+  }, [beginningsScoped]);
+
+  const visibleManagerDailyRows = useMemo(() => {
+    const day = String(managerDailyReportDate || "").slice(0, 10);
+    if (!day) return [];
+    const dayRows = beginningsScoped.filter((b) => {
+      const cd =
+        String(b.calendarDate || "").slice(0, 10) ||
+        (b.monthPeriod ? `${b.monthPeriod}-01` : "");
+      return cd === day;
+    });
+    const map = new Map<string, KitchenBarBeginningRow>();
+    for (const b of dayRows) {
+      const key = `${normalizeKitchenBarStationKey(b.station)}\t${String(b.itemName || "")
+        .trim()
+        .toLowerCase()}`;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, b);
+        continue;
+      }
+      const prevT = new Date(existing.createdAt || 0).getTime();
+      const curT = new Date(b.createdAt || 0).getTime();
+      if (curT >= prevT) map.set(key, b);
+    }
+    return [...map.values()].sort((a, b) =>
+      String(a.itemName || "").localeCompare(String(b.itemName || ""), undefined, {
+        sensitivity: "base",
+      }),
+    );
+  }, [beginningsScoped, managerDailyReportDate]);
+
+  const stockOutRowsForProperty = useMemo(
+    () =>
+      stockReqs.filter(
+        (r) =>
+          rowHotelMatchesTenantScope(r.HotelName, tenantScope || "") &&
+          r.status === "APPROVED" &&
+          r.movementType === "STOCK_OUT",
+      ),
+    [stockReqs, tenantScope],
+  );
+
+  const unitPriceByItemName = useMemo(() => {
+    const byName = new Map<string, number>();
+    for (const row of items) {
+      const key = normalizeItemNameForValueKey(row.name);
+      if (!key) continue;
+      if (!byName.has(key)) byName.set(key, Number(row.unitPrice) || 0);
+    }
+    return byName;
+  }, [items]);
+
+  const managerDailySealedValueEtb = useMemo(() => {
+    return visibleManagerDailyRows.reduce((sum, row) => {
+      const sealed = beginningDerivedById.implied.get(row.id);
+      if (sealed == null) return sum;
+      const key = normalizeItemNameForValueKey(row.itemName);
+      const price = unitPriceByItemName.get(key) || 0;
+      return sum + (Number(sealed) || 0) * price;
+    }, 0);
+  }, [visibleManagerDailyRows, unitPriceByItemName, beginningDerivedById]);
 
   const renderContent = () => {
     if (loading) {
@@ -683,7 +736,11 @@ function ManagerContent() {
         return (
           <div className="p-4 md:p-6 space-y-6">
             <p className="text-sm text-muted-foreground mb-4">
-              Daily station counts from Cost Control. Stock-out is approved store outflow; lights-out and day usage are derived with the same rules as Cost Control.
+              Read-only view of Cost Control daily rows for your property. Pick a calendar
+              day in the grid: one row per station and item for that day. Approved stock-out
+              is summed from approved store stock-outs (same UTC day rule as Cost Control);
+              day usage and sealed movement use the same consecutive-day math as the cost
+              controller terminal.
             </p>
             <Card>
               <CardHeader>
@@ -790,58 +847,128 @@ function ManagerContent() {
               </CardContent>
             </Card>
 
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Station</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Opening pulse</TableHead>
-                    <TableHead>Approved stock-out</TableHead>
-                    <TableHead>Lights-out</TableHead>
-                    <TableHead>Day usage</TableHead>
-                    <TableHead>Sealed movement</TableHead>
-                    <TableHead>Month</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {beginningsUnique.map((b) => (
-                    <TableRow key={b.id}>
-                      <TableCell className="tabular-nums whitespace-nowrap">
-                        {b.calendarDate || `${b.monthPeriod}-01`}
-                      </TableCell>
-                      <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
-                      <TableCell>{b.itemName}</TableCell>
-                      <TableCell>
-                        {b.amount} {b.measuredBy}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {Number(b.stockOutDay ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {Number(b.closingOnHand ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {beginningDerivedById.dayUsage.get(b.id) == null
-                          ? "—"
-                          : Number(beginningDerivedById.dayUsage.get(b.id)).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {beginningDerivedById.implied.get(b.id) == null
-                          ? "—"
-                          : Number(beginningDerivedById.implied.get(b.id)).toFixed(2)}
-                      </TableCell>
-                      <TableCell>{b.monthPeriod}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {b.notes}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+              <CardHeader>
+                <CardTitle className="text-lg">Daily station counts (selected day)</CardTitle>
+                <CardDescription>
+                  Rows and numbers match <strong className="text-foreground">Cost Control</strong>{" "}
+                  → <strong className="text-foreground">Daily chef &amp; bar counts</strong>. The first
+                  column is always the calendar day you select; each other column is computed for that
+                  day only (inventory unit prices value sealed movement in ETB below).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6 mb-4">
+                  <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total sealed movement value (selected day)
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Σ (unit price × sealed movement) for rows on this day; first-in-series rows have no sealed movement yet
+                    </p>
+                    <p className="text-lg font-semibold tabular-nums mt-1">
+                      {managerDailySealedValueEtb.toLocaleString()}{" "}
+                      <span className="text-sm font-medium text-muted-foreground">ETB</span>
+                    </p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead>
+                          <div className="flex flex-col gap-1">
+                            <span>Date</span>
+                            <HotelDayPicker
+                              id="manager-daily-report-day"
+                              value={managerDailyReportDate}
+                              onChange={setManagerDailyReportDate}
+                              buttonClassName="h-8 w-[170px] px-2 text-xs font-normal"
+                            />
+                          </div>
+                        </TableHead>
+                        <TableHead>Station</TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-right">Opening pulse</TableHead>
+                        <TableHead className="text-right">Approved stock-out</TableHead>
+                        <TableHead className="text-right">Issued to management</TableHead>
+                        <TableHead className="text-right">Lights-out</TableHead>
+                        <TableHead className="text-right">Day usage</TableHead>
+                        <TableHead className="text-right">Sealed movement</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleManagerDailyRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={10}
+                            className="text-center text-muted-foreground py-10 text-sm"
+                          >
+                            No daily rows for{" "}
+                            <span className="font-medium text-foreground">
+                              {managerDailyReportDate}
+                            </span>
+                            . Enter counts in Cost Control for this day, or pick another date.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        visibleManagerDailyRows.map((b) => {
+                          const dayYmd = String(managerDailyReportDate || "").slice(0, 10);
+                          const stationKey = normalizeKitchenBarStationKey(b.station);
+                          const approvedSo = round2(
+                            summarizeApprovedStockOutForDay(
+                              stockOutRowsForProperty,
+                              stationKey,
+                              b.itemName,
+                              dayYmd,
+                            ),
+                          );
+                          const lightsOut = round2(
+                            Number(b.amount || 0) +
+                              approvedSo -
+                              Number(b.managementTakenDay ?? 0),
+                          );
+                          const usage = beginningDerivedById.daySales.get(b.id);
+                          const implied = beginningDerivedById.implied.get(b.id);
+                          const displayDate =
+                            String(b.calendarDate || "").slice(0, 10) ||
+                            (b.monthPeriod ? `${b.monthPeriod}-01` : dayYmd);
+                          return (
+                            <TableRow key={b.id} className="hover:bg-muted/30">
+                              <TableCell className="tabular-nums whitespace-nowrap">
+                                {displayDate}
+                              </TableCell>
+                              <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
+                              <TableCell className="font-medium">{b.itemName}</TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {b.amount} {b.measuredBy}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {approvedSo.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {Number(b.managementTakenDay ?? 0).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {lightsOut.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {usage == null ? "—" : usage.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {implied == null ? "—" : implied.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
+                                {b.notes || "—"}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         );
 
