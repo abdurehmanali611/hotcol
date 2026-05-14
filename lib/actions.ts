@@ -7,7 +7,7 @@ import {
   SessionExpiredError,
 } from "./sessionExpiry";
 import { rowHotelMatchesTenantScope } from "./tenantRowMatch";
-import { computeInventoryVatETB } from "./hotelInventoryPayment";
+import { computeInventoryPaidAmountETB } from "./hotelInventoryPayment";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -3032,12 +3032,12 @@ export async function CreateItemRegistration(values: createItemRegistration) {
         const currentPityCash = pityCashList.find(
           (p: any) => p.HotelName === values.HotelName,
         );
-        const subtotal = values.amount * values.unitPrice;
-        const vatAmount = computeInventoryVatETB(
-          subtotal,
-          values.purchaseWithVat,
-        );
-        const totalCalc = subtotal + values.dutyFee + vatAmount;
+        const totalCalc =
+          computeInventoryPaidAmountETB(
+            values.amount,
+            values.unitPrice,
+            values.purchaseWithVat,
+          ) + values.dutyFee;
 
         if (currentPityCash) {
           const newAmount = currentPityCash.amount - totalCalc;

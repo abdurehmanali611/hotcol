@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   checkPityCashBalance,
   CreateItemRegistration,
@@ -65,7 +65,9 @@ import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
 import { Separator } from "@/components/ui/separator";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
-import { computeInventoryVatETB } from "@/lib/hotelInventoryPayment";
+import {
+  computeInventoryPaidAmountETB,
+} from "@/lib/hotelInventoryPayment";
 import {
   normalizeInventoryItemName,
   rowHotelMatchesTenantScope,
@@ -197,6 +199,33 @@ export function StoreComponent({
     }
   }, [hotelInventory, form]);
 
+  const watchedAmount = form.watch("amount");
+  const watchedUnitPrice = form.watch("unitPrice");
+  const watchedPurchaseWithVat = form.watch("purchaseWithVat");
+  const lastAutoPaidAmountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const paidAmount = computeInventoryPaidAmountETB(
+      watchedAmount,
+      watchedUnitPrice,
+      watchedPurchaseWithVat,
+    );
+    const currentPaidAmount = Number(form.getValues("paidAmount")) || 0;
+    const paidAmountState = form.getFieldState("paidAmount");
+    const canAutoSync =
+      !paidAmountState.isDirty ||
+      currentPaidAmount === lastAutoPaidAmountRef.current;
+
+    if (canAutoSync) {
+      form.setValue("paidAmount", paidAmount, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+
+    lastAutoPaidAmountRef.current = paidAmount;
+  }, [form, watchedAmount, watchedUnitPrice, watchedPurchaseWithVat]);
+
   const onSubmit = async (values: ItemRegForm) => {
     try {
       setLoading(true)
@@ -217,14 +246,15 @@ export function StoreComponent({
         }
       }
       if (!hotelInventory) {
-        const subtotal = payload.amount * payload.unitPrice;
-        const vatAmount = computeInventoryVatETB(
-          subtotal,
-          payload.purchaseWithVat,
-        );
+        const totalCalc =
+          computeInventoryPaidAmountETB(
+            payload.amount,
+            payload.unitPrice,
+            payload.purchaseWithVat,
+          ) + payload.dutyFee;
         const hasEnoughPityCash = await checkPityCashBalance(
           payload.HotelName,
-          subtotal + payload.dutyFee + vatAmount,
+          totalCalc,
         );
         if (!hasEnoughPityCash) {
           toast.error("Insufficient Petty Cash balance");

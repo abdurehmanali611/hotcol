@@ -18,6 +18,23 @@ export function computeInventoryVatETB(
   return subtotal * INVENTORY_VAT_RATE;
 }
 
+/**
+ * UI/business rule for supplier-paid amount:
+ * - without VAT: amount * unit price
+ * - with VAT: amount * unit price + 15% of the unit price
+ */
+export function computeInventoryPaidAmountETB(
+  amount: number,
+  unitPrice: number,
+  purchaseWithVat?: unknown,
+): number {
+  const qty = Number(amount) || 0;
+  const price = Number(unitPrice) || 0;
+  const subtotal = qty * price;
+  if (!isVatEnabled(purchaseWithVat)) return subtotal;
+  return subtotal + price * INVENTORY_VAT_RATE;
+}
+
 /** Canonical inventory total: subtotal + duty fee + VAT(15% when enabled). */
 export function lineOwedETB(item: {
   amount: number;
@@ -34,9 +51,7 @@ export function lineOwedETB(item: {
       : Number(item.amount) || 0;
   const u = Number(item.unitPrice) || 0;
   const duty = Number(item.dutyFee) || 0;
-  const subtotal = a * u;
-  const vat = computeInventoryVatETB(subtotal, item.purchaseWithVat);
-  return subtotal + duty + vat;
+  return computeInventoryPaidAmountETB(a, u, item.purchaseWithVat) + duty;
 }
 
 export type InventoryPaymentBucket = "paid" | "credit" | "none";

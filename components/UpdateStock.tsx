@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -19,7 +19,10 @@ import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
 import { ImageIcon } from "lucide-react";
 import Image from "next/image";
-import { isVatEnabled } from "@/lib/hotelInventoryPayment";
+import {
+  computeInventoryPaidAmountETB,
+  isVatEnabled,
+} from "@/lib/hotelInventoryPayment";
 
 interface UpdateStockProps {
   isOpen: boolean;
@@ -97,6 +100,33 @@ const UpdateStock = ({
       setPreviewUrl(item.imageUrl);
     }
   }, [item, form]);
+
+  const watchedAmount = form.watch("amount");
+  const watchedUnitPrice = form.watch("unitPrice");
+  const watchedPurchaseWithVat = form.watch("purchaseWithVat");
+  const lastAutoPaidAmountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const paidAmount = computeInventoryPaidAmountETB(
+      watchedAmount,
+      watchedUnitPrice,
+      watchedPurchaseWithVat,
+    );
+    const currentPaidAmount = Number(form.getValues("paidAmount")) || 0;
+    const paidAmountState = form.getFieldState("paidAmount");
+    const canAutoSync =
+      !paidAmountState.isDirty ||
+      currentPaidAmount === lastAutoPaidAmountRef.current;
+
+    if (canAutoSync) {
+      form.setValue("paidAmount", paidAmount, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+
+    lastAutoPaidAmountRef.current = paidAmount;
+  }, [form, watchedAmount, watchedUnitPrice, watchedPurchaseWithVat]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
