@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { fetchItemRegistrations, ItemRegistration } from "@/lib/actions";
+import { fetchItemRegistrations, ItemRegistration, type StockOutRequestRow } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
 import UpdateStock from "@/components/UpdateStock";
@@ -21,6 +21,7 @@ export default function StoreItems({
   embedded = false,
   readOnly = false,
   showPaymentSummary = false,
+  onHotelStockRequestCreated,
 }: {
   items?: ItemRegistration[];
   hotelStockApprovals?: boolean;
@@ -32,6 +33,7 @@ export default function StoreItems({
   readOnly?: boolean;
   /** Show paid vs on-credit counts above the table. */
   showPaymentSummary?: boolean;
+  onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemRegistration | null>(null);
@@ -176,6 +178,7 @@ export default function StoreItems({
           refresh={refresh}
           hotelStockApprovals={hotelStockApprovals}
           readOnly={readOnly}
+          onHotelStockRequestCreated={onHotelStockRequestCreated}
         />
       </div>
 

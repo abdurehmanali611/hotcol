@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchPurchaseRequests,
   fetchStockOutRequests,
@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -30,8 +30,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCw } from "lucide-react";
+import {
+  ClipboardList,
+  Clock,
+  Loader2,
+  Package,
+  RefreshCw,
+  Send,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { cn } from "@/lib/utils";
 
 function purchaseBadgeVariant(
   status: string,
@@ -50,14 +59,67 @@ function stockBadgeVariant(
   return "secondary";
 }
 
-export default function StoreRequestStatusTab() {
-  const [loading, setLoading] = useState(true);
+function formatWhen(iso: string | null | undefined) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function mergeStockOutRows(
+  server: StockOutRequestRow[],
+  injected: StockOutRequestRow[] | undefined,
+): StockOutRequestRow[] {
+  if (!injected?.length) return server;
+  const byId = new Map<number, StockOutRequestRow>();
+  for (const s of server) byId.set(s.id, s);
+  for (const e of injected) {
+    if (!byId.has(e.id)) byId.set(e.id, e);
+  }
+  return [...byId.values()].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
+function mergePurchaseRows(
+  server: PurchaseRequestRow[],
+  injected: PurchaseRequestRow[] | undefined,
+): PurchaseRequestRow[] {
+  if (!injected?.length) return server;
+  const byId = new Map<number, PurchaseRequestRow>();
+  for (const s of server) byId.set(s.id, s);
+  for (const e of injected) {
+    if (!byId.has(e.id)) byId.set(e.id, e);
+  }
+  return [...byId.values()].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
+export default function StoreRequestStatusTab({
+  refreshSignal = 0,
+  injectedStockRows,
+  onClearInjectedStockIds,
+  injectedPurchaseRows,
+  onClearInjectedPurchaseIds,
+}: {
+  refreshSignal?: number;
+  injectedStockRows?: StockOutRequestRow[];
+  onClearInjectedStockIds?: (ids: number[]) => void;
+  injectedPurchaseRows?: PurchaseRequestRow[];
+  onClearInjectedPurchaseIds?: (ids: number[]) => void;
+}) {
+  const [initialLoading, setInitialLoading] = useState(true);
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
   const [userName, setUserName] = useState("");
+  const { isPending, run } = useConcurrentActions();
+  const refreshKey = "request-status-refresh";
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const name =
         typeof window !== "undefined"
@@ -74,20 +136,63 @@ export default function StoreRequestStatusTab() {
       const msg =
         e instanceof Error ? e.message : "Could not load request status";
       toast.error(msg);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      setInitialLoading(true);
+      await load();
+      setInitialLoading(false);
+    })();
   }, [load]);
 
-  const myPurchases = purchases.filter(
-    (p) => userName && p.storeUserName === userName,
+  useEffect(() => {
+    if (refreshSignal === 0) return;
+    void run(refreshKey, load);
+  }, [refreshSignal, load, run, refreshKey]);
+
+  useEffect(() => {
+    if (!onClearInjectedStockIds || !injectedStockRows?.length) return;
+    const ids = new Set(stocks.map((s) => s.id));
+    const consumed = injectedStockRows
+      .filter((r) => ids.has(r.id))
+      .map((r) => r.id);
+    if (consumed.length) onClearInjectedStockIds(consumed);
+  }, [stocks, injectedStockRows, onClearInjectedStockIds]);
+
+  useEffect(() => {
+    if (!onClearInjectedPurchaseIds || !injectedPurchaseRows?.length) return;
+    const ids = new Set(purchases.map((p) => p.id));
+    const consumed = injectedPurchaseRows
+      .filter((r) => ids.has(r.id))
+      .map((r) => r.id);
+    if (consumed.length) onClearInjectedPurchaseIds(consumed);
+  }, [purchases, injectedPurchaseRows, onClearInjectedPurchaseIds]);
+
+  const mergedPurchases = useMemo(
+    () => mergePurchaseRows(purchases, injectedPurchaseRows),
+    [purchases, injectedPurchaseRows],
   );
-  const myStocks = stocks.filter(
-    (s) => userName && s.requestedByUserName === userName,
+
+  const mergedStocks = useMemo(
+    () => mergeStockOutRows(stocks, injectedStockRows),
+    [stocks, injectedStockRows],
+  );
+
+  const myPurchases = useMemo(
+    () =>
+      mergedPurchases.filter(
+        (p) => userName && p.storeUserName === userName,
+      ),
+    [mergedPurchases, userName],
+  );
+  const myStocks = useMemo(
+    () =>
+      mergedStocks.filter(
+        (s) => userName && s.requestedByUserName === userName,
+      ),
+    [mergedStocks, userName],
   );
 
   const sortByDateDesc = <T extends { createdAt: string }>(rows: T[]) =>
@@ -96,10 +201,19 @@ export default function StoreRequestStatusTab() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
-  if (loading) {
+  const purchasePending = myPurchases.filter((r) =>
+    ["PENDING_CC", "PENDING_FINANCE"].includes(r.status),
+  ).length;
+  const stockPending = myStocks.filter((r) => r.status === "PENDING").length;
+
+  const handleRefresh = () => {
+    void run(refreshKey, load);
+  };
+
+  if (initialLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <Loader2 className="h-9 w-9 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading your requests…</p>
       </div>
     );
@@ -107,37 +221,99 @@ export default function StoreRequestStatusTab() {
 
   return (
     <div className="space-y-8 py-4 max-w-5xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Your request status</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Purchase requests you opened and stock movements you submitted. After
-            finance approves a purchase, register the item under{" "}
-            <strong>Register</strong> when it arrives.
-          </p>
+      <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-linear-to-br from-card via-card to-primary/5 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
+        <div className="h-1 bg-linear-to-r from-primary/60 via-violet-500/45 to-cyan-500/40" />
+        <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
+          <div className="flex gap-3 min-w-0">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/15">
+              <ClipboardList className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <h2 className="text-xl font-bold tracking-tight">
+                Your request status
+              </h2>
+              <p className="text-sm text-muted-foreground text-pretty max-w-2xl">
+                Purchase requests you opened and stock movements you submitted.
+                After finance approves a purchase, register the item under{" "}
+                <strong className="text-foreground font-medium">Register</strong>{" "}
+                when it arrives.
+              </p>
+            </div>
+          </div>
+          <PendingButton
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 shrink-0"
+            pending={isPending(refreshKey)}
+            onClick={handleRefresh}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </PendingButton>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          onClick={() => load()}
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
       </div>
 
       {!userName && (
-        <p className="text-sm text-amber-700 dark:text-amber-300 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <p className="text-sm text-amber-800 dark:text-amber-200 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3">
           Sign in again if your name is missing — requests are matched to your
           username.
         </p>
       )}
 
-      <Card className="border-border/80 shadow-md overflow-hidden">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="text-lg">Purchase requests</CardTitle>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="border-primary/15 bg-card/95 shadow-sm overflow-hidden">
+          <div className="h-0.5 bg-linear-to-r from-primary/60 to-violet-400/50" />
+          <CardContent className="pt-4 pb-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 border border-primary/15">
+              <Send className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Purchase requests
+              </p>
+              <p className="text-2xl font-bold tabular-nums">{myPurchases.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-500/20 bg-card/95 shadow-sm overflow-hidden">
+          <div className="h-0.5 bg-linear-to-r from-amber-500/70 to-orange-400/50" />
+          <CardContent className="pt-4 pb-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <Clock className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Awaiting approval
+              </p>
+              <p className="text-2xl font-bold tabular-nums">
+                {purchasePending + stockPending}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border/80 bg-card/95 shadow-sm overflow-hidden">
+          <div className="h-0.5 bg-linear-to-r from-cyan-500/50 to-teal-400/40" />
+          <CardContent className="pt-4 pb-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-muted border border-border/60">
+              <Package className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Movement requests
+              </p>
+              <p className="text-2xl font-bold tabular-nums">{myStocks.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-border/80 shadow-md overflow-hidden bg-card/95 ring-1 ring-black/3 dark:ring-white/6">
+        <CardHeader className="border-b bg-muted/25 pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Send className="h-4 w-4 text-primary opacity-80" />
+            Purchase requests
+          </CardTitle>
           <CardDescription>
             {myPurchases.length} request{myPurchases.length !== 1 ? "s" : ""}{" "}
             under your login
@@ -145,49 +321,65 @@ export default function StoreRequestStatusTab() {
         </CardHeader>
         <CardContent className="p-0">
           {myPurchases.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-6 text-center">
-              No purchase requests from you yet.
-            </p>
+            <div className="flex flex-col items-center justify-center gap-2 py-14 text-center px-6">
+              <Send className="h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                No purchase requests from you yet.
+              </p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortByDateDesc(myPurchases).map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.itemName}</TableCell>
-                    <TableCell className="tabular-nums whitespace-nowrap">
-                      {formatQtyWithUnit(r.quantity, r.measuredBy)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={purchaseBadgeVariant(r.status)}>
-                        {formatPurchaseStatus(r.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {r.financeApprovedAt
-                        ? new Date(r.financeApprovedAt).toLocaleString()
-                        : r.ccApprovedAt
-                          ? new Date(r.ccApprovedAt).toLocaleString()
-                          : new Date(r.createdAt).toLocaleString()}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead>Item</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Last update</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sortByDateDesc(myPurchases).map((r) => (
+                    <TableRow
+                      key={r.id}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      <TableCell className="font-medium">{r.itemName}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap text-muted-foreground">
+                        {formatQtyWithUnit(r.quantity, r.measuredBy)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={purchaseBadgeVariant(r.status)}
+                          className={cn(
+                            "font-normal",
+                            r.status === "APPROVED_FINANCE" &&
+                              "bg-emerald-600/90 hover:bg-emerald-600/90",
+                          )}
+                        >
+                          {formatPurchaseStatus(r.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap text-right tabular-nums">
+                        {formatWhen(
+                          r.financeApprovedAt ?? r.ccApprovedAt ?? r.createdAt,
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      <Card className="border-border/80 shadow-md overflow-hidden">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="text-lg">Stock / wastage / return requests</CardTitle>
+      <Card className="border-border/80 shadow-md overflow-hidden bg-card/95 ring-1 ring-black/3 dark:ring-white/6">
+        <CardHeader className="border-b bg-muted/25 pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Package className="h-4 w-4 text-cyan-600 dark:text-cyan-400 opacity-90" />
+            Stock / wastage / return requests
+          </CardTitle>
           <CardDescription>
             {myStocks.length} movement request
             {myStocks.length !== 1 ? "s" : ""} you submitted
@@ -195,48 +387,63 @@ export default function StoreRequestStatusTab() {
         </CardHeader>
         <CardContent className="p-0">
           {myStocks.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-6 text-center">
-              No movement requests from you yet.
-            </p>
+            <div className="flex flex-col items-center justify-center gap-2 py-14 text-center px-6">
+              <Package className="h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                No movement requests from you yet.
+              </p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>When</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortByDateDesc(myStocks).map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium max-w-[200px] truncate">
-                      {r.itemName?.trim()
-                        ? r.itemName
-                        : "Unknown item (saved name missing)"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {formatMovementType(r.movementType)}
-                    </TableCell>
-                    <TableCell className="tabular-nums whitespace-nowrap">
-                      {formatQtyWithUnit(r.amount, "")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={stockBadgeVariant(r.status)}>
-                        {formatStockOutRequestStatus(r.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {r.decidedAt
-                        ? new Date(r.decidedAt).toLocaleString()
-                        : new Date(r.createdAt).toLocaleString()}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead>Item</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">When</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sortByDateDesc(myStocks).map((r) => (
+                    <TableRow
+                      key={r.id}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      <TableCell className="font-medium max-w-[220px] truncate">
+                        {r.itemName?.trim()
+                          ? r.itemName
+                          : "Unknown item (saved name missing)"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal">
+                          {formatMovementType(r.movementType)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap text-muted-foreground">
+                        {formatQtyWithUnit(r.amount, "")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={stockBadgeVariant(r.status)}
+                          className={cn(
+                            "font-normal",
+                            r.status === "APPROVED" &&
+                              "bg-emerald-600/90 hover:bg-emerald-600/90",
+                          )}
+                        >
+                          {formatStockOutRequestStatus(r.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap text-right tabular-nums">
+                        {formatWhen(r.decidedAt ?? r.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

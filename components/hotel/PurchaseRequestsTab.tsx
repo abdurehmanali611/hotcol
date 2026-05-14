@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createPurchaseRequestApi } from "@/lib/actions";
+import { createPurchaseRequestApi, type PurchaseRequestRow } from "@/lib/actions";
+import { buildOptimisticPurchaseRequestRow } from "@/lib/hotelOptimisticPurchase";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -37,11 +39,14 @@ const PhoneInput = dynamic(
 );
 
 export default function PurchaseRequestsTab({
+  tenantScope = "",
   onCreated,
 }: {
-  onCreated?: () => void;
+  tenantScope?: string;
+  onCreated?: (row: PurchaseRequestRow) => void;
 }) {
-  const [loading, setLoading] = useState(false);
+  const { isPending, run } = useConcurrentActions();
+  const submitKey = "purchase-request-submit";
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState<number>(1);
   const [measuredBy, setMeasuredBy] = useState("Piece");
@@ -51,12 +56,11 @@ export default function PurchaseRequestsTab({
   const [supplierPhone, setSupplierPhone] = useState("");
   const [category, setCategory] = useState("Others");
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim()) return;
-    setLoading(true);
-    try {
-      await createPurchaseRequestApi({
+    void run(submitKey, async () => {
+      const result = await createPurchaseRequestApi({
         itemName: itemName.trim(),
         quantity,
         measuredBy,
@@ -66,13 +70,31 @@ export default function PurchaseRequestsTab({
         supplierPhone: supplierPhone || undefined,
         category,
       });
+      const user =
+        typeof window !== "undefined"
+          ? (localStorage.getItem("user_name")?.trim() ?? "")
+          : "";
+      onCreated?.(
+        buildOptimisticPurchaseRequestRow(
+          {
+            itemName: itemName.trim(),
+            quantity,
+            measuredBy,
+            notes: notes || undefined,
+            estimatedUnitPrice,
+            supplierName: supplierName || undefined,
+            supplierPhone: supplierPhone || undefined,
+            category,
+          },
+          result,
+          user || "—",
+          tenantScope.trim(),
+        ),
+      );
       setItemName("");
       setQuantity(1);
       setNotes("");
-      onCreated?.();
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -216,7 +238,7 @@ export default function PurchaseRequestsTab({
 
           <PendingButton
             type="submit"
-            pending={loading}
+            pending={isPending(submitKey)}
             className="w-full h-11 gap-2 text-base shadow-md"
           >
             Submit request

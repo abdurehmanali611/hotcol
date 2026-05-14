@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,7 @@ import {
   CreateItemStatus,
   UpdateItemRegistration,
   createStockOutRequestApi,
+  type StockOutRequestRow,
 } from "@/lib/actions";
 import {
   isVatEnabled,
@@ -46,11 +48,11 @@ import {
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
+import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, Loader2, MoreVertical, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 
 export type items = {
   id: number;
@@ -134,21 +136,22 @@ const DeleteButton = ({
   refresh?: () => void;
 }) => {
   const [open, setOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const { isPending, run } = useConcurrentActions();
+  const deleteKey = `delete-item-${itemId}`;
+  const deleting = isPending(deleteKey);
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      await DeleteItemRegistration(itemId);
-      toast.success(`${itemName} deleted successfully`);
-      setOpen(false);
-      onDelete();
-      refresh?.();
-    } catch {
-      toast.error(`Failed to delete ${itemName}`);
-    } finally {
-      setDeleting(false);
-    }
+  const handleDelete = () => {
+    void run(deleteKey, async () => {
+      try {
+        await DeleteItemRegistration(itemId);
+        toast.success(`${itemName} deleted successfully`);
+        setOpen(false);
+        onDelete();
+        refresh?.();
+      } catch {
+        toast.error(`Failed to delete ${itemName}`);
+      }
+    });
   };
 
   return (
@@ -201,74 +204,95 @@ const StockOut = ({
   data,
   refresh,
   hotelStockApprovals,
+  onHotelStockRequestCreated,
 }: {
   data: items;
   refresh?: () => void;
   hotelStockApprovals?: boolean;
+  onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
-  const [submitting, setSubmitting] = useState(false);
+  const { isPending, run } = useConcurrentActions();
+  const actionKey = `stock-out-${data.id}`;
+  const submitting = isPending(actionKey);
 
-  const handleStockOut = async () => {
-    setSubmitting(true);
-    try {
-      if (!statusBy.trim()) {
-        toast.error("Select or enter where stock is going");
-        return;
-      }
-      if (hotelStockApprovals) {
-        if (data.amount - amountDeduct < 1) {
-          toast.error(
-            "At least 1 unit must remain in stock. Reduce the quantity.",
-          );
-          return;
-        }
-        await createStockOutRequestApi({
-          itemRegistrationId: data.id,
-          movementType: "STOCK_OUT",
-          amount: amountDeduct,
-          stakeHolderOrReason: statusBy.trim(),
-        });
-      } else {
-        const payload = {
-          name: data.name,
-          imageUrl: data.imageUrl,
-          category: data.category,
-          amount: amountDeduct,
-          measuredBy: data.measuredBy,
-          unitPrice: data.unitPrice,
-          actionDate: new Date(),
-          supplierName: data.supplierName,
-          supplierPhone: data.supplierPhone,
-          Address: data.Address,
-          ...statusExtrasFromItem(data),
-          paidAmount: data.paidAmount,
-          status: "Stock Out",
-          statusBy: statusBy,
-          HotelName: data.HotelName,
-        };
-        const payloadAmount = {
-          ...data,
-          amount: data.amount - amountDeduct,
-        };
-        await CreateItemStatus(payload);
-        await UpdateItemRegistration(payloadAmount);
-        if (payloadAmount.amount === 0) {
-          await DeleteItemRegistration(data.id);
-        }
-        toast.success(`${data.name} status updated successfully`);
-      }
-      setOpen(false);
-      refresh?.();
-    } catch (e: unknown) {
-      const msg =
-        e instanceof Error ? e.message : `Failed to update ${data.name} status`;
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
+  const handleStockOut = () => {
+    if (!statusBy.trim()) {
+      toast.error("Select or enter where stock is going");
+      return;
     }
+    if (hotelStockApprovals && data.amount - amountDeduct < 1) {
+      toast.error(
+        "At least 1 unit must remain in stock. Reduce the quantity.",
+      );
+      return;
+    }
+    void run(actionKey, async () => {
+      try {
+        if (hotelStockApprovals) {
+          const result = await createStockOutRequestApi({
+            itemRegistrationId: data.id,
+            movementType: "STOCK_OUT",
+            amount: amountDeduct,
+            stakeHolderOrReason: statusBy.trim(),
+          });
+          const user =
+            typeof window !== "undefined"
+              ? (localStorage.getItem("user_name")?.trim() ?? "")
+              : "";
+          onHotelStockRequestCreated?.(
+            buildOptimisticStockOutRequestRow(
+              {
+                id: data.id,
+                name: data.name,
+                HotelName: data.HotelName,
+              },
+              "STOCK_OUT",
+              amountDeduct,
+              statusBy.trim(),
+              result,
+              user || "—",
+            ),
+          );
+        } else {
+          const payload = {
+            name: data.name,
+            imageUrl: data.imageUrl,
+            category: data.category,
+            amount: amountDeduct,
+            measuredBy: data.measuredBy,
+            unitPrice: data.unitPrice,
+            actionDate: new Date(),
+            supplierName: data.supplierName,
+            supplierPhone: data.supplierPhone,
+            Address: data.Address,
+            ...statusExtrasFromItem(data),
+            paidAmount: data.paidAmount,
+            status: "Stock Out",
+            statusBy: statusBy,
+            HotelName: data.HotelName,
+          };
+          const payloadAmount = {
+            ...data,
+            amount: data.amount - amountDeduct,
+          };
+          await CreateItemStatus(payload);
+          await UpdateItemRegistration(payloadAmount);
+          if (payloadAmount.amount === 0) {
+            await DeleteItemRegistration(data.id);
+          }
+          toast.success(`${data.name} status updated successfully`);
+        }
+        setOpen(false);
+        refresh?.();
+      } catch (e: unknown) {
+        const msg =
+          e instanceof Error ? e.message : `Failed to update ${data.name} status`;
+        toast.error(msg);
+      }
+    });
   };
 
   return (
@@ -352,74 +376,95 @@ const Wastage = ({
   data,
   refresh,
   hotelStockApprovals,
+  onHotelStockRequestCreated,
 }: {
   data: items;
   refresh?: () => void;
   hotelStockApprovals?: boolean;
+  onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
-  const [submitting, setSubmitting] = useState(false);
+  const { isPending, run } = useConcurrentActions();
+  const actionKey = `wastage-${data.id}`;
+  const submitting = isPending(actionKey);
 
-  const handleWastage = async () => {
-    setSubmitting(true);
-    try {
-      if (!statusBy.trim()) {
-        toast.error("Enter a short reason for wastage");
-        return;
-      }
-      if (hotelStockApprovals) {
-        if (data.amount - amountDeduct < 1) {
-          toast.error(
-            "At least 1 unit must remain in stock. Reduce the quantity.",
-          );
-          return;
-        }
-        await createStockOutRequestApi({
-          itemRegistrationId: data.id,
-          movementType: "WASTAGE",
-          amount: amountDeduct,
-          stakeHolderOrReason: statusBy.trim(),
-        });
-      } else {
-        const payload = {
-          name: data.name,
-          imageUrl: data.imageUrl,
-          category: data.category,
-          amount: amountDeduct,
-          measuredBy: data.measuredBy,
-          unitPrice: data.unitPrice,
-          actionDate: new Date(),
-          supplierName: data.supplierName,
-          supplierPhone: data.supplierPhone,
-          Address: data.Address,
-          ...statusExtrasFromItem(data),
-          paidAmount: data.paidAmount,
-          status: "Wastage",
-          statusBy: statusBy,
-          HotelName: data.HotelName,
-        };
-        const payloadAmount = {
-          ...data,
-          amount: data.amount - amountDeduct,
-        };
-        await CreateItemStatus(payload);
-        await UpdateItemRegistration(payloadAmount);
-        if (payloadAmount.amount === 0) {
-          await DeleteItemRegistration(data.id);
-        }
-        toast.success(`${data.name} status updated successfully`);
-      }
-      setOpen(false);
-      refresh?.();
-    } catch (e: unknown) {
-      const msg =
-        e instanceof Error ? e.message : `Failed to update ${data.name} status`;
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
+  const handleWastage = () => {
+    if (!statusBy.trim()) {
+      toast.error("Enter a short reason for wastage");
+      return;
     }
+    if (hotelStockApprovals && data.amount - amountDeduct < 1) {
+      toast.error(
+        "At least 1 unit must remain in stock. Reduce the quantity.",
+      );
+      return;
+    }
+    void run(actionKey, async () => {
+      try {
+        if (hotelStockApprovals) {
+          const result = await createStockOutRequestApi({
+            itemRegistrationId: data.id,
+            movementType: "WASTAGE",
+            amount: amountDeduct,
+            stakeHolderOrReason: statusBy.trim(),
+          });
+          const user =
+            typeof window !== "undefined"
+              ? (localStorage.getItem("user_name")?.trim() ?? "")
+              : "";
+          onHotelStockRequestCreated?.(
+            buildOptimisticStockOutRequestRow(
+              {
+                id: data.id,
+                name: data.name,
+                HotelName: data.HotelName,
+              },
+              "WASTAGE",
+              amountDeduct,
+              statusBy.trim(),
+              result,
+              user || "—",
+            ),
+          );
+        } else {
+          const payload = {
+            name: data.name,
+            imageUrl: data.imageUrl,
+            category: data.category,
+            amount: amountDeduct,
+            measuredBy: data.measuredBy,
+            unitPrice: data.unitPrice,
+            actionDate: new Date(),
+            supplierName: data.supplierName,
+            supplierPhone: data.supplierPhone,
+            Address: data.Address,
+            ...statusExtrasFromItem(data),
+            paidAmount: data.paidAmount,
+            status: "Wastage",
+            statusBy: statusBy,
+            HotelName: data.HotelName,
+          };
+          const payloadAmount = {
+            ...data,
+            amount: data.amount - amountDeduct,
+          };
+          await CreateItemStatus(payload);
+          await UpdateItemRegistration(payloadAmount);
+          if (payloadAmount.amount === 0) {
+            await DeleteItemRegistration(data.id);
+          }
+          toast.success(`${data.name} status updated successfully`);
+        }
+        setOpen(false);
+        refresh?.();
+      } catch (e: unknown) {
+        const msg =
+          e instanceof Error ? e.message : `Failed to update ${data.name} status`;
+        toast.error(msg);
+      }
+    });
   };
 
   return (
@@ -493,74 +538,95 @@ const Returned = ({
   data,
   refresh,
   hotelStockApprovals,
+  onHotelStockRequestCreated,
 }: {
   data: items;
   refresh?: () => void;
   hotelStockApprovals?: boolean;
+  onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
-  const [submitting, setSubmitting] = useState(false);
+  const { isPending, run } = useConcurrentActions();
+  const actionKey = `return-${data.id}`;
+  const submitting = isPending(actionKey);
 
-  const handleReturned = async () => {
-    setSubmitting(true);
-    try {
-      if (!statusBy.trim()) {
-        toast.error("Enter the return reason / reference");
-        return;
-      }
-      if (hotelStockApprovals) {
-        if (data.amount - amountDeduct < 1) {
-          toast.error(
-            "At least 1 unit must remain in stock. Reduce the quantity.",
-          );
-          return;
-        }
-        await createStockOutRequestApi({
-          itemRegistrationId: data.id,
-          movementType: "RETURN_SUPPLIER",
-          amount: amountDeduct,
-          stakeHolderOrReason: statusBy.trim(),
-        });
-      } else {
-        const payload = {
-          name: data.name,
-          imageUrl: data.imageUrl,
-          category: data.category,
-          amount: amountDeduct,
-          measuredBy: data.measuredBy,
-          unitPrice: data.unitPrice,
-          actionDate: new Date(),
-          supplierName: data.supplierName,
-          supplierPhone: data.supplierPhone,
-          Address: data.Address,
-          ...statusExtrasFromItem(data),
-          paidAmount: data.paidAmount,
-          status: "Returned to Supplier",
-          statusBy: statusBy,
-          HotelName: data.HotelName,
-        };
-        const payloadAmount = {
-          ...data,
-          amount: data.amount - amountDeduct,
-        };
-        await CreateItemStatus(payload);
-        await UpdateItemRegistration(payloadAmount);
-        if (payloadAmount.amount === 0) {
-          await DeleteItemRegistration(data.id);
-        }
-        toast.success(`${data.name} status updated successfully`);
-      }
-      setOpen(false);
-      refresh?.();
-    } catch (e: unknown) {
-      const msg =
-        e instanceof Error ? e.message : `Failed to update ${data.name} status`;
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
+  const handleReturned = () => {
+    if (!statusBy.trim()) {
+      toast.error("Enter the return reason / reference");
+      return;
     }
+    if (hotelStockApprovals && data.amount - amountDeduct < 1) {
+      toast.error(
+        "At least 1 unit must remain in stock. Reduce the quantity.",
+      );
+      return;
+    }
+    void run(actionKey, async () => {
+      try {
+        if (hotelStockApprovals) {
+          const result = await createStockOutRequestApi({
+            itemRegistrationId: data.id,
+            movementType: "RETURN_SUPPLIER",
+            amount: amountDeduct,
+            stakeHolderOrReason: statusBy.trim(),
+          });
+          const user =
+            typeof window !== "undefined"
+              ? (localStorage.getItem("user_name")?.trim() ?? "")
+              : "";
+          onHotelStockRequestCreated?.(
+            buildOptimisticStockOutRequestRow(
+              {
+                id: data.id,
+                name: data.name,
+                HotelName: data.HotelName,
+              },
+              "RETURN_SUPPLIER",
+              amountDeduct,
+              statusBy.trim(),
+              result,
+              user || "—",
+            ),
+          );
+        } else {
+          const payload = {
+            name: data.name,
+            imageUrl: data.imageUrl,
+            category: data.category,
+            amount: amountDeduct,
+            measuredBy: data.measuredBy,
+            unitPrice: data.unitPrice,
+            actionDate: new Date(),
+            supplierName: data.supplierName,
+            supplierPhone: data.supplierPhone,
+            Address: data.Address,
+            ...statusExtrasFromItem(data),
+            paidAmount: data.paidAmount,
+            status: "Returned to Supplier",
+            statusBy: statusBy,
+            HotelName: data.HotelName,
+          };
+          const payloadAmount = {
+            ...data,
+            amount: data.amount - amountDeduct,
+          };
+          await CreateItemStatus(payload);
+          await UpdateItemRegistration(payloadAmount);
+          if (payloadAmount.amount === 0) {
+            await DeleteItemRegistration(data.id);
+          }
+          toast.success(`${data.name} status updated successfully`);
+        }
+        setOpen(false);
+        refresh?.();
+      } catch (e: unknown) {
+        const msg =
+          e instanceof Error ? e.message : `Failed to update ${data.name} status`;
+        toast.error(msg);
+      }
+    });
   };
 
   return (
@@ -633,7 +699,11 @@ const Returned = ({
 export const columns = (
   onEdit?: (item: items) => void,
   refresh?: () => void,
-  opts?: { hotelStockApprovals?: boolean; readOnly?: boolean },
+  opts?: {
+    hotelStockApprovals?: boolean;
+    readOnly?: boolean;
+    onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
+  },
 ): ColumnDef<items>[] => {
   const defs: ColumnDef<items>[] = [
   {
@@ -793,6 +863,7 @@ export const columns = (
                     data={row.original}
                     refresh={refresh}
                     hotelStockApprovals={opts?.hotelStockApprovals}
+                    onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
                   />
                 </DropdownMenuItem>
                 <div className="grid grid-cols-2 gap-8.5 mt-1">
@@ -801,6 +872,7 @@ export const columns = (
                       data={row.original}
                       refresh={refresh}
                       hotelStockApprovals={opts?.hotelStockApprovals}
+                      onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
                     />
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
@@ -808,6 +880,7 @@ export const columns = (
                       data={row.original}
                       refresh={refresh}
                       hotelStockApprovals={opts?.hotelStockApprovals}
+                      onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
                     />
                   </DropdownMenuItem>
                 </div>

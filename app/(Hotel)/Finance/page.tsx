@@ -1,14 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   approvePurchaseRequestFinanceApi,
+  approvePurchaseRequestsFinanceBatchApi,
   fetchItemRegistrations,
   fetchItemStatus,
   fetchPurchaseRequests,
   rejectPurchaseRequestFinanceApi,
+  rejectPurchaseRequestsFinanceBatchApi,
   logoutAction,
   notifyApiFailure,
   type ItemRegistration,
@@ -22,12 +23,16 @@ import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventory
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { patchPurchaseRequestStatus } from "@/lib/hotelRowPatches";
 import {
   Sidebar,
   SidebarContent,
@@ -70,6 +75,7 @@ import {
   HOTEL_INVENTORY_COPY,
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type FinanceSection =
@@ -91,36 +97,68 @@ function FinanceInner() {
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const [inactiveRows, setInactiveRows] = useState<ItemStatus[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
-  const [financeMutation, setFinanceMutation] = useState<
-    { id: number; kind: "approve" | "reject" } | null
-  >(null);
+  const [selectedFinanceIds, setSelectedFinanceIds] = useState<number[]>([]);
+  const { isPending: isFinancePending, run: runFinanceAction } =
+    useConcurrentActions();
+  const loadCoordinator = useLoadCoordinator();
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      const [all, regs, stat] = await Promise.all([
-        fetchPurchaseRequests(),
-        fetchItemRegistrations(),
-        fetchItemStatus(),
-      ]);
-      setRows(all);
-      const t = String(tenantScope ?? "").trim();
-      const regList = regs as ItemRegistration[];
-      setInventoryRows(
-        t ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t)) : regList,
-      );
-      const statList = stat as ItemStatus[];
-      setInactiveRows(
-        t ? statList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t)) : statList,
-      );
-    } catch (e: unknown) {
-      notifyApiFailure(e, "Failed to load finance data");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [tenantScope]);
+  const load = useCallback(
+    async (isRefresh = false) => {
+      await loadCoordinator.run(async (isStale) => {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+        try {
+          const [all, regs, stat] = await Promise.all([
+            fetchPurchaseRequests(),
+            fetchItemRegistrations(),
+            fetchItemStatus(),
+          ]);
+          if (isStale()) return;
+          setRows(all);
+          const t = String(tenantScope ?? "").trim();
+          const regList = regs as ItemRegistration[];
+          setInventoryRows(
+            t
+              ? regList.filter((it) =>
+                  rowHotelMatchesTenantScope(it.HotelName, t),
+                )
+              : regList,
+          );
+          const statList = stat as ItemStatus[];
+          setInactiveRows(
+            t
+              ? statList.filter((it) =>
+                  rowHotelMatchesTenantScope(it.HotelName, t),
+                )
+              : statList,
+          );
+        } catch (e: unknown) {
+          if (!isStale()) notifyApiFailure(e, "Failed to load finance data");
+        } finally {
+          if (!isStale()) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      });
+    },
+    [tenantScope, loadCoordinator],
+  );
+
+  const refreshPurchasesOnly = useCallback(async () => {
+    await loadCoordinator.run(async (isStale) => {
+      setRefreshing(true);
+      try {
+        const all = await fetchPurchaseRequests();
+        if (isStale()) return;
+        setRows(all);
+      } catch (e: unknown) {
+        if (!isStale()) notifyApiFailure(e, "Failed to refresh payment queue");
+      } finally {
+        if (!isStale()) setRefreshing(false);
+      }
+    });
+  }, [loadCoordinator]);
 
   useEffect(() => {
     void load();
@@ -151,6 +189,25 @@ function FinanceInner() {
       ),
     [inventoryRows],
   );
+
+  const pendingFinanceIdsKey = useMemo(
+    () =>
+      scopedPurchases
+        .filter((r) => r.status === "PENDING_FINANCE")
+        .map((r) => r.id)
+        .sort((a, b) => a - b)
+        .join(","),
+    [scopedPurchases],
+  );
+
+  useEffect(() => {
+    const allow = new Set(
+      scopedPurchases
+        .filter((r) => r.status === "PENDING_FINANCE")
+        .map((r) => r.id),
+    );
+    setSelectedFinanceIds((prev) => prev.filter((id) => allow.has(id)));
+  }, [pendingFinanceIdsKey, scopedPurchases]);
 
   if (loading) {
     return (
@@ -359,6 +416,98 @@ function FinanceInner() {
               </p>
             </div>
           ) : (
+            <div className="space-y-3">
+              <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
+                  <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setSelectedFinanceIds(
+                          selectedFinanceIds.length === pending.length
+                            ? []
+                            : pending.map((x) => x.id),
+                        )
+                      }
+                    >
+                      {selectedFinanceIds.length === pending.length
+                        ? "Clear selection"
+                        : "Select all"}
+                    </Button>
+                    <PendingButton
+                      size="sm"
+                      className="shadow-sm gap-1.5"
+                      pending={isFinancePending("batch-finance-a")}
+                      disabled={selectedFinanceIds.length === 0}
+                      onClick={() => {
+                        void runFinanceAction("batch-finance-a", async () => {
+                          try {
+                            const results =
+                              await approvePurchaseRequestsFinanceBatchApi(
+                                selectedFinanceIds,
+                              );
+                            for (const res of results) {
+                              setRows((prev) =>
+                                patchPurchaseRequestStatus(
+                                  prev,
+                                  res.id,
+                                  res.status,
+                                ),
+                              );
+                            }
+                            setSelectedFinanceIds([]);
+                            void refreshPurchasesOnly();
+                          } catch (e: unknown) {
+                            notifyApiFailure(
+                              e,
+                              "Could not batch-approve payments",
+                            );
+                          }
+                        });
+                      }}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
+                      Approve selected ({selectedFinanceIds.length})
+                    </PendingButton>
+                    <PendingButton
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
+                      pending={isFinancePending("batch-finance-r")}
+                      disabled={selectedFinanceIds.length === 0}
+                      onClick={() => {
+                        void runFinanceAction("batch-finance-r", async () => {
+                          try {
+                            const results =
+                              await rejectPurchaseRequestsFinanceBatchApi(
+                                selectedFinanceIds,
+                              );
+                            for (const res of results) {
+                              setRows((prev) =>
+                                patchPurchaseRequestStatus(
+                                  prev,
+                                  res.id,
+                                  res.status,
+                                ),
+                              );
+                            }
+                            setSelectedFinanceIds([]);
+                            void refreshPurchasesOnly();
+                          } catch (e: unknown) {
+                            notifyApiFailure(
+                              e,
+                              "Could not batch-reject payments",
+                            );
+                          }
+                        });
+                      }}
+                    >
+                      <XCircle className="h-3.5 w-3.5 opacity-90" />
+                      Reject selected ({selectedFinanceIds.length})
+                    </PendingButton>
+                  </CardContent>
+                </Card>
             <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
               <div className="border-b border-border/60 bg-muted/25 px-4 py-3 flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -368,6 +517,9 @@ function FinanceInner() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40 border-0">
+                    <TableHead className="w-10 font-semibold">
+                      <span className="sr-only">Select</span>
+                    </TableHead>
                     <TableHead className="font-semibold">Item</TableHead>
                     <TableHead className="font-semibold">Quantity</TableHead>
                     <TableHead className="font-semibold">Est. line</TableHead>
@@ -385,6 +537,19 @@ function FinanceInner() {
                       key={r.id}
                       className="hover:bg-muted/25 border-border/50 transition-colors"
                     >
+                      <TableCell className="align-middle w-10">
+                        <Checkbox
+                          checked={selectedFinanceIds.includes(r.id)}
+                          onCheckedChange={(checked) => {
+                            setSelectedFinanceIds((prev) =>
+                              checked === true
+                                ? [...new Set([...prev, r.id])]
+                                : prev.filter((x) => x !== r.id),
+                            );
+                          }}
+                          aria-label={`Select ${r.itemName}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium align-middle">
                         {r.itemName}
                       </TableCell>
@@ -407,20 +572,24 @@ function FinanceInner() {
                           <PendingButton
                             size="sm"
                             className="shadow-sm gap-1.5"
-                            pending={
-                              financeMutation?.id === r.id &&
-                              financeMutation.kind === "approve"
-                            }
-                            onClick={async () => {
-                              setFinanceMutation({ id: r.id, kind: "approve" });
-                              try {
-                                await approvePurchaseRequestFinanceApi(r.id);
-                                await load();
-                              } catch (e: unknown) {
-                                notifyApiFailure(e, "Could not approve payment");
-                              } finally {
-                                setFinanceMutation(null);
-                              }
+                            pending={isFinancePending(`finance-a-${r.id}`)}
+                            onClick={() => {
+                              void runFinanceAction(`finance-a-${r.id}`, async () => {
+                                try {
+                                  const result =
+                                    await approvePurchaseRequestFinanceApi(r.id);
+                                  setRows((prev) =>
+                                    patchPurchaseRequestStatus(
+                                      prev,
+                                      r.id,
+                                      result.status,
+                                    ),
+                                  );
+                                  void refreshPurchasesOnly();
+                                } catch (e: unknown) {
+                                  notifyApiFailure(e, "Could not approve payment");
+                                }
+                              });
                             }}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
@@ -430,23 +599,27 @@ function FinanceInner() {
                             size="sm"
                             variant="outline"
                             className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
-                            pending={
-                              financeMutation?.id === r.id &&
-                              financeMutation.kind === "reject"
-                            }
-                            onClick={async () => {
-                              setFinanceMutation({ id: r.id, kind: "reject" });
-                              try {
-                                await rejectPurchaseRequestFinanceApi(
-                                  r.id,
-                                  "Rejected by finance",
-                                );
-                                await load();
-                              } catch (e: unknown) {
-                                notifyApiFailure(e, "Could not reject payment");
-                              } finally {
-                                setFinanceMutation(null);
-                              }
+                            pending={isFinancePending(`finance-r-${r.id}`)}
+                            onClick={() => {
+                              void runFinanceAction(`finance-r-${r.id}`, async () => {
+                                try {
+                                  const result =
+                                    await rejectPurchaseRequestFinanceApi(
+                                      r.id,
+                                      "Rejected by finance",
+                                    );
+                                  setRows((prev) =>
+                                    patchPurchaseRequestStatus(
+                                      prev,
+                                      r.id,
+                                      result.status,
+                                    ),
+                                  );
+                                  void refreshPurchasesOnly();
+                                } catch (e: unknown) {
+                                  notifyApiFailure(e, "Could not reject payment");
+                                }
+                              });
                             }}
                           >
                             <XCircle className="h-3.5 w-3.5 opacity-90" />
@@ -458,6 +631,7 @@ function FinanceInner() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
             </div>
           )}
         </section>

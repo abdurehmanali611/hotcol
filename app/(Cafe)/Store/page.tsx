@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { ItemRegistrationSchema } from "@/lib/validations";
 import { useForm, type Resolver } from "react-hook-form";
@@ -14,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   checkPityCashBalance,
   CreateItemRegistration,
@@ -26,9 +24,13 @@ import {
   logoutAction,
   uploadImage,
   type PurchaseRequestRow,
+  type StockOutRequestRow,
 } from "@/lib/actions";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Building,
@@ -105,7 +107,17 @@ export function StoreComponent({
   hotelInventory?: boolean;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [requestStatusSeed, setRequestStatusSeed] = useState(0);
+  const [pendingLocalStockRows, setPendingLocalStockRows] = useState<
+    StockOutRequestRow[]
+  >([]);
+  const [pendingLocalPurchaseRows, setPendingLocalPurchaseRows] = useState<
+    PurchaseRequestRow[]
+  >([]);
+  const { isPending, run } = useConcurrentActions();
+  const loadCoordinator = useLoadCoordinator();
+  const registerSubmitKey = "item-registration";
   const [activeView, setActiveView] = useState<StoreView>("Register");
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
@@ -117,51 +129,106 @@ export function StoreComponent({
   const displayLabel = displayName || "Store Management";
   const logoUrl = searchedParams.get("logo");
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [itemData, itemStatusData, prData] = await Promise.all([
-        fetchItemRegistrations(),
-        fetchItemStatus(),
-        hotelInventory ? fetchPurchaseRequests() : Promise.resolve([]),
-      ]);
-      const response = itemData as ItemRegistration[];
-      const statusResponse = itemStatusData as ItemStatus[];
-      if (Array.isArray(response)) {
-        const hotelItem = response.filter(
-          (item) => item.HotelName === tenantScope,
-        );
-        setStoreItem(hotelItem);
-      } else {
-        setStoreItem([]);
+  const loadData = useCallback(async () => {
+    await loadCoordinator.run(async (isStale) => {
+      setFetching(true);
+      try {
+        const [itemData, itemStatusData, prData] = await Promise.all([
+          fetchItemRegistrations(),
+          fetchItemStatus(),
+          hotelInventory ? fetchPurchaseRequests() : Promise.resolve([]),
+        ]);
+        if (isStale()) return;
+        const response = itemData as ItemRegistration[];
+        const statusResponse = itemStatusData as ItemStatus[];
+        if (Array.isArray(response)) {
+          const hotelItem = response.filter(
+            (item) => item.HotelName === tenantScope,
+          );
+          setStoreItem(hotelItem);
+        } else {
+          setStoreItem([]);
+        }
+        if (Array.isArray(statusResponse)) {
+          const hotelItem = statusResponse.filter((item) =>
+            rowHotelMatchesTenantScope(item.HotelName, tenantScope),
+          );
+          setItemStatus(hotelItem);
+        } else {
+          setItemStatus([]);
+        }
+        if (hotelInventory && Array.isArray(prData)) {
+          setPurchaseRows(
+            (prData as PurchaseRequestRow[]).filter((p) =>
+              rowHotelMatchesTenantScope(p.HotelName, tenantScope),
+            ),
+          );
+        } else {
+          setPurchaseRows([]);
+        }
+      } catch {
+        if (!isStale()) toast.error("Failed to load data");
+      } finally {
+        if (!isStale()) setFetching(false);
       }
-      if (Array.isArray(statusResponse)) {
-        const hotelItem = statusResponse.filter((item) =>
-          rowHotelMatchesTenantScope(item.HotelName, tenantScope),
-        );
-        setItemStatus(hotelItem);
-      } else {
-        setItemStatus([]);
-      }
-      if (hotelInventory && Array.isArray(prData)) {
+    });
+  }, [hotelInventory, tenantScope, loadCoordinator]);
+
+  const refreshPurchasesOnly = useCallback(async () => {
+    if (!hotelInventory) return;
+    await loadCoordinator.run(async (isStale) => {
+      try {
+        const prData = await fetchPurchaseRequests();
+        if (isStale()) return;
         setPurchaseRows(
           (prData as PurchaseRequestRow[]).filter((p) =>
             rowHotelMatchesTenantScope(p.HotelName, tenantScope),
           ),
         );
-      } else {
-        setPurchaseRows([]);
+        setRequestStatusSeed((n) => n + 1);
+      } catch {
+        if (!isStale()) toast.error("Failed to refresh purchase pipeline");
       }
-    } catch {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
+  }, [hotelInventory, tenantScope, loadCoordinator]);
+
+  const handleHotelStockRequestCreated = useCallback(
+    (row: StockOutRequestRow) => {
+      setPendingLocalStockRows((prev) => {
+        if (prev.some((r) => r.id === row.id)) return prev;
+        return [row, ...prev];
+      });
+      setRequestStatusSeed((n) => n + 1);
+    },
+    [],
+  );
+
+  const clearInjectedStockIds = useCallback((ids: number[]) => {
+    setPendingLocalStockRows((prev) =>
+      prev.filter((r) => !ids.includes(r.id)),
+    );
+  }, []);
+
+  const clearInjectedPurchaseIds = useCallback((ids: number[]) => {
+    setPendingLocalPurchaseRows((prev) =>
+      prev.filter((r) => !ids.includes(r.id)),
+    );
+  }, []);
+
+  const handlePurchaseRequestCreated = useCallback(
+    (row: PurchaseRequestRow) => {
+      setPendingLocalPurchaseRows((prev) => {
+        if (prev.some((r) => r.id === row.id)) return prev;
+        return [row, ...prev];
+      });
+      void refreshPurchasesOnly();
+    },
+    [refreshPurchasesOnly],
+  );
 
   useEffect(() => {
-    loadData();
-  }, [tenantScope]);
+    void loadData();
+  }, [loadData]);
 
   type ItemRegForm = z.infer<typeof ItemRegistrationSchema>;
   const form = useForm<ItemRegForm>({
@@ -226,70 +293,70 @@ export function StoreComponent({
     lastAutoPaidAmountRef.current = paidAmount;
   }, [form, watchedAmount, watchedUnitPrice, watchedPurchaseWithVat]);
 
-  const onSubmit = async (values: ItemRegForm) => {
-    try {
-      setLoading(true)
-      const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
-      const want = normalizeInventoryItemName(payload.name);
-      if (want.length > 0) {
-        const dup = storeItem.find(
-          (it) =>
-            rowHotelMatchesTenantScope(it.HotelName, tenantScope) &&
-            normalizeInventoryItemName(it.name) === want,
-        );
-        if (dup) {
-          toast.error(
-            "The item already exists. You can edit it from the Inventory tab.",
+  const onSubmit = (values: ItemRegForm) => {
+    void run(registerSubmitKey, async () => {
+      try {
+        const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
+        const want = normalizeInventoryItemName(payload.name);
+        if (want.length > 0) {
+          const dup = storeItem.find(
+            (it) =>
+              rowHotelMatchesTenantScope(it.HotelName, tenantScope) &&
+              normalizeInventoryItemName(it.name) === want,
           );
-          setLoading(false);
-          return;
+          if (dup) {
+            toast.error(
+              "The item already exists. You can edit it from the Inventory tab.",
+            );
+            return;
+          }
         }
-      }
-      if (!hotelInventory) {
-        const totalCalc =
-          computeInventoryPaidAmountETB(
-            payload.amount,
-            payload.unitPrice,
-            payload.purchaseWithVat,
-          ) + payload.dutyFee;
-        const hasEnoughPityCash = await checkPityCashBalance(
-          payload.HotelName,
-          totalCalc,
-        );
-        if (!hasEnoughPityCash) {
-          toast.error("Insufficient Petty Cash balance");
-          return;
+        if (!hotelInventory) {
+          const totalCalc =
+            computeInventoryPaidAmountETB(
+              payload.amount,
+              payload.unitPrice,
+              payload.purchaseWithVat,
+            ) + payload.dutyFee;
+          const hasEnoughPityCash = await checkPityCashBalance(
+            payload.HotelName,
+            totalCalc,
+          );
+          if (!hasEnoughPityCash) {
+            toast.error("Insufficient Petty Cash balance");
+            return;
+          }
         }
+        await CreateItemRegistration(payload);
+        toast.success("Item created successfully!");
+        form.reset({
+          ...form.getValues(),
+          name: "",
+          imageUrl: "",
+          category: "Food",
+          amount: 0,
+          measuredBy: "Litre",
+          unitPrice: 0,
+          registrationDate: new Date(),
+          expireDate: new Date(),
+          dutyFee: 0,
+          supplierName: "",
+          supplierPhone: "",
+          Address: "",
+          supplierLevel: "",
+          purchaseWithVat: true,
+          supplierTinNumber: "",
+          paidAmount: 0,
+          HotelName: tenantScope || "",
+        });
+        setPreviewUrl(null);
+        await loadData();
+      } catch (error: unknown) {
+        const msg =
+          error instanceof Error ? error.message : "Failed to create item";
+        toast.error(`Failed to create Item: ${msg}`);
       }
-      await CreateItemRegistration(payload);
-      toast.success("Item created successfully!");
-      form.reset({
-        ...form.getValues(),
-        name: "",
-        imageUrl: "",
-        category: "Food",
-        amount: 0,
-        measuredBy: "Litre",
-        unitPrice: 0,
-        registrationDate: new Date(),
-        expireDate: new Date(),
-        dutyFee: 0,
-        supplierName: "",
-        supplierPhone: "",
-        Address: "",
-        supplierLevel: "",
-        purchaseWithVat: true,
-        supplierTinNumber: "",
-        paidAmount: 0,
-        HotelName: tenantScope || "",
-      });
-      setPreviewUrl(null);
-      loadData();
-    } catch (error: any) {
-      toast.error(`Failed to create Item: ${error.message}`);
-    } finally {
-      setLoading(false)
-    }
+    });
   };
 
   const storeWorkspaceIntro: Record<
@@ -383,10 +450,10 @@ export function StoreComponent({
               variant="outline"
               size="icon"
               onClick={() => loadData()}
-              disabled={loading}
+              disabled={fetching}
               className="rounded-full h-10 w-10 border-border hover:bg-accent"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-primary" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${fetching ? "animate-spin text-primary" : ""}`} />
             </Button>
 
             {!hotelInventory && (
@@ -603,20 +670,15 @@ export function StoreComponent({
                     </div>
                   </section>
 
-                  <Button
+                  <PendingButton
                     type="submit"
-                    disabled={loading}
+                    pending={isPending(registerSubmitKey)}
                     className="w-full h-14 text-base font-bold shadow-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-[0.99] disabled:opacity-70"
                   >
-                    {loading ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="animate-spin h-5 w-5" />
-                        <span>Saving Item...</span>
-                      </div>
-                    ) : (
-                      "Register Item into Inventory"
-                    )}
-                  </Button>
+                    {isPending(registerSubmitKey)
+                      ? "Saving Item..."
+                      : "Register Item into Inventory"}
+                  </PendingButton>
                 </form>
               </Form>
             </CardContent>
@@ -628,15 +690,35 @@ export function StoreComponent({
               hotelStockApprovals={hotelInventory}
               tenantScope={tenantScope}
               showPaymentSummary={hotelInventory}
+              onHotelStockRequestCreated={
+                hotelInventory ? handleHotelStockRequestCreated : undefined
+              }
             />
           </div>
         ) : activeView === "Purchases" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <PurchaseRequestsTab onCreated={() => loadData()} />
+            <PurchaseRequestsTab
+              tenantScope={tenantScope ?? ""}
+              onCreated={handlePurchaseRequestCreated}
+            />
           </div>
         ) : activeView === "RequestStatus" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-            <StoreRequestStatusTab />
+            <StoreRequestStatusTab
+              refreshSignal={requestStatusSeed}
+              injectedStockRows={
+                hotelInventory ? pendingLocalStockRows : undefined
+              }
+              onClearInjectedStockIds={
+                hotelInventory ? clearInjectedStockIds : undefined
+              }
+              injectedPurchaseRows={
+                hotelInventory ? pendingLocalPurchaseRows : undefined
+              }
+              onClearInjectedPurchaseIds={
+                hotelInventory ? clearInjectedPurchaseIds : undefined
+              }
+            />
           </div>
         ) : activeView === "PaymentVat" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
@@ -723,8 +805,8 @@ export function StoreComponent({
                 variant="ghost"
                 size="icon"
                 onClick={() => loadData()}
-                disabled={loading}
-                className={loading ? "animate-spin" : ""}
+                disabled={fetching}
+                className={fetching ? "animate-spin" : ""}
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>

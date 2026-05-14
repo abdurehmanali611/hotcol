@@ -3677,9 +3677,15 @@ export async function createStockOutRequestApi(input: {
   return response.data.data.createStockOutRequest;
 }
 
+export type HotelMutationToastOptions = {
+  /** When true, skip success toasts (used by batch / sequential fallbacks). */
+  suppressSuccessToast?: boolean;
+};
+
 export async function approvePurchaseRequestCCApi(
   id: number,
   costControllerProfileId: number,
+  options?: HotelMutationToastOptions,
 ) {
   const mutation = `
     mutation ApproveCC($id: Int!, $costControllerProfileId: Int!) {
@@ -3696,11 +3702,17 @@ export async function approvePurchaseRequestCCApi(
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Approval failed");
   }
-  toast.success("Forwarded to finance");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Forwarded to finance");
+  }
   return response.data.data.approvePurchaseRequestCC;
 }
 
-export async function rejectPurchaseRequestCCApi(id: number, reason?: string) {
+export async function rejectPurchaseRequestCCApi(
+  id: number,
+  reason?: string,
+  options?: HotelMutationToastOptions,
+) {
   const mutation = `
     mutation RejectCC($id: Int!, $reason: String) {
       rejectPurchaseRequestCC(id: $id, reason: $reason) {
@@ -3716,11 +3728,16 @@ export async function rejectPurchaseRequestCCApi(id: number, reason?: string) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Update failed");
   }
-  toast.success("Request rejected");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Request rejected");
+  }
   return response.data.data.rejectPurchaseRequestCC;
 }
 
-export async function approvePurchaseRequestFinanceApi(id: number) {
+export async function approvePurchaseRequestFinanceApi(
+  id: number,
+  options?: HotelMutationToastOptions,
+) {
   const mutation = `
     mutation ApproveFin($id: Int!) {
       approvePurchaseRequestFinance(id: $id) {
@@ -3736,15 +3753,18 @@ export async function approvePurchaseRequestFinanceApi(id: number) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Approval failed");
   }
+  if (!options?.suppressSuccessToast) {
     toast.success(
       "Payment approved — store registers stock when goods are received",
     );
+  }
   return response.data.data.approvePurchaseRequestFinance;
 }
 
 export async function rejectPurchaseRequestFinanceApi(
   id: number,
   reason?: string,
+  options?: HotelMutationToastOptions,
 ) {
   const mutation = `
     mutation RejectFin($id: Int!, $reason: String) {
@@ -3761,13 +3781,16 @@ export async function rejectPurchaseRequestFinanceApi(
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Update failed");
   }
-  toast.success("Request rejected");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Request rejected");
+  }
   return response.data.data.rejectPurchaseRequestFinance;
 }
 
 export async function approveStockOutRequestApi(
   id: number,
   costControllerProfileId: number,
+  options?: HotelMutationToastOptions,
 ) {
   const mutation = `
     mutation ApproveSO($id: Int!, $costControllerProfileId: Int!) {
@@ -3784,11 +3807,17 @@ export async function approveStockOutRequestApi(
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Approval failed");
   }
-  toast.success("Movement applied to inventory");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Movement applied to inventory");
+  }
   return response.data.data.approveStockOutRequest;
 }
 
-export async function rejectStockOutRequestApi(id: number, reason?: string) {
+export async function rejectStockOutRequestApi(
+  id: number,
+  reason?: string,
+  options?: HotelMutationToastOptions,
+) {
   const mutation = `
     mutation RejectSO($id: Int!, $reason: String) {
       rejectStockOutRequest(id: $id, reason: $reason) {
@@ -3804,8 +3833,410 @@ export async function rejectStockOutRequestApi(id: number, reason?: string) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Update failed");
   }
-  toast.success("Request rejected");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Request rejected");
+  }
   return response.data.data.rejectStockOutRequest;
+}
+
+function graphqlLooksLikeMissingBatchField(message: string): boolean {
+  const m = String(message || "");
+  return /Unknown field|Cannot query field|Unknown argument/i.test(m);
+}
+
+async function postHotelMutation<T>(query: string, variables: object): Promise<T> {
+  const response = await api.post(API_URL, { query, variables });
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0]?.message || "Request failed");
+  }
+  return response.data.data as T;
+}
+
+/**
+ * When `NEXT_PUBLIC_HOTEL_BATCH_MUTATIONS` is `"false"`, skip batch GraphQL
+ * mutations and use sequential fan-out only (avoids a failed batch round-trip
+ * until the backend implements batch resolvers).
+ */
+function hotelBatchGraphqlAttemptsEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_HOTEL_BATCH_MUTATIONS !== "false";
+}
+
+async function sequentialApprovePurchaseRequestsFinance(
+  unique: number[],
+): Promise<{ id: number; status: string }[]> {
+  const ok: { id: number; status: string }[] = [];
+  const failed: string[] = [];
+  for (const id of unique) {
+    try {
+      ok.push(
+        await approvePurchaseRequestFinanceApi(id, {
+          suppressSuccessToast: true,
+        }),
+      );
+    } catch (err: unknown) {
+      failed.push(
+        `#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (ok.length) toast.success(`Approved ${ok.length} payment(s)`);
+  if (failed.length)
+    toast.error(`Some approvals failed (${failed.length})`, {
+      description: failed.slice(0, 5).join(" · "),
+    });
+  return ok;
+}
+
+async function sequentialRejectPurchaseRequestsFinance(
+  unique: number[],
+  reason: string,
+): Promise<{ id: number; status: string }[]> {
+  const ok: { id: number; status: string }[] = [];
+  const failed: string[] = [];
+  for (const id of unique) {
+    try {
+      ok.push(
+        await rejectPurchaseRequestFinanceApi(id, reason, {
+          suppressSuccessToast: true,
+        }),
+      );
+    } catch (err: unknown) {
+      failed.push(
+        `#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (ok.length) toast.success(`Rejected ${ok.length} request(s)`);
+  if (failed.length)
+    toast.error(`Some rejections failed (${failed.length})`, {
+      description: failed.slice(0, 5).join(" · "),
+    });
+  return ok;
+}
+
+async function sequentialApprovePurchaseRequestsCC(
+  unique: number[],
+  costControllerProfileId: number,
+): Promise<{ id: number; status: string }[]> {
+  const ok: { id: number; status: string }[] = [];
+  const failed: string[] = [];
+  for (const id of unique) {
+    try {
+      ok.push(
+        await approvePurchaseRequestCCApi(id, costControllerProfileId, {
+          suppressSuccessToast: true,
+        }),
+      );
+    } catch (err: unknown) {
+      failed.push(
+        `#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (ok.length) toast.success(`Forwarded ${ok.length} request(s) to finance`);
+  if (failed.length)
+    toast.error(`Some approvals failed (${failed.length})`, {
+      description: failed.slice(0, 5).join(" · "),
+    });
+  return ok;
+}
+
+async function sequentialRejectPurchaseRequestsCC(
+  unique: number[],
+  reason: string,
+): Promise<{ id: number; status: string }[]> {
+  const ok: { id: number; status: string }[] = [];
+  const failed: string[] = [];
+  for (const id of unique) {
+    try {
+      ok.push(
+        await rejectPurchaseRequestCCApi(id, reason, {
+          suppressSuccessToast: true,
+        }),
+      );
+    } catch (err: unknown) {
+      failed.push(
+        `#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (ok.length) toast.success(`Rejected ${ok.length} request(s)`);
+  if (failed.length)
+    toast.error(`Some rejections failed (${failed.length})`, {
+      description: failed.slice(0, 5).join(" · "),
+    });
+  return ok;
+}
+
+async function sequentialApproveStockOutRequests(
+  unique: number[],
+  costControllerProfileId: number,
+): Promise<{ id: number; status: string }[]> {
+  const ok: { id: number; status: string }[] = [];
+  const failed: string[] = [];
+  for (const id of unique) {
+    try {
+      ok.push(
+        await approveStockOutRequestApi(id, costControllerProfileId, {
+          suppressSuccessToast: true,
+        }),
+      );
+    } catch (err: unknown) {
+      failed.push(
+        `#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (ok.length)
+    toast.success(`Applied ${ok.length} movement(s) to inventory`);
+  if (failed.length)
+    toast.error(`Some approvals failed (${failed.length})`, {
+      description: failed.slice(0, 5).join(" · "),
+    });
+  return ok;
+}
+
+async function sequentialRejectStockOutRequests(
+  unique: number[],
+  reason: string,
+): Promise<{ id: number; status: string }[]> {
+  const ok: { id: number; status: string }[] = [];
+  const failed: string[] = [];
+  for (const id of unique) {
+    try {
+      ok.push(
+        await rejectStockOutRequestApi(id, reason, {
+          suppressSuccessToast: true,
+        }),
+      );
+    } catch (err: unknown) {
+      failed.push(
+        `#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (ok.length) toast.success(`Rejected ${ok.length} movement(s)`);
+  if (failed.length)
+    toast.error(`Some rejections failed (${failed.length})`, {
+      description: failed.slice(0, 5).join(" · "),
+    });
+  return ok;
+}
+
+/** Batch finance approve — uses server transaction when the backend exposes it; otherwise falls back to sequential calls. */
+export async function approvePurchaseRequestsFinanceBatchApi(
+  ids: number[],
+): Promise<{ id: number; status: string }[]> {
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  if (unique.length === 0) return [];
+  if (unique.length === 1) {
+    const one = await approvePurchaseRequestFinanceApi(unique[0]);
+    return [{ id: one.id, status: one.status }];
+  }
+  if (!hotelBatchGraphqlAttemptsEnabled()) {
+    return sequentialApprovePurchaseRequestsFinance(unique);
+  }
+  const mutation = `
+    mutation ApprovePurchaseRequestsFinanceBatch($ids: [Int!]!) {
+      approvePurchaseRequestsFinanceBatch(ids: $ids) {
+        id
+        status
+      }
+    }
+  `;
+  try {
+    const data = await postHotelMutation<{
+      approvePurchaseRequestsFinanceBatch: { id: number; status: string }[];
+    }>(mutation, { ids: unique });
+    const rows = data.approvePurchaseRequestsFinanceBatch;
+    toast.success(`Approved ${rows.length} payment(s)`);
+    return rows;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    return sequentialApprovePurchaseRequestsFinance(unique);
+  }
+}
+
+export async function rejectPurchaseRequestsFinanceBatchApi(
+  ids: number[],
+  reason = "Rejected by finance",
+): Promise<{ id: number; status: string }[]> {
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  if (unique.length === 0) return [];
+  if (unique.length === 1) {
+    const one = await rejectPurchaseRequestFinanceApi(unique[0], reason);
+    return [{ id: one.id, status: one.status }];
+  }
+  if (!hotelBatchGraphqlAttemptsEnabled()) {
+    return sequentialRejectPurchaseRequestsFinance(unique, reason);
+  }
+  const mutation = `
+    mutation RejectPurchaseRequestsFinanceBatch($ids: [Int!]!, $reason: String) {
+      rejectPurchaseRequestsFinanceBatch(ids: $ids, reason: $reason) {
+        id
+        status
+      }
+    }
+  `;
+  try {
+    const data = await postHotelMutation<{
+      rejectPurchaseRequestsFinanceBatch: { id: number; status: string }[];
+    }>(mutation, { ids: unique, reason });
+    const rows = data.rejectPurchaseRequestsFinanceBatch;
+    toast.success(`Rejected ${rows.length} request(s)`);
+    return rows;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    return sequentialRejectPurchaseRequestsFinance(unique, reason);
+  }
+}
+
+export async function approvePurchaseRequestsCCBatchApi(
+  ids: number[],
+  costControllerProfileId: number,
+): Promise<{ id: number; status: string }[]> {
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  if (unique.length === 0) return [];
+  if (unique.length === 1) {
+    const one = await approvePurchaseRequestCCApi(
+      unique[0],
+      costControllerProfileId,
+    );
+    return [{ id: one.id, status: one.status }];
+  }
+  if (!hotelBatchGraphqlAttemptsEnabled()) {
+    return sequentialApprovePurchaseRequestsCC(unique, costControllerProfileId);
+  }
+  const mutation = `
+    mutation ApprovePurchaseRequestsCCBatch($ids: [Int!]!, $costControllerProfileId: Int!) {
+      approvePurchaseRequestsCCBatch(ids: $ids, costControllerProfileId: $costControllerProfileId) {
+        id
+        status
+      }
+    }
+  `;
+  try {
+    const data = await postHotelMutation<{
+      approvePurchaseRequestsCCBatch: { id: number; status: string }[];
+    }>(mutation, { ids: unique, costControllerProfileId });
+    const rows = data.approvePurchaseRequestsCCBatch;
+    toast.success(`Forwarded ${rows.length} request(s) to finance`);
+    return rows;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    return sequentialApprovePurchaseRequestsCC(unique, costControllerProfileId);
+  }
+}
+
+export async function rejectPurchaseRequestsCCBatchApi(
+  ids: number[],
+  reason = "Rejected by cost control",
+): Promise<{ id: number; status: string }[]> {
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  if (unique.length === 0) return [];
+  if (unique.length === 1) {
+    const one = await rejectPurchaseRequestCCApi(unique[0], reason);
+    return [{ id: one.id, status: one.status }];
+  }
+  if (!hotelBatchGraphqlAttemptsEnabled()) {
+    return sequentialRejectPurchaseRequestsCC(unique, reason);
+  }
+  const mutation = `
+    mutation RejectPurchaseRequestsCCBatch($ids: [Int!]!, $reason: String) {
+      rejectPurchaseRequestsCCBatch(ids: $ids, reason: $reason) {
+        id
+        status
+      }
+    }
+  `;
+  try {
+    const data = await postHotelMutation<{
+      rejectPurchaseRequestsCCBatch: { id: number; status: string }[];
+    }>(mutation, { ids: unique, reason });
+    const rows = data.rejectPurchaseRequestsCCBatch;
+    toast.success(`Rejected ${rows.length} request(s)`);
+    return rows;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    return sequentialRejectPurchaseRequestsCC(unique, reason);
+  }
+}
+
+export async function approveStockOutRequestsBatchApi(
+  ids: number[],
+  costControllerProfileId: number,
+): Promise<{ id: number; status: string }[]> {
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  if (unique.length === 0) return [];
+  if (unique.length === 1) {
+    const one = await approveStockOutRequestApi(
+      unique[0],
+      costControllerProfileId,
+    );
+    return [{ id: one.id, status: one.status }];
+  }
+  if (!hotelBatchGraphqlAttemptsEnabled()) {
+    return sequentialApproveStockOutRequests(unique, costControllerProfileId);
+  }
+  const mutation = `
+    mutation ApproveStockOutRequestsBatch($ids: [Int!]!, $costControllerProfileId: Int!) {
+      approveStockOutRequestsBatch(ids: $ids, costControllerProfileId: $costControllerProfileId) {
+        id
+        status
+      }
+    }
+  `;
+  try {
+    const data = await postHotelMutation<{
+      approveStockOutRequestsBatch: { id: number; status: string }[];
+    }>(mutation, { ids: unique, costControllerProfileId });
+    const rows = data.approveStockOutRequestsBatch;
+    toast.success(`Applied ${rows.length} movement(s) to inventory`);
+    return rows;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    return sequentialApproveStockOutRequests(unique, costControllerProfileId);
+  }
+}
+
+export async function rejectStockOutRequestsBatchApi(
+  ids: number[],
+  reason = "Rejected by cost control",
+): Promise<{ id: number; status: string }[]> {
+  const unique = [...new Set(ids)].filter((id) => id > 0);
+  if (unique.length === 0) return [];
+  if (unique.length === 1) {
+    const one = await rejectStockOutRequestApi(unique[0], reason);
+    return [{ id: one.id, status: one.status }];
+  }
+  if (!hotelBatchGraphqlAttemptsEnabled()) {
+    return sequentialRejectStockOutRequests(unique, reason);
+  }
+  const mutation = `
+    mutation RejectStockOutRequestsBatch($ids: [Int!]!, $reason: String) {
+      rejectStockOutRequestsBatch(ids: $ids, reason: $reason) {
+        id
+        status
+      }
+    }
+  `;
+  try {
+    const data = await postHotelMutation<{
+      rejectStockOutRequestsBatch: { id: number; status: string }[];
+    }>(mutation, { ids: unique, reason });
+    const rows = data.rejectStockOutRequestsBatch;
+    toast.success(`Rejected ${rows.length} movement(s)`);
+    return rows;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    return sequentialRejectStockOutRequests(unique, reason);
+  }
 }
 
 export async function createCostControllerProfileApi(displayName: string) {
