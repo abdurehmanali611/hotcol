@@ -410,8 +410,15 @@ function normalizeGraphqlHttpUrl(raw: string | undefined): string {
 
 const API_URL = normalizeGraphqlHttpUrl(process.env.NEXT_PUBLIC_GRAPHQL_URL);
 
-/** Slow links (rural / shared Wi‑Fi): avoid aborting before the server responds. */
-const GRAPHQL_TIMEOUT_MS = 120_000;
+function resolveGraphqlTimeoutMs(): number {
+  const raw = process.env.NEXT_PUBLIC_GRAPHQL_TIMEOUT_MS;
+  const n = raw ? Number.parseInt(String(raw).trim(), 10) : NaN;
+  if (Number.isFinite(n) && n >= 10_000 && n <= 300_000) return n;
+  return 60_000;
+}
+
+/** Default 60s; slow links: set `NEXT_PUBLIC_GRAPHQL_TIMEOUT_MS` (10000–300000). */
+const GRAPHQL_TIMEOUT_MS = resolveGraphqlTimeoutMs();
 
 const api = axios.create({
   timeout: GRAPHQL_TIMEOUT_MS,
@@ -455,6 +462,23 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+const hotelListReadInflight = new Map<string, Promise<unknown>>();
+
+/** When several surfaces request the same list read at once, share one HTTP round-trip. */
+function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const existing = hotelListReadInflight.get(key);
+  if (existing) return existing as Promise<T>;
+  const p = (async () => {
+    try {
+      return await run();
+    } finally {
+      hotelListReadInflight.delete(key);
+    }
+  })();
+  hotelListReadInflight.set(key, p);
+  return p;
+}
 
 /** UI catch helper: session expiry is already toasted + redirecting; surface timeouts/network clearly. */
 export function notifyApiFailure(error: unknown, fallback = "Request failed"): void {
@@ -766,7 +790,8 @@ export function getCurrentUser(): User | null {
 
 export async function fetchItems(): Promise<Item[]> {
   try {
-    const query = `
+    return await dedupeHotelListRead("catalog:items", async () => {
+      const query = `
       query {
         items {
           id
@@ -781,15 +806,16 @@ export async function fetchItems(): Promise<Item[]> {
       }
     `;
 
-    const response = await api.post(API_URL, { query });
+      const response = await api.post(API_URL, { query });
 
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to fetch items",
-      );
-    }
+      if (response.data.errors) {
+        throw new Error(
+          response.data.errors[0]?.message || "Failed to fetch items",
+        );
+      }
 
-    return response.data.data.items || [];
+      return response.data.data.items || [];
+    });
   } catch (error: any) {
     toast.error("Unable to load menu items. Please refresh the page.");
     throw error;
@@ -3064,7 +3090,7 @@ export async function CreateItemRegistration(values: createItemRegistration) {
 }
 
 export async function fetchItemRegistrations() {
-  try {
+  return dedupeHotelListRead("ItemRegistration:list", async () => {
     const query = `
       query {
         ItemRegistration {
@@ -3102,9 +3128,7 @@ export async function fetchItemRegistrations() {
       );
     }
     return response.data.data.ItemRegistration || [];
-  } catch (error: any) {
-    throw error;
-  }
+  });
 }
 
 export async function UpdateItemRegistration(
@@ -3284,7 +3308,8 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
 
 export async function fetchItemStatus() {
   try {
-    const query = `
+    return await dedupeHotelListRead("ItemStatus:list", async () => {
+      const query = `
       query {
         ItemStatus {
           id
@@ -3308,13 +3333,14 @@ export async function fetchItemStatus() {
         }
       }
           `;
-    const response = await api.post(API_URL, { query });
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to fetch item Status",
-      );
-    }
-    return response.data.data.ItemStatus || [];
+      const response = await api.post(API_URL, { query });
+      if (response.data.errors) {
+        throw new Error(
+          response.data.errors[0]?.message || "Failed to fetch item Status",
+        );
+      }
+      return response.data.data.ItemStatus || [];
+    });
   } catch (error: any) {
     toast.error("Failed to fetch Item Status");
     throw error;
@@ -3478,7 +3504,8 @@ export interface HotelCreditConsumptionRow {
 }
 
 export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
-  const query = `
+  return dedupeHotelListRead("hotel:purchaseRequests", async () => {
+    const query = `
     query {
       purchaseRequests {
         id
@@ -3503,17 +3530,19 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
       }
     }
   `;
-  const response = await api.post(API_URL, { query });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load purchase requests",
-    );
-  }
-  return response.data.data.purchaseRequests || [];
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load purchase requests",
+      );
+    }
+    return response.data.data.purchaseRequests || [];
+  });
 }
 
 export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
-  const query = `
+  return dedupeHotelListRead("hotel:stockOutRequests", async () => {
+    const query = `
     query {
       stockOutRequests {
         id
@@ -3533,19 +3562,21 @@ export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
       }
     }
   `;
-  const response = await api.post(API_URL, { query });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load stock-out requests",
-    );
-  }
-  return response.data.data.stockOutRequests || [];
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load stock-out requests",
+      );
+    }
+    return response.data.data.stockOutRequests || [];
+  });
 }
 
 export async function fetchCostControllerProfiles(): Promise<
   CostControllerProfileRow[]
 > {
-  const query = `
+  return dedupeHotelListRead("hotel:costControllerProfiles", async () => {
+    const query = `
     query {
       costControllerProfiles {
         id
@@ -3555,19 +3586,21 @@ export async function fetchCostControllerProfiles(): Promise<
       }
     }
   `;
-  const response = await api.post(API_URL, { query });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load CC profiles",
-    );
-  }
-  return response.data.data.costControllerProfiles || [];
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load CC profiles",
+      );
+    }
+    return response.data.data.costControllerProfiles || [];
+  });
 }
 
 export async function fetchKitchenBarBeginnings(): Promise<
   KitchenBarBeginningRow[]
 > {
-  const query = `
+  return dedupeHotelListRead("hotel:kitchenBarBeginnings", async () => {
+    const query = `
     query {
       kitchenBarBeginnings {
         id
@@ -3586,13 +3619,14 @@ export async function fetchKitchenBarBeginnings(): Promise<
       }
     }
   `;
-  const response = await api.post(API_URL, { query });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load beginnings",
-    );
-  }
-  return response.data.data.kitchenBarBeginnings || [];
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load beginnings",
+      );
+    }
+    return response.data.data.kitchenBarBeginnings || [];
+  });
 }
 
 export async function createPurchaseRequestApi(input: {
@@ -4384,7 +4418,9 @@ export async function fetchKitchenBarRollupSnapshots(
   fromYmd: string,
   toYmd: string,
 ): Promise<KitchenBarMonthlySnapshotRow[]> {
-  const query = `
+  const key = `hotel:kitchenBarRollupSnapshots:${fromYmd}:${toYmd}`;
+  return dedupeHotelListRead(key, async () => {
+    const query = `
     query RollupSnap($fromYmd: String!, $toYmd: String!) {
       kitchenBarRollupSnapshots(fromYmd: $fromYmd, toYmd: $toYmd) {
         id
@@ -4400,16 +4436,17 @@ export async function fetchKitchenBarRollupSnapshots(
       }
     }
   `;
-  const response = await api.post(API_URL, {
-    query,
-    variables: { fromYmd, toYmd },
+    const response = await api.post(API_URL, {
+      query,
+      variables: { fromYmd, toYmd },
+    });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to load roll-up snapshots",
+      );
+    }
+    return response.data.data.kitchenBarRollupSnapshots || [];
   });
-  if (response.data.errors) {
-    throw new Error(
-      response.data.errors[0]?.message || "Failed to load roll-up snapshots",
-    );
-  }
-  return response.data.data.kitchenBarRollupSnapshots || [];
 }
 
 export async function syncKitchenBarRollupApi(
