@@ -3906,6 +3906,31 @@ function graphqlLooksLikeMissingBatchField(message: string): boolean {
   return /Unknown field|Cannot query field|Unknown argument/i.test(m);
 }
 
+/**
+ * When a batch GraphQL mutation is missing or the gateway rejects the combined
+ * request (common: HTTP 400), fall back to per-id mutations so cost control /
+ * finance can still clear queues.
+ */
+function hotelBatchMutationShouldFallbackToSequential(e: unknown): boolean {
+  if (isSessionExpiredError(e)) return false;
+  const msg = e instanceof Error ? e.message : String(e);
+  if (graphqlLooksLikeMissingBatchField(msg)) return true;
+  if (axios.isAxiosError(e)) {
+    const s = e.response?.status;
+    if (typeof s === "number") {
+      if (s === 401 || s === 403) return false;
+      if (s >= 400 && s < 600) return true;
+    }
+  }
+  const sc = msg.match(/request failed with status code\s*(\d{3})/i);
+  if (sc) {
+    const code = Number(sc[1]);
+    if (code === 401 || code === 403) return false;
+    if (code >= 400 && code < 600) return true;
+  }
+  return false;
+}
+
 async function postHotelMutation<T>(query: string, variables: object): Promise<T> {
   const response = await api.post(API_URL, { query, variables });
   if (response.data.errors?.length) {
@@ -4114,8 +4139,7 @@ export async function approvePurchaseRequestsFinanceBatchApi(
     toast.success(`Approved ${rows.length} payment(s)`);
     return rows;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
     return sequentialApprovePurchaseRequestsFinance(unique);
   }
 }
@@ -4149,8 +4173,7 @@ export async function rejectPurchaseRequestsFinanceBatchApi(
     toast.success(`Rejected ${rows.length} request(s)`);
     return rows;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
     return sequentialRejectPurchaseRequestsFinance(unique, reason);
   }
 }
@@ -4187,8 +4210,7 @@ export async function approvePurchaseRequestsCCBatchApi(
     toast.success(`Forwarded ${rows.length} request(s) to finance`);
     return rows;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
     return sequentialApprovePurchaseRequestsCC(unique, costControllerProfileId);
   }
 }
@@ -4222,8 +4244,7 @@ export async function rejectPurchaseRequestsCCBatchApi(
     toast.success(`Rejected ${rows.length} request(s)`);
     return rows;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
     return sequentialRejectPurchaseRequestsCC(unique, reason);
   }
 }
@@ -4260,8 +4281,7 @@ export async function approveStockOutRequestsBatchApi(
     toast.success(`Applied ${rows.length} movement(s) to inventory`);
     return rows;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
     return sequentialApproveStockOutRequests(unique, costControllerProfileId);
   }
 }
@@ -4295,8 +4315,7 @@ export async function rejectStockOutRequestsBatchApi(
     toast.success(`Rejected ${rows.length} movement(s)`);
     return rows;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!graphqlLooksLikeMissingBatchField(msg)) throw e;
+    if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
     return sequentialRejectStockOutRequests(unique, reason);
   }
 }
