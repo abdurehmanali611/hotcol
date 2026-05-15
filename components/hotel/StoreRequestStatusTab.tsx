@@ -8,9 +8,11 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import {
+  formatPurchaseRejectorLine,
   formatPurchaseStatus,
   formatMovementType,
   formatQtyWithUnit,
+  formatStockMovementRejectorLine,
   formatStockOutRequestStatus,
 } from "@/lib/hotelDisplayLabels";
 import {
@@ -335,6 +337,7 @@ export default function StoreRequestStatusTab({
                     <TableHead>Item</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="min-w-[140px]">Rejection / reason</TableHead>
                     <TableHead className="text-right">Last update</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -359,6 +362,23 @@ export default function StoreRequestStatusTab({
                         >
                           {formatPurchaseStatus(r.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[220px]">
+                        {r.status === "REJECTED_CC" ||
+                        r.status === "REJECTED_FINANCE" ? (
+                          <span className="block space-y-0.5">
+                            <span className="text-foreground font-medium">
+                              {formatPurchaseRejectorLine(r)}
+                            </span>
+                            {r.rejectionReason?.trim() ? (
+                              <span className="block italic">
+                                {r.rejectionReason.trim()}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap text-right tabular-nums">
                         {formatWhen(
@@ -402,6 +422,7 @@ export default function StoreRequestStatusTab({
                     <TableHead>Type</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="min-w-[140px]">Rejection / reason</TableHead>
                     <TableHead className="text-right">When</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -435,6 +456,22 @@ export default function StoreRequestStatusTab({
                         >
                           {formatStockOutRequestStatus(r.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[220px]">
+                        {r.status === "REJECTED" ? (
+                          <span className="block space-y-0.5">
+                            <span className="text-foreground font-medium">
+                              {formatStockMovementRejectorLine(r)}
+                            </span>
+                            {r.rejectionReason?.trim() ? (
+                              <span className="block italic">
+                                {r.rejectionReason.trim()}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap text-right tabular-nums">
                         {formatWhen(r.decidedAt ?? r.createdAt)}

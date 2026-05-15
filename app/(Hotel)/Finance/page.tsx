@@ -70,6 +70,7 @@ import {
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import {
+  formatPurchaseRejectorLine,
   formatPurchaseStatus,
   formatQtyWithUnit,
   HOTEL_INVENTORY_COPY,
@@ -483,12 +484,23 @@ function FinanceInner() {
                               await rejectPurchaseRequestsFinanceBatchApi(
                                 selectedFinanceIds,
                               );
+                            const actor =
+                              typeof window !== "undefined"
+                                ? (localStorage.getItem("user_name")?.trim() ?? "")
+                                : "";
                             for (const res of results) {
                               setRows((prev) =>
                                 patchPurchaseRequestStatus(
                                   prev,
                                   res.id,
                                   res.status,
+                                  {
+                                    ...res,
+                                    financeActorName:
+                                      res.financeActorName?.trim() ||
+                                      actor ||
+                                      undefined,
+                                  },
                                 ),
                               );
                             }
@@ -608,11 +620,23 @@ function FinanceInner() {
                                       r.id,
                                       "Rejected by finance",
                                     );
+                                  const actor =
+                                    typeof window !== "undefined"
+                                      ? (localStorage.getItem("user_name")?.trim() ??
+                                        "")
+                                      : "";
                                   setRows((prev) =>
                                     patchPurchaseRequestStatus(
                                       prev,
                                       r.id,
                                       result.status,
+                                      {
+                                        ...result,
+                                        financeActorName:
+                                          result.financeActorName?.trim() ||
+                                          actor ||
+                                          undefined,
+                                      },
                                     ),
                                   );
                                   void refreshPurchasesOnly();
@@ -670,6 +694,9 @@ function FinanceInner() {
                       <TableHead className="font-semibold">Item</TableHead>
                       <TableHead className="font-semibold">Outcome</TableHead>
                       <TableHead className="font-semibold">Finance user</TableHead>
+                      <TableHead className="font-semibold min-w-[160px]">
+                        Rejection / reason
+                      </TableHead>
                       <TableHead className="font-semibold whitespace-nowrap">
                         Decided
                       </TableHead>
@@ -703,6 +730,22 @@ function FinanceInner() {
                         </TableCell>
                         <TableCell className="text-sm">
                           {r.financeActorName ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[240px]">
+                          {r.status === "REJECTED_FINANCE" ? (
+                            <span className="block space-y-0.5">
+                              <span className="text-foreground font-medium">
+                                {formatPurchaseRejectorLine(r)}
+                              </span>
+                              {r.rejectionReason?.trim() ? (
+                                <span className="block italic">
+                                  {r.rejectionReason.trim()}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
                           {r.financeApprovedAt

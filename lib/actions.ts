@@ -3434,6 +3434,47 @@ export interface StockOutRequestRow {
   createdAt: string;
 }
 
+/** Fields to request after reject mutations (must match GraphQL `PurchaseRequest` type). */
+const HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS = `
+        id
+        status
+        HotelName
+        itemName
+        quantity
+        measuredBy
+        notes
+        estimatedUnitPrice
+        supplierName
+        supplierPhone
+        category
+        storeUserName
+        ccProfileId
+        ccActorName
+        ccApprovedAt
+        financeActorName
+        financeApprovedAt
+        rejectionReason
+        createdAt
+`;
+
+/** Fields to request after stock-out reject (must match GraphQL `StockOutRequest` type). */
+const HOTEL_STOCK_OUT_AFTER_REJECT_FIELDS = `
+        id
+        status
+        HotelName
+        itemRegistrationId
+        itemName
+        movementType
+        amount
+        stakeHolderOrReason
+        requestedByUserName
+        ccProfileId
+        ccActorName
+        decidedAt
+        rejectionReason
+        createdAt
+`;
+
 export interface CostControllerProfileRow {
   id: number;
   displayName: string;
@@ -3774,12 +3815,11 @@ export async function rejectPurchaseRequestCCApi(
   id: number,
   reason?: string,
   options?: HotelMutationToastOptions,
-) {
+): Promise<PurchaseRequestRow> {
   const mutation = `
     mutation RejectCC($id: Int!, $reason: String) {
       rejectPurchaseRequestCC(id: $id, reason: $reason) {
-        id
-        status
+        ${HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS}
       }
     }
   `;
@@ -3793,7 +3833,7 @@ export async function rejectPurchaseRequestCCApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Request rejected");
   }
-  return response.data.data.rejectPurchaseRequestCC;
+  return response.data.data.rejectPurchaseRequestCC as PurchaseRequestRow;
 }
 
 export async function approvePurchaseRequestFinanceApi(
@@ -3827,12 +3867,11 @@ export async function rejectPurchaseRequestFinanceApi(
   id: number,
   reason?: string,
   options?: HotelMutationToastOptions,
-) {
+): Promise<PurchaseRequestRow> {
   const mutation = `
     mutation RejectFin($id: Int!, $reason: String) {
       rejectPurchaseRequestFinance(id: $id, reason: $reason) {
-        id
-        status
+        ${HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS}
       }
     }
   `;
@@ -3846,7 +3885,7 @@ export async function rejectPurchaseRequestFinanceApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Request rejected");
   }
-  return response.data.data.rejectPurchaseRequestFinance;
+  return response.data.data.rejectPurchaseRequestFinance as PurchaseRequestRow;
 }
 
 export async function approveStockOutRequestApi(
@@ -3879,12 +3918,11 @@ export async function rejectStockOutRequestApi(
   id: number,
   reason?: string,
   options?: HotelMutationToastOptions,
-) {
+): Promise<StockOutRequestRow> {
   const mutation = `
     mutation RejectSO($id: Int!, $reason: String) {
       rejectStockOutRequest(id: $id, reason: $reason) {
-        id
-        status
+        ${HOTEL_STOCK_OUT_AFTER_REJECT_FIELDS}
       }
     }
   `;
@@ -3898,7 +3936,7 @@ export async function rejectStockOutRequestApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Request rejected");
   }
-  return response.data.data.rejectStockOutRequest;
+  return response.data.data.rejectStockOutRequest as StockOutRequestRow;
 }
 
 function graphqlLooksLikeMissingBatchField(message: string): boolean {
@@ -3977,8 +4015,8 @@ async function sequentialApprovePurchaseRequestsFinance(
 async function sequentialRejectPurchaseRequestsFinance(
   unique: number[],
   reason: string,
-): Promise<{ id: number; status: string }[]> {
-  const ok: { id: number; status: string }[] = [];
+): Promise<PurchaseRequestRow[]> {
+  const ok: PurchaseRequestRow[] = [];
   const failed: string[] = [];
   for (const id of unique) {
     try {
@@ -4031,8 +4069,8 @@ async function sequentialApprovePurchaseRequestsCC(
 async function sequentialRejectPurchaseRequestsCC(
   unique: number[],
   reason: string,
-): Promise<{ id: number; status: string }[]> {
-  const ok: { id: number; status: string }[] = [];
+): Promise<PurchaseRequestRow[]> {
+  const ok: PurchaseRequestRow[] = [];
   const failed: string[] = [];
   for (const id of unique) {
     try {
@@ -4086,8 +4124,8 @@ async function sequentialApproveStockOutRequests(
 async function sequentialRejectStockOutRequests(
   unique: number[],
   reason: string,
-): Promise<{ id: number; status: string }[]> {
-  const ok: { id: number; status: string }[] = [];
+): Promise<StockOutRequestRow[]> {
+  const ok: StockOutRequestRow[] = [];
   const failed: string[] = [];
   for (const id of unique) {
     try {
@@ -4147,12 +4185,12 @@ export async function approvePurchaseRequestsFinanceBatchApi(
 export async function rejectPurchaseRequestsFinanceBatchApi(
   ids: number[],
   reason = "Rejected by finance",
-): Promise<{ id: number; status: string }[]> {
+): Promise<PurchaseRequestRow[]> {
   const unique = [...new Set(ids)].filter((id) => id > 0);
   if (unique.length === 0) return [];
   if (unique.length === 1) {
     const one = await rejectPurchaseRequestFinanceApi(unique[0], reason);
-    return [{ id: one.id, status: one.status }];
+    return [one];
   }
   if (!hotelBatchGraphqlAttemptsEnabled()) {
     return sequentialRejectPurchaseRequestsFinance(unique, reason);
@@ -4160,14 +4198,13 @@ export async function rejectPurchaseRequestsFinanceBatchApi(
   const mutation = `
     mutation RejectPurchaseRequestsFinanceBatch($ids: [Int!]!, $reason: String) {
       rejectPurchaseRequestsFinanceBatch(ids: $ids, reason: $reason) {
-        id
-        status
+        ${HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS}
       }
     }
   `;
   try {
     const data = await postHotelMutation<{
-      rejectPurchaseRequestsFinanceBatch: { id: number; status: string }[];
+      rejectPurchaseRequestsFinanceBatch: PurchaseRequestRow[];
     }>(mutation, { ids: unique, reason });
     const rows = data.rejectPurchaseRequestsFinanceBatch;
     toast.success(`Rejected ${rows.length} request(s)`);
@@ -4218,12 +4255,12 @@ export async function approvePurchaseRequestsCCBatchApi(
 export async function rejectPurchaseRequestsCCBatchApi(
   ids: number[],
   reason = "Rejected by cost control",
-): Promise<{ id: number; status: string }[]> {
+): Promise<PurchaseRequestRow[]> {
   const unique = [...new Set(ids)].filter((id) => id > 0);
   if (unique.length === 0) return [];
   if (unique.length === 1) {
     const one = await rejectPurchaseRequestCCApi(unique[0], reason);
-    return [{ id: one.id, status: one.status }];
+    return [one];
   }
   if (!hotelBatchGraphqlAttemptsEnabled()) {
     return sequentialRejectPurchaseRequestsCC(unique, reason);
@@ -4231,14 +4268,13 @@ export async function rejectPurchaseRequestsCCBatchApi(
   const mutation = `
     mutation RejectPurchaseRequestsCCBatch($ids: [Int!]!, $reason: String) {
       rejectPurchaseRequestsCCBatch(ids: $ids, reason: $reason) {
-        id
-        status
+        ${HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS}
       }
     }
   `;
   try {
     const data = await postHotelMutation<{
-      rejectPurchaseRequestsCCBatch: { id: number; status: string }[];
+      rejectPurchaseRequestsCCBatch: PurchaseRequestRow[];
     }>(mutation, { ids: unique, reason });
     const rows = data.rejectPurchaseRequestsCCBatch;
     toast.success(`Rejected ${rows.length} request(s)`);
@@ -4289,12 +4325,12 @@ export async function approveStockOutRequestsBatchApi(
 export async function rejectStockOutRequestsBatchApi(
   ids: number[],
   reason = "Rejected by cost control",
-): Promise<{ id: number; status: string }[]> {
+): Promise<StockOutRequestRow[]> {
   const unique = [...new Set(ids)].filter((id) => id > 0);
   if (unique.length === 0) return [];
   if (unique.length === 1) {
     const one = await rejectStockOutRequestApi(unique[0], reason);
-    return [{ id: one.id, status: one.status }];
+    return [one];
   }
   if (!hotelBatchGraphqlAttemptsEnabled()) {
     return sequentialRejectStockOutRequests(unique, reason);
@@ -4302,14 +4338,13 @@ export async function rejectStockOutRequestsBatchApi(
   const mutation = `
     mutation RejectStockOutRequestsBatch($ids: [Int!]!, $reason: String) {
       rejectStockOutRequestsBatch(ids: $ids, reason: $reason) {
-        id
-        status
+        ${HOTEL_STOCK_OUT_AFTER_REJECT_FIELDS}
       }
     }
   `;
   try {
     const data = await postHotelMutation<{
-      rejectStockOutRequestsBatch: { id: number; status: string }[];
+      rejectStockOutRequestsBatch: StockOutRequestRow[];
     }>(mutation, { ids: unique, reason });
     const rows = data.rejectStockOutRequestsBatch;
     toast.success(`Rejected ${rows.length} movement(s)`);
@@ -4496,6 +4531,12 @@ export async function fetchKitchenBarRollupSnapshots(
   });
 }
 
+/**
+ * Rebuilds kitchen/bar monthly roll-up snapshot rows from daily beginning rows for
+ * [fromYmd, toYmd]. The GraphQL resolver must allow the signed-in role (often Cost
+ * Control only); Manager logins may receive “not authorized” until the backend policy
+ * is updated.
+ */
 export async function syncKitchenBarRollupApi(
   fromYmd: string,
   toYmd: string,

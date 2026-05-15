@@ -100,8 +100,10 @@ import {
 } from "@/lib/hotelDailyStation";
 import {
   formatMovementType,
+  formatPurchaseRejectorLine,
   formatPurchaseStatus,
   formatQtyWithUnit,
+  formatStockMovementRejectorLine,
   formatStockOutRequestStatus,
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
@@ -869,12 +871,23 @@ function CostControlInner() {
                                   await rejectPurchaseRequestsCCBatchApi(
                                     selectedPrBatchIds,
                                   );
+                                const batchActor =
+                                  profiles
+                                    .find((p) => p.id === Number(batchCcProfileId))
+                                    ?.displayName?.trim() ?? "";
                                 for (const res of results) {
                                   setPurchases((prev) =>
                                     patchPurchaseRequestStatus(
                                       prev,
                                       res.id,
                                       res.status,
+                                      {
+                                        ...res,
+                                        ccActorName:
+                                          res.ccActorName?.trim() ||
+                                          batchActor ||
+                                          undefined,
+                                      },
                                     ),
                                   );
                                 }
@@ -1005,11 +1018,22 @@ function CostControlInner() {
                                   r.id,
                                   "Rejected by cost control",
                                 );
+                                const pid = Number(ccPick[r.id]);
+                                const actor =
+                                  profiles.find((p) => p.id === pid)?.displayName?.trim() ??
+                                  "";
                                 setPurchases((prev) =>
                                   patchPurchaseRequestStatus(
                                     prev,
                                     r.id,
                                     result.status,
+                                    {
+                                      ...result,
+                                      ccActorName:
+                                        result.ccActorName?.trim() ||
+                                        actor ||
+                                        undefined,
+                                    },
                                   ),
                                 );
                                 void refreshPurchaseQueues();
@@ -1199,12 +1223,23 @@ function CostControlInner() {
                                   await rejectStockOutRequestsBatchApi(
                                     selectedSoBatchIds,
                                   );
+                                const batchActor =
+                                  profiles
+                                    .find((p) => p.id === Number(batchCcProfileId))
+                                    ?.displayName?.trim() ?? "";
                                 for (const res of results) {
                                   setStocks((prev) =>
                                     patchStockOutRequestStatus(
                                       prev,
                                       res.id,
                                       res.status,
+                                      {
+                                        ...res,
+                                        ccActorName:
+                                          res.ccActorName?.trim() ||
+                                          batchActor ||
+                                          undefined,
+                                      },
                                     ),
                                   );
                                 }
@@ -1338,11 +1373,22 @@ function CostControlInner() {
                                 r.id,
                                 "Rejected by cost control",
                               );
+                              const pid = Number(ccPick[-r.id]);
+                              const actor =
+                                profiles.find((p) => p.id === pid)?.displayName?.trim() ??
+                                "";
                               setStocks((prev) =>
                                 patchStockOutRequestStatus(
                                   prev,
                                   r.id,
                                   result.status,
+                                  {
+                                    ...result,
+                                    ccActorName:
+                                      result.ccActorName?.trim() ||
+                                      actor ||
+                                      undefined,
+                                  },
                                 ),
                               );
                               void refreshStockQueues();
@@ -1388,6 +1434,7 @@ function CostControlInner() {
                         <TableHead>Status</TableHead>
                         <TableHead>CC reviewer</TableHead>
                         <TableHead>Finance</TableHead>
+                        <TableHead className="min-w-[160px]">Rejection / reason</TableHead>
                         <TableHead>Created</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1426,6 +1473,23 @@ function CostControlInner() {
                             <TableCell className="text-sm max-w-[120px] truncate">
                               {r.financeActorName ?? "—"}
                             </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[220px]">
+                              {r.status === "REJECTED_CC" ||
+                              r.status === "REJECTED_FINANCE" ? (
+                                <span className="block space-y-0.5">
+                                  <span className="text-foreground font-medium">
+                                    {formatPurchaseRejectorLine(r)}
+                                  </span>
+                                  {r.rejectionReason?.trim() ? (
+                                    <span className="block italic">
+                                      {r.rejectionReason.trim()}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {new Date(r.createdAt).toLocaleString()}
                             </TableCell>
@@ -1457,6 +1521,7 @@ function CostControlInner() {
                         <TableHead>Status</TableHead>
                         <TableHead>Requested by</TableHead>
                         <TableHead>CC reviewer</TableHead>
+                        <TableHead className="min-w-[160px]">Rejection / reason</TableHead>
                         <TableHead>Created</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1502,6 +1567,22 @@ function CostControlInner() {
                             </TableCell>
                             <TableCell className="text-sm max-w-[120px] truncate">
                               {r.ccActorName ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[220px]">
+                              {r.status === "REJECTED" ? (
+                                <span className="block space-y-0.5">
+                                  <span className="text-foreground font-medium">
+                                    {formatStockMovementRejectorLine(r)}
+                                  </span>
+                                  {r.rejectionReason?.trim() ? (
+                                    <span className="block italic">
+                                      {r.rejectionReason.trim()}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {new Date(r.createdAt).toLocaleString()}

@@ -98,6 +98,7 @@ import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 import {
   formatMovementType,
+  formatPurchaseRejectorLine,
   formatPurchaseStatus,
   formatQtyWithUnit,
   HOTEL_INVENTORY_COPY,
@@ -187,18 +188,6 @@ function ManagerContent() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       try {
-        let snapPromise: Promise<KitchenBarMonthlySnapshotRow[]> = Promise.resolve(
-          [],
-        );
-        try {
-          const { fromYmd, toYmd } = normalizeRollupRangeYmd(
-            rollupFromYmd,
-            rollupToYmd,
-          );
-          snapPromise = fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
-        } catch {
-          snapPromise = Promise.resolve([]);
-        }
         const [
           creds,
           regs,
@@ -206,7 +195,6 @@ function ManagerContent() {
           pr,
           so,
           kb,
-          snaps,
           ccp,
           rawMenu,
         ] = await Promise.all([
@@ -216,7 +204,6 @@ function ManagerContent() {
           fetchPurchaseRequests(),
           fetchStockOutRequests(),
           fetchKitchenBarBeginnings(),
-          snapPromise,
           fetchCostControllerProfiles(),
           fetchItems(),
         ]);
@@ -234,7 +221,6 @@ function ManagerContent() {
         setPurchases(pr);
         setStockReqs(so);
         setBeginnings(kb);
-        setMonthlySnapshots(snaps);
         setCcProfiles(ccp);
         setMenuItems(
           Array.isArray(rawMenu)
@@ -250,11 +236,33 @@ function ManagerContent() {
         setRefreshing(false);
       }
     },
-    [tenantScope, rollupFromYmd, rollupToYmd],
+    [tenantScope],
   );
 
+  /** Load stored monthly roll-up rows for the current From/To only when explicitly requested. */
+  const fetchRollupSnapshotsForRange = useCallback(async () => {
+    if (!tenantScope) return;
+    try {
+      const { fromYmd, toYmd } = normalizeRollupRangeYmd(
+        rollupFromYmd,
+        rollupToYmd,
+      );
+      const snaps = await fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
+      setMonthlySnapshots(snaps);
+    } catch (e: unknown) {
+      notifyApiFailure(e, "Could not load roll-up snapshots for this range");
+    }
+  }, [tenantScope, rollupFromYmd, rollupToYmd]);
+
   useEffect(() => {
-    if (tenantScope) loadData();
+    setMonthlySnapshots([]);
+  }, [rollupFromYmd, rollupToYmd]);
+
+  useEffect(() => {
+    setMonthlySnapshots([]);
+    if (tenantScope) {
+      void loadData();
+    }
   }, [tenantScope, loadData]);
 
   const sidebarItems = useMemo(
@@ -681,6 +689,7 @@ function ManagerContent() {
                   <TableHead>Status</TableHead>
                   <TableHead>CC by</TableHead>
                   <TableHead>Finance</TableHead>
+                  <TableHead className="min-w-[140px]">Rejection / reason</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
@@ -694,6 +703,20 @@ function ManagerContent() {
                     <TableCell>{formatPurchaseStatus(p.status)}</TableCell>
                     <TableCell>{p.ccActorName ?? "—"}</TableCell>
                     <TableCell>{p.financeActorName ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[220px]">
+                      {p.status === "REJECTED_CC" || p.status === "REJECTED_FINANCE" ? (
+                        <span className="block space-y-0.5">
+                          <span className="text-foreground font-medium">
+                            {formatPurchaseRejectorLine(p)}
+                          </span>
+                          {p.rejectionReason?.trim() ? (
+                            <span className="block italic">{p.rejectionReason.trim()}</span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">
                       {new Date(p.createdAt).toLocaleString()}
                     </TableCell>
@@ -747,8 +770,10 @@ function ManagerContent() {
                 <CardTitle>Date range roll-up from daily counts</CardTitle>
                 <CardDescription>
                   Totals use daily rows dated between <strong>From</strong> and{" "}
-                  <strong>To</strong> (inclusive). Run <strong>Sync Monthly Data</strong>{" "}
-                  to stamp this range (Cost Control role).
+                  <strong>To</strong> (inclusive). Pick dates, then use{" "}
+                  <strong>Refresh roll-ups</strong> to load stored data for that range.{" "}
+                  <strong>Sync Monthly Data</strong> writes roll-ups from the daily grid
+                  (requires API permission for your role — often the Cost Control account).
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -767,7 +792,7 @@ function ManagerContent() {
                     onChange={setRollupToYmd}
                     className="min-w-[200px]"
                   />
-                  <Button variant="secondary" onClick={() => loadData(true)}>
+                  <Button variant="secondary" onClick={() => void fetchRollupSnapshotsForRange()}>
                     Refresh roll-ups
                   </Button>
                   <PendingButton
@@ -780,12 +805,21 @@ function ManagerContent() {
                           quiet: true,
                         });
                         toast.success("Roll-up data synced for selected dates");
+                        await fetchRollupSnapshotsForRange();
                         await loadData(true);
                       } catch (err: unknown) {
-                        notifyApiFailure(
-                          err,
-                          "Choose valid dates or sync from Cost Control",
-                        );
+                        const raw =
+                          err instanceof Error ? err.message : String(err ?? "");
+                        if (/not authorized|unauthorized|forbidden|^403$/i.test(raw)) {
+                          toast.error(
+                            "Sync is not allowed for this login. Monthly roll-up sync is usually limited to the Cost Control role. Use the Cost Control terminal to run \"Sync Monthly Data\", or ask your administrator to grant Managers permission for this action.",
+                          );
+                        } else {
+                          notifyApiFailure(
+                            err,
+                            "Choose valid dates or sync from Cost Control",
+                          );
+                        }
                       } finally {
                         setManagerRollupSyncPending(false);
                       }
@@ -795,7 +829,10 @@ function ManagerContent() {
                   </PendingButton>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Showing stored roll-up for <span className="font-medium text-foreground">{rollupRangeLabel}</span>.
+                  Showing stored roll-up for{" "}
+                  <span className="font-medium text-foreground">{rollupRangeLabel}</span>{" "}
+                  after you click <strong>Refresh roll-ups</strong>. Changing dates clears
+                  the table until you refresh again.
                 </p>
                 <div className="overflow-x-auto rounded-lg border">
                   <Table>
