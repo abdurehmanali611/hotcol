@@ -3647,16 +3647,19 @@ export async function fetchKitchenBarBeginnings(): Promise<
   });
 }
 
-export async function createPurchaseRequestApi(input: {
-  itemName: string;
-  quantity: number;
-  measuredBy: string;
-  notes?: string;
-  estimatedUnitPrice?: number;
-  supplierName?: string;
-  supplierPhone?: string;
-  category?: string;
-}) {
+export async function createPurchaseRequestApi(
+  input: {
+    itemName: string;
+    quantity: number;
+    measuredBy: string;
+    notes?: string;
+    estimatedUnitPrice?: number;
+    supplierName?: string;
+    supplierPhone?: string;
+    category?: string;
+  },
+  options?: { suppressSuccessToast?: boolean },
+) {
   const mutation = `
     mutation CreatePurchaseRequest(
       $itemName: String!
@@ -3690,16 +3693,21 @@ export async function createPurchaseRequestApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");
   }
-  toast.success("Purchase request submitted");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Purchase request submitted");
+  }
   return response.data.data.createPurchaseRequest;
 }
 
-export async function createStockOutRequestApi(input: {
-  itemRegistrationId: number;
-  movementType: string;
-  amount: number;
-  stakeHolderOrReason: string;
-}) {
+export async function createStockOutRequestApi(
+  input: {
+    itemRegistrationId: number;
+    movementType: string;
+    amount: number;
+    stakeHolderOrReason: string;
+  },
+  options?: { suppressSuccessToast?: boolean },
+) {
   const mutation = `
     mutation CreateStockOutRequest(
       $itemRegistrationId: Int!
@@ -3725,7 +3733,9 @@ export async function createStockOutRequestApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");
   }
-  toast.success("Movement submitted for cost control approval");
+  if (!options?.suppressSuccessToast) {
+    toast.success("Movement submitted for cost control approval");
+  }
   return response.data.data.createStockOutRequest;
 }
 

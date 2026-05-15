@@ -71,6 +71,7 @@ import {
   computeInventoryPaidAmountETB,
 } from "@/lib/hotelInventoryPayment";
 import {
+  effectiveTenantScopeForHotelTerminal,
   normalizeInventoryItemName,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
@@ -133,6 +134,9 @@ export function StoreComponent({
     await loadCoordinator.run(async (isStale) => {
       setFetching(true);
       try {
+        const tenantEff = effectiveTenantScopeForHotelTerminal(tenantScope, {
+          requireHotelTerminal: hotelInventory,
+        });
         const [itemData, itemStatusData, prData] = await Promise.all([
           fetchItemRegistrations(),
           fetchItemStatus(),
@@ -142,17 +146,23 @@ export function StoreComponent({
         const response = itemData as ItemRegistration[];
         const statusResponse = itemStatusData as ItemStatus[];
         if (Array.isArray(response)) {
-          const hotelItem = response.filter(
-            (item) => item.HotelName === tenantScope,
-          );
+          const hotelItem = hotelInventory
+            ? response.filter((item) =>
+                rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+              )
+            : response.filter((item) => item.HotelName === tenantScope);
           setStoreItem(hotelItem);
         } else {
           setStoreItem([]);
         }
         if (Array.isArray(statusResponse)) {
-          const hotelItem = statusResponse.filter((item) =>
-            rowHotelMatchesTenantScope(item.HotelName, tenantScope),
-          );
+          const hotelItem = hotelInventory
+            ? statusResponse.filter((item) =>
+                rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+              )
+            : statusResponse.filter((item) =>
+                rowHotelMatchesTenantScope(item.HotelName, tenantScope),
+              );
           setItemStatus(hotelItem);
         } else {
           setItemStatus([]);
@@ -160,7 +170,7 @@ export function StoreComponent({
         if (hotelInventory && Array.isArray(prData)) {
           setPurchaseRows(
             (prData as PurchaseRequestRow[]).filter((p) =>
-              rowHotelMatchesTenantScope(p.HotelName, tenantScope),
+              rowHotelMatchesTenantScope(p.HotelName, tenantEff),
             ),
           );
         } else {

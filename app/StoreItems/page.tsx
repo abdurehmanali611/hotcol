@@ -1,8 +1,13 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { fetchItemRegistrations, ItemRegistration, type StockOutRequestRow } from "@/lib/actions";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import {
+  effectiveTenantScopeForHotelTerminal,
+  rowHotelMatchesTenantScope,
+} from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
+import type { DataTableRef } from "./data-table";
+import { InventoryBatchMovementBar } from "@/components/hotel/InventoryBatchMovementBar";
 import UpdateStock from "@/components/UpdateStock";
 import { ActiveInventoryPaymentSummary } from "@/components/hotel/ActiveInventoryPaymentSummary";
 import {
@@ -41,16 +46,20 @@ export default function StoreItems({
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [data, setData] = useState<ItemRegistration[]>(
-    Array.isArray(items) ? items : []
+    Array.isArray(items) ? items : [],
   );
+  const tableRef = useRef<DataTableRef>(null);
+  const [batchSelected, setBatchSelected] = useState<ItemRegistration[]>([]);
 
   const scopeRows = useCallback(
     (rows: ItemRegistration[]) => {
-      const t = tenantScope?.trim();
-      if (!t) return rows;
-      return rows.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t));
+      const eff = effectiveTenantScopeForHotelTerminal(tenantScope, {
+        requireHotelTerminal: hotelStockApprovals,
+      });
+      if (!eff) return hotelStockApprovals ? [] : rows;
+      return rows.filter((it) => rowHotelMatchesTenantScope(it.HotelName, eff));
     },
-    [tenantScope],
+    [tenantScope, hotelStockApprovals],
   );
 
   const refresh = useCallback(async () => {
@@ -172,13 +181,26 @@ export default function StoreItems({
       )}
 
       <div className={tableShell}>
+        {hotelStockApprovals && !readOnly && (
+          <InventoryBatchMovementBar
+            selected={batchSelected}
+            tableRef={tableRef}
+            refresh={refresh}
+            onHotelStockRequestCreated={onHotelStockRequestCreated}
+          />
+        )}
         <DataTableClientWrapper
+          ref={tableRef}
           data={filteredData}
           onEdit={handleEdit}
           refresh={refresh}
           hotelStockApprovals={hotelStockApprovals}
           readOnly={readOnly}
           onHotelStockRequestCreated={onHotelStockRequestCreated}
+          enableRowSelection={hotelStockApprovals && !readOnly}
+          onRowSelectionChange={
+            hotelStockApprovals && !readOnly ? setBatchSelected : undefined
+          }
         />
       </div>
 

@@ -20,3 +20,19 @@ export function rowHotelMatchesTenantScope(
 export function normalizeInventoryItemName(name: string): string {
   return String(name ?? "").trim().toLowerCase();
 }
+
+/**
+ * React `tenantScope` can be empty on the first client paint before `localStorage.hotel_name`
+ * is applied. Hotel terminals should fall back to that key so fetches and filters never
+ * briefly show every property's rows.
+ */
+export function effectiveTenantScopeForHotelTerminal(
+  reactTenantScope: string | null | undefined,
+  options?: { requireHotelTerminal?: boolean },
+): string {
+  const fromProps = String(reactTenantScope ?? "").trim();
+  if (fromProps) return fromProps;
+  if (!options?.requireHotelTerminal) return "";
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("hotel_name")?.trim() || "";
+}

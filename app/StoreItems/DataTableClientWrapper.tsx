@@ -1,8 +1,8 @@
-"use client"
-import { useMemo } from "react";
+"use client";
+import { forwardRef, useMemo } from "react";
 import { columns, items } from "./columns";
-import { DataTable } from "./data-table";
-
+import { DataTable, type DataTableRef } from "./data-table";
+import type { ItemRegistration } from "@/lib/actions";
 import type { StockOutRequestRow } from "@/lib/actions";
 
 interface WrapperProps {
@@ -12,16 +12,26 @@ interface WrapperProps {
   hotelStockApprovals?: boolean;
   readOnly?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
+  enableRowSelection?: boolean;
+  onRowSelectionChange?: (rows: ItemRegistration[]) => void;
 }
 
-export function DataTableClientWrapper({
-  data,
-  onEdit,
-  refresh,
-  hotelStockApprovals,
-  readOnly,
-  onHotelStockRequestCreated,
-}: WrapperProps) {
+export const DataTableClientWrapper = forwardRef<
+  DataTableRef,
+  WrapperProps
+>(function DataTableClientWrapper(
+  {
+    data,
+    onEdit,
+    refresh,
+    hotelStockApprovals,
+    readOnly,
+    onHotelStockRequestCreated,
+    enableRowSelection,
+    onRowSelectionChange,
+  },
+  ref,
+) {
   const memoizedColumns = useMemo(
     () =>
       columns(onEdit, refresh, {
@@ -31,6 +41,15 @@ export function DataTableClientWrapper({
       }),
     [onEdit, refresh, hotelStockApprovals, readOnly, onHotelStockRequestCreated],
   );
-  
-  return <DataTable columns={memoizedColumns} data={data}/>
-}
+
+  return (
+    <DataTable
+      ref={ref}
+      columns={memoizedColumns}
+      data={data}
+      enableRowSelection={!!enableRowSelection}
+      getRowId={(row) => String(row.id)}
+      onRowSelectionChange={onRowSelectionChange}
+    />
+  );
+});
