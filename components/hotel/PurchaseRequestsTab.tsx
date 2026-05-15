@@ -54,7 +54,6 @@ type DraftLine = {
   itemName: string;
   quantity: number;
   measuredBy: string;
-  notes: string;
   estimatedUnitPrice: number;
   supplierName: string;
   supplierPhone: string;
@@ -74,7 +73,6 @@ function emptyLine(): DraftLine {
     itemName: "",
     quantity: 1,
     measuredBy: "Piece",
-    notes: "",
     estimatedUnitPrice: 0,
     supplierName: "",
     supplierPhone: "",
@@ -95,8 +93,7 @@ export default function PurchaseRequestsTab({
   const { isPending, run } = useConcurrentActions();
   const submitKey = "purchase-request-batch-submit";
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
-  const [sharedSupplierName, setSharedSupplierName] = useState("");
-  const [sharedSupplierPhone, setSharedSupplierPhone] = useState("");
+  const [sharedNote, setSharedNote] = useState("");
 
   const tenant = tenantScope.trim();
 
@@ -130,21 +127,20 @@ export default function PurchaseRequestsTab({
         typeof window !== "undefined"
           ? (localStorage.getItem("user_name")?.trim() ?? "")
           : "";
+      const notePayload = sharedNote.trim() || undefined;
       let ok = 0;
       let failed = 0;
       for (let i = 0; i < validLines.length; i++) {
         const l = validLines[i];
         try {
-          const supplierName =
-            (l.supplierName || sharedSupplierName).trim() || undefined;
-          const supplierPhone =
-            (l.supplierPhone || sharedSupplierPhone).trim() || undefined;
+          const supplierName = l.supplierName.trim() || undefined;
+          const supplierPhone = l.supplierPhone.trim() || undefined;
           const result = await createPurchaseRequestApi(
             {
               itemName: l.itemName.trim(),
               quantity: l.quantity,
               measuredBy: l.measuredBy,
-              notes: l.notes || undefined,
+              notes: notePayload,
               estimatedUnitPrice: l.estimatedUnitPrice,
               supplierName,
               supplierPhone,
@@ -158,7 +154,7 @@ export default function PurchaseRequestsTab({
                 itemName: l.itemName.trim(),
                 quantity: l.quantity,
                 measuredBy: l.measuredBy,
-                notes: l.notes || undefined,
+                notes: notePayload,
                 estimatedUnitPrice: l.estimatedUnitPrice,
                 supplierName,
                 supplierPhone,
@@ -181,6 +177,7 @@ export default function PurchaseRequestsTab({
           }`,
         );
         setLines([emptyLine()]);
+        setSharedNote("");
       } else {
         toast.error("Could not submit purchase requests");
       }
@@ -188,37 +185,45 @@ export default function PurchaseRequestsTab({
   };
 
   return (
-    <Card className="max-w-5xl mx-auto border-primary/20 shadow-xl overflow-hidden bg-card/95 backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10">
+    <Card className="max-w-6xl mx-auto border-primary/20 shadow-xl overflow-hidden bg-card/95 backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10">
       <div className="h-1 bg-linear-to-r from-primary/55 via-violet-500/45 to-cyan-500/40" />
-      <CardHeader className="pb-2">
-        <CardTitle className="text-xl">Purchase requests (single or batch)</CardTitle>
-        <CardDescription className="text-pretty max-w-3xl">
-          Add one or more lines below — each line becomes its own request to cost control,
-          then finance. Submit all at once (same idea as paying multiple café orders together).
+      <CardHeader className="pb-2 space-y-1">
+        <CardTitle className="text-xl tracking-tight">
+          Purchase requests (single or batch)
+        </CardTitle>
+        <CardDescription className="text-pretty max-w-3xl leading-relaxed">
+          Each row is a separate request with its own supplier. Use one shared note below for
+          context that applies to the whole batch (delivery window, budget code, etc.).
         </CardDescription>
       </CardHeader>
-      <CardContent className="pb-8 space-y-6">
+      <CardContent className="pb-8 space-y-8">
         <form onSubmit={onSubmit} className="space-y-8">
           <HotelFormSection
             title="Request lines"
-            description="Every row with an item name is submitted. Optional supplier fields on each row override the shared defaults below when filled."
+            description="Supplier name and phone are per item. Leave supplier blank only if you truly have no contact yet for that line."
           >
-            <div className="rounded-lg border border-border/80 overflow-x-auto">
+            <div className="rounded-xl border border-border/80 overflow-x-auto shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="min-w-[160px]">Item</TableHead>
-                    <TableHead className="w-24 text-right">Qty</TableHead>
-                    <TableHead className="w-28">Unit</TableHead>
-                    <TableHead className="w-32">Category</TableHead>
-                    <TableHead className="w-28 text-right">Est. ETB</TableHead>
-                    <TableHead className="min-w-[120px]">Notes</TableHead>
-                    <TableHead className="w-28" />
+                  <TableRow className="bg-muted/45 hover:bg-muted/45 border-b border-border/70">
+                    <TableHead className="min-w-[150px] font-semibold">Item</TableHead>
+                    <TableHead className="w-[88px] text-right font-semibold">Qty</TableHead>
+                    <TableHead className="w-[100px] font-semibold">Unit</TableHead>
+                    <TableHead className="w-[120px] font-semibold">Category</TableHead>
+                    <TableHead className="w-[100px] text-right font-semibold">
+                      Est. ETB
+                    </TableHead>
+                    <TableHead className="min-w-[130px] font-semibold">Supplier</TableHead>
+                    <TableHead className="min-w-[160px] font-semibold">Supplier phone</TableHead>
+                    <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lines.map((l) => (
-                    <TableRow key={l.key}>
+                    <TableRow
+                      key={l.key}
+                      className="border-border/50 hover:bg-muted/20 transition-colors"
+                    >
                       <TableCell className="align-top py-3">
                         <Input
                           value={l.itemName}
@@ -296,14 +301,28 @@ export default function PurchaseRequestsTab({
                         />
                       </TableCell>
                       <TableCell className="align-top py-3">
-                        <Textarea
-                          value={l.notes}
+                        <Input
+                          value={l.supplierName}
                           onChange={(e) =>
-                            updateLine(l.key, { notes: e.target.value })
+                            updateLine(l.key, { supplierName: e.target.value })
                           }
-                          placeholder="Optional"
-                          rows={2}
-                          className="min-h-0 text-sm resize-y"
+                          placeholder="Supplier"
+                          className="h-9"
+                        />
+                      </TableCell>
+                      <TableCell className="align-top py-3 min-w-[200px]">
+                        <PhoneInput
+                          id={`pr-supplier-phone-${l.key}`}
+                          defaultCountry="ET"
+                          countryCallingCodeEditable
+                          international
+                          value={l.supplierPhone || undefined}
+                          onChange={(v) =>
+                            updateLine(l.key, {
+                              supplierPhone: (v as string) || "",
+                            })
+                          }
+                          className="w-full"
                         />
                       </TableCell>
                       <TableCell className="align-top py-3 text-right">
@@ -337,38 +356,26 @@ export default function PurchaseRequestsTab({
           </HotelFormSection>
 
           <HotelFormSection
-            title="Shared supplier (optional)"
-            description="Used for any line that does not set its own supplier name or phone."
+            title="Shared note for this batch"
+            description="One note is copied onto every request in this submission (e.g. expected delivery, GL reference)."
           >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <HotelFormFieldStack>
-                <Label htmlFor="pr-shared-supplier">Supplier name</Label>
-                <Input
-                  id="pr-shared-supplier"
-                  value={sharedSupplierName}
-                  onChange={(e) => setSharedSupplierName(e.target.value)}
-                  className="h-10 border-border/80 shadow-sm"
-                />
-              </HotelFormFieldStack>
-              <HotelFormFieldStack className="sm:col-span-2">
-                <Label htmlFor="pr-shared-phone">Supplier phone</Label>
-                <PhoneInput
-                  id="pr-shared-phone"
-                  defaultCountry="ET"
-                  countryCallingCodeEditable
-                  international
-                  value={sharedSupplierPhone || undefined}
-                  onChange={(v) => setSharedSupplierPhone((v as string) || "")}
-                  className="w-full"
-                />
-              </HotelFormFieldStack>
-            </div>
+            <HotelFormFieldStack>
+              <Label htmlFor="pr-shared-note">Note for all lines</Label>
+              <Textarea
+                id="pr-shared-note"
+                value={sharedNote}
+                onChange={(e) => setSharedNote(e.target.value)}
+                placeholder="Optional — applies to each line submitted together"
+                rows={4}
+                className="min-h-24 resize-y border-border/80 shadow-sm"
+              />
+            </HotelFormFieldStack>
           </HotelFormSection>
 
           <PendingButton
             type="submit"
             pending={isPending(submitKey)}
-            className="w-full h-11 gap-2 text-base shadow-md"
+            className="w-full h-11 gap-2 text-base font-semibold shadow-md"
           >
             Submit {validLines.length || 0} request
             {validLines.length === 1 ? "" : "s"}

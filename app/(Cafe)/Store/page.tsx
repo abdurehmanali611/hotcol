@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   checkPityCashBalance,
   CreateItemRegistration,
@@ -127,6 +127,13 @@ export function StoreComponent({
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchedParams.get("hotel"),
   );
+  const inventoryTenantKey = useMemo(
+    () =>
+      effectiveTenantScopeForHotelTerminal(tenantScope, {
+        requireHotelTerminal: hotelInventory,
+      }),
+    [tenantScope, hotelInventory],
+  );
   const displayLabel = displayName || "Store Management";
   const logoUrl = searchedParams.get("logo");
 
@@ -179,7 +186,7 @@ export function StoreComponent({
       } catch {
         if (!isStale()) toast.error("Failed to load data");
       } finally {
-        if (!isStale()) setFetching(false);
+        setFetching(false);
       }
     });
   }, [hotelInventory, tenantScope, loadCoordinator]);
@@ -188,11 +195,14 @@ export function StoreComponent({
     if (!hotelInventory) return;
     await loadCoordinator.run(async (isStale) => {
       try {
+        const tenantEff = effectiveTenantScopeForHotelTerminal(tenantScope, {
+          requireHotelTerminal: hotelInventory,
+        });
         const prData = await fetchPurchaseRequests();
         if (isStale()) return;
         setPurchaseRows(
           (prData as PurchaseRequestRow[]).filter((p) =>
-            rowHotelMatchesTenantScope(p.HotelName, tenantScope),
+            rowHotelMatchesTenantScope(p.HotelName, tenantEff),
           ),
         );
         setRequestStatusSeed((n) => n + 1);
@@ -260,15 +270,16 @@ export function StoreComponent({
       purchaseWithVat: true,
       supplierTinNumber: "",
       paidAmount: 0,
-      HotelName: tenantScope || "",
+      HotelName: inventoryTenantKey || "",
     },
   });
 
   useEffect(() => {
-    if (tenantScope) {
-      form.setValue("HotelName", tenantScope);
+    const key = hotelInventory ? inventoryTenantKey : tenantScope.trim();
+    if (key) {
+      form.setValue("HotelName", key);
     }
-  }, [tenantScope, form]);
+  }, [tenantScope, hotelInventory, inventoryTenantKey, form]);
 
   useEffect(() => {
     if (hotelInventory) {
@@ -309,9 +320,10 @@ export function StoreComponent({
         const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
         const want = normalizeInventoryItemName(payload.name);
         if (want.length > 0) {
+          const tenantForDup = hotelInventory ? inventoryTenantKey : tenantScope;
           const dup = storeItem.find(
             (it) =>
-              rowHotelMatchesTenantScope(it.HotelName, tenantScope) &&
+              rowHotelMatchesTenantScope(it.HotelName, tenantForDup) &&
               normalizeInventoryItemName(it.name) === want,
           );
           if (dup) {
@@ -357,7 +369,7 @@ export function StoreComponent({
           purchaseWithVat: true,
           supplierTinNumber: "",
           paidAmount: 0,
-          HotelName: tenantScope || "",
+          HotelName: inventoryTenantKey || "",
         });
         setPreviewUrl(null);
         await loadData();
@@ -708,7 +720,7 @@ export function StoreComponent({
         ) : activeView === "Purchases" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <PurchaseRequestsTab
-              tenantScope={tenantScope ?? ""}
+              tenantScope={inventoryTenantKey}
               onCreated={handlePurchaseRequestCreated}
             />
           </div>
@@ -741,7 +753,11 @@ export function StoreComponent({
           </div>
         ) : activeView === "Inactive" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-            <Inactive items={itemStatus} admin={false} hotelName={tenantScope}/>
+            <Inactive
+              items={itemStatus}
+              admin={false}
+              hotelName={hotelInventory ? inventoryTenantKey : tenantScope}
+            />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-300">

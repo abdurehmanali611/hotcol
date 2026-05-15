@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from "react";
 
+function readStoredTenant(fallbackUrl: string): string {
+  if (typeof window === "undefined") return fallbackUrl;
+  return localStorage.getItem("hotel_name")?.trim() || fallbackUrl;
+}
+
+function readStoredDisplay(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("hotel_display_name")?.trim() || "";
+}
+
 /**
  * `hotel` query param and `localStorage.hotel_name` hold the tenant scope (e.g. TIN)
  * for matching Item/Order rows. `localStorage.hotel_display_name` is the human-facing
@@ -9,10 +19,10 @@ import { useEffect, useState } from "react";
  */
 export function useTenantScopeAndDisplay(hotelFromUrl: string | null | undefined) {
   const url = (hotelFromUrl ?? "").trim();
-  const [tenantScope, setTenantScope] = useState(url);
-  const [displayName, setDisplayName] = useState("");
+  const [tenantScope, setTenantScope] = useState(() => readStoredTenant(url));
+  const [displayName, setDisplayName] = useState(() => readStoredDisplay());
 
-  // After mount, read browser storage so headers match login without SSR/localStorage mismatch on first paint.
+  // Keep in sync when the URL param changes or storage updates after navigation.
   useEffect(() => {
     const tenant = localStorage.getItem("hotel_name")?.trim() || url;
     const display = localStorage.getItem("hotel_display_name")?.trim() || "";
