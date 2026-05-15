@@ -29,15 +29,10 @@ import {
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import type { DataTableRef } from "@/app/StoreItems/data-table";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Send } from "lucide-react";
 
 type MovementKind = "STOCK_OUT" | "WASTAGE" | "RETURN_SUPPLIER";
 
@@ -226,127 +221,119 @@ export function InventoryBatchMovementBar({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 border-b border-border/60 bg-muted/30 px-4 py-3.5">
-        <p className="text-sm text-muted-foreground">
-          <span className="font-semibold tabular-nums text-foreground">
-            {selected.length}
-          </span>{" "}
-          line{selected.length === 1 ? "" : "s"} selected — configure each movement below.
-        </p>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="shadow-sm"
-          onClick={() => setOpen(true)}
-        >
-          Review & submit movements…
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-muted-foreground"
-          onClick={() => tableRef.current?.resetRowSelection()}
-        >
-          Clear selection
-        </Button>
+      <div className="border-b border-border/60 bg-muted/25 px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <p className="text-sm text-muted-foreground min-w-0">
+            <span className="font-semibold tabular-nums text-foreground">
+              {selected.length}
+            </span>{" "}
+            line{selected.length === 1 ? "" : "s"} selected. Open the editor to set movement,
+            quantity, and destination per item.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              className="gap-2 font-semibold shadow-sm"
+              onClick={() => setOpen(true)}
+            >
+              <Send className="size-4 shrink-0" aria-hidden />
+              Review and submit
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="text-muted-foreground"
+              onClick={() => tableRef.current?.resetRowSelection()}
+            >
+              Clear selection
+            </Button>
+          </div>
+        </div>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl gap-0 overflow-hidden p-0 sm:rounded-xl">
-          <div className="border-b border-border/60 bg-muted/20 px-6 py-4">
-            <DialogHeader className="space-y-1.5 text-left">
-              <DialogTitle className="text-lg">Batch movement requests</DialogTitle>
-              <DialogDescription className="text-pretty leading-relaxed">
-                Each row is a separate request. Set <strong>movement</strong>,{" "}
-                <strong>quantity</strong>, and either a <strong>station</strong> (stock-out) or{" "}
-                <strong>reason</strong> (wastage / return) per item. Cost control approves each
-                line on its own.
+        <DialogContent
+          showCloseButton
+          className="flex max-h-[min(92vh,720px)] w-full max-w-xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        >
+          <div className="shrink-0 border-b border-border/60 bg-linear-to-b from-muted/40 to-muted/10 px-5 pt-5 pb-4 pr-12">
+            <DialogHeader className="space-y-2 text-left">
+              <DialogTitle className="text-base font-semibold tracking-tight sm:text-lg">
+                Batch movement requests
+              </DialogTitle>
+              <DialogDescription className="text-sm text-pretty leading-relaxed">
+                Each card is one request. Choose movement and quantity, then either a station
+                (stock-out) or a reason (wastage / return). Cost control reviews lines
+                separately.
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          <ScrollArea className="max-h-[min(70vh,520px)] px-2 sm:px-4">
-            <div className="py-3">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="min-w-[140px] whitespace-normal">
-                      Item
-                    </TableHead>
-                    <TableHead className="w-20 text-right whitespace-normal">
-                      On hand
-                    </TableHead>
-                    <TableHead className="w-[130px] whitespace-normal">
-                      Movement
-                    </TableHead>
-                    <TableHead className="w-24 text-right whitespace-normal">
-                      Qty
-                    </TableHead>
-                    <TableHead className="min-w-[200px] whitespace-normal">
-                      Station / custom
-                    </TableHead>
-                    <TableHead className="min-w-[160px] whitespace-normal">
-                      Reason (wastage / return)
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((line) => (
-                    <TableRow
-                      key={line.registrationId}
-                      className="border-border/50 align-top"
-                    >
-                      <TableCell className="py-3 font-medium leading-snug">
-                        {line.itemName}
-                      </TableCell>
-                      <TableCell className="py-3 text-right tabular-nums text-muted-foreground">
-                        {line.onHand}{" "}
-                        <span className="text-xs font-normal">{line.measuredBy}</span>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <Select
-                          value={line.movement}
-                          onValueChange={(v) =>
-                            updateLine(line.registrationId, {
-                              movement: v as MovementKind,
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-9 text-left">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="STOCK_OUT">Stock out</SelectItem>
-                            <SelectItem value="WASTAGE">Wastage</SelectItem>
-                            <SelectItem value="RETURN_SUPPLIER">
-                              Return to supplier
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <Input
-                          type="number"
-                          min={0.01}
-                          step={0.01}
-                          className="h-9 tabular-nums text-right"
-                          value={line.amount}
-                          onChange={(e) =>
-                            updateLine(line.registrationId, {
-                              amount: e.target.value,
-                            })
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="py-3 space-y-2">
+          <ScrollArea className="min-h-0 flex-1 overflow-x-hidden">
+            <div className="space-y-3 px-4 py-4 sm:px-5">
+              {lines.map((line) => (
+                <div
+                  key={line.registrationId}
+                  className="rounded-xl border border-border/70 bg-card/80 p-4 shadow-sm ring-1 ring-black/4 dark:ring-white/6"
+                >
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2 gap-y-1">
+                    <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
+                      {line.itemName}
+                    </p>
+                    <Badge variant="secondary" className="shrink-0 tabular-nums font-normal">
+                      {line.onHand} {line.measuredBy}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5 sm:col-span-1">
+                      <Label htmlFor={`mov-${line.registrationId}`}>Movement</Label>
+                      <Select
+                        value={line.movement}
+                        onValueChange={(v) =>
+                          updateLine(line.registrationId, {
+                            movement: v as MovementKind,
+                          })
+                        }
+                      >
+                        <SelectTrigger id={`mov-${line.registrationId}`} className="h-10 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="STOCK_OUT">Stock out</SelectItem>
+                          <SelectItem value="WASTAGE">Wastage</SelectItem>
+                          <SelectItem value="RETURN_SUPPLIER">Return to supplier</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-1">
+                      <Label htmlFor={`qty-${line.registrationId}`}>Quantity</Label>
+                      <Input
+                        id={`qty-${line.registrationId}`}
+                        type="number"
+                        min={0.01}
+                        step={0.01}
+                        className="h-10 tabular-nums"
+                        value={line.amount}
+                        onChange={(e) =>
+                          updateLine(line.registrationId, {
+                            amount: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+
+                    {line.movement === "STOCK_OUT" ? (
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Station or destination</Label>
                         <Select
                           value={line.stakeholder}
                           onValueChange={(v) =>
                             updateLine(line.registrationId, { stakeholder: v })
                           }
-                          disabled={line.movement !== "STOCK_OUT"}
                         >
-                          <SelectTrigger className="h-9">
+                          <SelectTrigger className="h-10 w-full">
                             <SelectValue placeholder="Station" />
                           </SelectTrigger>
                           <SelectContent>
@@ -358,51 +345,55 @@ export function InventoryBatchMovementBar({
                           </SelectContent>
                         </Select>
                         <Input
-                          className="h-9 text-sm"
-                          placeholder="Or type a custom destination…"
+                          className="h-10 text-sm"
+                          placeholder="Optional: custom destination"
                           value={line.customStation}
-                          disabled={line.movement !== "STOCK_OUT"}
                           onChange={(e) =>
                             updateLine(line.registrationId, {
                               customStation: e.target.value,
                             })
                           }
                         />
-                      </TableCell>
-                      <TableCell className="py-3">
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label htmlFor={`reason-${line.registrationId}`}>
+                          Reason (required)
+                        </Label>
                         <Input
-                          className="h-9"
-                          placeholder="Required for wastage / return"
+                          id={`reason-${line.registrationId}`}
+                          className="h-10"
+                          placeholder="e.g. spoilage, wrong delivery…"
                           value={line.reason}
-                          disabled={line.movement === "STOCK_OUT"}
                           onChange={(e) =>
                             updateLine(line.registrationId, {
                               reason: e.target.value,
                             })
                           }
                         />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </ScrollArea>
 
-          <DialogFooter className="gap-2 border-t border-border/60 bg-muted/15 px-6 py-4 sm:justify-between">
-            <p className="text-xs text-muted-foreground self-center max-sm:hidden">
-              Stock-out uses the dropdown and/or custom destination; other movements use the
-              reason column.
+          <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border/60 bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <p className="text-xs text-muted-foreground order-2 sm:order-1 sm:max-w-[55%]">
+              Stock-out needs a station or custom destination. Wastage and returns need a
+              reason.
             </p>
-            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
+            <div className="flex w-full flex-col-reverse gap-2 order-1 sm:order-2 sm:w-auto sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <PendingButton
                 pending={isPending(batchKey)}
                 onClick={() => handleSubmit()}
-                className="min-w-[160px]"
+                className="gap-2 min-w-40 font-semibold"
               >
+                <Send className="size-4 shrink-0" aria-hidden />
                 Submit {lines.length} request{lines.length === 1 ? "" : "s"}
               </PendingButton>
             </div>

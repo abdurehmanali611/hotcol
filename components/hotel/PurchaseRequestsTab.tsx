@@ -30,14 +30,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -192,7 +184,7 @@ export default function PurchaseRequestsTab({
           Purchase requests (single or batch)
         </CardTitle>
         <CardDescription className="text-pretty max-w-3xl leading-relaxed">
-          Each row is a separate request with its own supplier. Use one shared note below for
+          Each line is a separate request with its own supplier. Use one shared note below for
           context that applies to the whole batch (delivery window, budget code, etc.).
         </CardDescription>
       </CardHeader>
@@ -200,42 +192,48 @@ export default function PurchaseRequestsTab({
         <form onSubmit={onSubmit} className="space-y-8">
           <HotelFormSection
             title="Request lines"
-            description="Supplier name and phone are per item. Leave supplier blank only if you truly have no contact yet for that line."
+            description="Each card is one purchase request. Supplier and phone are per line. Fields wrap and stack so you do not need to scroll sideways."
           >
-            <div className="rounded-xl border border-border/80 overflow-x-auto shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/45 hover:bg-muted/45 border-b border-border/70">
-                    <TableHead className="min-w-[150px] font-semibold">Item</TableHead>
-                    <TableHead className="w-[88px] text-right font-semibold">Qty</TableHead>
-                    <TableHead className="w-[100px] font-semibold">Unit</TableHead>
-                    <TableHead className="w-[120px] font-semibold">Category</TableHead>
-                    <TableHead className="w-[100px] text-right font-semibold">
-                      Est. ETB
-                    </TableHead>
-                    <TableHead className="min-w-[130px] font-semibold">Supplier</TableHead>
-                    <TableHead className="min-w-[160px] font-semibold">Supplier phone</TableHead>
-                    <TableHead className="w-12" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((l) => (
-                    <TableRow
-                      key={l.key}
-                      className="border-border/50 hover:bg-muted/20 transition-colors"
+            <div className="space-y-3 min-w-0">
+              {lines.map((l, index) => (
+                <div
+                  key={l.key}
+                  className="rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm ring-1 ring-black/4 dark:ring-white/6 min-w-0"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Line {index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={lines.length <= 1}
+                      onClick={() => removeLine(l.key)}
+                      aria-label="Remove line"
                     >
-                      <TableCell className="align-top py-3">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5 min-w-0">
+                      <Label htmlFor={`pr-item-${l.key}`}>Item name</Label>
+                      <Input
+                        id={`pr-item-${l.key}`}
+                        value={l.itemName}
+                        onChange={(e) =>
+                          updateLine(l.key, { itemName: e.target.value })
+                        }
+                        placeholder="What to order"
+                        className="h-10 min-w-0"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`pr-qty-${l.key}`}>Qty</Label>
                         <Input
-                          value={l.itemName}
-                          onChange={(e) =>
-                            updateLine(l.key, { itemName: e.target.value })
-                          }
-                          placeholder="Item name"
-                          className="h-9"
-                        />
-                      </TableCell>
-                      <TableCell className="align-top py-3">
-                        <Input
+                          id={`pr-qty-${l.key}`}
                           type="number"
                           min={0.01}
                           step={0.01}
@@ -245,17 +243,18 @@ export default function PurchaseRequestsTab({
                               quantity: Number(e.target.value) || 0,
                             })
                           }
-                          className="h-9 tabular-nums text-right"
+                          className="h-10 tabular-nums"
                         />
-                      </TableCell>
-                      <TableCell className="align-top py-3">
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Unit</Label>
                         <Select
                           value={l.measuredBy}
                           onValueChange={(v) =>
                             updateLine(l.key, { measuredBy: v })
                           }
                         >
-                          <SelectTrigger className="h-9">
+                          <SelectTrigger className="h-10 w-full min-w-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -266,15 +265,16 @@ export default function PurchaseRequestsTab({
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell className="align-top py-3">
+                      </div>
+                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
+                        <Label>Category</Label>
                         <Select
                           value={l.category}
                           onValueChange={(v) =>
                             updateLine(l.key, { category: v })
                           }
                         >
-                          <SelectTrigger className="h-9">
+                          <SelectTrigger className="h-10 w-full min-w-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -285,9 +285,11 @@ export default function PurchaseRequestsTab({
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell className="align-top py-3">
+                      </div>
+                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
+                        <Label htmlFor={`pr-price-${l.key}`}>Est. ETB</Label>
                         <Input
+                          id={`pr-price-${l.key}`}
                           type="number"
                           min={0}
                           step={0.01}
@@ -297,20 +299,27 @@ export default function PurchaseRequestsTab({
                               estimatedUnitPrice: Number(e.target.value) || 0,
                             })
                           }
-                          className="h-9 tabular-nums text-right"
+                          className="h-10 tabular-nums"
                         />
-                      </TableCell>
-                      <TableCell className="align-top py-3">
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-w-0">
+                      <div className="space-y-1.5 min-w-0">
+                        <Label htmlFor={`pr-supplier-${l.key}`}>Supplier</Label>
                         <Input
+                          id={`pr-supplier-${l.key}`}
                           value={l.supplierName}
                           onChange={(e) =>
                             updateLine(l.key, { supplierName: e.target.value })
                           }
-                          placeholder="Supplier"
-                          className="h-9"
+                          placeholder="Supplier name"
+                          className="h-10 min-w-0"
                         />
-                      </TableCell>
-                      <TableCell className="align-top py-3 min-w-[200px]">
+                      </div>
+                      <div className="space-y-1.5 min-w-0">
+                        <Label htmlFor={`pr-supplier-phone-${l.key}`}>
+                          Supplier phone
+                        </Label>
                         <PhoneInput
                           id={`pr-supplier-phone-${l.key}`}
                           defaultCountry="ET"
@@ -322,32 +331,19 @@ export default function PurchaseRequestsTab({
                               supplierPhone: (v as string) || "",
                             })
                           }
-                          className="w-full"
+                          className="w-full min-w-0"
                         />
-                      </TableCell>
-                      <TableCell className="align-top py-3 text-right">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="text-muted-foreground hover:text-destructive"
-                          disabled={lines.length <= 1}
-                          onClick={() => removeLine(l.key)}
-                          aria-label="Remove line"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="mt-3 gap-2"
+              className="mt-3 gap-2 font-medium"
               onClick={addLine}
             >
               <Plus className="h-4 w-4" />
