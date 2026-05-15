@@ -54,6 +54,20 @@ export function lineOwedETB(item: {
   return computeInventoryPaidAmountETB(a, u, item.purchaseWithVat) + duty;
 }
 
+export function creditAmountETB(item: {
+  amount: number;
+  unitPrice: number;
+  dutyFee: number;
+  paidAmount: number;
+  purchaseWithVat?: unknown;
+  registeredAmount?: number;
+  registeredValue?: number;
+}): number {
+  const owed = lineOwedETB(item);
+  const paid = Number(item.paidAmount) || 0;
+  return Math.max(0, owed - paid);
+}
+
 export type InventoryPaymentBucket = "paid" | "credit" | "none";
 
 export function itemPaymentBucket(item: {
@@ -94,15 +108,26 @@ export function summarizeInventoryPayment<T>(
     registeredAmount?: number;
     registeredValue?: number;
   },
-): { paid: number; credit: number; none: number; total: number } {
+) : {
+  paid: number;
+  credit: number;
+  none: number;
+  total: number;
+  creditAmount: number;
+} {
   let paid = 0;
   let credit = 0;
   let none = 0;
+  let creditAmount = 0;
   for (const r of rows) {
-    const b = itemPaymentBucket(pick(r));
+    const item = pick(r);
+    const b = itemPaymentBucket(item);
     if (b === "paid") paid += 1;
-    else if (b === "credit") credit += 1;
+    else if (b === "credit") {
+      credit += 1;
+      creditAmount += creditAmountETB(item);
+    }
     else none += 1;
   }
-  return { paid, credit, none, total: rows.length };
+  return { paid, credit, none, total: rows.length, creditAmount };
 }

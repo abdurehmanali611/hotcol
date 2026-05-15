@@ -47,6 +47,9 @@ export function ActiveInventoryPaymentSummary({
               On supplier credit
             </p>
             <p className="text-2xl font-bold tabular-nums">{s.credit}</p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              ETB {s.creditAmount.toLocaleString()} outstanding
+            </p>
           </div>
         </CardContent>
       </Card>

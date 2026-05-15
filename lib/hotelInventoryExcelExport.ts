@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import type { ItemRegistration, ItemStatus, PurchaseRequestRow } from "@/lib/actions";
 import {
+  creditAmountETB,
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
@@ -39,6 +40,7 @@ export function exportHotelInventoryWorkbook(
     supplier_tin: r.supplierTinNumber ?? "",
     purchase_includes_vat: vatLabel(r.purchaseWithVat),
     paid_etb: r.paidAmount,
+    credit_amount_etb: creditAmountETB(r),
     payment_status: itemPaymentLabel(itemPaymentBucket(r)),
     registered_on: r.registrationDate
       ? new Date(r.registrationDate).toISOString().slice(0, 10)
@@ -97,6 +99,7 @@ export function exportHotelInventoryWorkbook(
     quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
     line_value_etb: lineOwedETB(r),
     paid_etb: r.paidAmount,
+    credit_amount_etb: creditAmountETB(r),
     payment_status: itemPaymentLabel(itemPaymentBucket(r)),
     supplier_name: r.supplierName,
     supplier_phone: r.supplierPhone,

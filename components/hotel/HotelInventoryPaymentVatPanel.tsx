@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ItemRegistration, ItemStatus, PurchaseRequestRow } from "@/lib/actions";
 import {
+  creditAmountETB,
   isVatEnabled,
   itemPaymentBucket,
   itemPaymentLabel,
@@ -218,6 +219,7 @@ export function HotelInventoryPaymentVatPanel({
                   quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
                   line_value_etb: lineOwedETB(r),
                   payment_status: itemPaymentLabel(itemPaymentBucket(r)),
+                  credit_amount_etb: creditAmountETB(r),
                   purchase_includes_vat: isVatEnabled(r.purchaseWithVat)
                     ? "With VAT"
                     : "Without VAT",
@@ -240,6 +242,7 @@ export function HotelInventoryPaymentVatPanel({
                 <TableHead>Quantity</TableHead>
                 <TableHead className="text-right">Line value (ETB)</TableHead>
                 <TableHead>Payment</TableHead>
+                <TableHead className="text-right">Credit amount (ETB)</TableHead>
                 <TableHead>VAT</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead>Supplier TIN</TableHead>
@@ -249,7 +252,7 @@ export function HotelInventoryPaymentVatPanel({
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center text-muted-foreground py-14"
                   >
                     No rows match these filters.
@@ -280,6 +283,11 @@ export function HotelInventoryPaymentVatPanel({
                         >
                           {itemPaymentLabel(bucket)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="tabular-nums text-right">
+                        {bucket === "credit"
+                          ? creditAmountETB(r).toLocaleString()
+                          : "0"}
                       </TableCell>
                       <TableCell>
                         <Badge
