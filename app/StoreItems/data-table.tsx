@@ -184,8 +184,8 @@ function DataTableInner<TData extends { id?: number }, TValue>(
         </DropdownMenu>
       </div>
 
-      <div className="rounded-lg border bg-card overflow-hidden shadow-sm">
-        <Table>
+      <div className="rounded-lg border bg-card shadow-sm w-full min-w-0 overflow-x-auto">
+        <Table className="w-full">
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

@@ -842,8 +842,8 @@ export function StoreComponent({
               </Avatar>
             </header>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-6 md:py-6 scroll-smooth">
-                <div className="mx-auto max-w-7xl space-y-10 pb-10">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth [scrollbar-gutter:stable]">
+                <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-[100rem] 2xl:max-w-[112rem]">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/4 shadow-md overflow-hidden">
                       <div className="h-0.5 bg-linear-to-r from-emerald-500/80 to-teal-400/60" />

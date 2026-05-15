@@ -324,8 +324,8 @@ function FinanceInner() {
             </Button>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-        <div className="mx-auto max-w-6xl space-y-10 pb-16">
+          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-auto p-3 sm:px-4 md:p-6 [scrollbar-gutter:stable]">
+        <div className="mx-auto w-full min-w-0 max-w-none space-y-10 pb-16 xl:max-w-[100rem] 2xl:max-w-[112rem]">
         <HotelWorkflowGlossary variant="finance" />
 
         <div className="grid gap-4 sm:grid-cols-2">

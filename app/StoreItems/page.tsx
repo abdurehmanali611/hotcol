@@ -112,8 +112,8 @@ export default function StoreItems({
 
   const Root = embedded ? "div" : "main";
   const shellClass = embedded
-    ? "w-full space-y-4 animate-in fade-in duration-300"
-    : "container mx-auto py-8 px-4 md:px-8 space-y-8 animate-in fade-in duration-500";
+    ? "w-full min-w-0 space-y-4 animate-in fade-in duration-300"
+    : "w-full max-w-[min(100vw-1.5rem,112rem)] mx-auto py-8 px-3 sm:px-4 md:px-8 space-y-8 animate-in fade-in duration-500";
 
   const headerBlock = (
     <div
@@ -178,8 +178,8 @@ export default function StoreItems({
   );
 
   const tableShell = embedded
-    ? "rounded-xl border border-border/60 bg-card/80 shadow-inner overflow-hidden"
-    : "bg-card rounded-2xl border border-border/60 shadow-xl shadow-black/2 overflow-hidden";
+    ? "rounded-xl border border-border/60 bg-card/80 shadow-inner w-full min-w-0 overflow-x-auto"
+    : "bg-card rounded-2xl border border-border/60 shadow-xl shadow-black/2 w-full min-w-0 overflow-x-auto";
 
   return (
     <Root className={shellClass}>

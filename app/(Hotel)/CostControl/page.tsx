@@ -680,11 +680,11 @@ function CostControlInner() {
             ) : null}
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-6 md:py-6 scroll-smooth transition-[filter,opacity]",
+                "min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth transition-[filter,opacity] [scrollbar-gutter:stable]",
                 insetBusy && "pointer-events-none blur-[1.5px] opacity-75",
               )}
             >
-              <div className="mx-auto max-w-6xl space-y-10 pb-10">
+              <div className="mx-auto w-full min-w-0 max-w-none space-y-10 pb-10 xl:max-w-[100rem] 2xl:max-w-[112rem]">
         <HotelWorkflowGlossary variant="costControl" />
 
         <div className="grid gap-4 sm:grid-cols-2">
