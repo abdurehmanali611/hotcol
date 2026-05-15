@@ -20,12 +20,10 @@ import {
   fetchItemStatus,
   fetchItems,
   fetchKitchenBarBeginnings,
-  fetchKitchenBarRollupSnapshots,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
   notifyApiFailure,
-  syncKitchenBarRollupApi,
   updateAdminPassword,
   updateCredential,
   uploadImage,
@@ -129,14 +127,51 @@ function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
-function rollupSyncErrorText(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  const anyErr = err as {
-    response?: { data?: { errors?: Array<{ message?: string }> } };
-  };
-  const gql = anyErr.response?.data?.errors?.[0]?.message;
-  if (typeof gql === "string" && gql.trim()) return gql;
-  return String(err ?? "");
+/** Marks rows computed in the browser from daily counts (not server roll-up sync). */
+const CLIENT_ROLLUP_SYNCED_AT = "__CLIENT_ROLLUP__";
+
+function formatLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function* eachYmdInclusive(fromYmd: string, toYmd: string): Generator<string> {
+  const [fy, fm, fd] = fromYmd.split("-").map(Number);
+  const [ty, tm, td] = toYmd.split("-").map(Number);
+  const cur = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+  while (cur <= end) {
+    yield formatLocalYmd(cur);
+    cur.setDate(cur.getDate() + 1);
+  }
+}
+
+function* eachYmdDescendingInclusive(fromYmd: string, toYmd: string): Generator<string> {
+  const [fy, fm, fd] = fromYmd.split("-").map(Number);
+  const [ty, tm, td] = toYmd.split("-").map(Number);
+  const cur = new Date(ty, tm - 1, td);
+  const start = new Date(fy, fm - 1, fd);
+  while (cur >= start) {
+    yield formatLocalYmd(cur);
+    cur.setDate(cur.getDate() - 1);
+  }
+}
+
+function beginningRowCalendarYmd(b: KitchenBarBeginningRow): string {
+  const d = String(b.calendarDate || "").trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const mp = String(b.monthPeriod || "").trim();
+  if (/^\d{4}-\d{2}$/.test(mp)) return `${mp}-01`;
+  return "";
+}
+
+function rollupStableIdFromKey(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 33 + key.charCodeAt(i)) | 0;
+  const n = Math.abs(h) % 1_000_000_000;
+  return n === 0 ? -910000001 : -(910000000 + n);
 }
 
 function normalizeItemNameForValueKey(name: string): string {
@@ -160,9 +195,6 @@ function ManagerContent() {
   const [purchases, setPurchases] = useState<any[]>([]);
   const [stockReqs, setStockReqs] = useState<any[]>([]);
   const [beginnings, setBeginnings] = useState<KitchenBarBeginningRow[]>([]);
-  const [monthlySnapshots, setMonthlySnapshots] = useState<
-    KitchenBarMonthlySnapshotRow[]
-  >([]);
   const [rollupFromYmd, setRollupFromYmd] = useState(() => {
     const to = new Date().toISOString().slice(0, 10);
     return `${to.slice(0, 7)}-01`;
@@ -186,8 +218,6 @@ function ManagerContent() {
   const [menuItems, setMenuItems] = useState<Item[]>([]);
   const [ccAddPending, setCcAddPending] = useState(false);
   const [ccRemoveId, setCcRemoveId] = useState<number | null>(null);
-  const [managerRollupSyncPending, setManagerRollupSyncPending] =
-    useState(false);
   const [managerDailyReportDate, setManagerDailyReportDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
@@ -249,27 +279,7 @@ function ManagerContent() {
     [tenantScope],
   );
 
-  /** Load stored monthly roll-up rows for the current From/To only when explicitly requested. */
-  const fetchRollupSnapshotsForRange = useCallback(async () => {
-    if (!tenantScope) return;
-    try {
-      const { fromYmd, toYmd } = normalizeRollupRangeYmd(
-        rollupFromYmd,
-        rollupToYmd,
-      );
-      const snaps = await fetchKitchenBarRollupSnapshots(fromYmd, toYmd);
-      setMonthlySnapshots(snaps);
-    } catch (e: unknown) {
-      notifyApiFailure(e, "Could not load roll-up snapshots for this range");
-    }
-  }, [tenantScope, rollupFromYmd, rollupToYmd]);
-
   useEffect(() => {
-    setMonthlySnapshots([]);
-  }, [rollupFromYmd, rollupToYmd]);
-
-  useEffect(() => {
-    setMonthlySnapshots([]);
     if (tenantScope) {
       void loadData();
     }
@@ -398,6 +408,139 @@ function ManagerContent() {
       return sum + (Number(sealed) || 0) * price;
     }, 0);
   }, [visibleManagerDailyRows, unitPriceByItemName, beginningDerivedById]);
+
+  /** Range roll-up from loaded daily rows (no server sync). Updates when From/To or daily data change. */
+  const managerRollupFromDailyRows = useMemo((): KitchenBarMonthlySnapshotRow[] => {
+    try {
+      const { fromYmd, toYmd } = normalizeRollupRangeYmd(
+        rollupFromYmd,
+        rollupToYmd,
+      );
+      const hotel = String(tenantScope ?? "").trim();
+      if (!hotel) return [];
+
+      const rowsByKey = new Map<string, KitchenBarBeginningRow[]>();
+      for (const b of beginningsScoped) {
+        const key = `${normalizeKitchenBarStationKey(b.station)}\t${normalizeItemNameForValueKey(b.itemName)}`;
+        if (!rowsByKey.has(key)) rowsByKey.set(key, []);
+        rowsByKey.get(key)!.push(b);
+      }
+
+      const pickForDay = (
+        rows: KitchenBarBeginningRow[],
+        dayYmd: string,
+      ): KitchenBarBeginningRow | null => {
+        const dayRows = rows.filter((r) => beginningRowCalendarYmd(r) === dayYmd);
+        if (!dayRows.length) return null;
+        return dayRows.reduce((a, c) =>
+          new Date(c.createdAt || 0).getTime() >= new Date(a.createdAt || 0).getTime()
+            ? c
+            : a,
+        );
+      };
+
+      const lightsOutFor = (row: KitchenBarBeginningRow, dayYmd: string): number => {
+        const sk = normalizeKitchenBarStationKey(row.station);
+        const approvedSo = round2(
+          summarizeApprovedStockOutForDay(
+            stockOutRowsForProperty,
+            sk,
+            row.itemName,
+            dayYmd,
+          ),
+        );
+        return round2(
+          Number(row.amount || 0) +
+            approvedSo -
+            Number(row.managementTakenDay ?? 0),
+        );
+      };
+
+      const out: KitchenBarMonthlySnapshotRow[] = [];
+
+      for (const [key, rows] of rowsByKey) {
+        let hasInRange = false;
+        for (const d of eachYmdInclusive(fromYmd, toYmd)) {
+          if (pickForDay(rows, d)) {
+            hasInRange = true;
+            break;
+          }
+        }
+        if (!hasInRange) continue;
+
+        let totalImplied = 0;
+        for (const d of eachYmdInclusive(fromYmd, toYmd)) {
+          const row = pickForDay(rows, d);
+          if (!row) continue;
+          const imp = beginningDerivedById.implied.get(row.id);
+          if (imp != null) totalImplied += Number(imp) || 0;
+        }
+        totalImplied = round2(totalImplied);
+
+        let lastClosing = 0;
+        const lastRowOnTo = pickForDay(rows, toYmd);
+        if (lastRowOnTo) {
+          lastClosing = lightsOutFor(lastRowOnTo, toYmd);
+        } else {
+          for (const d of eachYmdDescendingInclusive(fromYmd, toYmd)) {
+            const r = pickForDay(rows, d);
+            if (r) {
+              lastClosing = lightsOutFor(r, d);
+              break;
+            }
+          }
+        }
+
+        const sample =
+          pickForDay(rows, fromYmd) ||
+          pickForDay(rows, toYmd) ||
+          rows[0];
+        out.push({
+          id: rollupStableIdFromKey(key),
+          HotelName: hotel,
+          station: sample.station,
+          itemName: sample.itemName,
+          monthPeriod: fromYmd.slice(0, 7),
+          periodFrom: fromYmd,
+          periodTo: toYmd,
+          totalImpliedSales: totalImplied,
+          lastDayClosingOnHand: lastClosing,
+          syncedAt: CLIENT_ROLLUP_SYNCED_AT,
+        });
+      }
+
+      out.sort((a, b) => {
+        const sa = displayKitchenBarStation(a.station).localeCompare(
+          displayKitchenBarStation(b.station),
+          undefined,
+          { sensitivity: "base" },
+        );
+        if (sa !== 0) return sa;
+        return String(a.itemName || "").localeCompare(String(b.itemName || ""), undefined, {
+          sensitivity: "base",
+        });
+      });
+      return out;
+    } catch {
+      return [];
+    }
+  }, [
+    beginningsScoped,
+    rollupFromYmd,
+    rollupToYmd,
+    tenantScope,
+    beginningDerivedById,
+    stockOutRowsForProperty,
+  ]);
+
+  const managerRollupTotalEtb = useMemo(() => {
+    return managerRollupFromDailyRows.reduce((sum, row) => {
+      const key = normalizeItemNameForValueKey(row.itemName);
+      const price = unitPriceByItemName.get(key) || 0;
+      const impliedSum = Number(row.totalImpliedSales) || 0;
+      return sum + impliedSum * price;
+    }, 0);
+  }, [managerRollupFromDailyRows, unitPriceByItemName]);
 
   const renderContent = () => {
     if (loading) {
@@ -779,14 +922,11 @@ function ManagerContent() {
               <CardHeader>
                 <CardTitle>Date range roll-up from daily counts</CardTitle>
                 <CardDescription>
-                  Totals use daily rows dated between <strong>From</strong> and{" "}
-                  <strong>To</strong> (inclusive). Pick dates, then use{" "}
-                  <strong>Refresh roll-ups</strong> to load stored data for that range.{" "}
-                  <strong>Sync Monthly Data</strong> runs the standard roll-up sync, then
-                  automatically retries with the manager mutation when the server says your
-                  role is not allowed on the first step (if that mutation exists on your API).
-                  Set <code className="text-xs">NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD=false</code>{" "}
-                  to disable the retry.
+                  Pick <strong>From</strong> and <strong>To</strong> (inclusive). The table
+                  recomputes automatically from daily station counts already loaded for your
+                  property (same sealed movement and lights-out rules as below). Use{" "}
+                  <strong>Reload data</strong> if Cost Control entered new days after you
+                  opened this page.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -805,51 +945,40 @@ function ManagerContent() {
                     onChange={setRollupToYmd}
                     className="min-w-[200px]"
                   />
-                  <Button variant="secondary" onClick={() => void fetchRollupSnapshotsForRange()}>
-                    Refresh roll-ups
-                  </Button>
-                  <PendingButton
-                    pending={managerRollupSyncPending}
-                    onClick={async () => {
-                      setManagerRollupSyncPending(true);
-                      try {
-                        normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
-                        await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
-                          quiet: true,
-                        });
-                        toast.success("Roll-up data synced for selected dates");
-                        await fetchRollupSnapshotsForRange();
-                        await loadData(true);
-                      } catch (err: unknown) {
-                        const raw = rollupSyncErrorText(err);
-                        if (
-                          /not authorized|unauthorized|forbidden|^403$|cost controller|cost control only|allowed for cost control|administrator|have permission|not allowed to perform/i.test(
-                            raw,
-                          )
-                        ) {
-                          toast.error(
-                            "Roll-up sync is still not permitted for this login on both sync endpoints. Your API must allow Manager on `syncKitchenBarRollup` and/or implement `syncKitchenBarRollupForManager` (or set NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD to the correct manager field name).",
-                          );
-                        } else {
-                          notifyApiFailure(
-                            err,
-                            "Choose valid dates or sync from Cost Control",
-                          );
-                        }
-                      } finally {
-                        setManagerRollupSyncPending(false);
-                      }
-                    }}
+                  <Button
+                    variant="secondary"
+                    disabled={refreshing}
+                    onClick={() => void loadData(true)}
                   >
-                    Sync Monthly Data
-                  </PendingButton>
+                    {refreshing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Reloading…
+                      </>
+                    ) : (
+                      "Reload data"
+                    )}
+                  </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Showing stored roll-up for{" "}
-                  <span className="font-medium text-foreground">{rollupRangeLabel}</span>{" "}
-                  after you click <strong>Refresh roll-ups</strong>. Changing dates clears
-                  the table until you refresh again.
+                  Showing computed roll-up for{" "}
+                  <span className="font-medium text-foreground">{rollupRangeLabel}</span> from
+                  daily rows (no server sync on this screen).
                 </p>
+                {managerRollupFromDailyRows.length > 0 ? (
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total implied movement value — {rollupRangeLabel}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Σ (unit price × Σ implied movement) per row below
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums mt-1">
+                      {managerRollupTotalEtb.toLocaleString()}{" "}
+                      <span className="text-sm font-medium text-muted-foreground">ETB</span>
+                    </p>
+                  </div>
+                ) : null}
                 <div className="overflow-x-auto rounded-lg border">
                   <Table>
                     <TableHeader>
@@ -859,21 +988,27 @@ function ManagerContent() {
                         <TableHead className="text-right">Σ implied movement</TableHead>
                         <TableHead className="text-right">First lights-out on-hand</TableHead>
                         <TableHead className="text-right">Remaining</TableHead>
-                        <TableHead>Synced</TableHead>
+                        <TableHead>Source</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {monthlySnapshots.length === 0 ? (
+                      {managerRollupFromDailyRows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            No roll-up rows for {rollupRangeLabel} yet.
+                            No daily rows in range {rollupRangeLabel} yet. Enter counts in
+                            Cost Control for those days, adjust the dates, or click{" "}
+                            <strong>Reload data</strong>.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        monthlySnapshots.map((s) => {
+                        managerRollupFromDailyRows.map((s) => {
                           const remaining =
                             Number(s.lastDayClosingOnHand) -
                             Number(s.totalImpliedSales);
+                          const sourceLabel =
+                            s.syncedAt === CLIENT_ROLLUP_SYNCED_AT
+                              ? "Live (daily rows)"
+                              : new Date(s.syncedAt).toLocaleString();
                           return (
                             <TableRow key={s.id}>
                               <TableCell>{displayKitchenBarStation(s.station)}</TableCell>
@@ -888,7 +1023,7 @@ function ManagerContent() {
                                 {remaining.toFixed(2)}
                               </TableCell>
                               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                {new Date(s.syncedAt).toLocaleString()}
+                                {sourceLabel}
                               </TableCell>
                             </TableRow>
                           );
