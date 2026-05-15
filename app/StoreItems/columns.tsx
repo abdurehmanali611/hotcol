@@ -47,6 +47,7 @@ import {
   itemPaymentLabel,
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
+import { cn } from "@/lib/utils";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import { ColumnDef } from "@tanstack/react-table";
@@ -702,6 +703,8 @@ export const columns = (
   opts?: {
     hotelStockApprovals?: boolean;
     readOnly?: boolean;
+    /** When false, hide row actions (non–Store roles). */
+    showStoreRowActions?: boolean;
     onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
   },
 ): ColumnDef<items>[] => {
@@ -753,6 +756,31 @@ export const columns = (
     },
   },
   {
+    id: "purchaseVat",
+    header: "VAT",
+    cell: ({ row }) => {
+      const vatOn = isVatEnabled(row.original.purchaseWithVat);
+      return (
+        <div className="flex flex-col gap-1.5 min-w-[108px]">
+          <Badge
+            variant="outline"
+            className={cn(
+              "w-fit px-2.5 py-0.5 text-[11px] font-semibold tracking-wide border shadow-sm",
+              vatOn
+                ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white ring-1 ring-violet-500/25"
+                : "border-slate-300/60 bg-muted/80 text-muted-foreground dark:border-slate-600/60",
+            )}
+          >
+            {vatOn ? "With VAT" : "Without VAT"}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground leading-snug">
+            {vatOn ? "Unit price includes 15% VAT" : "Net line (no VAT on unit)"}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
     id: "remainingDays",
     header: "Freshness",
     cell: ({ row }) => {
@@ -775,19 +803,11 @@ export const columns = (
           <Truck size={12} className="text-muted-foreground" />
           {row.original.supplierName}
         </div>
-        <div className="flex flex-col gap-0.5">
-          <Badge
-            variant="outline"
-            className="w-fit text-[9px] h-4 px-1.5 border-primary/20 bg-primary/5 text-primary"
-          >
-            {isVatEnabled(row.original.purchaseWithVat) ? "With VAT" : "Without VAT"}
-          </Badge>
-          {(row.original.supplierTinNumber || "").trim() ? (
-            <span className="text-[10px] text-muted-foreground">
-              TIN: {(row.original.supplierTinNumber || "").trim()}
-            </span>
-          ) : null}
-        </div>
+        {(row.original.supplierTinNumber || "").trim() ? (
+          <span className="text-[10px] text-muted-foreground">
+            TIN: {(row.original.supplierTinNumber || "").trim()}
+          </span>
+        ) : null}
       </div>
     ),
   },
@@ -830,10 +850,12 @@ export const columns = (
   },
   ];
 
-  if (!opts?.readOnly) {
+  if (!opts?.readOnly && opts?.showStoreRowActions) {
     defs.push({
     id: "actions",
-    header: "",
+    header: () => (
+      <span className="text-muted-foreground text-xs font-medium">Actions</span>
+    ),
     cell: ({ row }) => {
       const [openDrop, setOpenDrop] = useState(false);
       return (

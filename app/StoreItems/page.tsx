@@ -50,6 +50,15 @@ export default function StoreItems({
   );
   const tableRef = useRef<DataTableRef>(null);
   const [batchSelected, setBatchSelected] = useState<ItemRegistration[]>([]);
+  const [isStoreTerminalUser, setIsStoreTerminalUser] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsStoreTerminalUser(localStorage.getItem("user_role") === "Store");
+  }, []);
+
+  /** Row actions (edit, delete, movements, batch) are for Store credentials only. */
+  const showStoreRowActions = !readOnly && isStoreTerminalUser;
 
   const scopeRows = useCallback(
     (rows: ItemRegistration[]) => {
@@ -85,7 +94,7 @@ export default function StoreItems({
   }, [items, scopeRows]);
 
   const handleEdit = (item: ItemRegistration) => {
-    if (readOnly) return;
+    if (readOnly || !showStoreRowActions) return;
     setSelectedItem(item);
     setIsEditOpen(true);
   };
@@ -181,7 +190,7 @@ export default function StoreItems({
       )}
 
       <div className={tableShell}>
-        {hotelStockApprovals && !readOnly && (
+        {hotelStockApprovals && showStoreRowActions && (
           <InventoryBatchMovementBar
             selected={batchSelected}
             tableRef={tableRef}
@@ -196,15 +205,16 @@ export default function StoreItems({
           refresh={refresh}
           hotelStockApprovals={hotelStockApprovals}
           readOnly={readOnly}
+          showStoreRowActions={showStoreRowActions}
           onHotelStockRequestCreated={onHotelStockRequestCreated}
-          enableRowSelection={hotelStockApprovals && !readOnly}
+          enableRowSelection={hotelStockApprovals && showStoreRowActions}
           onRowSelectionChange={
-            hotelStockApprovals && !readOnly ? setBatchSelected : undefined
+            hotelStockApprovals && showStoreRowActions ? setBatchSelected : undefined
           }
         />
       </div>
 
-      {!readOnly && (
+      {!readOnly && showStoreRowActions && (
         <UpdateStock
           isOpen={isEditOpen}
           onOpenChange={setIsEditOpen}

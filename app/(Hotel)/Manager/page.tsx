@@ -87,7 +87,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
-import { lineOwedETB } from "@/lib/hotelInventoryPayment";
+import { isVatEnabled, lineOwedETB } from "@/lib/hotelInventoryPayment";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
 import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
@@ -779,21 +781,38 @@ function ManagerContent() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Quantity</TableHead>
-                  <TableHead>Value est.</TableHead>
+                  <TableHead>VAT</TableHead>
+                  <TableHead className="text-right">Value est.</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((it) => (
-                  <TableRow key={it.id}>
-                    <TableCell className="font-medium">{it.name}</TableCell>
-                    <TableCell className="tabular-nums whitespace-nowrap">
-                      {formatQtyWithUnit(it.amount, it.measuredBy)}
-                    </TableCell>
-                    <TableCell>
-                      ETB {lineOwedETB(it).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {items.map((it) => {
+                  const vatOn = isVatEnabled(it.purchaseWithVat);
+                  return (
+                    <TableRow key={it.id}>
+                      <TableCell className="font-medium">{it.name}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">
+                        {formatQtyWithUnit(it.amount, it.measuredBy)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-semibold tracking-wide px-2 py-0.5",
+                            vatOn
+                              ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white"
+                              : "border-border bg-muted/60 text-muted-foreground",
+                          )}
+                        >
+                          {vatOn ? "With VAT" : "Without VAT"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        ETB {lineOwedETB(it).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
