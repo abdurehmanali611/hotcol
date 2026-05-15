@@ -772,8 +772,9 @@ function ManagerContent() {
                   Totals use daily rows dated between <strong>From</strong> and{" "}
                   <strong>To</strong> (inclusive). Pick dates, then use{" "}
                   <strong>Refresh roll-ups</strong> to load stored data for that range.{" "}
-                  <strong>Sync Monthly Data</strong> writes roll-ups from the daily grid
-                  (requires API permission for your role — often the Cost Control account).
+                  <strong>Sync Monthly Data</strong> rebuilds roll-up rows from the daily
+                  grid for this range (Manager uses the manager sync API when your backend
+                  exposes it; otherwise the same permission rules as Cost Control apply).
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -803,6 +804,7 @@ function ManagerContent() {
                         normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
                         await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
                           quiet: true,
+                          preferManagerRollupSync: true,
                         });
                         toast.success("Roll-up data synced for selected dates");
                         await fetchRollupSnapshotsForRange();
@@ -810,9 +812,13 @@ function ManagerContent() {
                       } catch (err: unknown) {
                         const raw =
                           err instanceof Error ? err.message : String(err ?? "");
-                        if (/not authorized|unauthorized|forbidden|^403$/i.test(raw)) {
+                        if (
+                          /not authorized|unauthorized|forbidden|^403$|cost controller|cost control only|allowed for cost control/i.test(
+                            raw,
+                          )
+                        ) {
                           toast.error(
-                            "Sync is not allowed for this login. Monthly roll-up sync is usually limited to the Cost Control role. Use the Cost Control terminal to run \"Sync Monthly Data\", or ask your administrator to grant Managers permission for this action.",
+                            "Roll-up sync is still blocked for this login. Ask your administrator to allow Managers on the kitchen/bar roll-up sync (for example the same mutation as Cost Control, or a dedicated manager field such as syncKitchenBarRollupForManager matching NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD).",
                           );
                         } else {
                           notifyApiFailure(

@@ -3783,6 +3783,10 @@ export async function createStockOutRequestApi(
 export type HotelMutationToastOptions = {
   /** When true, skip success toasts (used by batch / sequential fallbacks). */
   suppressSuccessToast?: boolean;
+  /** When the server omits `ccActorName`, stamp the selected cost controller display name (client). */
+  fallbackCcDisplayName?: string;
+  /** When the server omits `financeActorName`, stamp the rejecting finance user (client). */
+  fallbackFinanceActorName?: string;
 };
 
 export async function approvePurchaseRequestCCApi(
@@ -3833,7 +3837,12 @@ export async function rejectPurchaseRequestCCApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Request rejected");
   }
-  return response.data.data.rejectPurchaseRequestCC as PurchaseRequestRow;
+  const row = response.data.data.rejectPurchaseRequestCC as PurchaseRequestRow;
+  const fb = options?.fallbackCcDisplayName?.trim();
+  if (fb && !String(row.ccActorName ?? "").trim()) {
+    return { ...row, ccActorName: fb };
+  }
+  return row;
 }
 
 export async function approvePurchaseRequestFinanceApi(
@@ -3885,7 +3894,12 @@ export async function rejectPurchaseRequestFinanceApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Request rejected");
   }
-  return response.data.data.rejectPurchaseRequestFinance as PurchaseRequestRow;
+  const row = response.data.data.rejectPurchaseRequestFinance as PurchaseRequestRow;
+  const fb = options?.fallbackFinanceActorName?.trim();
+  if (fb && !String(row.financeActorName ?? "").trim()) {
+    return { ...row, financeActorName: fb };
+  }
+  return row;
 }
 
 export async function approveStockOutRequestApi(
@@ -3936,7 +3950,12 @@ export async function rejectStockOutRequestApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Request rejected");
   }
-  return response.data.data.rejectStockOutRequest as StockOutRequestRow;
+  const row = response.data.data.rejectStockOutRequest as StockOutRequestRow;
+  const fb = options?.fallbackCcDisplayName?.trim();
+  if (fb && !String(row.ccActorName ?? "").trim()) {
+    return { ...row, ccActorName: fb };
+  }
+  return row;
 }
 
 function graphqlLooksLikeMissingBatchField(message: string): boolean {
@@ -4015,6 +4034,7 @@ async function sequentialApprovePurchaseRequestsFinance(
 async function sequentialRejectPurchaseRequestsFinance(
   unique: number[],
   reason: string,
+  fallbackFinanceActorName?: string,
 ): Promise<PurchaseRequestRow[]> {
   const ok: PurchaseRequestRow[] = [];
   const failed: string[] = [];
@@ -4023,6 +4043,7 @@ async function sequentialRejectPurchaseRequestsFinance(
       ok.push(
         await rejectPurchaseRequestFinanceApi(id, reason, {
           suppressSuccessToast: true,
+          fallbackFinanceActorName,
         }),
       );
     } catch (err: unknown) {
@@ -4069,6 +4090,7 @@ async function sequentialApprovePurchaseRequestsCC(
 async function sequentialRejectPurchaseRequestsCC(
   unique: number[],
   reason: string,
+  fallbackCcDisplayName?: string,
 ): Promise<PurchaseRequestRow[]> {
   const ok: PurchaseRequestRow[] = [];
   const failed: string[] = [];
@@ -4077,6 +4099,7 @@ async function sequentialRejectPurchaseRequestsCC(
       ok.push(
         await rejectPurchaseRequestCCApi(id, reason, {
           suppressSuccessToast: true,
+          fallbackCcDisplayName,
         }),
       );
     } catch (err: unknown) {
@@ -4124,6 +4147,7 @@ async function sequentialApproveStockOutRequests(
 async function sequentialRejectStockOutRequests(
   unique: number[],
   reason: string,
+  fallbackCcDisplayName?: string,
 ): Promise<StockOutRequestRow[]> {
   const ok: StockOutRequestRow[] = [];
   const failed: string[] = [];
@@ -4132,6 +4156,7 @@ async function sequentialRejectStockOutRequests(
       ok.push(
         await rejectStockOutRequestApi(id, reason, {
           suppressSuccessToast: true,
+          fallbackCcDisplayName,
         }),
       );
     } catch (err: unknown) {
@@ -4185,15 +4210,22 @@ export async function approvePurchaseRequestsFinanceBatchApi(
 export async function rejectPurchaseRequestsFinanceBatchApi(
   ids: number[],
   reason = "Rejected by finance",
+  fallbackFinanceActorName?: string,
 ): Promise<PurchaseRequestRow[]> {
   const unique = [...new Set(ids)].filter((id) => id > 0);
   if (unique.length === 0) return [];
   if (unique.length === 1) {
-    const one = await rejectPurchaseRequestFinanceApi(unique[0], reason);
+    const one = await rejectPurchaseRequestFinanceApi(unique[0], reason, {
+      fallbackFinanceActorName,
+    });
     return [one];
   }
   if (!hotelBatchGraphqlAttemptsEnabled()) {
-    return sequentialRejectPurchaseRequestsFinance(unique, reason);
+    return sequentialRejectPurchaseRequestsFinance(
+      unique,
+      reason,
+      fallbackFinanceActorName,
+    );
   }
   const mutation = `
     mutation RejectPurchaseRequestsFinanceBatch($ids: [Int!]!, $reason: String) {
@@ -4207,11 +4239,23 @@ export async function rejectPurchaseRequestsFinanceBatchApi(
       rejectPurchaseRequestsFinanceBatch: PurchaseRequestRow[];
     }>(mutation, { ids: unique, reason });
     const rows = data.rejectPurchaseRequestsFinanceBatch;
-    toast.success(`Rejected ${rows.length} request(s)`);
-    return rows;
+    const fb = fallbackFinanceActorName?.trim();
+    const merged = fb
+      ? rows.map((r) =>
+          String(r.financeActorName ?? "").trim()
+            ? r
+            : { ...r, financeActorName: fb },
+        )
+      : rows;
+    toast.success(`Rejected ${merged.length} request(s)`);
+    return merged;
   } catch (e: unknown) {
     if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
-    return sequentialRejectPurchaseRequestsFinance(unique, reason);
+    return sequentialRejectPurchaseRequestsFinance(
+      unique,
+      reason,
+      fallbackFinanceActorName,
+    );
   }
 }
 
@@ -4255,15 +4299,22 @@ export async function approvePurchaseRequestsCCBatchApi(
 export async function rejectPurchaseRequestsCCBatchApi(
   ids: number[],
   reason = "Rejected by cost control",
+  fallbackCcDisplayName?: string,
 ): Promise<PurchaseRequestRow[]> {
   const unique = [...new Set(ids)].filter((id) => id > 0);
   if (unique.length === 0) return [];
   if (unique.length === 1) {
-    const one = await rejectPurchaseRequestCCApi(unique[0], reason);
+    const one = await rejectPurchaseRequestCCApi(unique[0], reason, {
+      fallbackCcDisplayName,
+    });
     return [one];
   }
   if (!hotelBatchGraphqlAttemptsEnabled()) {
-    return sequentialRejectPurchaseRequestsCC(unique, reason);
+    return sequentialRejectPurchaseRequestsCC(
+      unique,
+      reason,
+      fallbackCcDisplayName,
+    );
   }
   const mutation = `
     mutation RejectPurchaseRequestsCCBatch($ids: [Int!]!, $reason: String) {
@@ -4277,11 +4328,23 @@ export async function rejectPurchaseRequestsCCBatchApi(
       rejectPurchaseRequestsCCBatch: PurchaseRequestRow[];
     }>(mutation, { ids: unique, reason });
     const rows = data.rejectPurchaseRequestsCCBatch;
-    toast.success(`Rejected ${rows.length} request(s)`);
-    return rows;
+    const fb = fallbackCcDisplayName?.trim();
+    const merged = fb
+      ? rows.map((r) =>
+          String(r.ccActorName ?? "").trim()
+            ? r
+            : { ...r, ccActorName: fb },
+        )
+      : rows;
+    toast.success(`Rejected ${merged.length} request(s)`);
+    return merged;
   } catch (e: unknown) {
     if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
-    return sequentialRejectPurchaseRequestsCC(unique, reason);
+    return sequentialRejectPurchaseRequestsCC(
+      unique,
+      reason,
+      fallbackCcDisplayName,
+    );
   }
 }
 
@@ -4325,15 +4388,22 @@ export async function approveStockOutRequestsBatchApi(
 export async function rejectStockOutRequestsBatchApi(
   ids: number[],
   reason = "Rejected by cost control",
+  fallbackCcDisplayName?: string,
 ): Promise<StockOutRequestRow[]> {
   const unique = [...new Set(ids)].filter((id) => id > 0);
   if (unique.length === 0) return [];
   if (unique.length === 1) {
-    const one = await rejectStockOutRequestApi(unique[0], reason);
+    const one = await rejectStockOutRequestApi(unique[0], reason, {
+      fallbackCcDisplayName,
+    });
     return [one];
   }
   if (!hotelBatchGraphqlAttemptsEnabled()) {
-    return sequentialRejectStockOutRequests(unique, reason);
+    return sequentialRejectStockOutRequests(
+      unique,
+      reason,
+      fallbackCcDisplayName,
+    );
   }
   const mutation = `
     mutation RejectStockOutRequestsBatch($ids: [Int!]!, $reason: String) {
@@ -4347,11 +4417,23 @@ export async function rejectStockOutRequestsBatchApi(
       rejectStockOutRequestsBatch: StockOutRequestRow[];
     }>(mutation, { ids: unique, reason });
     const rows = data.rejectStockOutRequestsBatch;
-    toast.success(`Rejected ${rows.length} movement(s)`);
-    return rows;
+    const fb = fallbackCcDisplayName?.trim();
+    const merged = fb
+      ? rows.map((r) =>
+          String(r.ccActorName ?? "").trim()
+            ? r
+            : { ...r, ccActorName: fb },
+        )
+      : rows;
+    toast.success(`Rejected ${merged.length} movement(s)`);
+    return merged;
   } catch (e: unknown) {
     if (!hotelBatchMutationShouldFallbackToSequential(e)) throw e;
-    return sequentialRejectStockOutRequests(unique, reason);
+    return sequentialRejectStockOutRequests(
+      unique,
+      reason,
+      fallbackCcDisplayName,
+    );
   }
 }
 
@@ -4531,26 +4613,52 @@ export async function fetchKitchenBarRollupSnapshots(
   });
 }
 
-/**
- * Rebuilds kitchen/bar monthly roll-up snapshot rows from daily beginning rows for
- * [fromYmd, toYmd]. The GraphQL resolver must allow the signed-in role (often Cost
- * Control only); Manager logins may receive “not authorized” until the backend policy
- * is updated.
- */
-export async function syncKitchenBarRollupApi(
-  fromYmd: string,
-  toYmd: string,
-  options?: { quiet?: boolean },
-) {
-  const mutation = `
-    mutation SyncRollup($fromYmd: String!, $toYmd: String!) {
-      syncKitchenBarRollup(fromYmd: $fromYmd, toYmd: $toYmd) {
+const KITCHEN_BAR_ROLLUP_SYNC_SELECTION = `
         id
         itemName
         station
         totalImpliedSales
         lastDayClosingOnHand
         syncedAt
+`;
+
+/** True when the server rejected the primary sync for role/policy reasons (retry alt). */
+function rollupSyncRoleDenied(message: string): boolean {
+  const m = String(message || "").toLowerCase();
+  return (
+    /not authorized/.test(m) ||
+    /unauthorized/.test(m) ||
+    /forbidden/.test(m) ||
+    /permission denied/.test(m) ||
+    /cost control/.test(m) ||
+    /cost controller/.test(m) ||
+    /\bonly\b.*\b(cost control|cost controller)\b/.test(m) ||
+    /\b(cost control|cost controller)\b.*\bonly\b/.test(m)
+  );
+}
+
+/**
+ * Optional second mutation for Manager (or any role blocked on the primary).
+ * Set `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` to the root field name
+ * exposed by your API (default `syncKitchenBarRollupForManager`). Set to `false` to
+ * disable the fallback attempt.
+ */
+function managerKitchenBarRollupSyncGraphqlField(): string | null {
+  const raw = process.env.NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD;
+  if (raw != null && String(raw).trim().toLowerCase() === "false") return null;
+  const s = String(raw ?? "syncKitchenBarRollupForManager").trim();
+  return s.length ? s : null;
+}
+
+async function postKitchenBarRollupSyncField(
+  fieldName: string,
+  fromYmd: string,
+  toYmd: string,
+): Promise<unknown> {
+  const mutation = `
+    mutation SyncKitchenBarRollupDyn($fromYmd: String!, $toYmd: String!) {
+      ${fieldName}(fromYmd: $fromYmd, toYmd: $toYmd) {
+        ${KITCHEN_BAR_ROLLUP_SYNC_SELECTION}
       }
     }
   `;
@@ -4558,13 +4666,85 @@ export async function syncKitchenBarRollupApi(
     query: mutation,
     variables: { fromYmd, toYmd },
   });
-  if (response.data.errors) {
+  if (response.data.errors?.length) {
     throw new Error(response.data.errors[0]?.message || "Sync failed");
   }
-  if (!options?.quiet) {
-    toast.success("Roll-up synced from daily rows for selected dates");
+  const data = response.data.data as Record<string, unknown>;
+  return data[fieldName];
+}
+
+/**
+ * Rebuilds kitchen/bar monthly roll-up snapshot rows from daily beginning rows for
+ * [fromYmd, toYmd]. Tries `syncKitchenBarRollup` first; if the server responds with a
+ * role/authorization error, retries using the field from
+ * `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` (default
+ * `syncKitchenBarRollupForManager`) so Manager can sync once that resolver exists.
+ */
+export async function syncKitchenBarRollupApi(
+  fromYmd: string,
+  toYmd: string,
+  options?: { quiet?: boolean; preferManagerRollupSync?: boolean },
+) {
+  const quiet = options?.quiet;
+  const preferMgr = options?.preferManagerRollupSync === true;
+  const altField = managerKitchenBarRollupSyncGraphqlField();
+
+  const finish = () => {
+    if (!quiet) {
+      toast.success("Roll-up synced from daily rows for selected dates");
+    }
+  };
+
+  /** Manager UI: try manager-scoped sync first when the API exposes it (avoids CC-only noise). */
+  if (preferMgr && altField) {
+    try {
+      const rows = await postKitchenBarRollupSyncField(altField, fromYmd, toYmd);
+      finish();
+      return rows;
+    } catch (first: unknown) {
+      const msg = first instanceof Error ? first.message : String(first);
+      if (!graphqlLooksLikeMissingBatchField(msg)) {
+        throw first;
+      }
+      try {
+        const rows = await postKitchenBarRollupSyncField(
+          "syncKitchenBarRollup",
+          fromYmd,
+          toYmd,
+        );
+        finish();
+        return rows;
+      } catch (second: unknown) {
+        throw second;
+      }
+    }
   }
-  return response.data.data.syncKitchenBarRollup;
+
+  try {
+    const rows = await postKitchenBarRollupSyncField(
+      "syncKitchenBarRollup",
+      fromYmd,
+      toYmd,
+    );
+    finish();
+    return rows;
+  } catch (first: unknown) {
+    const msg = first instanceof Error ? first.message : String(first);
+    if (!altField || !rollupSyncRoleDenied(msg)) {
+      throw first;
+    }
+    try {
+      const rows = await postKitchenBarRollupSyncField(altField, fromYmd, toYmd);
+      finish();
+      return rows;
+    } catch (second: unknown) {
+      const inner = second instanceof Error ? second.message : String(second);
+      if (graphqlLooksLikeMissingBatchField(inner)) {
+        throw first;
+      }
+      throw second;
+    }
+  }
 }
 
 export async function fetchHotelCreditCompanies(): Promise<

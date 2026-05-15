@@ -867,27 +867,23 @@ function CostControlInner() {
                           onClick={() => {
                             void runCcAction("batch-pr-r", async () => {
                               try {
-                                const results =
-                                  await rejectPurchaseRequestsCCBatchApi(
-                                    selectedPrBatchIds,
-                                  );
                                 const batchActor =
                                   profiles
                                     .find((p) => p.id === Number(batchCcProfileId))
                                     ?.displayName?.trim() ?? "";
+                                const results =
+                                  await rejectPurchaseRequestsCCBatchApi(
+                                    selectedPrBatchIds,
+                                    undefined,
+                                    batchActor,
+                                  );
                                 for (const res of results) {
                                   setPurchases((prev) =>
                                     patchPurchaseRequestStatus(
                                       prev,
                                       res.id,
                                       res.status,
-                                      {
-                                        ...res,
-                                        ccActorName:
-                                          res.ccActorName?.trim() ||
-                                          batchActor ||
-                                          undefined,
-                                      },
+                                      res,
                                     ),
                                   );
                                 }

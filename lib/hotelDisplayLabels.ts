@@ -69,11 +69,11 @@ export function formatStockOutRequestStatus(status: string): string {
 export function formatPurchaseRejectorLine(r: PurchaseRequestRow): string {
   if (r.status === "REJECTED_CC") {
     const name = String(r.ccActorName ?? "").trim();
-    return name ? `Cost control: ${name}` : "Cost control (name not recorded)";
+    return name ? `Cost control: ${name}` : "Cost control";
   }
   if (r.status === "REJECTED_FINANCE") {
     const name = String(r.financeActorName ?? "").trim();
-    return name ? `Finance: ${name}` : "Finance (name not recorded)";
+    return name ? `By finance: ${name}` : "By finance";
   }
   return "";
 }
@@ -82,5 +82,5 @@ export function formatPurchaseRejectorLine(r: PurchaseRequestRow): string {
 export function formatStockMovementRejectorLine(r: StockOutRequestRow): string {
   if (r.status !== "REJECTED") return "";
   const name = String(r.ccActorName ?? "").trim();
-  return name ? `Rejected by: ${name}` : "Rejected (name not recorded)";
+  return name ? `Cost control: ${name}` : "Cost control";
 }
