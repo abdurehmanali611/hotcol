@@ -4655,23 +4655,29 @@ function rollupSyncRoleDenied(message: string): boolean {
     /cost control/.test(m) ||
     /cost controller/.test(m) ||
     /\bonly\b.*\b(cost control|cost controller)\b/.test(m) ||
-    /\b(cost control|cost controller)\b.*\bonly\b/.test(m)
+    /\b(cost control|cost controller)\b.*\bonly\b/.test(m) ||
+    (/administrator/.test(m) &&
+      /permission|grant|allowed|authorize|access|role/.test(m)) ||
+    /(do not|don't) have permission/.test(m) ||
+    /insufficient privilege/.test(m) ||
+    /not allowed to perform/.test(m)
   );
 }
 
 /**
- * Optional second mutation for Manager (or any role blocked on the primary).
- * Set `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` to the root field name
- * (e.g. `syncKitchenBarRollupForManager`). If unset, only `syncKitchenBarRollup` is used
- * (avoids HTTP 400 from calling a field your schema does not define). Set to `false`
- * to explicitly disable when the env var is present but empty in tooling.
+ * Alternate roll-up sync mutation tried after `syncKitchenBarRollup` returns a role error.
+ * Defaults to `syncKitchenBarRollupForManager` when unset. Set
+ * `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` to override the name, or to
+ * `false` to disable the retry (only the primary mutation is used).
  */
 function managerKitchenBarRollupSyncGraphqlField(): string | null {
   const raw = process.env.NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD;
-  if (raw == null) return null;
-  const trimmed = String(raw).trim();
-  if (!trimmed || trimmed.toLowerCase() === "false") return null;
-  return trimmed;
+  if (raw != null && String(raw).trim().toLowerCase() === "false") return null;
+  if (raw != null) {
+    const trimmed = String(raw).trim();
+    return trimmed.length ? trimmed : null;
+  }
+  return "syncKitchenBarRollupForManager";
 }
 
 async function postKitchenBarRollupSyncField(
@@ -4707,18 +4713,16 @@ async function postKitchenBarRollupSyncField(
 
 /**
  * Rebuilds kitchen/bar monthly roll-up snapshot rows from daily beginning rows for
- * [fromYmd, toYmd]. Uses `syncKitchenBarRollup` unless
- * `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` is set (then Manager can
- * pass `preferManagerRollupSync` to try that field first, or the client retries it
- * after a Cost Control–style denial on the primary).
+ * [fromYmd, toYmd]. Calls `syncKitchenBarRollup` first; on a role/permission denial,
+ * retries using `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` or the
+ * default `syncKitchenBarRollupForManager` when that resolver exists for Manager.
  */
 export async function syncKitchenBarRollupApi(
   fromYmd: string,
   toYmd: string,
-  options?: { quiet?: boolean; preferManagerRollupSync?: boolean },
+  options?: { quiet?: boolean },
 ) {
   const quiet = options?.quiet;
-  const preferMgr = options?.preferManagerRollupSync === true;
   const altField = managerKitchenBarRollupSyncGraphqlField();
 
   const finish = () => {
@@ -4726,31 +4730,6 @@ export async function syncKitchenBarRollupApi(
       toast.success("Roll-up synced from daily rows for selected dates");
     }
   };
-
-  /** Manager UI: optional dedicated field first when configured (then primary if unknown). */
-  if (preferMgr && altField) {
-    try {
-      const rows = await postKitchenBarRollupSyncField(altField, fromYmd, toYmd);
-      finish();
-      return rows;
-    } catch (first: unknown) {
-      const msg = graphqlUserVisibleMessage(first);
-      if (!graphqlLooksLikeMissingBatchField(msg)) {
-        throw first;
-      }
-      try {
-        const rows = await postKitchenBarRollupSyncField(
-          "syncKitchenBarRollup",
-          fromYmd,
-          toYmd,
-        );
-        finish();
-        return rows;
-      } catch (second: unknown) {
-        throw second;
-      }
-    }
-  }
 
   try {
     const rows = await postKitchenBarRollupSyncField(

@@ -782,10 +782,11 @@ function ManagerContent() {
                   Totals use daily rows dated between <strong>From</strong> and{" "}
                   <strong>To</strong> (inclusive). Pick dates, then use{" "}
                   <strong>Refresh roll-ups</strong> to load stored data for that range.{" "}
-                  <strong>Sync Monthly Data</strong> calls the same roll-up sync as Cost
-                  Control. If your API exposes a separate manager mutation, set{" "}
-                  <code className="text-xs">NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD</code>{" "}
-                  to that field name so Manager can use it first.
+                  <strong>Sync Monthly Data</strong> runs the standard roll-up sync, then
+                  automatically retries with the manager mutation when the server says your
+                  role is not allowed on the first step (if that mutation exists on your API).
+                  Set <code className="text-xs">NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD=false</code>{" "}
+                  to disable the retry.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -815,7 +816,6 @@ function ManagerContent() {
                         normalizeRollupRangeYmd(rollupFromYmd, rollupToYmd);
                         await syncKitchenBarRollupApi(rollupFromYmd, rollupToYmd, {
                           quiet: true,
-                          preferManagerRollupSync: true,
                         });
                         toast.success("Roll-up data synced for selected dates");
                         await fetchRollupSnapshotsForRange();
@@ -823,12 +823,12 @@ function ManagerContent() {
                       } catch (err: unknown) {
                         const raw = rollupSyncErrorText(err);
                         if (
-                          /not authorized|unauthorized|forbidden|^403$|cost controller|cost control only|allowed for cost control/i.test(
+                          /not authorized|unauthorized|forbidden|^403$|cost controller|cost control only|allowed for cost control|administrator|have permission|not allowed to perform/i.test(
                             raw,
                           )
                         ) {
                           toast.error(
-                            "Roll-up sync is still blocked for this login. Ask your administrator to allow Managers on the kitchen/bar roll-up sync (for example the same mutation as Cost Control, or a dedicated manager field such as syncKitchenBarRollupForManager matching NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD).",
+                            "Roll-up sync is still not permitted for this login on both sync endpoints. Your API must allow Manager on `syncKitchenBarRollup` and/or implement `syncKitchenBarRollupForManager` (or set NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD to the correct manager field name).",
                           );
                         } else {
                           notifyApiFailure(
