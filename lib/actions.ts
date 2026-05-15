@@ -10,7 +10,6 @@ import { rowHotelMatchesTenantScope } from "./tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "./hotelInventoryPayment";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { UseFormReturn } from "react-hook-form";
 
@@ -2222,6 +2221,7 @@ function calculateTotalSales(orders: Order[]): number {
 
 export async function exportToExcel(exportData: ExcelExportData) {
   try {
+    const XLSX = await import("xlsx");
     const { sheetName, data, headers } = exportData;
 
     // Create worksheet
@@ -3963,6 +3963,28 @@ function graphqlLooksLikeMissingBatchField(message: string): boolean {
   return /Unknown field|Cannot query field|Unknown argument/i.test(m);
 }
 
+/** GraphQL `errors[].message` from an Axios error body (many gateways use HTTP 400). */
+function graphqlMessagesFromAxiosError(e: unknown): string | null {
+  if (!axios.isAxiosError(e)) return null;
+  const data = e.response?.data as
+    | { errors?: Array<{ message?: string }> }
+    | undefined;
+  const list = data?.errors;
+  if (!Array.isArray(list) || !list.length) return null;
+  const parts = list
+    .map((x) => String(x?.message ?? "").trim())
+    .filter(Boolean);
+  return parts.length ? parts.join("; ") : null;
+}
+
+/** Prefer GraphQL error text from the response body; otherwise the thrown message. */
+function graphqlUserVisibleMessage(e: unknown): string {
+  return (
+    graphqlMessagesFromAxiosError(e) ??
+    (e instanceof Error ? e.message : String(e ?? ""))
+  );
+}
+
 /**
  * When a batch GraphQL mutation is missing or the gateway rejects the combined
  * request (common: HTTP 400), fall back to per-id mutations so cost control /
@@ -3970,7 +3992,7 @@ function graphqlLooksLikeMissingBatchField(message: string): boolean {
  */
 function hotelBatchMutationShouldFallbackToSequential(e: unknown): boolean {
   if (isSessionExpiredError(e)) return false;
-  const msg = e instanceof Error ? e.message : String(e);
+  const msg = graphqlUserVisibleMessage(e);
   if (graphqlLooksLikeMissingBatchField(msg)) return true;
   if (axios.isAxiosError(e)) {
     const s = e.response?.status;
@@ -4640,14 +4662,16 @@ function rollupSyncRoleDenied(message: string): boolean {
 /**
  * Optional second mutation for Manager (or any role blocked on the primary).
  * Set `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` to the root field name
- * exposed by your API (default `syncKitchenBarRollupForManager`). Set to `false` to
- * disable the fallback attempt.
+ * (e.g. `syncKitchenBarRollupForManager`). If unset, only `syncKitchenBarRollup` is used
+ * (avoids HTTP 400 from calling a field your schema does not define). Set to `false`
+ * to explicitly disable when the env var is present but empty in tooling.
  */
 function managerKitchenBarRollupSyncGraphqlField(): string | null {
   const raw = process.env.NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD;
-  if (raw != null && String(raw).trim().toLowerCase() === "false") return null;
-  const s = String(raw ?? "syncKitchenBarRollupForManager").trim();
-  return s.length ? s : null;
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed || trimmed.toLowerCase() === "false") return null;
+  return trimmed;
 }
 
 async function postKitchenBarRollupSyncField(
@@ -4662,23 +4686,31 @@ async function postKitchenBarRollupSyncField(
       }
     }
   `;
-  const response = await api.post(API_URL, {
-    query: mutation,
-    variables: { fromYmd, toYmd },
-  });
-  if (response.data.errors?.length) {
-    throw new Error(response.data.errors[0]?.message || "Sync failed");
+  try {
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { fromYmd, toYmd },
+    });
+    if (response.data.errors?.length) {
+      throw new Error(
+        response.data.errors[0]?.message || "Sync failed",
+      );
+    }
+    const data = response.data.data as Record<string, unknown>;
+    return data[fieldName];
+  } catch (e: unknown) {
+    const gql = graphqlMessagesFromAxiosError(e);
+    if (gql) throw new Error(gql);
+    throw e;
   }
-  const data = response.data.data as Record<string, unknown>;
-  return data[fieldName];
 }
 
 /**
  * Rebuilds kitchen/bar monthly roll-up snapshot rows from daily beginning rows for
- * [fromYmd, toYmd]. Tries `syncKitchenBarRollup` first; if the server responds with a
- * role/authorization error, retries using the field from
- * `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` (default
- * `syncKitchenBarRollupForManager`) so Manager can sync once that resolver exists.
+ * [fromYmd, toYmd]. Uses `syncKitchenBarRollup` unless
+ * `NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD` is set (then Manager can
+ * pass `preferManagerRollupSync` to try that field first, or the client retries it
+ * after a Cost Control–style denial on the primary).
  */
 export async function syncKitchenBarRollupApi(
   fromYmd: string,
@@ -4695,14 +4727,14 @@ export async function syncKitchenBarRollupApi(
     }
   };
 
-  /** Manager UI: try manager-scoped sync first when the API exposes it (avoids CC-only noise). */
+  /** Manager UI: optional dedicated field first when configured (then primary if unknown). */
   if (preferMgr && altField) {
     try {
       const rows = await postKitchenBarRollupSyncField(altField, fromYmd, toYmd);
       finish();
       return rows;
     } catch (first: unknown) {
-      const msg = first instanceof Error ? first.message : String(first);
+      const msg = graphqlUserVisibleMessage(first);
       if (!graphqlLooksLikeMissingBatchField(msg)) {
         throw first;
       }
@@ -4729,7 +4761,7 @@ export async function syncKitchenBarRollupApi(
     finish();
     return rows;
   } catch (first: unknown) {
-    const msg = first instanceof Error ? first.message : String(first);
+    const msg = graphqlUserVisibleMessage(first);
     if (!altField || !rollupSyncRoleDenied(msg)) {
       throw first;
     }
@@ -4738,7 +4770,7 @@ export async function syncKitchenBarRollupApi(
       finish();
       return rows;
     } catch (second: unknown) {
-      const inner = second instanceof Error ? second.message : String(second);
+      const inner = graphqlUserVisibleMessage(second);
       if (graphqlLooksLikeMissingBatchField(inner)) {
         throw first;
       }

@@ -129,6 +129,16 @@ function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
+function rollupSyncErrorText(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  const anyErr = err as {
+    response?: { data?: { errors?: Array<{ message?: string }> } };
+  };
+  const gql = anyErr.response?.data?.errors?.[0]?.message;
+  if (typeof gql === "string" && gql.trim()) return gql;
+  return String(err ?? "");
+}
+
 function normalizeItemNameForValueKey(name: string): string {
   return String(name || "").trim().toLowerCase();
 }
@@ -772,9 +782,10 @@ function ManagerContent() {
                   Totals use daily rows dated between <strong>From</strong> and{" "}
                   <strong>To</strong> (inclusive). Pick dates, then use{" "}
                   <strong>Refresh roll-ups</strong> to load stored data for that range.{" "}
-                  <strong>Sync Monthly Data</strong> rebuilds roll-up rows from the daily
-                  grid for this range (Manager uses the manager sync API when your backend
-                  exposes it; otherwise the same permission rules as Cost Control apply).
+                  <strong>Sync Monthly Data</strong> calls the same roll-up sync as Cost
+                  Control. If your API exposes a separate manager mutation, set{" "}
+                  <code className="text-xs">NEXT_PUBLIC_HOTEL_MANAGER_KITCHEN_BAR_ROLLUP_SYNC_FIELD</code>{" "}
+                  to that field name so Manager can use it first.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -810,8 +821,7 @@ function ManagerContent() {
                         await fetchRollupSnapshotsForRange();
                         await loadData(true);
                       } catch (err: unknown) {
-                        const raw =
-                          err instanceof Error ? err.message : String(err ?? "");
+                        const raw = rollupSyncErrorText(err);
                         if (
                           /not authorized|unauthorized|forbidden|^403$|cost controller|cost control only|allowed for cost control/i.test(
                             raw,
