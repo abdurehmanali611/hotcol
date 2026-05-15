@@ -104,6 +104,15 @@ export function InventoryBatchMovementBar({
 
   const initSigRef = useRef("");
 
+  // When nothing is selected, drop dialog drafts so a later selection never reuses old lines.
+  useEffect(() => {
+    if (selected.length === 0) {
+      setOpen(false);
+      setLines([]);
+      initSigRef.current = "";
+    }
+  }, [selected.length]);
+
   useEffect(() => {
     if (!open) {
       initSigRef.current = "";

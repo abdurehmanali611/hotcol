@@ -130,12 +130,20 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` from useReactTable changes identity each render
   }, [enableRowSelection, onRowSelectionChange, rowSelection, data]);
 
-  React.useImperativeHandle(ref, () => ({
-    resetRowSelection: () => {
-      lastSelectionSig.current = "";
-      setRowSelection({});
-    },
-  }));
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      resetRowSelection: () => {
+        setRowSelection({});
+        lastSelectionSig.current = "";
+        // Must notify parent immediately: the selection-sync effect compares `sig` to
+        // `lastSelectionSig`, and both are "" for an empty selection, so it would skip
+        // `onRowSelectionChange([])` and leave stale batch selection in the parent.
+        onRowSelectionChange?.([]);
+      },
+    }),
+    [onRowSelectionChange],
+  );
 
   return (
     <div className="space-y-4">
