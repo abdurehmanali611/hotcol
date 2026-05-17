@@ -1,5 +1,10 @@
 "use client";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  aggregateInventoryByItemName,
+  isAggregatedInventoryRow,
+} from "@/lib/inventoryAggregation";
+import type { items } from "./columns";
 import { fetchItemRegistrations, ItemRegistration, type StockOutRequestRow } from "@/lib/actions";
 import {
   effectiveTenantScopeForHotelTerminal,
@@ -26,6 +31,8 @@ export default function StoreItems({
   embedded = false,
   readOnly = false,
   showPaymentSummary = false,
+  /** Merge rows with the same item name (sum qty, list suppliers). */
+  aggregateInventory = true,
   onHotelStockRequestCreated,
 }: {
   items?: ItemRegistration[];
@@ -38,6 +45,7 @@ export default function StoreItems({
   readOnly?: boolean;
   /** Show paid vs on-credit counts above the table. */
   showPaymentSummary?: boolean;
+  aggregateInventory?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -109,6 +117,24 @@ export default function StoreItems({
           new Date(item.registrationDate).toDateString() === date.toDateString()
       )
     : data;
+
+  const tableData = useMemo(() => {
+    const rows = filteredData as items[];
+    if (!aggregateInventory) return rows;
+    return aggregateInventoryByItemName(rows);
+  }, [filteredData, aggregateInventory]);
+
+  const expandSelection = useCallback((selected: ItemRegistration[]) => {
+    const expanded: ItemRegistration[] = [];
+    for (const row of selected as items[]) {
+      if (isAggregatedInventoryRow(row)) {
+        expanded.push(...row.registrationLines);
+      } else {
+        expanded.push(row);
+      }
+    }
+    return expanded;
+  }, []);
 
   const Root = embedded ? "div" : "main";
   const shellClass = embedded
@@ -200,16 +226,19 @@ export default function StoreItems({
         )}
         <DataTableClientWrapper
           ref={tableRef}
-          data={filteredData}
+          data={tableData}
           onEdit={handleEdit}
           refresh={refresh}
           hotelStockApprovals={hotelStockApprovals}
           readOnly={readOnly}
           showStoreRowActions={showStoreRowActions}
+          aggregateInventory={aggregateInventory}
           onHotelStockRequestCreated={onHotelStockRequestCreated}
           enableRowSelection={hotelStockApprovals && showStoreRowActions}
           onRowSelectionChange={
-            hotelStockApprovals && showStoreRowActions ? setBatchSelected : undefined
+            hotelStockApprovals && showStoreRowActions
+              ? (rows) => setBatchSelected(expandSelection(rows))
+              : undefined
           }
         />
       </div>

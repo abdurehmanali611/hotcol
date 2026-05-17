@@ -4,6 +4,10 @@ import { columns, items } from "./columns";
 import { DataTable, type DataTableRef } from "./data-table";
 import type { ItemRegistration } from "@/lib/actions";
 import type { StockOutRequestRow } from "@/lib/actions";
+import {
+  isAggregatedInventoryRow,
+} from "@/lib/inventoryAggregation";
+import { normalizeInventoryItemName } from "@/lib/tenantRowMatch";
 
 interface WrapperProps {
   data: items[];
@@ -15,6 +19,7 @@ interface WrapperProps {
   showStoreRowActions?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
   enableRowSelection?: boolean;
+  aggregateInventory?: boolean;
   onRowSelectionChange?: (rows: ItemRegistration[]) => void;
 }
 
@@ -31,10 +36,17 @@ export const DataTableClientWrapper = forwardRef<
     showStoreRowActions,
     onHotelStockRequestCreated,
     enableRowSelection,
+    aggregateInventory,
     onRowSelectionChange,
   },
   ref,
 ) {
+  const resolveRowId = (row: items) => {
+    if (aggregateInventory && isAggregatedInventoryRow(row)) {
+      return `agg-${normalizeInventoryItemName(row.name)}`;
+    }
+    return String(row.id);
+  };
   const memoizedColumns = useMemo(
     () =>
       columns(onEdit, refresh, {
@@ -59,7 +71,7 @@ export const DataTableClientWrapper = forwardRef<
       columns={memoizedColumns}
       data={data}
       enableRowSelection={!!enableRowSelection}
-      getRowId={(row) => String(row.id)}
+      getRowId={resolveRowId}
       onRowSelectionChange={onRowSelectionChange}
     />
   );

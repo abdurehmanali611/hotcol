@@ -34,11 +34,13 @@ import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Building,
+  ChevronRight,
   ClipboardList,
   Edit,
   Loader2,
   MinusCircle,
   PackagePlus,
+  Printer,
   Receipt,
   RefreshCw,
   Send,
@@ -46,7 +48,11 @@ import {
   StoreIcon,
 } from "lucide-react";
 import PurchaseRequestsTab from "@/components/hotel/PurchaseRequestsTab";
-import StoreRequestStatusTab from "@/components/hotel/StoreRequestStatusTab";
+import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
+import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
+import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
@@ -58,10 +64,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import StoreItems from "../../StoreItems/page";
 import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
@@ -72,11 +86,10 @@ import {
 } from "@/lib/hotelInventoryPayment";
 import {
   effectiveTenantScopeForHotelTerminal,
-  normalizeInventoryItemName,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
+import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
-import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
 import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 
 type StoreView =
@@ -85,10 +98,15 @@ type StoreView =
   | "Supplier"
   | "Inactive"
   | "Purchases"
-  | "RequestStatus"
-  | "PaymentVat";
+  | "ReceiptPrinting"
+  | "PurchaseRequestStatus"
+  | "StockMovementStatus"
+  | "PaymentCredit"
+  | "PaymentPaid"
+  | "PaymentWithVat"
+  | "PaymentWithoutVat";
 
-const HOTEL_STORE_NAV: {
+const HOTEL_STORE_NAV_TOP: {
   id: StoreView;
   label: string;
   icon: typeof PackagePlus;
@@ -98,8 +116,19 @@ const HOTEL_STORE_NAV: {
   { id: "Inactive", label: "Inactive", icon: MinusCircle },
   { id: "Supplier", label: "Suppliers", icon: StoreIcon },
   { id: "Purchases", label: "Purchase pipeline", icon: Send },
-  { id: "RequestStatus", label: "Request status", icon: ClipboardList },
-  { id: "PaymentVat", label: "Inventory payment & tax", icon: Receipt },
+  { id: "ReceiptPrinting", label: "Item receipts", icon: Printer },
+];
+
+const REQUEST_STATUS_VIEWS: StoreView[] = [
+  "PurchaseRequestStatus",
+  "StockMovementStatus",
+];
+
+const PAYMENT_VAT_VIEWS: StoreView[] = [
+  "PaymentCredit",
+  "PaymentPaid",
+  "PaymentWithVat",
+  "PaymentWithoutVat",
 ];
 
 export function StoreComponent({
@@ -246,6 +275,21 @@ export function StoreComponent({
     [refreshPurchasesOnly],
   );
 
+  const requestStatusData = useStoreRequestStatusData({
+    refreshSignal: requestStatusSeed,
+    injectedStockRows: hotelInventory ? pendingLocalStockRows : undefined,
+    onClearInjectedStockIds: hotelInventory ? clearInjectedStockIds : undefined,
+    injectedPurchaseRows: hotelInventory ? pendingLocalPurchaseRows : undefined,
+    onClearInjectedPurchaseIds: hotelInventory
+      ? clearInjectedPurchaseIds
+      : undefined,
+  });
+
+  const uniqueInventoryCount = useMemo(
+    () => countUniqueInventoryNames(storeItem),
+    [storeItem],
+  );
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
@@ -318,21 +362,6 @@ export function StoreComponent({
     void run(registerSubmitKey, async () => {
       try {
         const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
-        const want = normalizeInventoryItemName(payload.name);
-        if (want.length > 0) {
-          const tenantForDup = hotelInventory ? inventoryTenantKey : tenantScope;
-          const dup = storeItem.find(
-            (it) =>
-              rowHotelMatchesTenantScope(it.HotelName, tenantForDup) &&
-              normalizeInventoryItemName(it.name) === want,
-          );
-          if (dup) {
-            toast.error(
-              "The item already exists. You can edit it from the Inventory tab.",
-            );
-            return;
-          }
-        }
         if (!hotelInventory) {
           const totalCalc =
             computeInventoryPaidAmountETB(
@@ -415,16 +444,43 @@ export function StoreComponent({
         "Create purchase requests for Cost Control and Finance approval, then register stock when goods arrive.",
       Icon: Send,
     },
-    RequestStatus: {
-      title: "Request status",
+    ReceiptPrinting: {
+      title: "Item receipt printing",
       description:
-        "Track purchase and movement requests end-to-end with the latest approval status.",
-      Icon: ClipboardList,
+        "Print a receiving receipt for each registration line, including duplicate item names from different suppliers.",
+      Icon: Printer,
     },
-    PaymentVat: {
-      title: HOTEL_INVENTORY_COPY.paymentAndTax,
+    PurchaseRequestStatus: {
+      title: "Purchase request status",
       description:
-        "Filter by supplier payment (credit or paid) and VAT, and download Excel for finance.",
+        "Track purchase requests you opened through Cost Control and Finance approval.",
+      Icon: Send,
+    },
+    StockMovementStatus: {
+      title: "Stock movement status",
+      description:
+        "Track stock out, wastage, and return-to-supplier requests you submitted.",
+      Icon: PackagePlus,
+    },
+    PaymentCredit: {
+      title: "Credit receiving vouchers",
+      description:
+        "Inventory received on supplier credit (full or partial payment recorded).",
+      Icon: Receipt,
+    },
+    PaymentPaid: {
+      title: "Paid receiving items",
+      description: "Inventory lines fully paid to the supplier at registration.",
+      Icon: Receipt,
+    },
+    PaymentWithVat: {
+      title: "Items purchased with VAT",
+      description: "Registrations where purchase price includes VAT.",
+      Icon: Receipt,
+    },
+    PaymentWithoutVat: {
+      title: "Items purchased without VAT",
+      description: "Registrations recorded without VAT on the unit price.",
       Icon: Receipt,
     },
   };
@@ -500,6 +556,10 @@ export function StoreComponent({
                   <TabsTrigger value="Supplier" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background">
                     <StoreIcon size={16} />
                     <span className="hidden sm:inline">Suppliers</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="ReceiptPrinting" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background">
+                    <Printer size={16} />
+                    <span className="hidden sm:inline">Receipts</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -724,31 +784,64 @@ export function StoreComponent({
               onCreated={handlePurchaseRequestCreated}
             />
           </div>
-        ) : activeView === "RequestStatus" && hotelInventory ? (
-          <div className="animate-in fade-in zoom-in-95 duration-300">
-            <StoreRequestStatusTab
-              refreshSignal={requestStatusSeed}
-              injectedStockRows={
-                hotelInventory ? pendingLocalStockRows : undefined
-              }
-              onClearInjectedStockIds={
-                hotelInventory ? clearInjectedStockIds : undefined
-              }
-              injectedPurchaseRows={
-                hotelInventory ? pendingLocalPurchaseRows : undefined
-              }
-              onClearInjectedPurchaseIds={
-                hotelInventory ? clearInjectedPurchaseIds : undefined
-              }
+        ) : activeView === "ReceiptPrinting" ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <StoreItemReceiptPrinting
+              items={storeItem}
+              propertyName={displayLabel}
+              logoUrl={logoUrl}
             />
           </div>
-        ) : activeView === "PaymentVat" && hotelInventory ? (
+        ) : activeView === "PurchaseRequestStatus" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentVatPanel
+            {requestStatusData.initialLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-9 w-9 animate-spin text-primary" />
+              </div>
+            ) : (
+              <PurchaseRequestStatusPanel rows={requestStatusData.myPurchases} />
+            )}
+          </div>
+        ) : activeView === "StockMovementStatus" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            {requestStatusData.initialLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-9 w-9 animate-spin text-primary" />
+              </div>
+            ) : (
+              <StockMovementStatusPanel rows={requestStatusData.myStocks} />
+            )}
+          </div>
+        ) : activeView === "PaymentCredit" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <HotelInventoryPaymentCategoryPanel
+              mode="credit"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
-              purchasePipeline={purchaseRows}
-              inactiveItems={itemStatus}
+            />
+          </div>
+        ) : activeView === "PaymentPaid" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <HotelInventoryPaymentCategoryPanel
+              mode="paid"
+              tenantLabel={displayLabel}
+              inventoryItems={storeItem}
+            />
+          </div>
+        ) : activeView === "PaymentWithVat" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <HotelInventoryPaymentCategoryPanel
+              mode="with-vat"
+              tenantLabel={displayLabel}
+              inventoryItems={storeItem}
+            />
+          </div>
+        ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <HotelInventoryPaymentCategoryPanel
+              mode="without-vat"
+              tenantLabel={displayLabel}
+              inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "Inactive" ? (
@@ -793,7 +886,7 @@ export function StoreComponent({
             </div>
             <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
               <SidebarMenu className="gap-1">
-                {HOTEL_STORE_NAV.map(({ id, label, icon: Icon }) => (
+                {HOTEL_STORE_NAV_TOP.map(({ id, label, icon: Icon }) => (
                   <SidebarMenuItem key={id}>
                     <SidebarMenuButton
                       isActive={activeView === id}
@@ -807,6 +900,102 @@ export function StoreComponent({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+
+                <Collapsible
+                  defaultOpen={REQUEST_STATUS_VIEWS.includes(activeView)}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Request status"
+                        size="lg"
+                        className="h-10 cursor-pointer text-[13px]"
+                        isActive={REQUEST_STATUS_VIEWS.includes(activeView)}
+                      >
+                        <ClipboardList className="opacity-80" />
+                        <span>Request status</span>
+                        <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "PurchaseRequestStatus"}
+                            onClick={() => setActiveView("PurchaseRequestStatus")}
+                          >
+                            Purchase requests
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "StockMovementStatus"}
+                            onClick={() => setActiveView("StockMovementStatus")}
+                          >
+                            Stock movements
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+
+                <Collapsible
+                  defaultOpen={PAYMENT_VAT_VIEWS.includes(activeView)}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip={HOTEL_INVENTORY_COPY.paymentAndTax}
+                        size="lg"
+                        className="h-10 cursor-pointer text-[13px]"
+                        isActive={PAYMENT_VAT_VIEWS.includes(activeView)}
+                      >
+                        <Receipt className="opacity-80" />
+                        <span className="truncate">Payment &amp; tax</span>
+                        <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "PaymentCredit"}
+                            onClick={() => setActiveView("PaymentCredit")}
+                          >
+                            Credit vouchers
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "PaymentPaid"}
+                            onClick={() => setActiveView("PaymentPaid")}
+                          >
+                            Paid receiving
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "PaymentWithVat"}
+                            onClick={() => setActiveView("PaymentWithVat")}
+                          >
+                            With VAT
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "PaymentWithoutVat"}
+                            onClick={() => setActiveView("PaymentWithoutVat")}
+                          >
+                            Without VAT
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
               </SidebarMenu>
             </SidebarContent>
           <SidebarFooter className="p-4 pt-2">
@@ -855,10 +1044,10 @@ export function StoreComponent({
                           <div className="min-w-0 space-y-1">
                             <CardDescription>{HOTEL_INVENTORY_COPY.inventoryItems}</CardDescription>
                             <CardTitle className="text-3xl tabular-nums tracking-tight">
-                              {storeItem.length}
+                              {uniqueInventoryCount}
                             </CardTitle>
                             <p className="text-xs text-muted-foreground">
-                              Registered items for this property
+                              Unique items ({storeItem.length} registration lines)
                             </p>
                           </div>
                         </div>

@@ -42,6 +42,11 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import {
+  aggregatedCreditETB,
+  aggregatedLineOwedETB,
+  isAggregatedInventoryRow,
+} from "@/lib/inventoryAggregation";
+import {
   isVatEnabled,
   itemPaymentBucket,
   itemPaymentLabel,
@@ -51,9 +56,34 @@ import { cn } from "@/lib/utils";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, Loader2, MoreVertical, Truck } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  Loader2,
+  MoreVertical,
+  Truck,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+export type InventorySupplierLine = {
+  registrationId: number;
+  supplierName: string;
+  supplierPhone: string;
+  supplierTinNumber?: string;
+  Address: string;
+  amount: number;
+  paidAmount: number;
+  unitPrice: number;
+  registrationDate: Date;
+  purchaseWithVat?: boolean;
+};
 
 export type items = {
   id: number;
@@ -76,7 +106,138 @@ export type items = {
   status?: string;
   statusBy?: string;
   HotelName: string;
+  isAggregated?: boolean;
+  registrationLines?: items[];
+  suppliers?: InventorySupplierLine[];
 };
+
+function SuppliersSourceCell({ row }: { row: items }) {
+  const lines =
+    row.suppliers ??
+    (isAggregatedInventoryRow(row) ? row.suppliers : undefined);
+
+  if (lines && lines.length > 1) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-auto min-h-9 max-w-[220px] justify-between gap-2 border-dashed px-2.5 py-1.5 text-left font-normal"
+          >
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                <Truck size={12} className="shrink-0 text-primary" />
+                {lines.length} suppliers
+              </span>
+              <span className="text-[10px] text-muted-foreground truncate">
+                {lines.map((s) => s.supplierName).join(" · ")}
+              </span>
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-80 p-0">
+          <SupplierLinesList lines={lines} measuredBy={row.measuredBy} />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <SupplierLinesList
+      lines={
+        lines?.length
+          ? lines
+          : [
+              {
+                registrationId: row.id,
+                supplierName: row.supplierName,
+                supplierPhone: row.supplierPhone,
+                supplierTinNumber: row.supplierTinNumber,
+                Address: row.Address,
+                amount: row.amount,
+                paidAmount: row.paidAmount,
+                unitPrice: row.unitPrice,
+                registrationDate: row.registrationDate,
+                purchaseWithVat: row.purchaseWithVat,
+              },
+            ]
+      }
+      measuredBy={row.measuredBy}
+      compact
+    />
+  );
+}
+
+function SupplierLinesList({
+  lines,
+  measuredBy,
+  compact = false,
+}: {
+  lines: InventorySupplierLine[];
+  measuredBy: string;
+  compact?: boolean;
+}) {
+  if (compact && lines.length === 1) {
+    const s = lines[0];
+    return (
+      <SupplierLineCard s={s} measuredBy={measuredBy} />
+    );
+  }
+
+  return (
+    <div className="p-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+        Supplier sources
+      </p>
+      <ScrollArea className="max-h-56 pr-2">
+        <div className="space-y-2">
+          {lines.map((s) => (
+            <SupplierLineCard key={s.registrationId} s={s} measuredBy={measuredBy} />
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function SupplierLineCard({
+  s,
+  measuredBy,
+}: {
+  s: InventorySupplierLine;
+  measuredBy: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5 space-y-1">
+      <div className="flex items-center gap-1.5 text-xs font-semibold">
+        <Truck size={12} className="text-primary shrink-0" />
+        <span className="truncate">{s.supplierName || "—"}</span>
+      </div>
+      <div className="text-[10px] text-muted-foreground space-y-0.5 pl-0.5">
+        <p>
+          {s.amount} {measuredBy} · ETB {s.unitPrice.toLocaleString()}/unit
+        </p>
+        {s.supplierPhone ? <p>{s.supplierPhone}</p> : null}
+        {(s.supplierTinNumber || "").trim() ? (
+          <p>TIN: {(s.supplierTinNumber || "").trim()}</p>
+        ) : null}
+        <p className="text-[9px] opacity-80">
+          Received {new Date(s.registrationDate).toLocaleDateString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Largest-quantity registration line — used for row actions on aggregated rows. */
+function primaryRegistrationLine(data: items): items {
+  if (!isAggregatedInventoryRow(data)) return data;
+  return data.registrationLines.reduce((best, line) =>
+    line.amount > best.amount ? line : best,
+  data.registrationLines[0]);
+}
 
 function statusExtrasFromItem(d: items) {
   return {
@@ -747,10 +908,17 @@ export const columns = (
     id: "totalValue",
     header: "Value",
     cell: ({ row }) => {
-      const total = lineOwedETB(row.original);
+      const total = aggregatedLineOwedETB(row.original);
       return (
         <div className="flex flex-col">
-          <span className="text-sm font-bold text-primary">ETB {total.toLocaleString()}</span>
+          <span className="text-sm font-bold text-primary">
+            ETB {total.toLocaleString()}
+          </span>
+          {isAggregatedInventoryRow(row.original) ? (
+            <span className="text-[10px] text-muted-foreground">
+              {row.original.registrationLines.length} batches combined
+            </span>
+          ) : null}
         </div>
       );
     },
@@ -759,22 +927,37 @@ export const columns = (
     id: "purchaseVat",
     header: "VAT",
     cell: ({ row }) => {
-      const vatOn = isVatEnabled(row.original.purchaseWithVat);
+      const mixed =
+        isAggregatedInventoryRow(row.original) &&
+        new Set(
+          row.original.registrationLines.map((l) =>
+            isVatEnabled(l.purchaseWithVat),
+          ),
+        ).size > 1;
+      const vatOn = mixed
+        ? null
+        : isVatEnabled(row.original.purchaseWithVat);
       return (
         <div className="flex flex-col gap-1.5 min-w-[108px]">
           <Badge
             variant="outline"
             className={cn(
               "w-fit px-2.5 py-0.5 text-[11px] font-semibold tracking-wide border shadow-sm",
-              vatOn
-                ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white ring-1 ring-violet-500/25"
-                : "border-slate-300/60 bg-muted/80 text-muted-foreground dark:border-slate-600/60",
+              mixed
+                ? "border-amber-400/50 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+                : vatOn
+                  ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white ring-1 ring-violet-500/25"
+                  : "border-slate-300/60 bg-muted/80 text-muted-foreground dark:border-slate-600/60",
             )}
           >
-            {vatOn ? "With VAT" : "Without VAT"}
+            {mixed ? "Mixed VAT" : vatOn ? "With VAT" : "Without VAT"}
           </Badge>
           <span className="text-[10px] text-muted-foreground leading-snug">
-            {vatOn ? "Unit price includes 15% VAT" : "Net line (no VAT on unit)"}
+            {mixed
+              ? "Batches recorded with different VAT settings"
+              : vatOn
+                ? "Unit price includes 15% VAT"
+                : "Net line (no VAT on unit)"}
           </span>
         </div>
       );
@@ -795,31 +978,35 @@ export const columns = (
     },
   },
   {
-    accessorKey: "supplierName",
+    id: "supplierSource",
     header: "Source",
-    cell: ({ row }) => (
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 text-xs font-medium">
-          <Truck size={12} className="text-muted-foreground" />
-          {row.original.supplierName}
-        </div>
-        {(row.original.supplierTinNumber || "").trim() ? (
-          <span className="text-[10px] text-muted-foreground">
-            TIN: {(row.original.supplierTinNumber || "").trim()}
-          </span>
-        ) : null}
-      </div>
-    ),
+    cell: ({ row }) => <SuppliersSourceCell row={row.original} />,
   },
   {
     accessorKey: "paidAmount",
     header: "Supplier payment",
     cell: ({ row }) => {
-      const owed = lineOwedETB(row.original);
-      const paid = row.original.paidAmount;
-      const bucket = itemPaymentBucket(row.original);
+      const owed = aggregatedLineOwedETB(row.original);
+      const paid = Number(row.original.paidAmount) || 0;
+      const bucket =
+        isAggregatedInventoryRow(row.original) &&
+        new Set(
+          row.original.registrationLines.map((l) => itemPaymentBucket(l)),
+        ).size > 1
+          ? aggregatedCreditETB(row.original) > 0.01
+            ? ("credit" as const)
+            : paid >= owed - 0.02
+              ? ("paid" as const)
+              : ("none" as const)
+          : itemPaymentBucket(row.original);
       const pct = owed > 0.01 ? Math.min((paid / owed) * 100, 100) : paid > 0 ? 100 : 0;
-      const label = itemPaymentLabel(bucket);
+      const label =
+        isAggregatedInventoryRow(row.original) &&
+        new Set(
+          row.original.registrationLines.map((l) => itemPaymentBucket(l)),
+        ).size > 1
+          ? "Mixed payment"
+          : itemPaymentLabel(bucket);
       return (
         <div className="w-44 space-y-1.5">
           <Badge
@@ -858,6 +1045,7 @@ export const columns = (
     ),
     cell: ({ row }) => {
       const [openDrop, setOpenDrop] = useState(false);
+      const actionLine = primaryRegistrationLine(row.original);
       return (
         <DropdownMenu open={openDrop} onOpenChange={setOpenDrop}>
           <DropdownMenuTrigger asChild>
@@ -869,12 +1057,27 @@ export const columns = (
              <DropdownMenuGroup className="space-y-1">
                 <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground px-2">Management</DropdownMenuLabel>
                 <DropdownMenuItem asChild>
-                  <Button variant="ghost" className="w-64 justify-start h-9 text-sm font-normal" onClick={() => { setOpenDrop(false); onEdit?.(row.original); }}>
+                  <Button
+                    variant="ghost"
+                    className="w-64 justify-start h-9 text-sm font-normal"
+                    onClick={() => {
+                      setOpenDrop(false);
+                      onEdit?.(actionLine);
+                    }}
+                  >
                     Edit Details
+                    {isAggregatedInventoryRow(row.original)
+                      ? " (primary batch)"
+                      : ""}
                   </Button>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
-                  <DeleteButton itemName={row.original.name} itemId={row.original.id} onDelete={() => setOpenDrop(false)} refresh={refresh} />
+                  <DeleteButton
+                    itemName={actionLine.name}
+                    itemId={actionLine.id}
+                    onDelete={() => setOpenDrop(false)}
+                    refresh={refresh}
+                  />
                 </DropdownMenuItem>
              </DropdownMenuGroup>
              <DropdownMenuSeparator className="my-2" />
@@ -882,7 +1085,7 @@ export const columns = (
                 <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground px-2">Inventory Movements</DropdownMenuLabel>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
                   <StockOut
-                    data={row.original}
+                    data={actionLine}
                     refresh={refresh}
                     hotelStockApprovals={opts?.hotelStockApprovals}
                     onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
@@ -891,7 +1094,7 @@ export const columns = (
                 <div className="grid grid-cols-2 gap-8.5 mt-1">
                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
                     <Wastage
-                      data={row.original}
+                      data={actionLine}
                       refresh={refresh}
                       hotelStockApprovals={opts?.hotelStockApprovals}
                       onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
@@ -899,7 +1102,7 @@ export const columns = (
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
                     <Returned
-                      data={row.original}
+                      data={actionLine}
                       refresh={refresh}
                       hotelStockApprovals={opts?.hotelStockApprovals}
                       onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
