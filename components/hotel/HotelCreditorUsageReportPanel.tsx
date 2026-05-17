@@ -10,6 +10,11 @@ import {
   type HotelCreditPartyRow,
 } from "@/lib/actions";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
+import { DataTable } from "@/app/StoreItems/data-table";
+import {
+  buildCreditorUsageColumns,
+  usageLines,
+} from "@/lib/dataTableColumns/creditorUsage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,32 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { FileSpreadsheet, Search } from "lucide-react";
 import { toast } from "sonner";
-
-function usageLines(linesJson: string): string[] {
-  try {
-    const rows = JSON.parse(linesJson);
-    if (!Array.isArray(rows)) return [linesJson];
-    return rows.map((line: any) => {
-      const n = String(line?.name ?? "Item");
-      const q = Number(line?.qty ?? 0);
-      const p = Number(line?.unitPrice ?? 0);
-      return `${n} x ${q} @ ETB ${p.toLocaleString()}`;
-    });
-  } catch {
-    return [linesJson];
-  }
-}
 
 export function HotelCreditorUsageReportPanel({
   tenantLabel,
@@ -98,8 +79,9 @@ export function HotelCreditorUsageReportPanel({
         }
       }
       setPartyById(pmap);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load creditor usage report");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load creditor usage report";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -117,6 +99,11 @@ export function HotelCreditorUsageReportPanel({
       return hay.includes(term);
     });
   }, [rows, companyFilter, search, partyById]);
+
+  const columns = useMemo(
+    () => buildCreditorUsageColumns(companyById, partyById),
+    [companyById, partyById],
+  );
 
   return (
     <div className="space-y-6">
@@ -205,62 +192,13 @@ export function HotelCreditorUsageReportPanel({
         </Button>
       </div>
 
-      <div className="rounded-xl border border-border/80 bg-card/95 shadow-sm overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>When</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Staff / Guest</TableHead>
-              <TableHead className="text-right">ETB</TableHead>
-              <TableHead>Lines</TableHead>
-              <TableHead>Recorded by</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
-                  No report rows for current filters.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((r) => {
-                const party = partyById.get(r.partyId);
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="text-xs whitespace-nowrap">
-                      {new Date(r.occurredAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {companyById.get(r.companyId) ?? `#${r.companyId}`}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-0.5">
-                        <div>{party?.displayName ?? `#${r.partyId}`}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {party?.phoneNumber ?? "No phone"}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.totalAmount.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="max-w-[360px] text-xs text-muted-foreground">
-                      {usageLines(r.linesJson).map((line, i) => (
-                        <p key={`${r.id}-${i}`}>{line}</p>
-                      ))}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{r.recordedBy}</Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filtered}
+        hideToolbar
+        emptyMessage="No report rows for current filters."
+        getRowId={(r) => String(r.id)}
+      />
     </div>
   );
 }

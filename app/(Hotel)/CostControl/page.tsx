@@ -59,14 +59,11 @@ import {
   patchPurchaseRequestStatus,
   patchStockOutRequestStatus,
 } from "@/lib/hotelRowPatches";
+import { DataTable } from "@/app/StoreItems/data-table";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  buildKitchenBarDailyColumns,
+  buildKitchenBarRollupColumns,
+} from "@/lib/dataTableColumns/kitchenBar";
 import {
   Select,
   SelectContent,
@@ -94,7 +91,6 @@ import {
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import {
   HOTEL_DAILY_COUNT_STATIONS,
-  displayKitchenBarStation,
   normalizeKitchenBarStationKey,
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
@@ -378,6 +374,14 @@ function CostControlInner() {
     }, 0);
   }, [monthlySnapshots, unitPriceByItemName]);
 
+  const monthlyRollupColumns = useMemo(
+    () =>
+      buildKitchenBarRollupColumns({
+        formatSyncedAt: (s) => new Date(s.syncedAt).toLocaleString(),
+      }),
+    [],
+  );
+
   useEffect(() => {
     const day = String(selectedDailyDate || "").slice(0, 10);
     if (!day) return;
@@ -488,6 +492,59 @@ function CostControlInner() {
       }
     });
   }, [loadCoordinator, tenantScope]);
+
+  const handleEditBeginning = useCallback((b: KitchenBarBeginningRow) => {
+    setEditingId(b.id);
+    const cd =
+      b.calendarDate && b.calendarDate.length >= 10
+        ? b.calendarDate.slice(0, 10)
+        : `${b.monthPeriod}-01`;
+    setSelectedDailyDate(cd);
+    setBeginForm({
+      station: normalizeKitchenBarStationKey(b.station),
+      itemName: b.itemName,
+      amount: b.amount,
+      managementTakenDay: Number(b.managementTakenDay ?? 0),
+      measuredBy: b.measuredBy,
+      monthPeriod: b.monthPeriod,
+      calendarDate: cd,
+      notes: b.notes,
+    });
+  }, []);
+
+  const handleDeleteBeginning = useCallback(
+    async (b: KitchenBarBeginningRow) => {
+      setBeginningDeleteId(b.id);
+      try {
+        await deleteKitchenBarBeginningApi(b.id);
+        await load(true, false);
+      } catch (e: unknown) {
+        notifyApiFailure(e, "Could not delete daily row");
+      } finally {
+        setBeginningDeleteId(null);
+      }
+    },
+    [load],
+  );
+
+  const dailyKitchenColumns = useMemo(
+    () =>
+      buildKitchenBarDailyColumns({
+        mode: "costControl",
+        selectedDayYmd: selectedDailyDate,
+        derived: beginningDerivedById,
+        onEdit: handleEditBeginning,
+        onDelete: (b) => void handleDeleteBeginning(b),
+        deletePendingId: beginningDeleteId,
+      }),
+    [
+      selectedDailyDate,
+      beginningDerivedById,
+      handleEditBeginning,
+      handleDeleteBeginning,
+      beginningDeleteId,
+    ],
+  );
 
   useEffect(() => {
     const isRefresh = isFirstLoadRef.current;
@@ -1593,45 +1650,13 @@ function CostControlInner() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                       Stored roll-ups — {rollupRangeLabel}
                     </p>
-                    <div className="rounded-lg border border-border/70 overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/40">
-                            <TableHead>Station</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead className="text-right">Σ implied movement</TableHead>
-                            <TableHead className="text-right">First lights-out on-hand</TableHead>
-                            <TableHead className="text-right">Remaining</TableHead>
-                            <TableHead>Synced</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {monthlySnapshots.map((s) => (
-                            <TableRow key={s.id}>
-                              <TableCell>
-                                {displayKitchenBarStation(s.station)}
-                              </TableCell>
-                              <TableCell className="font-medium">{s.itemName}</TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {Number(s.totalImpliedSales).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {Number(s.lastDayClosingOnHand).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {(
-                                  Number(s.lastDayClosingOnHand) -
-                                  Number(s.totalImpliedSales)
-                                ).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                {new Date(s.syncedAt).toLocaleString()}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                    <DataTable
+                      columns={monthlyRollupColumns}
+                      data={monthlySnapshots}
+                      hideToolbar
+                      getRowId={(row) => String(row.id)}
+                      emptyMessage={`No stored roll-ups for ${rollupRangeLabel}. Adjust From / To or run Sync Monthly Data.`}
+                    />
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground py-8 text-center text-pretty max-w-lg mx-auto">
@@ -1922,117 +1947,24 @@ function CostControlInner() {
                   </span>
                 </p>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead>
-                      <div className="flex flex-col gap-1">
-                        <span>Date</span>
-                        <HotelDayPicker
-                          id="kb-grid-day"
-                          value={selectedDailyDate}
-                          onChange={setSelectedDailyDate}
-                          buttonClassName="h-8 w-[170px] px-2 text-xs font-normal"
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead>Station</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-right">Opening pulse</TableHead>
-                    <TableHead className="text-right">Approved stock-out</TableHead>
-                    <TableHead className="text-right">Issued to management</TableHead>
-                    <TableHead className="text-right">Lights-out</TableHead>
-                    <TableHead className="text-right">Day usage</TableHead>
-                    <TableHead className="text-right">Sealed movement</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleBeginnings.map((b) => {
-                    const implied = beginningDerivedById.implied.get(b.id);
-                    const usage = beginningDerivedById.daySales.get(b.id);
-                    const lightsOut = round2(
-                      Number(b.amount || 0) +
-                        Number(b.stockOutDay ?? 0) -
-                        Number(b.managementTakenDay ?? 0),
-                    );
-                    return (
-                    <TableRow key={b.id} className="hover:bg-muted/30">
-                      <TableCell className="tabular-nums whitespace-nowrap">
-                        {b.calendarDate || `${b.monthPeriod}-01`}
-                      </TableCell>
-                      <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
-                      <TableCell className="font-medium">{b.itemName}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {b.amount} {b.measuredBy}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {Number(b.stockOutDay ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {Number(b.managementTakenDay ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {lightsOut.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {usage == null ? "—" : usage.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {implied == null ? "—" : implied.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingId(b.id);
-                            const cd =
-                              b.calendarDate && b.calendarDate.length >= 10
-                                ? b.calendarDate.slice(0, 10)
-                                : `${b.monthPeriod}-01`;
-                            setSelectedDailyDate(cd);
-                            setBeginForm({
-                              station: normalizeKitchenBarStationKey(b.station),
-                              itemName: b.itemName,
-                              amount: b.amount,
-                              managementTakenDay: Number(
-                                b.managementTakenDay ?? 0,
-                              ),
-                              measuredBy: b.measuredBy,
-                              monthPeriod: b.monthPeriod,
-                              calendarDate: cd,
-                              notes: b.notes,
-                            });
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <PendingButton
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive"
-                          pending={beginningDeleteId === b.id}
-                          onClick={async () => {
-                            setBeginningDeleteId(b.id);
-                            try {
-                              await deleteKitchenBarBeginningApi(b.id);
-                              await load(true, false);
-                            } catch (e: unknown) {
-                              notifyApiFailure(e, "Could not delete daily row");
-                            } finally {
-                              setBeginningDeleteId(null);
-                            }
-                          }}
-                        >
-                          Delete
-                        </PendingButton>
-                      </TableCell>
-                    </TableRow>
-                  );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="px-4 py-3 border-b border-border/60">
+                <HotelDayPicker
+                  label="Date"
+                  id="kb-grid-day"
+                  value={selectedDailyDate}
+                  onChange={setSelectedDailyDate}
+                  className="min-w-[200px]"
+                />
+              </div>
+              <div className="p-4">
+                <DataTable
+                  columns={dailyKitchenColumns}
+                  data={visibleBeginnings}
+                  hideToolbar
+                  getRowId={(row) => String(row.id)}
+                  emptyMessage={`No daily rows for ${selectedDailyDate}. Add a row above or pick another date.`}
+                />
+              </div>
             </div>
           </div>
           )}

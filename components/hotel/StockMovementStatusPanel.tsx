@@ -208,7 +208,13 @@ export function StockMovementStatusPanel({
       </ListPanelFilterBar>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
-        <DataTable columns={buildColumns(showRequestedBy)} data={filtered} />
+        <DataTable
+          columns={buildColumns(showRequestedBy)}
+          data={filtered}
+          hideToolbar
+          searchColumnId="itemName"
+          emptyMessage="No stock movement requests match these filters."
+        />
       </div>
     </div>
   );

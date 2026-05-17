@@ -1,6 +1,17 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable, type DataTableRef } from "@/app/StoreItems/data-table";
 import { useSearchParams } from "next/navigation";
 import {
   approvePurchaseRequestFinanceApi,
@@ -52,14 +63,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Banknote,
   CheckCircle2,
   History,
@@ -81,7 +84,6 @@ import {
   HOTEL_INVENTORY_COPY,
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type FinanceSection =
@@ -93,6 +95,196 @@ type FinanceSection =
   | "payment-with-vat"
   | "payment-without-vat"
   | "creditor-usage";
+
+function buildFinancePendingColumns(
+  isFinancePending: (key: string) => boolean,
+  runFinanceAction: (
+    key: string,
+    fn: () => Promise<void>,
+  ) => Promise<void> | void,
+  setRows: Dispatch<SetStateAction<PurchaseRequestRow[]>>,
+  refreshPurchasesOnly: () => Promise<void>,
+): ColumnDef<PurchaseRequestRow>[] {
+  return [
+    {
+      accessorKey: "itemName",
+      header: "Item",
+      cell: ({ row }) => (
+        <span className="font-medium">{row.original.itemName}</span>
+      ),
+    },
+    {
+      id: "quantity",
+      header: "Quantity",
+      cell: ({ row }) => (
+        <span className="tabular-nums whitespace-nowrap">
+          {formatQtyWithUnit(row.original.quantity, row.original.measuredBy)}
+        </span>
+      ),
+    },
+    {
+      id: "estLine",
+      header: "Est. line",
+      cell: ({ row }) => {
+        const r = row.original;
+        return (
+          <span className="tabular-nums font-medium">
+            {((r.estimatedUnitPrice || 0) * (r.quantity || 0)).toLocaleString()}{" "}
+            <span className="text-xs font-normal text-muted-foreground">ETB</span>
+          </span>
+        );
+      },
+    },
+    {
+      id: "ccActor",
+      header: "Cost control",
+      cell: ({ row }) => (
+        <span className="text-sm max-w-[160px] truncate block">
+          {row.original.ccActorName ?? "—"}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <span className="block text-right w-full">Actions</span>,
+      cell: ({ row }) => {
+        const r = row.original;
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            <PendingButton
+              size="sm"
+              className="shadow-sm gap-1.5"
+              pending={isFinancePending(`finance-a-${r.id}`)}
+              onClick={() => {
+                void runFinanceAction(`finance-a-${r.id}`, async () => {
+                  try {
+                    const result = await approvePurchaseRequestFinanceApi(r.id);
+                    setRows((prev) =>
+                      patchPurchaseRequestStatus(prev, r.id, result.status),
+                    );
+                    void refreshPurchasesOnly();
+                  } catch (e: unknown) {
+                    notifyApiFailure(e, "Could not approve payment");
+                  }
+                });
+              }}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
+              Approve payment
+            </PendingButton>
+            <PendingButton
+              size="sm"
+              variant="outline"
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
+              pending={isFinancePending(`finance-r-${r.id}`)}
+              onClick={() => {
+                void runFinanceAction(`finance-r-${r.id}`, async () => {
+                  try {
+                    const result = await rejectPurchaseRequestFinanceApi(
+                      r.id,
+                      "Rejected by finance",
+                    );
+                    const actor =
+                      typeof window !== "undefined"
+                        ? (localStorage.getItem("user_name")?.trim() ?? "")
+                        : "";
+                    setRows((prev) =>
+                      patchPurchaseRequestStatus(prev, r.id, result.status, {
+                        ...result,
+                        financeActorName:
+                          result.financeActorName?.trim() || actor || undefined,
+                      }),
+                    );
+                    void refreshPurchasesOnly();
+                  } catch (e: unknown) {
+                    notifyApiFailure(e, "Could not reject payment");
+                  }
+                });
+              }}
+            >
+              <XCircle className="h-3.5 w-3.5 opacity-90" />
+              Reject
+            </PendingButton>
+          </div>
+        );
+      },
+    },
+  ];
+}
+
+function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
+  return [
+    {
+      accessorKey: "itemName",
+      header: "Item",
+      cell: ({ row }) => (
+        <span className="font-medium max-w-[200px] truncate block">
+          {row.original.itemName}
+        </span>
+      ),
+    },
+    {
+      id: "outcome",
+      header: "Outcome",
+      cell: ({ row }) => {
+        const r = row.original;
+        return (
+          <Badge
+            variant={
+              r.status === "APPROVED_FINANCE" ? "default" : "destructive"
+            }
+            className="rounded-md font-normal gap-1"
+          >
+            {r.status === "APPROVED_FINANCE" ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <XCircle className="h-3 w-3" />
+            )}
+            {formatPurchaseStatus(r.status)}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "financeUser",
+      header: "Finance user",
+      cell: ({ row }) => (
+        <span className="text-sm">{row.original.financeActorName ?? "—"}</span>
+      ),
+    },
+    {
+      id: "rejection",
+      header: "Rejection / reason",
+      cell: ({ row }) => {
+        const r = row.original;
+        if (r.status !== "REJECTED_FINANCE") {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        return (
+          <span className="block space-y-0.5 text-xs text-muted-foreground max-w-[240px]">
+            <span className="text-foreground font-medium">
+              {formatPurchaseRejectorLine(r)}
+            </span>
+            {r.rejectionReason?.trim() ? (
+              <span className="block italic">{r.rejectionReason.trim()}</span>
+            ) : null}
+          </span>
+        );
+      },
+    },
+    {
+      id: "decided",
+      header: "Decided",
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
+          {row.original.financeApprovedAt
+            ? new Date(row.original.financeApprovedAt).toLocaleString()
+            : "—"}
+        </span>
+      ),
+    },
+  ];
+}
 
 function FinanceInner() {
   const searchParams = useSearchParams();
@@ -107,6 +299,7 @@ function FinanceInner() {
   const [inactiveRows, setInactiveRows] = useState<ItemStatus[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
   const [selectedFinanceIds, setSelectedFinanceIds] = useState<number[]>([]);
+  const pendingTableRef = useRef<DataTableRef>(null);
   const { isPending: isFinancePending, run: runFinanceAction } =
     useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
@@ -198,6 +391,19 @@ function FinanceInner() {
       ),
     [inventoryRows],
   );
+
+  const pendingColumns = useMemo(
+    () =>
+      buildFinancePendingColumns(
+        isFinancePending,
+        runFinanceAction,
+        setRows,
+        refreshPurchasesOnly,
+      ),
+    [isFinancePending, runFinanceAction, refreshPurchasesOnly],
+  );
+  const historyColumns = useMemo(() => buildFinanceHistoryColumns(), []);
+  const historySlice = useMemo(() => history.slice(0, 40), [history]);
 
   const pendingFinanceIdsKey = useMemo(
     () =>
@@ -431,13 +637,17 @@ function FinanceInner() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setSelectedFinanceIds(
-                          selectedFinanceIds.length === pending.length
-                            ? []
-                            : pending.map((x) => x.id),
-                        )
-                      }
+                      onClick={() => {
+                        if (selectedFinanceIds.length === pending.length) {
+                          pendingTableRef.current?.resetRowSelection();
+                          setSelectedFinanceIds([]);
+                        } else {
+                          pendingTableRef.current?.setRowSelectionByIds(
+                            pending.map((x) => String(x.id)),
+                          );
+                          setSelectedFinanceIds(pending.map((x) => x.id));
+                        }
+                      }}
                     >
                       {selectedFinanceIds.length === pending.length
                         ? "Clear selection"
@@ -464,6 +674,7 @@ function FinanceInner() {
                                 ),
                               );
                             }
+                            pendingTableRef.current?.resetRowSelection();
                             setSelectedFinanceIds([]);
                             void refreshPurchasesOnly();
                           } catch (e: unknown) {
@@ -511,6 +722,7 @@ function FinanceInner() {
                                 ),
                               );
                             }
+                            pendingTableRef.current?.resetRowSelection();
                             setSelectedFinanceIds([]);
                             void refreshPurchasesOnly();
                           } catch (e: unknown) {
@@ -527,141 +739,24 @@ function FinanceInner() {
                     </PendingButton>
                   </CardContent>
                 </Card>
-            <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
-              <div className="border-b border-border/60 bg-muted/25 px-4 py-3 flex items-center gap-2">
+            <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6 p-4">
+              <div className="border-b border-border/60 bg-muted/25 -mx-4 -mt-4 mb-4 px-4 py-3 flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Awaiting you
                 </span>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40 border-0">
-                    <TableHead className="w-10 font-semibold">
-                      <span className="sr-only">Select</span>
-                    </TableHead>
-                    <TableHead className="font-semibold">Item</TableHead>
-                    <TableHead className="font-semibold">Quantity</TableHead>
-                    <TableHead className="font-semibold">Est. line</TableHead>
-                    <TableHead className="font-semibold">
-                      Cost control
-                    </TableHead>
-                    <TableHead className="text-right font-semibold w-[220px]">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pending.map((r) => (
-                    <TableRow
-                      key={r.id}
-                      className="hover:bg-muted/25 border-border/50 transition-colors"
-                    >
-                      <TableCell className="align-middle w-10">
-                        <Checkbox
-                          checked={selectedFinanceIds.includes(r.id)}
-                          onCheckedChange={(checked) => {
-                            setSelectedFinanceIds((prev) =>
-                              checked === true
-                                ? [...new Set([...prev, r.id])]
-                                : prev.filter((x) => x !== r.id),
-                            );
-                          }}
-                          aria-label={`Select ${r.itemName}`}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium align-middle">
-                        {r.itemName}
-                      </TableCell>
-                      <TableCell className="align-middle tabular-nums whitespace-nowrap">
-                        {formatQtyWithUnit(r.quantity, r.measuredBy)}
-                      </TableCell>
-                      <TableCell className="tabular-nums font-medium align-middle">
-                        {(
-                          (r.estimatedUnitPrice || 0) * (r.quantity || 0)
-                        ).toLocaleString()}{" "}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          ETB
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm max-w-[160px] truncate align-middle">
-                        {r.ccActorName ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right align-middle">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <PendingButton
-                            size="sm"
-                            className="shadow-sm gap-1.5"
-                            pending={isFinancePending(`finance-a-${r.id}`)}
-                            onClick={() => {
-                              void runFinanceAction(`finance-a-${r.id}`, async () => {
-                                try {
-                                  const result =
-                                    await approvePurchaseRequestFinanceApi(r.id);
-                                  setRows((prev) =>
-                                    patchPurchaseRequestStatus(
-                                      prev,
-                                      r.id,
-                                      result.status,
-                                    ),
-                                  );
-                                  void refreshPurchasesOnly();
-                                } catch (e: unknown) {
-                                  notifyApiFailure(e, "Could not approve payment");
-                                }
-                              });
-                            }}
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
-                            Approve payment
-                          </PendingButton>
-                          <PendingButton
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
-                            pending={isFinancePending(`finance-r-${r.id}`)}
-                            onClick={() => {
-                              void runFinanceAction(`finance-r-${r.id}`, async () => {
-                                try {
-                                  const result =
-                                    await rejectPurchaseRequestFinanceApi(
-                                      r.id,
-                                      "Rejected by finance",
-                                    );
-                                  const actor =
-                                    typeof window !== "undefined"
-                                      ? (localStorage.getItem("user_name")?.trim() ??
-                                        "")
-                                      : "";
-                                  setRows((prev) =>
-                                    patchPurchaseRequestStatus(
-                                      prev,
-                                      r.id,
-                                      result.status,
-                                      {
-                                        ...result,
-                                        financeActorName:
-                                          result.financeActorName?.trim() ||
-                                          actor ||
-                                          undefined,
-                                      },
-                                    ),
-                                  );
-                                  void refreshPurchasesOnly();
-                                } catch (e: unknown) {
-                                  notifyApiFailure(e, "Could not reject payment");
-                                }
-                              });
-                            }}
-                          >
-                            <XCircle className="h-3.5 w-3.5 opacity-90" />
-                            Reject
-                          </PendingButton>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                ref={pendingTableRef}
+                columns={pendingColumns}
+                data={pending}
+                enableRowSelection
+                getRowId={(r) => String(r.id)}
+                onRowSelectionChange={(rows) =>
+                  setSelectedFinanceIds(rows.map((r) => r.id))
+                }
+                hideToolbar
+                emptyMessage="Nothing is waiting for finance approval."
+              />
             </div>
             </div>
           )}
@@ -693,77 +788,14 @@ function FinanceInner() {
               </p>
             </div>
           ) : (
-            <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40 border-0">
-                      <TableHead className="font-semibold">Item</TableHead>
-                      <TableHead className="font-semibold">Outcome</TableHead>
-                      <TableHead className="font-semibold">Finance user</TableHead>
-                      <TableHead className="font-semibold min-w-[160px]">
-                        Rejection / reason
-                      </TableHead>
-                      <TableHead className="font-semibold whitespace-nowrap">
-                        Decided
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.slice(0, 40).map((r) => (
-                      <TableRow
-                        key={r.id}
-                        className="hover:bg-muted/25 border-border/50 transition-colors"
-                      >
-                        <TableCell className="font-medium max-w-[200px] truncate">
-                          {r.itemName}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              r.status === "APPROVED_FINANCE"
-                                ? "default"
-                                : "destructive"
-                            }
-                            className="rounded-md font-normal gap-1"
-                          >
-                            {r.status === "APPROVED_FINANCE" ? (
-                              <CheckCircle2 className="h-3 w-3" />
-                            ) : (
-                              <XCircle className="h-3 w-3" />
-                            )}
-                            {formatPurchaseStatus(r.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {r.financeActorName ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-[240px]">
-                          {r.status === "REJECTED_FINANCE" ? (
-                            <span className="block space-y-0.5">
-                              <span className="text-foreground font-medium">
-                                {formatPurchaseRejectorLine(r)}
-                              </span>
-                              {r.rejectionReason?.trim() ? (
-                                <span className="block italic">
-                                  {r.rejectionReason.trim()}
-                                </span>
-                              ) : null}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
-                          {r.financeApprovedAt
-                            ? new Date(r.financeApprovedAt).toLocaleString()
-                            : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6 p-4">
+              <DataTable
+                columns={historyColumns}
+                data={historySlice}
+                searchColumnId="itemName"
+                searchPlaceholder="Search items…"
+                emptyMessage="No finance decisions recorded yet."
+              />
             </div>
           )}
         </section>

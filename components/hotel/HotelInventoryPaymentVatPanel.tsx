@@ -26,30 +26,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/app/StoreItems/data-table";
+import { buildInventoryPaymentColumns } from "@/lib/dataTableColumns/inventoryPayment";
 import { Download, FileSpreadsheet, Receipt } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 type PayFilter = "all" | "credit" | "paid" | "none";
 type VatFilter = "all" | "with" | "without";
-
-function paymentBadgeClass(bucket: ReturnType<typeof itemPaymentBucket>) {
-  if (bucket === "paid")
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
-  if (bucket === "credit")
-    return "border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200";
-  if (bucket === "none")
-    return "border-border/70 bg-muted/50 text-muted-foreground";
-  return "font-normal";
-}
 
 export function HotelInventoryPaymentVatPanel({
   tenantLabel,
@@ -234,86 +216,16 @@ export function HotelInventoryPaymentVatPanel({
             Export this filter
           </Button>
         </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead>Item</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead className="text-right">Line value (ETB)</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead className="text-right">Credit amount (ETB)</TableHead>
-                <TableHead>VAT</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Supplier TIN</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center text-muted-foreground py-14"
-                  >
-                    No rows match these filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((r) => {
-                  const bucket = itemPaymentBucket(r);
-                  const withVat = isVatEnabled(r.purchaseWithVat);
-                  return (
-                    <TableRow
-                      key={r.id}
-                      className="hover:bg-muted/25 transition-colors"
-                    >
-                      <TableCell className="font-medium max-w-[200px]">
-                        {r.name}
-                      </TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap text-muted-foreground">
-                        {formatQtyWithUnit(r.amount, r.measuredBy)}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-right font-medium">
-                        {lineOwedETB(r).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn("font-normal", paymentBadgeClass(bucket))}
-                        >
-                          {itemPaymentLabel(bucket)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="tabular-nums text-right">
-                        {bucket === "credit"
-                          ? creditAmountETB(r).toLocaleString()
-                          : "0"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={withVat ? "secondary" : "outline"}
-                          className={cn(
-                            "font-normal",
-                            withVat &&
-                              "bg-violet-500/10 text-violet-800 dark:text-violet-200 border-violet-500/25",
-                          )}
-                        >
-                          {withVat ? "With VAT" : "Without VAT"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[180px] truncate text-sm">
-                        {r.supplierName || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground tabular-nums">
-                        {(r.supplierTinNumber || "").trim() || "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          columns={buildInventoryPaymentColumns({
+            includeRegistered: false,
+            creditOnlyWhenCredit: true,
+          })}
+          data={filtered}
+          hideToolbar
+          searchColumnId="name"
+          emptyMessage="No rows match these filters."
+        />
       </div>
     </div>
   );

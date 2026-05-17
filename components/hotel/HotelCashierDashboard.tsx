@@ -72,14 +72,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/app/StoreItems/data-table";
+import { buildCreditorUsageColumns } from "@/lib/dataTableColumns/creditorUsage";
 import { Badge } from "@/components/ui/badge";
 import {
   Building2,
@@ -398,20 +392,15 @@ export function HotelCashierDashboard() {
     });
   }, [reportRows, reportCompanyFilter, reportSearchTerm, reportPartyById]);
 
-  const formatUsageLines = useCallback((linesJson: string) => {
-    try {
-      const parsed = JSON.parse(linesJson);
-      if (!Array.isArray(parsed)) return [linesJson];
-      return parsed.map((line: any) => {
-        const name = String(line?.name ?? "Item");
-        const qty = Number(line?.qty ?? 0);
-        const unitPrice = Number(line?.unitPrice ?? 0);
-        return `${name} × ${qty} @ ETB ${unitPrice.toLocaleString()}`;
-      });
-    } catch {
-      return [linesJson];
-    }
-  }, []);
+  const reportColumns = useMemo(
+    () =>
+      buildCreditorUsageColumns(
+        companyNameById,
+        reportPartyById,
+        "Cashier",
+      ),
+    [companyNameById, reportPartyById],
+  );
 
   useEffect(() => {
     if (!tiers.length || editingCompanyId != null) return;
@@ -1470,87 +1459,13 @@ export function HotelCashierDashboard() {
                             Search
                           </Button>
                         </div>
-                        <div className="overflow-hidden rounded-xl border border-border/70">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-muted/45 hover:bg-muted/45">
-                                <TableHead className="h-12 px-4 font-semibold">
-                                  When
-                                </TableHead>
-                                <TableHead className="h-12 px-4 font-semibold">
-                                  Company
-                                </TableHead>
-                                <TableHead className="h-12 px-4 font-semibold">
-                                  Staff / Guest
-                                </TableHead>
-                                <TableHead className="h-12 px-4 text-right font-semibold">
-                                  ETB
-                                </TableHead>
-                                <TableHead className="h-12 px-4 font-semibold">
-                                  Lines
-                                </TableHead>
-                                <TableHead className="h-12 px-4 font-semibold">
-                                  Cashier
-                                </TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {visibleReportRows.length === 0 ? (
-                                <TableRow>
-                                  <TableCell
-                                    colSpan={6}
-                                    className="py-12 text-center text-muted-foreground"
-                                  >
-                                    No usage rows match your filters.
-                                  </TableCell>
-                                </TableRow>
-                              ) : (
-                                visibleReportRows.map((r) => (
-                                  <TableRow
-                                    key={r.id}
-                                    className="hover:bg-muted/25"
-                                  >
-                                    <TableCell className="px-4 py-3.5 text-xs whitespace-nowrap align-top">
-                                      {new Date(r.occurredAt).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="px-4 py-3.5 align-top text-sm font-medium">
-                                      {companyNameById.get(r.companyId) ??
-                                        r.companyId}
-                                    </TableCell>
-                                    <TableCell className="px-4 py-3.5 align-top text-sm">
-                                      <div className="space-y-0.5">
-                                        <div>
-                                          {reportPartyById.get(r.partyId)
-                                            ?.displayName ?? `#${r.partyId}`}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">
-                                          {reportPartyById.get(r.partyId)
-                                            ?.phoneNumber ?? "No phone"}
-                                        </div>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="px-4 py-3.5 text-right tabular-nums align-top">
-                                      {r.totalAmount.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="max-w-[360px] px-4 py-3.5 align-top text-xs text-muted-foreground">
-                                      <div className="space-y-1 whitespace-normal wrap-break-word">
-                                        {formatUsageLines(r.linesJson).map(
-                                          (line, idx) => (
-                                            <p key={`${r.id}-line-${idx}`}>
-                                              {line}
-                                            </p>
-                                          ),
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="px-4 py-3.5 align-top text-xs">
-                                      {r.recordedBy}
-                                    </TableCell>
-                                  </TableRow>
-                                ))
-                              )}
-                            </TableBody>
-                          </Table>
+                        <div className="overflow-hidden rounded-xl border border-border/70 p-4">
+                          <DataTable
+                            columns={reportColumns}
+                            data={visibleReportRows}
+                            hideToolbar
+                            emptyMessage="No usage rows match your filters."
+                          />
                         </div>
                       </CardContent>
                     </Card>

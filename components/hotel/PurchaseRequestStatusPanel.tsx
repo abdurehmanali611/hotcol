@@ -204,7 +204,13 @@ export function PurchaseRequestStatusPanel({
       </ListPanelFilterBar>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
-        <DataTable columns={buildColumns(showStoreUser)} data={filtered} />
+        <DataTable
+          columns={buildColumns(showStoreUser)}
+          data={filtered}
+          hideToolbar
+          searchColumnId="itemName"
+          emptyMessage="No purchase requests match these filters."
+        />
       </div>
     </div>
   );

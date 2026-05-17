@@ -3,8 +3,6 @@
 import { useMemo, useState } from "react";
 import type { ItemRegistration } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
-import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +20,7 @@ import {
   itemPaymentLabel,
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
+import { buildInventoryPaymentColumns } from "@/lib/dataTableColumns/inventoryPayment";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import {
@@ -80,115 +79,7 @@ const CREDIT_AMOUNT_OPTIONS: { id: CreditAmountFilter; label: string }[] = [
   { id: "over_50k", label: "Over 50k ETB" },
 ];
 
-function paymentBadgeClass(bucket: ReturnType<typeof itemPaymentBucket>) {
-  if (bucket === "paid")
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
-  if (bucket === "credit")
-    return "border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200";
-  return "font-normal";
-}
-
-function buildColumns(): ColumnDef<ItemRegistration>[] {
-  return [
-    {
-      accessorKey: "name",
-      header: "Item",
-      cell: ({ row }) => (
-        <span className="font-medium max-w-[180px] block truncate">
-          {row.original.name}
-        </span>
-      ),
-    },
-    {
-      id: "registered",
-      header: "Registered",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-          {rowRegistrationYmd(row.original.registrationDate) || "—"}
-        </span>
-      ),
-    },
-    {
-      id: "qty",
-      header: "Quantity",
-      cell: ({ row }) => (
-        <span className="tabular-nums text-muted-foreground whitespace-nowrap text-sm">
-          {formatQtyWithUnit(row.original.amount, row.original.measuredBy)}
-        </span>
-      ),
-    },
-    {
-      id: "lineValue",
-      header: "Line value (ETB)",
-      cell: ({ row }) => (
-        <span className="font-semibold tabular-nums text-sm">
-          {lineOwedETB(row.original).toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      id: "payment",
-      header: "Payment",
-      cell: ({ row }) => {
-        const bucket = itemPaymentBucket(row.original);
-        return (
-          <Badge
-            variant="outline"
-            className={cn("font-normal text-[10px]", paymentBadgeClass(bucket))}
-          >
-            {itemPaymentLabel(bucket)}
-          </Badge>
-        );
-      },
-    },
-    {
-      id: "credit",
-      header: "Credit (ETB)",
-      cell: ({ row }) => (
-        <span className="tabular-nums text-sm font-medium">
-          {creditAmountETB(row.original).toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      id: "vat",
-      header: "VAT",
-      cell: ({ row }) => {
-        const withVat = isVatEnabled(row.original.purchaseWithVat);
-        return (
-          <Badge
-            variant={withVat ? "secondary" : "outline"}
-            className={cn(
-              "text-[10px] font-normal",
-              withVat &&
-                "bg-violet-500/10 text-violet-800 dark:text-violet-200 border-violet-500/25",
-            )}
-          >
-            {withVat ? "With VAT" : "Without VAT"}
-          </Badge>
-        );
-      },
-    },
-    {
-      accessorKey: "supplierName",
-      header: "Supplier",
-      cell: ({ row }) => (
-        <span className="text-sm max-w-[140px] truncate block">
-          {row.original.supplierName || "—"}
-        </span>
-      ),
-    },
-    {
-      id: "tin",
-      header: "TIN",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {(row.original.supplierTinNumber || "").trim() || "—"}
-        </span>
-      ),
-    },
-  ];
-}
+const inventoryColumns = buildInventoryPaymentColumns();
 
 function filterRowsByMode(
   items: ItemRegistration[],
@@ -251,7 +142,6 @@ export function HotelInventoryPaymentCategoryPanel({
     creditMaxNum,
   ]);
 
-  const columns = useMemo(() => buildColumns(), []);
   const totalValue = useMemo(
     () => filtered.reduce((s, r) => s + lineOwedETB(r), 0),
     [filtered],
@@ -405,7 +295,13 @@ export function HotelInventoryPaymentCategoryPanel({
       </ListPanelFilterBar>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
-        <DataTable columns={columns} data={filtered} />
+        <DataTable
+          columns={inventoryColumns}
+          data={filtered}
+          hideToolbar
+          searchColumnId="name"
+          emptyMessage="No rows match these filters."
+        />
       </div>
     </div>
   );

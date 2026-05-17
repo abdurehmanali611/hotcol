@@ -18,14 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DataTable } from "@/app/StoreItems/data-table";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  tableIncomeColumns,
+  waiterIncomeColumns,
+} from "@/lib/dataTableColumns/incomeRankings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -221,84 +218,24 @@ export default function AdminIncomeRankings({
             <TabsTrigger value="tables">Tables</TabsTrigger>
           </TabsList>
           <TabsContent value="waiters">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-14">Rank</TableHead>
-                  <TableHead>Waiter</TableHead>
-                  <TableHead className="text-right">Revenue (ETB)</TableHead>
-                  <TableHead className="text-right">Distinct tables</TableHead>
-                  <TableHead className="text-right">Paid entries</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rankedWaiters.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-sm">
-                      No waiters for this hotel.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rankedWaiters.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.rank}</TableCell>
-                      <TableCell>{row.name}</TableCell>
-                      <TableCell className="text-right">
-                        {row.revenue.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.uniqueTables}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.completions}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {row.composite.toFixed(3)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={waiterIncomeColumns}
+              data={rankedWaiters}
+              hideToolbar
+              searchColumnId="name"
+              searchPlaceholder="Search waiters…"
+              emptyMessage="No waiters for this hotel."
+            />
           </TabsContent>
           <TabsContent value="tables">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-14">Rank</TableHead>
-                  <TableHead>Table</TableHead>
-                  <TableHead className="text-right">Revenue (ETB)</TableHead>
-                  <TableHead className="text-right">Paid entries</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rankedTables.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm">
-                      No tables for this hotel.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rankedTables.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.rank}</TableCell>
-                      <TableCell>#{row.tableNo}</TableCell>
-                      <TableCell className="text-right">
-                        {row.revenue.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.completions}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {row.composite.toFixed(3)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={tableIncomeColumns}
+              data={rankedTables}
+              hideToolbar
+              searchColumnId="tableNo"
+              searchPlaceholder="Search table #…"
+              emptyMessage="No tables for this hotel."
+            />
           </TabsContent>
         </Tabs>
       </CardContent>

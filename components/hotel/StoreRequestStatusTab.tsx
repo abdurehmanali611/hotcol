@@ -8,14 +8,6 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import {
-  formatPurchaseRejectorLine,
-  formatPurchaseStatus,
-  formatMovementType,
-  formatQtyWithUnit,
-  formatStockMovementRejectorLine,
-  formatStockOutRequestStatus,
-} from "@/lib/hotelDisplayLabels";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -23,15 +15,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PendingButton } from "@/components/ui/pending-button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/app/StoreItems/data-table";
+import { buildStoreMyPurchaseColumns } from "@/lib/dataTableColumns/purchaseRequests";
+import { buildStoreMyStockColumns } from "@/lib/dataTableColumns/stockMovement";
 import {
   ClipboardList,
   Clock,
@@ -42,33 +28,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
-import { cn } from "@/lib/utils";
-
-function purchaseBadgeVariant(
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "REJECTED_CC" || status === "REJECTED_FINANCE")
-    return "destructive";
-  if (status === "APPROVED_FINANCE") return "default";
-  return "secondary";
-}
-
-function stockBadgeVariant(
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "REJECTED") return "destructive";
-  if (status === "APPROVED") return "default";
-  return "secondary";
-}
-
-function formatWhen(iso: string | null | undefined) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
 function mergeStockOutRows(
   server: StockOutRequestRow[],
   injected: StockOutRequestRow[] | undefined,
@@ -330,65 +289,14 @@ export default function StoreRequestStatusTab({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead>Item</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="min-w-[140px]">Rejection / reason</TableHead>
-                    <TableHead className="text-right">Last update</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortByDateDesc(myPurchases).map((r) => (
-                    <TableRow
-                      key={r.id}
-                      className="hover:bg-muted/30 transition-colors"
-                    >
-                      <TableCell className="font-medium">{r.itemName}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap text-muted-foreground">
-                        {formatQtyWithUnit(r.quantity, r.measuredBy)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={purchaseBadgeVariant(r.status)}
-                          className={cn(
-                            "font-normal",
-                            r.status === "APPROVED_FINANCE" &&
-                              "bg-emerald-600/90 hover:bg-emerald-600/90",
-                          )}
-                        >
-                          {formatPurchaseStatus(r.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[220px]">
-                        {r.status === "REJECTED_CC" ||
-                        r.status === "REJECTED_FINANCE" ? (
-                          <span className="block space-y-0.5">
-                            <span className="text-foreground font-medium">
-                              {formatPurchaseRejectorLine(r)}
-                            </span>
-                            {r.rejectionReason?.trim() ? (
-                              <span className="block italic">
-                                {r.rejectionReason.trim()}
-                              </span>
-                            ) : null}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap text-right tabular-nums">
-                        {formatWhen(
-                          r.financeApprovedAt ?? r.ccApprovedAt ?? r.createdAt,
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="p-4 pt-0">
+              <DataTable
+                columns={buildStoreMyPurchaseColumns()}
+                data={sortByDateDesc(myPurchases)}
+                hideToolbar
+                searchColumnId="itemName"
+                emptyMessage="No purchase requests from you yet."
+              />
             </div>
           )}
         </CardContent>
@@ -414,72 +322,14 @@ export default function StoreRequestStatusTab({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead>Item</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="min-w-[140px]">Rejection / reason</TableHead>
-                    <TableHead className="text-right">When</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortByDateDesc(myStocks).map((r) => (
-                    <TableRow
-                      key={r.id}
-                      className="hover:bg-muted/30 transition-colors"
-                    >
-                      <TableCell className="font-medium max-w-[220px] truncate">
-                        {r.itemName?.trim()
-                          ? r.itemName
-                          : "Unknown item (saved name missing)"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-normal">
-                          {formatMovementType(r.movementType)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap text-muted-foreground">
-                        {formatQtyWithUnit(r.amount, "")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={stockBadgeVariant(r.status)}
-                          className={cn(
-                            "font-normal",
-                            r.status === "APPROVED" &&
-                              "bg-emerald-600/90 hover:bg-emerald-600/90",
-                          )}
-                        >
-                          {formatStockOutRequestStatus(r.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[220px]">
-                        {r.status === "REJECTED" ? (
-                          <span className="block space-y-0.5">
-                            <span className="text-foreground font-medium">
-                              {formatStockMovementRejectorLine(r)}
-                            </span>
-                            {r.rejectionReason?.trim() ? (
-                              <span className="block italic">
-                                {r.rejectionReason.trim()}
-                              </span>
-                            ) : null}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap text-right tabular-nums">
-                        {formatWhen(r.decidedAt ?? r.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="p-4 pt-0">
+              <DataTable
+                columns={buildStoreMyStockColumns()}
+                data={sortByDateDesc(myStocks)}
+                hideToolbar
+                searchColumnId="itemName"
+                emptyMessage="No movement requests from you yet."
+              />
             </div>
           )}
         </CardContent>

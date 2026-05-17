@@ -78,16 +78,16 @@ import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { Input } from "@/components/ui/input";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import { DataTable } from "@/app/StoreItems/data-table";
+import { buildPurchaseRequestDashboardColumns } from "@/lib/dataTableColumns/purchaseRequests";
+import { buildPurchaseRequestReportColumns } from "@/lib/dataTableColumns/purchaseRequests";
+import { buildStockMovementDashboardColumns } from "@/lib/dataTableColumns/stockMovement";
+import { buildItemStatusColumns } from "@/lib/dataTableColumns/itemStatus";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  buildKitchenBarDailyColumns,
+  buildKitchenBarRollupColumns,
+} from "@/lib/dataTableColumns/kitchenBar";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
-import { isVatEnabled, lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
@@ -104,13 +104,7 @@ import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorU
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
-import {
-  formatMovementType,
-  formatPurchaseRejectorLine,
-  formatPurchaseStatus,
-  formatQtyWithUnit,
-  HOTEL_INVENTORY_COPY,
-} from "@/lib/hotelDisplayLabels";
+import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 
 type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
@@ -555,6 +549,44 @@ function ManagerContent() {
     }, 0);
   }, [managerRollupFromDailyRows, unitPriceByItemName]);
 
+  const recentPurchaseColumns = useMemo(
+    () => buildPurchaseRequestDashboardColumns(),
+    [],
+  );
+  const recentStockColumns = useMemo(
+    () =>
+      buildStockMovementDashboardColumns(
+        (id) => items.find((it) => it.id === id)?.measuredBy || "units",
+      ),
+    [items],
+  );
+  const itemStatusColumns = useMemo(() => buildItemStatusColumns(), []);
+  const purchaseReportColumns = useMemo(
+    () => buildPurchaseRequestReportColumns(),
+    [],
+  );
+  const managerRollupColumns = useMemo(
+    () =>
+      buildKitchenBarRollupColumns({
+        syncedHeader: "Source",
+        formatSyncedAt: (s) =>
+          s.syncedAt === CLIENT_ROLLUP_SYNCED_AT
+            ? "Live (daily rows)"
+            : new Date(s.syncedAt).toLocaleString(),
+      }),
+    [],
+  );
+  const managerDailyColumns = useMemo(
+    () =>
+      buildKitchenBarDailyColumns({
+        mode: "manager",
+        selectedDayYmd: managerDailyReportDate,
+        derived: beginningDerivedById,
+        stockOutRowsForProperty,
+      }),
+    [managerDailyReportDate, beginningDerivedById, stockOutRowsForProperty],
+  );
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -601,28 +633,13 @@ function ManagerContent() {
                 <CardDescription>Latest 8 rows</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Store user</TableHead>
-                      <TableHead>When</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {purchases.slice(0, 8).map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-medium">{p.itemName}</TableCell>
-                        <TableCell>{formatPurchaseStatus(p.status)}</TableCell>
-                        <TableCell>{p.storeUserName}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {new Date(p.createdAt).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  columns={recentPurchaseColumns}
+                  data={purchases.slice(0, 8)}
+                  hideToolbar
+                  getRowId={(row) => String(row.id)}
+                  emptyMessage="No purchase requests yet."
+                />
               </CardContent>
             </Card>
             <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden">
@@ -630,32 +647,13 @@ function ManagerContent() {
                 <CardTitle>Recent stock-out requests</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stockReqs.slice(0, 8).map((s) => (
-                      <TableRow key={s.id}>
-                        <TableCell className="font-medium max-w-[220px] truncate">
-                          {s.itemName?.trim()
-                            ? s.itemName
-                            : "Unknown item (stock line may have been removed)"}
-                        </TableCell>
-                        <TableCell>{formatMovementType(s.movementType)}</TableCell>
-                        <TableCell>
-                          {formatQtyWithUnit(s.amount, items.find((it) => it.id === s.itemRegistrationId)?.measuredBy || "units")}
-                        </TableCell>
-                        <TableCell>{s.status}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  columns={recentStockColumns}
+                  data={stockReqs.slice(0, 8)}
+                  hideToolbar
+                  getRowId={(row) => String(row.id)}
+                  emptyMessage="No stock-out requests yet."
+                />
               </CardContent>
             </Card>
           </div>
@@ -801,81 +799,26 @@ function ManagerContent() {
       case "reports-movements":
         return (
           <div className="p-4 md:p-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>By</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {statuses.map((s: any) => (
-                  <TableRow key={s.id}>
-                    <TableCell>{s.name}</TableCell>
-                    <TableCell>{s.status}</TableCell>
-                    <TableCell className="tabular-nums whitespace-nowrap">
-                      {formatQtyWithUnit(s.amount, s.measuredBy)}
-                    </TableCell>
-                    <TableCell>{s.statusBy}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(s.actionDate).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={itemStatusColumns}
+              data={statuses as ItemStatus[]}
+              hideToolbar
+              getRowId={(row) => String(row.id)}
+              emptyMessage="No movement lines for this period."
+            />
           </div>
         );
 
       case "reports-purchases":
         return (
           <div className="p-4 md:p-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>CC by</TableHead>
-                  <TableHead>Finance</TableHead>
-                  <TableHead className="min-w-[140px]">Rejection / reason</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {purchases.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.itemName}</TableCell>
-                    <TableCell>
-                      {formatQtyWithUnit(p.quantity, p.measuredBy)}
-                    </TableCell>
-                    <TableCell>{formatPurchaseStatus(p.status)}</TableCell>
-                    <TableCell>{p.ccActorName ?? "—"}</TableCell>
-                    <TableCell>{p.financeActorName ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[220px]">
-                      {p.status === "REJECTED_CC" || p.status === "REJECTED_FINANCE" ? (
-                        <span className="block space-y-0.5">
-                          <span className="text-foreground font-medium">
-                            {formatPurchaseRejectorLine(p)}
-                          </span>
-                          {p.rejectionReason?.trim() ? (
-                            <span className="block italic">{p.rejectionReason.trim()}</span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {new Date(p.createdAt).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={purchaseReportColumns}
+              data={purchases}
+              hideToolbar
+              getRowId={(row) => String(row.id)}
+              emptyMessage="No purchase requests for this period."
+            />
           </div>
         );
 
@@ -964,59 +907,13 @@ function ManagerContent() {
                     </p>
                   </div>
                 ) : null}
-                <div className="overflow-x-auto rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Station</TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead className="text-right">Σ implied movement</TableHead>
-                        <TableHead className="text-right">First lights-out on-hand</TableHead>
-                        <TableHead className="text-right">Remaining</TableHead>
-                        <TableHead>Source</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {managerRollupFromDailyRows.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            No daily rows in range {rollupRangeLabel} yet. Enter counts in
-                            Cost Control for those days, adjust the dates, or click{" "}
-                            <strong>Reload data</strong>.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        managerRollupFromDailyRows.map((s) => {
-                          const remaining =
-                            Number(s.lastDayClosingOnHand) -
-                            Number(s.totalImpliedSales);
-                          const sourceLabel =
-                            s.syncedAt === CLIENT_ROLLUP_SYNCED_AT
-                              ? "Live (daily rows)"
-                              : new Date(s.syncedAt).toLocaleString();
-                          return (
-                            <TableRow key={s.id}>
-                              <TableCell>{displayKitchenBarStation(s.station)}</TableCell>
-                              <TableCell className="font-medium">{s.itemName}</TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {Number(s.totalImpliedSales).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {Number(s.lastDayClosingOnHand).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {remaining.toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                {sourceLabel}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                <DataTable
+                  columns={managerRollupColumns}
+                  data={managerRollupFromDailyRows}
+                  hideToolbar
+                  getRowId={(row) => String(row.id)}
+                  emptyMessage={`No daily rows in range ${rollupRangeLabel} yet. Enter counts in Cost Control for those days, adjust the dates, or click Reload data.`}
+                />
               </CardContent>
             </Card>
 
@@ -1044,101 +941,24 @@ function ManagerContent() {
                       <span className="text-sm font-medium text-muted-foreground">ETB</span>
                     </p>
                   </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableHead>
-                          <div className="flex flex-col gap-1">
-                            <span>Date</span>
-                            <HotelDayPicker
-                              id="manager-daily-report-day"
-                              value={managerDailyReportDate}
-                              onChange={setManagerDailyReportDate}
-                              buttonClassName="h-8 w-[170px] px-2 text-xs font-normal"
-                            />
-                          </div>
-                        </TableHead>
-                        <TableHead>Station</TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead className="text-right">Opening pulse</TableHead>
-                        <TableHead className="text-right">Approved stock-out</TableHead>
-                        <TableHead className="text-right">Issued to management</TableHead>
-                        <TableHead className="text-right">Lights-out</TableHead>
-                        <TableHead className="text-right">Day usage</TableHead>
-                        <TableHead className="text-right">Sealed movement</TableHead>
-                        <TableHead>Notes</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visibleManagerDailyRows.length === 0 ? (
-                        <TableRow>
-                          <TableCell
-                            colSpan={10}
-                            className="text-center text-muted-foreground py-10 text-sm"
-                          >
-                            No daily rows for{" "}
-                            <span className="font-medium text-foreground">
-                              {managerDailyReportDate}
-                            </span>
-                            . Enter counts in Cost Control for this day, or pick another date.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        visibleManagerDailyRows.map((b) => {
-                          const dayYmd = String(managerDailyReportDate || "").slice(0, 10);
-                          const stationKey = normalizeKitchenBarStationKey(b.station);
-                          const approvedSo = round2(
-                            summarizeApprovedStockOutForDay(
-                              stockOutRowsForProperty,
-                              stationKey,
-                              b.itemName,
-                              dayYmd,
-                            ),
-                          );
-                          const lightsOut = round2(
-                            Number(b.amount || 0) +
-                              approvedSo -
-                              Number(b.managementTakenDay ?? 0),
-                          );
-                          const usage = beginningDerivedById.daySales.get(b.id);
-                          const implied = beginningDerivedById.implied.get(b.id);
-                          const displayDate =
-                            String(b.calendarDate || "").slice(0, 10) ||
-                            (b.monthPeriod ? `${b.monthPeriod}-01` : dayYmd);
-                          return (
-                            <TableRow key={b.id} className="hover:bg-muted/30">
-                              <TableCell className="tabular-nums whitespace-nowrap">
-                                {displayDate}
-                              </TableCell>
-                              <TableCell>{displayKitchenBarStation(b.station)}</TableCell>
-                              <TableCell className="font-medium">{b.itemName}</TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {b.amount} {b.measuredBy}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {approvedSo.toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {Number(b.managementTakenDay ?? 0).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {lightsOut.toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-muted-foreground">
-                                {usage == null ? "—" : usage.toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-muted-foreground">
-                                {implied == null ? "—" : implied.toFixed(2)}
-                              </TableCell>
-                              <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
-                                {b.notes || "—"}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
+                  <div className="px-4 py-3 border-b border-border/60">
+                    <HotelDayPicker
+                      label="Date"
+                      id="manager-daily-report-day"
+                      value={managerDailyReportDate}
+                      onChange={setManagerDailyReportDate}
+                      className="min-w-[200px]"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <DataTable
+                      columns={managerDailyColumns}
+                      data={visibleManagerDailyRows}
+                      hideToolbar
+                      getRowId={(row) => String(row.id)}
+                      emptyMessage={`No daily rows for ${managerDailyReportDate}. Enter counts in Cost Control for this day, or pick another date.`}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

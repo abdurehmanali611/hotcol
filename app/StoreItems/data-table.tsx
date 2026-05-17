@@ -33,9 +33,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Settings2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type DataTableRef = {
   resetRowSelection: () => void;
+  setRowSelectionByIds: (ids: string[]) => void;
 };
 
 export interface DataTableProps<TData, TValue> {
@@ -44,6 +46,13 @@ export interface DataTableProps<TData, TValue> {
   enableRowSelection?: boolean;
   getRowId?: (row: TData) => string;
   onRowSelectionChange?: (selectedRows: TData[]) => void;
+  /** Hide search bar and column visibility controls */
+  hideToolbar?: boolean;
+  /** Column id used for the toolbar search filter */
+  searchColumnId?: string;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
+  className?: string;
 }
 
 function DataTableInner<TData extends { id?: number }, TValue>(
@@ -53,6 +62,11 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     enableRowSelection = false,
     getRowId = (row) => String(row.id ?? ""),
     onRowSelectionChange,
+    hideToolbar = false,
+    searchColumnId = "name",
+    searchPlaceholder = "Search…",
+    emptyMessage = "No records found for this period.",
+    className,
   }: DataTableProps<TData, TValue>,
   ref: React.ForwardedRef<DataTableRef>,
 ) {
@@ -141,24 +155,36 @@ function DataTableInner<TData extends { id?: number }, TValue>(
         // `onRowSelectionChange([])` and leave stale batch selection in the parent.
         onRowSelectionChange?.([]);
       },
+      setRowSelectionByIds: (ids: string[]) => {
+        const next: RowSelectionState = {};
+        for (const id of ids) next[id] = true;
+        setRowSelection(next);
+      },
     }),
     [onRowSelectionChange],
   );
 
+  const searchColumn = searchColumnId
+    ? table.getColumn(searchColumnId)
+    : undefined;
+
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", className)}>
+      {!hideToolbar ? (
       <div className="flex items-center justify-between gap-4">
+        {searchColumn ? (
         <div className="relative w-full max-w-xs">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search items..."
-            value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-            onChange={(e) =>
-              table.getColumn("name")?.setFilterValue(e.target.value)
-            }
+            placeholder={searchPlaceholder}
+            value={(searchColumn.getFilterValue() as string) ?? ""}
+            onChange={(e) => searchColumn.setFilterValue(e.target.value)}
             className="pl-8 h-9 shadow-sm"
           />
         </div>
+        ) : (
+          <div />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="ml-auto h-9 gap-2">
@@ -183,6 +209,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      ) : null}
 
       <div className="rounded-lg border bg-card shadow-sm w-full min-w-0 overflow-x-auto">
         <Table className="w-full">
@@ -229,7 +256,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
                   colSpan={mergedColumns.length}
                   className="h-32 text-center text-muted-foreground italic"
                 >
-                  No records found for this period.
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             )}

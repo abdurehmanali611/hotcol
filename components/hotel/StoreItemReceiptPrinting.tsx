@@ -178,7 +178,13 @@ export function StoreItemReceiptPrinting({
       </Card>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
-        <DataTable columns={cols} data={sorted} />
+        <DataTable
+          columns={cols}
+          data={sorted}
+          hideToolbar
+          searchColumnId="name"
+          emptyMessage="No registration lines to print."
+        />
       </div>
 
       <Dialog
