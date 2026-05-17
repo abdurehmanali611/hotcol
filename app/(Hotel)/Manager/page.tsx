@@ -91,7 +91,15 @@ import { isVatEnabled, lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
-import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import StoreItems from "@/app/StoreItems/page";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
+import {
+  isPaymentCategorySection,
+  paymentModeFromSection,
+} from "@/constants/hotelInventoryNav";
+import type { PaymentCategoryMode } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { PAYMENT_CATEGORY_NAV } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import ItemCreationForm from "@/components/ItemCreation";
@@ -104,7 +112,10 @@ import {
   HOTEL_INVENTORY_COPY,
 } from "@/lib/hotelDisplayLabels";
 
-type TabId = (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
+type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
+type TabId =
+  | Exclude<(typeof MANAGER_SIDEBAR_ITEMS)[number]["id"], "inventory-payment-vat">
+  | PaymentTabId;
 
 const sidebarIconMap: Record<
   (typeof MANAGER_SIDEBAR_ITEMS)[number]["icon"],
@@ -775,46 +786,15 @@ function ManagerContent() {
 
       case "reports-inventory":
         return (
-          <div className="p-4 md:p-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>VAT</TableHead>
-                  <TableHead className="text-right">Value est.</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((it) => {
-                  const vatOn = isVatEnabled(it.purchaseWithVat);
-                  return (
-                    <TableRow key={it.id}>
-                      <TableCell className="font-medium">{it.name}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">
-                        {formatQtyWithUnit(it.amount, it.measuredBy)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] font-semibold tracking-wide px-2 py-0.5",
-                            vatOn
-                              ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white"
-                              : "border-border bg-muted/60 text-muted-foreground",
-                          )}
-                        >
-                          {vatOn ? "With VAT" : "Without VAT"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        ETB {lineOwedETB(it).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="p-4 md:p-6">
+            <StoreItems
+              items={items}
+              tenantScope={tenantScope}
+              embedded
+              readOnly
+              showPaymentSummary
+              aggregateInventory
+            />
           </div>
         );
 
@@ -896,20 +876,6 @@ function ManagerContent() {
                 ))}
               </TableBody>
             </Table>
-          </div>
-        );
-
-      case "inventory-payment-vat":
-        return (
-          <div className="p-4 md:p-6">
-            <HotelInventoryPaymentVatPanel
-              tenantLabel={displayName || headerLabel}
-              inventoryItems={items}
-              purchasePipeline={purchases.filter((p) =>
-                rowHotelMatchesTenantScope(p.HotelName, tenantScope || ""),
-              )}
-              inactiveItems={statuses as ItemStatus[]}
-            />
           </div>
         );
 
@@ -1215,6 +1181,18 @@ function ManagerContent() {
         );
 
       default:
+        if (isPaymentCategorySection(activeTab)) {
+          const mode = paymentModeFromSection(activeTab) as PaymentCategoryMode;
+          return (
+            <div className="p-4 md:p-6">
+              <HotelInventoryPaymentCategoryPanel
+                mode={mode}
+                tenantLabel={displayName || headerLabel}
+                inventoryItems={items}
+              />
+            </div>
+          );
+        }
         return null;
     }
   };
@@ -1243,11 +1221,13 @@ function ManagerContent() {
           </div>
           <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
             <SidebarMenu className="gap-1">
-              {sidebarItems.map((item) => (
+              {sidebarItems
+                .filter((item) => item.id !== "inventory-payment-vat")
+                .map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     isActive={activeTab === item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => setActiveTab(item.id as TabId)}
                     tooltip={item.label}
                     size="lg"
                     className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
@@ -1257,6 +1237,10 @@ function ManagerContent() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <HotelInventoryPaymentSidebarGroup
+                activeSection={activeTab}
+                onSelect={(id) => setActiveTab(id as TabId)}
+              />
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 pt-2">

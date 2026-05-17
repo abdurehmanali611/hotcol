@@ -114,7 +114,19 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
-import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
+import {
+  HotelRequestStatusSidebarGroup,
+  isRequestStatusSection,
+} from "@/components/hotel/HotelRequestStatusSidebarGroup";
+import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
+import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
+import { usePropertyRequestStatusData } from "@/components/hotel/usePropertyRequestStatusData";
+import {
+  isPaymentCategorySection,
+  paymentModeFromSection,
+} from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
@@ -146,6 +158,7 @@ function normalizeItemNameForValueKey(name: string): string {
 function CostControlInner() {
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(searchParams.get("hotel"));
+  const propertyRequestStatus = usePropertyRequestStatusData(tenantScope);
   const logoUrl = searchParams.get("logo") || "";
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -204,9 +217,13 @@ function CostControlInner() {
     | "inventory"
     | "inactive"
     | "stock"
-    | "request-status"
+    | "purchase-request-status"
+    | "stock-movement-status"
     | "beginnings"
-    | "payment-vat"
+    | "payment-credit"
+    | "payment-paid"
+    | "payment-with-vat"
+    | "payment-without-vat"
     | "creditor-usage";
   const [activeSection, setActiveSection] = useState<CostSection>("purchases");
   const [rollupSyncPending, setRollupSyncPending] = useState(false);
@@ -512,16 +529,6 @@ function CostControlInner() {
       icon: LayoutGrid,
     },
     {
-      section: "request-status" as const,
-      label: "Request status",
-      icon: ClipboardList,
-    },
-    {
-      section: "payment-vat" as const,
-      label: HOTEL_INVENTORY_COPY.paymentAndTax,
-      icon: Receipt,
-    },
-    {
       section: "creditor-usage" as const,
       label: "Creditor staff usage report",
       icon: Table2,
@@ -562,16 +569,36 @@ function CostControlInner() {
         "Opening pulse, documented stock-out, and lights-out snapshot per day — then sync a monthly roll-up.",
       Icon: LayoutGrid,
     },
-    "request-status": {
-      title: "Request status",
+    "purchase-request-status": {
+      title: "Purchase request status",
       description:
-        "Full purchase and stock-movement history with current status across cost control and finance.",
+        "All purchase requests for this property with Cost Control and Finance approval status.",
       Icon: ClipboardList,
     },
-    "payment-vat": {
-      title: HOTEL_INVENTORY_COPY.paymentAndTax,
+    "stock-movement-status": {
+      title: "Stock movement status",
       description:
-        "Filter inventory by supplier payment (credit vs paid) and VAT, and export Excel for finance.",
+        "Stock out, wastage, and return requests with approval status for this property.",
+      Icon: Package,
+    },
+    "payment-credit": {
+      title: "Credit receiving vouchers",
+      description: HOTEL_INVENTORY_COPY.paymentAndTax,
+      Icon: Receipt,
+    },
+    "payment-paid": {
+      title: "Paid receiving items",
+      description: HOTEL_INVENTORY_COPY.paymentAndTax,
+      Icon: Receipt,
+    },
+    "payment-with-vat": {
+      title: "Items purchased with VAT",
+      description: HOTEL_INVENTORY_COPY.paymentAndTax,
+      Icon: Receipt,
+    },
+    "payment-without-vat": {
+      title: "Items purchased without VAT",
+      description: HOTEL_INVENTORY_COPY.paymentAndTax,
       Icon: Receipt,
     },
     "creditor-usage": {
@@ -623,6 +650,14 @@ function CostControlInner() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <HotelRequestStatusSidebarGroup
+                activeSection={activeSection}
+                onSelect={(id) => setActiveSection(id as CostSection)}
+              />
+              <HotelInventoryPaymentSidebarGroup
+                activeSection={activeSection}
+                onSelect={(id) => setActiveSection(id as CostSection)}
+              />
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 pt-2">
@@ -1405,203 +1440,44 @@ function CostControlInner() {
           </div>
           )}
 
-          {activeSection === "request-status" && (
-          <div className="space-y-6">
-            <p className="text-sm text-muted-foreground text-pretty max-w-3xl">
-              Every purchase and stock movement for your property, with current
-              status — including items already past cost control or finance.
-            </p>
-            <Card className="border-border/80 shadow-md overflow-hidden">
-              <CardHeader className="border-b bg-muted/30 py-3">
-                <CardTitle className="text-lg">All purchase requests</CardTitle>
-                <CardDescription>{purchases.length} total</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                {purchases.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-6 text-center">
-                    No purchase requests yet.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Store</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>CC reviewer</TableHead>
-                        <TableHead>Finance</TableHead>
-                        <TableHead className="min-w-[160px]">Rejection / reason</TableHead>
-                        <TableHead>Created</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[...purchases]
-                        .sort(
-                          (a, b) =>
-                            new Date(b.createdAt).getTime() -
-                            new Date(a.createdAt).getTime(),
-                        )
-                        .map((r) => (
-                          <TableRow key={r.id}>
-                            <TableCell className="font-medium whitespace-nowrap">
-                              {r.itemName}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {r.storeUserName}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  r.status === "REJECTED_CC" ||
-                                  r.status === "REJECTED_FINANCE"
-                                    ? "destructive"
-                                    : r.status === "APPROVED_FINANCE"
-                                      ? "default"
-                                      : "secondary"
-                                }
-                              >
-                                {formatPurchaseStatus(r.status)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm max-w-[120px] truncate">
-                              {r.ccActorName ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-sm max-w-[120px] truncate">
-                              {r.financeActorName ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[220px]">
-                              {r.status === "REJECTED_CC" ||
-                              r.status === "REJECTED_FINANCE" ? (
-                                <span className="block space-y-0.5">
-                                  <span className="text-foreground font-medium">
-                                    {formatPurchaseRejectorLine(r)}
-                                  </span>
-                                  {r.rejectionReason?.trim() ? (
-                                    <span className="block italic">
-                                      {r.rejectionReason.trim()}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              {new Date(r.createdAt).toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/80 shadow-md overflow-hidden">
-              <CardHeader className="border-b bg-muted/30 py-3">
-                <CardTitle className="text-lg">All stock movement requests</CardTitle>
-                <CardDescription>{stocks.length} total</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                {stocks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-6 text-center">
-                    No movement requests yet.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Quantity</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Requested by</TableHead>
-                        <TableHead>CC reviewer</TableHead>
-                        <TableHead className="min-w-[160px]">Rejection / reason</TableHead>
-                        <TableHead>Created</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[...stocks]
-                        .sort(
-                          (a, b) =>
-                            new Date(b.createdAt).getTime() -
-                            new Date(a.createdAt).getTime(),
-                        )
-                        .map((r) => (
-                          <TableRow key={r.id}>
-                            <TableCell className="font-medium max-w-[200px] truncate">
-                              {r.itemName?.trim()
-                                ? r.itemName
-                                : "Unknown item (stock line may have been removed)"}
-                            </TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">
-                              {formatMovementType(r.movementType)}
-                            </TableCell>
-                            <TableCell className="tabular-nums whitespace-nowrap">
-                              {formatQtyWithUnit(
-                                r.amount,
-                                inventoryRows.find((it) => it.id === r.itemRegistrationId)
-                                  ?.measuredBy || "units",
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  r.status === "REJECTED"
-                                    ? "destructive"
-                                    : r.status === "APPROVED"
-                                      ? "default"
-                                      : "secondary"
-                                }
-                              >
-                                {formatStockOutRequestStatus(r.status)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {r.requestedByUserName}
-                            </TableCell>
-                            <TableCell className="text-sm max-w-[120px] truncate">
-                              {r.ccActorName ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[220px]">
-                              {r.status === "REJECTED" ? (
-                                <span className="block space-y-0.5">
-                                  <span className="text-foreground font-medium">
-                                    {formatStockMovementRejectorLine(r)}
-                                  </span>
-                                  {r.rejectionReason?.trim() ? (
-                                    <span className="block italic">
-                                      {r.rejectionReason.trim()}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              {new Date(r.createdAt).toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                    {activeSection === "purchase-request-status" && (
+            <div className="space-y-6">
+              {propertyRequestStatus.initialLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="h-9 w-9 animate-spin text-primary" />
+                </div>
+              ) : (
+                <PurchaseRequestStatusPanel
+                  rows={propertyRequestStatus.purchases}
+                  showStoreUser
+                  description={`${propertyRequestStatus.purchases.length} purchase requests for this property.`}
+                />
+              )}
+            </div>
           )}
 
-          {activeSection === "payment-vat" && (
+          {activeSection === "stock-movement-status" && (
             <div className="space-y-6">
-              <HotelInventoryPaymentVatPanel
+              {propertyRequestStatus.initialLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="h-9 w-9 animate-spin text-primary" />
+                </div>
+              ) : (
+                <StockMovementStatusPanel
+                  rows={propertyRequestStatus.stocks}
+                  showRequestedBy
+                  description={`${propertyRequestStatus.stocks.length} movement requests for this property.`}
+                />
+              )}
+            </div>
+          )}
+
+          {isPaymentCategorySection(activeSection) && (
+            <div className="space-y-6">
+              <HotelInventoryPaymentCategoryPanel
+                mode={paymentModeFromSection(activeSection)!}
                 tenantLabel={displayName || "Property"}
                 inventoryItems={inventoryRows}
-                purchasePipeline={purchases.filter((p) =>
-                  rowHotelMatchesTenantScope(p.HotelName, tenantScope || ""),
-                )}
-                inactiveItems={statusRows}
               />
             </div>
           )}

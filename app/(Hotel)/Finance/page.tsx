@@ -19,7 +19,12 @@ import {
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import StoreItems from "@/app/StoreItems/page";
-import { HotelInventoryPaymentVatPanel } from "@/components/hotel/HotelInventoryPaymentVatPanel";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
+import {
+  isPaymentCategorySection,
+  paymentModeFromSection,
+} from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import {
   Card,
@@ -83,7 +88,10 @@ type FinanceSection =
   | "queue"
   | "history"
   | "inventory"
-  | "payment-vat"
+  | "payment-credit"
+  | "payment-paid"
+  | "payment-with-vat"
+  | "payment-without-vat"
   | "creditor-usage";
 
 function FinanceInner() {
@@ -232,11 +240,6 @@ function FinanceInner() {
       icon: LayoutGrid,
     },
     {
-      section: "payment-vat",
-      label: HOTEL_INVENTORY_COPY.paymentAndTax,
-      icon: Receipt,
-    },
-    {
       section: "creditor-usage",
       label: "Creditor staff usage report",
       icon: Table2,
@@ -281,6 +284,10 @@ function FinanceInner() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <HotelInventoryPaymentSidebarGroup
+                activeSection={financeSection}
+                onSelect={(id) => setFinanceSection(id as FinanceSection)}
+              />
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 pt-2">
@@ -799,13 +806,12 @@ function FinanceInner() {
             </section>
         )}
 
-        {financeSection === "payment-vat" && (
+        {isPaymentCategorySection(financeSection) && (
           <section className="space-y-4">
-            <HotelInventoryPaymentVatPanel
+            <HotelInventoryPaymentCategoryPanel
+              mode={paymentModeFromSection(financeSection)!}
               tenantLabel={displayName || "Property"}
               inventoryItems={inventoryRows}
-              purchasePipeline={scopedPurchases}
-              inactiveItems={inactiveRows}
             />
           </section>
         )}

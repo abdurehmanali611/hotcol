@@ -1,0 +1,67 @@
+"use client";
+
+import {
+  PAYMENT_CATEGORY_NAV,
+  isPaymentCategorySection,
+} from "@/constants/hotelInventoryNav";
+import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+} from "@/components/ui/sidebar";
+import { ChevronRight, Receipt } from "lucide-react";
+
+export function HotelInventoryPaymentSidebarGroup({
+  activeSection,
+  onSelect,
+}: {
+  activeSection: string;
+  onSelect: (sectionId: string) => void;
+}) {
+  const paymentOpen = isPaymentCategorySection(activeSection);
+
+  return (
+    <Collapsible
+      defaultOpen={paymentOpen}
+      className="group/collapsible"
+    >
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            tooltip={HOTEL_INVENTORY_COPY.paymentAndTax}
+            size="lg"
+            className="h-10 cursor-pointer text-[13px]"
+            isActive={paymentOpen}
+          >
+            <Receipt className="opacity-80" />
+            <span className="truncate">Payment &amp; tax</span>
+            <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {PAYMENT_CATEGORY_NAV.map(({ id, label }) => (
+              <SidebarMenuSubItem key={id}>
+                <SidebarMenuSubButton
+                  isActive={activeSection === id}
+                  onClick={() => onSelect(id)}
+                  className="cursor-pointer"
+                >
+                  {label}
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
+}

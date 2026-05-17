@@ -1,6 +1,8 @@
 "use client";
+
+import { useMemo, useState } from "react";
 import { ItemRegistration } from "@/lib/actions";
-import { DataTableClientWrapper } from "./DataTableClientWrapper";
+import { DataTableClientWrapper } from "@/app/StoreItems/DataTableClientWrapper";
 import {
   Select,
   SelectContent,
@@ -10,26 +12,62 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
-import { Users, Filter } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { lineOwedETB } from "@/lib/hotelInventoryPayment";
+import { Users, Filter, Truck, Package } from "lucide-react";
+
+type SupplierSummary = {
+  name: string;
+  lineCount: number;
+  totalValue: number;
+  itemNames: Set<string>;
+};
 
 export default function Suppliers({
   items = [],
 }: {
   items?: ItemRegistration[];
 }) {
-  // 1. Change initial state to "all" instead of ""
   const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
-  
-  // 2. Extract unique supplier names and filter out any null/undefined/empty strings
   const safeItems = Array.isArray(items) ? items : [];
-  const uniqueSuppliers = Array.from(
-    new Set(
-      safeItems
-        .map((i) => i.supplierName)
-        .filter((name): name is string => Boolean(name && name.trim() !== ""))
-    )
-  );
+
+  const supplierSummaries = useMemo(() => {
+    const map = new Map<string, SupplierSummary>();
+    for (const row of safeItems) {
+      const name = (row.supplierName || "").trim();
+      if (!name) continue;
+      const cur = map.get(name) ?? {
+        name,
+        lineCount: 0,
+        totalValue: 0,
+        itemNames: new Set<string>(),
+      };
+      cur.lineCount += 1;
+      cur.totalValue += lineOwedETB(row);
+      cur.itemNames.add(row.name);
+      map.set(name, cur);
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [safeItems]);
+
+  const filteredItems = useMemo(() => {
+    if (selectedSupplier === "all") return safeItems;
+    return safeItems.filter((i) => i.supplierName === selectedSupplier);
+  }, [safeItems, selectedSupplier]);
+
+  const activeSummary =
+    selectedSupplier === "all"
+      ? null
+      : supplierSummaries.find((s) => s.name === selectedSupplier);
+
+  const totalLines = safeItems.length;
+  const totalSuppliers = supplierSummaries.length;
 
   return (
     <main className="container mx-auto py-6 px-0 flex flex-col gap-8 animate-in fade-in duration-700">
@@ -37,33 +75,35 @@ export default function Suppliers({
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
             <Users size={20} />
-            <h1 className="text-2xl font-bold tracking-tight">Supply Chain Audit</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Supply chain audit</h1>
           </div>
-          <p className="text-sm text-muted-foreground font-medium">
-            Monitor registered items and financial standings per supplier.
+          <p className="text-sm text-muted-foreground font-medium max-w-2xl text-pretty">
+            Each registration line is listed separately — the same item name from
+            different suppliers appears as its own row. Filter by supplier to audit
+            payments and stock received.
           </p>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Filter by Provider</span>
-          <Select 
-            value={selectedSupplier} 
-            onValueChange={(value) => setSelectedSupplier(value)}
-          >
-            <SelectTrigger className="h-10 w-64 bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm">
+          <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
+            Filter by provider
+          </span>
+          <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+            <SelectTrigger className="h-10 w-64 bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
               <div className="flex items-center gap-2">
                 <Filter size={14} className="text-muted-foreground" />
-                <SelectValue placeholder="All Registered Suppliers" />
+                <SelectValue placeholder="All registered suppliers" />
               </div>
             </SelectTrigger>
             <SelectContent className="rounded-xl shadow-2xl">
               <SelectGroup>
                 <SelectLabel>Suppliers</SelectLabel>
-                {/* 3. Use "all" as the value instead of an empty string */}
-                <SelectItem value="all">All Suppliers</SelectItem>
-                {uniqueSuppliers.map((name, idx) => (
-                  <SelectItem key={idx} value={name}>
-                    {name}
+                <SelectItem value="all" className="cursor-pointer">
+                  All suppliers ({totalSuppliers})
+                </SelectItem>
+                {supplierSummaries.map((s) => (
+                  <SelectItem key={s.name} value={s.name} className="cursor-pointer">
+                    {s.name} · {s.lineCount} line{s.lineCount !== 1 ? "s" : ""}
                   </SelectItem>
                 ))}
               </SelectGroup>
@@ -72,13 +112,76 @@ export default function Suppliers({
         </div>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="border-primary/15 shadow-sm">
+          <CardHeader className="pb-2 pt-4">
+            <CardDescription className="flex items-center gap-1.5">
+              <Truck className="h-3.5 w-3.5" /> Suppliers
+            </CardDescription>
+            <CardTitle className="text-2xl tabular-nums">{totalSuppliers}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="pb-2 pt-4">
+            <CardDescription className="flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" /> Registration lines
+            </CardDescription>
+            <CardTitle className="text-2xl tabular-nums">{totalLines}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="border-emerald-500/20 shadow-sm">
+          <CardHeader className="pb-2 pt-4">
+            <CardDescription>Filtered value (ETB)</CardDescription>
+            <CardTitle className="text-2xl tabular-nums text-emerald-800 dark:text-emerald-300">
+              {filteredItems
+                .reduce((sum, r) => sum + lineOwedETB(r), 0)
+                .toLocaleString()}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      {activeSummary ? (
+        <Card className="border-dashed border-primary/25 bg-primary/5">
+          <CardContent className="py-4 flex flex-wrap gap-6 text-sm">
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                Supplier
+              </p>
+              <p className="font-semibold">{activeSummary.name}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                Lines
+              </p>
+              <p className="font-semibold tabular-nums">{activeSummary.lineCount}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                Distinct items
+              </p>
+              <p className="font-semibold tabular-nums">
+                {activeSummary.itemNames.size}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                Total value
+              </p>
+              <p className="font-semibold tabular-nums text-primary">
+                ETB {activeSummary.totalValue.toLocaleString()}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="rounded-2xl border border-border/50 bg-card shadow-sm overflow-hidden">
         <DataTableClientWrapper
-          data={
-            selectedSupplier === "all"
-              ? safeItems
-              : safeItems.filter((i) => i.supplierName === selectedSupplier)
-          }
+          data={filteredItems}
+          readOnly
+          showStoreRowActions={false}
+          aggregateInventory={false}
         />
       </div>
     </main>

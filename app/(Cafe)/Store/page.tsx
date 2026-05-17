@@ -924,6 +924,7 @@ export function StoreComponent({
                           <SidebarMenuSubButton
                             isActive={activeView === "PurchaseRequestStatus"}
                             onClick={() => setActiveView("PurchaseRequestStatus")}
+                            className="cursor-pointer"
                           >
                             Purchase requests
                           </SidebarMenuSubButton>
@@ -932,6 +933,7 @@ export function StoreComponent({
                           <SidebarMenuSubButton
                             isActive={activeView === "StockMovementStatus"}
                             onClick={() => setActiveView("StockMovementStatus")}
+                            className="cursor-pointer"
                           >
                             Stock movements
                           </SidebarMenuSubButton>
@@ -964,6 +966,7 @@ export function StoreComponent({
                           <SidebarMenuSubButton
                             isActive={activeView === "PaymentCredit"}
                             onClick={() => setActiveView("PaymentCredit")}
+                            className="cursor-pointer"
                           >
                             Credit vouchers
                           </SidebarMenuSubButton>
@@ -972,6 +975,7 @@ export function StoreComponent({
                           <SidebarMenuSubButton
                             isActive={activeView === "PaymentPaid"}
                             onClick={() => setActiveView("PaymentPaid")}
+                            className="cursor-pointer"
                           >
                             Paid receiving
                           </SidebarMenuSubButton>
@@ -980,6 +984,7 @@ export function StoreComponent({
                           <SidebarMenuSubButton
                             isActive={activeView === "PaymentWithVat"}
                             onClick={() => setActiveView("PaymentWithVat")}
+                            className="cursor-pointer"
                           >
                             With VAT
                           </SidebarMenuSubButton>
@@ -988,6 +993,7 @@ export function StoreComponent({
                           <SidebarMenuSubButton
                             isActive={activeView === "PaymentWithoutVat"}
                             onClick={() => setActiveView("PaymentWithoutVat")}
+                            className="cursor-pointer"
                           >
                             Without VAT
                           </SidebarMenuSubButton>

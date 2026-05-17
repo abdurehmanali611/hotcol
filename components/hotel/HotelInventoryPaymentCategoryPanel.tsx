@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ItemRegistration } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -22,6 +24,17 @@ import {
 } from "@/lib/hotelInventoryPayment";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
+import {
+  matchesCreditAmountFilter,
+  matchesRegistrationDateRange,
+  rowRegistrationYmd,
+  type CreditAmountFilter,
+} from "@/lib/panelFilters";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import {
+  FilterChipGroup,
+  ListPanelFilterBar,
+} from "@/components/hotel/ListPanelFilterBar";
 import { Download, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +73,13 @@ const COPY: Record<
   },
 };
 
+const CREDIT_AMOUNT_OPTIONS: { id: CreditAmountFilter; label: string }[] = [
+  { id: "all", label: "All credit" },
+  { id: "under_10k", label: "Under 10k ETB" },
+  { id: "10k_50k", label: "10k – 50k ETB" },
+  { id: "over_50k", label: "Over 50k ETB" },
+];
+
 function paymentBadgeClass(bucket: ReturnType<typeof itemPaymentBucket>) {
   if (bucket === "paid")
     return "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
@@ -76,6 +96,15 @@ function buildColumns(): ColumnDef<ItemRegistration>[] {
       cell: ({ row }) => (
         <span className="font-medium max-w-[180px] block truncate">
           {row.original.name}
+        </span>
+      ),
+    },
+    {
+      id: "registered",
+      header: "Registered",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+          {rowRegistrationYmd(row.original.registrationDate) || "—"}
         </span>
       ),
     },
@@ -116,7 +145,7 @@ function buildColumns(): ColumnDef<ItemRegistration>[] {
       id: "credit",
       header: "Credit (ETB)",
       cell: ({ row }) => (
-        <span className="tabular-nums text-sm">
+        <span className="tabular-nums text-sm font-medium">
           {creditAmountETB(row.original).toLocaleString()}
         </span>
       ),
@@ -161,7 +190,7 @@ function buildColumns(): ColumnDef<ItemRegistration>[] {
   ];
 }
 
-function filterRows(
+function filterRowsByMode(
   items: ItemRegistration[],
   mode: PaymentCategoryMode,
 ): ItemRegistration[] {
@@ -183,16 +212,74 @@ export function HotelInventoryPaymentCategoryPanel({
   inventoryItems: ItemRegistration[];
 }) {
   const meta = COPY[mode];
-  const filtered = useMemo(
-    () => filterRows(inventoryItems, mode),
-    [inventoryItems, mode],
-  );
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [creditAmountFilter, setCreditAmountFilter] =
+    useState<CreditAmountFilter>("all");
+  const [creditMin, setCreditMin] = useState("");
+  const [creditMax, setCreditMax] = useState("");
+
+  const creditMinNum = creditMin.trim() ? Number(creditMin) : null;
+  const creditMaxNum = creditMax.trim() ? Number(creditMax) : null;
+
+  const filtered = useMemo(() => {
+    return filterRowsByMode(inventoryItems, mode).filter((r) => {
+      if (!matchesRegistrationDateRange(r.registrationDate, dateFrom, dateTo)) {
+        return false;
+      }
+      if (mode === "credit") {
+        return matchesCreditAmountFilter(
+          r,
+          creditAmountFilter,
+          creditMinNum != null && Number.isFinite(creditMinNum)
+            ? creditMinNum
+            : null,
+          creditMaxNum != null && Number.isFinite(creditMaxNum)
+            ? creditMaxNum
+            : null,
+        );
+      }
+      return true;
+    });
+  }, [
+    inventoryItems,
+    mode,
+    dateFrom,
+    dateTo,
+    creditAmountFilter,
+    creditMinNum,
+    creditMaxNum,
+  ]);
+
   const columns = useMemo(() => buildColumns(), []);
   const totalValue = useMemo(
     () => filtered.reduce((s, r) => s + lineOwedETB(r), 0),
     [filtered],
   );
+  const totalCredit = useMemo(
+    () => filtered.reduce((s, r) => s + creditAmountETB(r), 0),
+    [filtered],
+  );
   const fileBase = `${tenantLabel || "property"}_inventory`;
+
+  const modeCount = useMemo(
+    () => filterRowsByMode(inventoryItems, mode).length,
+    [inventoryItems, mode],
+  );
+
+  const hasActiveFilters =
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    (mode === "credit" &&
+      (creditAmountFilter !== "all" || creditMin !== "" || creditMax !== ""));
+
+  const clearFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setCreditAmountFilter("all");
+    setCreditMin("");
+    setCreditMax("");
+  };
 
   return (
     <div className="space-y-4">
@@ -213,18 +300,19 @@ export function HotelInventoryPaymentCategoryPanel({
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-0">
           <p className="text-sm tabular-nums">
-            <span className="font-semibold">{filtered.length}</span> line
-            {filtered.length !== 1 ? "s" : ""}
+            <span className="font-semibold">{filtered.length}</span> of{" "}
+            {modeCount} line{modeCount !== 1 ? "s" : ""} shown
             <span className="text-muted-foreground">
               {" "}
-              · {totalValue.toLocaleString()} ETB total
+              · {totalValue.toLocaleString()} ETB line value
+              {mode === "credit" ? ` · ${totalCredit.toLocaleString()} ETB credit` : ""}
             </span>
           </p>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="gap-1.5"
+            className="gap-1.5 cursor-pointer"
             disabled={!filtered.length}
             onClick={() =>
               exportRowsExcel(
@@ -244,9 +332,7 @@ export function HotelInventoryPaymentCategoryPanel({
                   supplier_phone: r.supplierPhone,
                   supplier_tin: (r.supplierTinNumber || "").trim(),
                   paid_etb: r.paidAmount,
-                  registered_on: r.registrationDate
-                    ? new Date(r.registrationDate).toISOString().slice(0, 10)
-                    : "",
+                  registered_on: rowRegistrationYmd(r.registrationDate),
                 })),
               )
             }
@@ -256,6 +342,67 @@ export function HotelInventoryPaymentCategoryPanel({
           </Button>
         </CardContent>
       </Card>
+
+      <ListPanelFilterBar showClear={hasActiveFilters} onClear={clearFilters}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+          <div className="flex flex-wrap gap-3 items-end">
+            <HotelDayPicker
+              label="Registered from"
+              value={dateFrom}
+              onChange={setDateFrom}
+              className="min-w-[200px]"
+              placeholder="Any date"
+            />
+            <HotelDayPicker
+              label="Registered to"
+              value={dateTo}
+              onChange={setDateTo}
+              className="min-w-[200px]"
+              placeholder="Any date"
+            />
+          </div>
+          {mode === "credit" ? (
+            <div className="flex flex-col gap-3 flex-1 min-w-[240px]">
+              <FilterChipGroup
+                label="Credit amount (ETB)"
+                value={creditAmountFilter}
+                onChange={setCreditAmountFilter}
+                options={CREDIT_AMOUNT_OPTIONS}
+              />
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1.5">
+                  <Label htmlFor="credit-min" className="text-xs">
+                    Min credit (ETB)
+                  </Label>
+                  <Input
+                    id="credit-min"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={creditMin}
+                    onChange={(e) => setCreditMin(e.target.value)}
+                    className="h-9 w-32 tabular-nums"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="credit-max" className="text-xs">
+                    Max credit (ETB)
+                  </Label>
+                  <Input
+                    id="credit-max"
+                    type="number"
+                    min={0}
+                    placeholder="Any"
+                    value={creditMax}
+                    onChange={(e) => setCreditMax(e.target.value)}
+                    className="h-9 w-32 tabular-nums"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </ListPanelFilterBar>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
         <DataTable columns={columns} data={filtered} />
