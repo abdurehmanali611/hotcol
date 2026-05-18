@@ -3,17 +3,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ItemRegistration } from "@/lib/actions";
 import {
+  approveItemRegistrationsFinanceBatchApi,
   approveItemRegistrationFinanceApi,
+  authorizeItemRegistrationsManagerBatchApi,
   authorizeItemRegistrationManagerApi,
+  checkItemRegistrationsCCBatchApi,
   checkItemRegistrationCCApi,
   fetchCostControllerProfiles,
+  notifyApiFailure,
+  rejectItemRegistrationsFinanceBatchApi,
   rejectItemRegistrationFinanceApi,
   type CostControllerProfileRow,
 } from "@/lib/actions";
 import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
 import { formatItemRegistrationStatus } from "@/lib/hotelDisplayLabels";
-import { DataTable } from "@/app/StoreItems/data-table";
+import { DataTable, type DataTableRef } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -27,6 +33,9 @@ import { useReactToPrint } from "react-to-print";
 import type { ColumnDef } from "@tanstack/react-table";
 import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
 
 type RoleMode = "CostControl" | "Finance" | "Manager";
 
@@ -48,8 +57,11 @@ export function HotelItemReceiptApprovals({
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
   const [ccProfileId, setCcProfileId] = useState<string>("");
   const [preview, setPreview] = useState<ItemRegistration | null>(null);
+  const [selectedRows, setSelectedRows] = useState<ItemRegistration[]>([]);
   const printRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<DataTableRef>(null);
   const handlePrint = useReactToPrint({ contentRef: printRef });
+  const { isPending, run } = useConcurrentActions();
 
   useEffect(() => {
     if (role !== "CostControl") return;
@@ -93,6 +105,55 @@ export function HotelItemReceiptApprovals({
       : role === "Finance"
         ? "Approve"
         : "Authorize";
+
+  const selectedIds = useMemo(
+    () => selectedRows.map((row) => row.id).filter((id): id is number => typeof id === "number"),
+    [selectedRows],
+  );
+
+  const clearSelection = () => {
+    tableRef.current?.resetRowSelection();
+    setSelectedRows([]);
+  };
+
+  const handleBatchAct = () => {
+    if (selectedIds.length === 0) return;
+    if (role === "CostControl") {
+      const pid = Number(ccProfileId);
+      if (!pid) {
+        toast.error("Select cost controller identity");
+        return;
+      }
+    }
+    void run(`item-reg-batch-${role}-act`, async () => {
+      try {
+        if (role === "CostControl") {
+          await checkItemRegistrationsCCBatchApi(selectedIds, Number(ccProfileId));
+        } else if (role === "Finance") {
+          await approveItemRegistrationsFinanceBatchApi(selectedIds);
+        } else {
+          await authorizeItemRegistrationsManagerBatchApi(selectedIds);
+        }
+        clearSelection();
+        onRefresh();
+      } catch (e) {
+        notifyApiFailure(e, `${label} failed`);
+      }
+    });
+  };
+
+  const handleBatchReject = () => {
+    if (role !== "Finance" || selectedIds.length === 0) return;
+    void run("item-reg-batch-finance-reject", async () => {
+      try {
+        await rejectItemRegistrationsFinanceBatchApi(selectedIds);
+        clearSelection();
+        onRefresh();
+      } catch (e) {
+        notifyApiFailure(e, "Rejection failed");
+      }
+    });
+  };
 
   const columns: ColumnDef<ItemRegistration>[] = [
     {
@@ -142,9 +203,56 @@ export function HotelItemReceiptApprovals({
           </SelectContent>
         </Select>
       ) : null}
+      {pending.length > 0 ? (
+        <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (selectedIds.length === pending.length) {
+                  clearSelection();
+                } else {
+                  tableRef.current?.setRowSelectionByIds(
+                    pending.map((row) => String(row.id)),
+                  );
+                  setSelectedRows(pending);
+                }
+              }}
+            >
+              {selectedIds.length === pending.length ? "Clear selection" : "Select all"}
+            </Button>
+            <PendingButton
+              size="sm"
+              className="shadow-sm"
+              pending={isPending(`item-reg-batch-${role}-act`)}
+              disabled={selectedIds.length === 0}
+              onClick={handleBatchAct}
+            >
+              {label} selected ({selectedIds.length})
+            </PendingButton>
+            {role === "Finance" ? (
+              <PendingButton
+                size="sm"
+                variant="outline"
+                className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                pending={isPending("item-reg-batch-finance-reject")}
+                disabled={selectedIds.length === 0}
+                onClick={handleBatchReject}
+              >
+                Reject selected ({selectedIds.length})
+              </PendingButton>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
       <DataTable
+        ref={tableRef}
         columns={columns}
         data={pending}
+        enableRowSelection
+        onRowSelectionChange={setSelectedRows}
         searchColumnId="name"
         initialSorting={VOUCHER_TABLE_SORT}
         emptyMessage="No registrations awaiting action."
