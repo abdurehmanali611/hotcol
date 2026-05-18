@@ -1,16 +1,24 @@
 "use client";
 
 import {
+  PAYMENT_CATEGORY_NAV,
   isPaymentCategorySection,
 } from "@/constants/hotelInventoryNav";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
-import { Receipt } from "lucide-react";
+import { ChevronRight, Receipt } from "lucide-react";
 
-/** Single sidebar entry; category is chosen inside the payment hub via dropdown. */
 export function HotelInventoryPaymentSidebarGroup({
   activeSection,
   onSelect,
@@ -21,17 +29,36 @@ export function HotelInventoryPaymentSidebarGroup({
   const paymentOpen = isPaymentCategorySection(activeSection);
 
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={HOTEL_INVENTORY_COPY.paymentAndTax}
-        size="lg"
-        className="h-10 cursor-pointer text-[13px]"
-        isActive={paymentOpen}
-        onClick={() => onSelect("payment-credit")}
-      >
-        <Receipt className="opacity-80" />
-        <span className="truncate">{HOTEL_INVENTORY_COPY.paymentAndTax}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
+    <Collapsible defaultOpen={paymentOpen} className="group/collapsible">
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            tooltip={HOTEL_INVENTORY_COPY.paymentAndTax}
+            size="lg"
+            className="h-10 cursor-pointer text-[13px]"
+            isActive={paymentOpen}
+          >
+            <Receipt className="opacity-80" />
+            <span className="truncate">{HOTEL_INVENTORY_COPY.paymentAndTax}</span>
+            <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {PAYMENT_CATEGORY_NAV.map(({ id, label }) => (
+              <SidebarMenuSubItem key={id}>
+                <SidebarMenuSubButton
+                  isActive={activeSection === id}
+                  onClick={() => onSelect(id)}
+                  className="cursor-pointer"
+                >
+                  {label}
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
   );
 }

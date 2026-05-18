@@ -93,8 +93,9 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
 import StoreItems from "@/app/StoreItems/page";
-import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
+import type { PaymentCategoryMode } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
 import {
   HotelPurchaseManagerQueue,
@@ -1100,8 +1101,8 @@ function ManagerContent() {
           if (!mode) return null;
           return (
             <div className="p-4 md:p-6">
-              <HotelInventoryPaymentHub
-                initialMode={mode}
+              <HotelInventoryPaymentCategoryPanel
+                mode={mode as PaymentCategoryMode}
                 tenantLabel={displayName || headerLabel}
                 inventoryItems={items}
               />

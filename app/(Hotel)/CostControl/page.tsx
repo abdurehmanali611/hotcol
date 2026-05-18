@@ -110,7 +110,7 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
-import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
 import {
   HotelRegistrationApprovalsBlock,
@@ -1584,8 +1584,8 @@ function CostControlInner() {
 
           {isPaymentCategorySection(activeSection) && (
             <div className="space-y-6">
-              <HotelInventoryPaymentHub
-                initialMode={paymentModeFromSection(activeSection)!}
+              <HotelInventoryPaymentCategoryPanel
+                mode={paymentModeFromSection(activeSection)!}
                 tenantLabel={displayName || "Property"}
                 inventoryItems={inventoryRows}
               />

@@ -51,7 +51,7 @@ import PurchaseRequestsTab from "@/components/hotel/PurchaseRequestsTab";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
-import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -819,32 +819,32 @@ export function StoreComponent({
           </div>
         ) : activeView === "PaymentCredit" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentHub
-              initialMode="credit"
+            <HotelInventoryPaymentCategoryPanel
+              mode="credit"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentPaid" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentHub
-              initialMode="paid"
+            <HotelInventoryPaymentCategoryPanel
+              mode="paid"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentWithVat" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentHub
-              initialMode="with-vat"
+            <HotelInventoryPaymentCategoryPanel
+              mode="with-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentHub
-              initialMode="without-vat"
+            <HotelInventoryPaymentCategoryPanel
+              mode="without-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />

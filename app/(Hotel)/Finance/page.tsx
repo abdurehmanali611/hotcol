@@ -33,8 +33,12 @@ import {
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import StoreItems from "@/app/StoreItems/page";
-import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
+import {
+  HotelRequestStatusSidebarGroup,
+} from "@/components/hotel/HotelRequestStatusSidebarGroup";
+import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
 import {
   HotelRegistrationApprovalsBlock,
   HotelStockWorkflowQueue,
@@ -84,7 +88,6 @@ import {
   XCircle,
   LayoutGrid,
   Receipt,
-  Send,
   Table2,
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
@@ -100,7 +103,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 type FinanceSection =
   | "queue"
   | "stock-queue"
-  | "purchase-pipeline"
+  | "purchase-request-status"
+  | "stock-movement-status"
   | "history"
   | "inventory"
   | "registrations"
@@ -470,11 +474,6 @@ function FinanceInner() {
   }[] = [
     { section: "queue", label: "Payment queue", icon: Inbox },
     { section: "stock-queue", label: "Stock movements", icon: Receipt },
-    {
-      section: "purchase-pipeline",
-      label: "Purchase pipeline",
-      icon: Send,
-    },
     { section: "registrations", label: "Registration approvals", icon: Receipt },
     { section: "item-receipts", label: "Item receipts", icon: Receipt },
     { section: "history", label: "History", icon: History },
@@ -528,6 +527,10 @@ function FinanceInner() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <HotelRequestStatusSidebarGroup
+                activeSection={financeSection}
+                onSelect={(id) => setFinanceSection(id as FinanceSection)}
+              />
               <HotelInventoryPaymentSidebarGroup
                 activeSection={financeSection}
                 onSelect={(id) => setFinanceSection(id as FinanceSection)}
@@ -800,15 +803,24 @@ function FinanceInner() {
         </section>
         )}
 
-        {financeSection === "purchase-pipeline" && (
+        {financeSection === "purchase-request-status" && (
           <section className="space-y-4">
             <PurchaseRequestStatusPanel
               rows={scopedPurchases}
               showStoreUser
               unitPriceRole="Finance"
               onRefresh={() => void refreshPurchasesOnly()}
-              title="Purchase pipeline"
-              description={`${scopedPurchases.length} purchase requests for this property — filter by approval step or handle unit price revisions.`}
+            />
+          </section>
+        )}
+
+        {financeSection === "stock-movement-status" && (
+          <section className="space-y-4">
+            <StockMovementStatusPanel
+              rows={stockRows.filter((r) =>
+                rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
+              )}
+              showRequestedBy
             />
           </section>
         )}
@@ -932,8 +944,8 @@ function FinanceInner() {
 
         {isPaymentCategorySection(financeSection) && (
           <section className="space-y-4">
-            <HotelInventoryPaymentHub
-              initialMode={paymentModeFromSection(financeSection)!}
+            <HotelInventoryPaymentCategoryPanel
+              mode={paymentModeFromSection(financeSection)!}
               tenantLabel={displayName || "Property"}
               inventoryItems={inventoryRows}
             />
