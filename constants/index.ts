@@ -82,6 +82,11 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "authorize-purchases", label: "Authorize purchases", icon: "ShoppingCart" },
   { id: "authorize-stock", label: "Authorize stock", icon: "ArrowRightLeft" },
   { id: "authorize-companies", label: "Corporate companies", icon: "Building2" },
+  {
+    id: "authorize-registrations",
+    label: "Registration authorizations",
+    icon: "Receipt",
+  },
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
   {
