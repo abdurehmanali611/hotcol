@@ -8,6 +8,7 @@ import {
   isAggregatedInventoryRow,
 } from "@/lib/inventoryAggregation";
 import { normalizeInventoryItemName } from "@/lib/tenantRowMatch";
+import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 
 interface WrapperProps {
   data: items[];
@@ -73,6 +74,7 @@ export const DataTableClientWrapper = forwardRef<
       enableRowSelection={!!enableRowSelection}
       getRowId={resolveRowId}
       onRowSelectionChange={onRowSelectionChange}
+      initialSorting={hotelStockApprovals ? VOUCHER_TABLE_SORT : undefined}
     />
   );
 });

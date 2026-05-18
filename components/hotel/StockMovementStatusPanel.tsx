@@ -29,6 +29,7 @@ import {
   ListPanelFilterBar,
 } from "@/components/hotel/ListPanelFilterBar";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
+import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -214,6 +215,7 @@ export function StockMovementStatusPanel({
           columns={buildColumns(showRequestedBy)}
           data={filtered}
           searchColumnId="itemName"
+          initialSorting={VOUCHER_TABLE_SORT}
           emptyMessage="No stock movement requests match these filters."
         />
       </div>

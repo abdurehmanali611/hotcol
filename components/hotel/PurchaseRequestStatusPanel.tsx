@@ -29,6 +29,7 @@ import {
 } from "@/components/hotel/ListPanelFilterBar";
 import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
+import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
@@ -225,6 +226,7 @@ export function PurchaseRequestStatusPanel({
           columns={buildColumns(showStoreUser)}
           data={filtered}
           searchColumnId="itemName"
+          initialSorting={VOUCHER_TABLE_SORT}
           emptyMessage="No purchase requests match these filters."
         />
       </div>

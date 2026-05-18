@@ -80,6 +80,7 @@ import { Input } from "@/components/ui/input";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DataTable } from "@/app/StoreItems/data-table";
+import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 import { buildPurchaseRequestDashboardColumns } from "@/lib/dataTableColumns/purchaseRequests";
 import { buildPurchaseRequestReportColumns } from "@/lib/dataTableColumns/purchaseRequests";
 import { buildStockMovementDashboardColumns } from "@/lib/dataTableColumns/stockMovement";
@@ -114,8 +115,6 @@ import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
-import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
-import { InventoryUnitPriceRevisions } from "@/components/hotel/InventoryUnitPriceRevisions";
 
 type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
@@ -667,6 +666,7 @@ function ManagerContent() {
                   columns={recentPurchaseColumns}
                   data={purchases.slice(0, 8)}
                   getRowId={(row) => String(row.id)}
+                  initialSorting={VOUCHER_TABLE_SORT}
                   emptyMessage="No purchase requests yet."
                 />
               </CardContent>
@@ -680,6 +680,7 @@ function ManagerContent() {
                   columns={recentStockColumns}
                   data={stockReqs.slice(0, 8)}
                   getRowId={(row) => String(row.id)}
+                  initialSorting={VOUCHER_TABLE_SORT}
                   emptyMessage="No stock-out requests yet."
                 />
               </CardContent>
@@ -821,8 +822,6 @@ function ManagerContent() {
               readOnly
               showPaymentSummary
               aggregateInventory
-              inventoryUnitPriceRole="Manager"
-              onInventoryUnitPriceRefresh={() => void loadData(true)}
             />
           </div>
         );
@@ -863,16 +862,6 @@ function ManagerContent() {
       case "authorize-purchases":
         return (
           <div className="p-4 md:p-6 space-y-6">
-            <PurchaseRequestUnitPriceRevisions
-              rows={scopedPurchases}
-              role="Manager"
-              onRefresh={() => void loadData(true)}
-            />
-            <InventoryUnitPriceRevisions
-              rows={items}
-              role="Manager"
-              onRefresh={() => void loadData(true)}
-            />
             <HotelPurchaseManagerQueue
               purchases={scopedPurchases}
               onPatch={(id, status) =>

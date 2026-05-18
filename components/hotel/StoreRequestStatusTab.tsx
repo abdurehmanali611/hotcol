@@ -18,6 +18,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { buildStoreMyPurchaseColumns } from "@/lib/dataTableColumns/purchaseRequests";
 import { buildStoreMyStockColumns } from "@/lib/dataTableColumns/stockMovement";
+import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 import {
   ClipboardList,
   Clock,
@@ -156,12 +157,6 @@ export default function StoreRequestStatusTab({
     [mergedStocks, userName],
   );
 
-  const sortByDateDesc = <T extends { createdAt: string }>(rows: T[]) =>
-    [...rows].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-
   const purchasePending = myPurchases.filter((r) =>
     ["PENDING_CC", "PENDING_FINANCE"].includes(r.status),
   ).length;
@@ -292,8 +287,9 @@ export default function StoreRequestStatusTab({
             <div className="p-4 pt-0">
               <DataTable
                 columns={buildStoreMyPurchaseColumns()}
-                data={sortByDateDesc(myPurchases)}
+                data={myPurchases}
                 searchColumnId="itemName"
+                initialSorting={VOUCHER_TABLE_SORT}
                 emptyMessage="No purchase requests from you yet."
               />
             </div>
@@ -324,8 +320,9 @@ export default function StoreRequestStatusTab({
             <div className="p-4 pt-0">
               <DataTable
                 columns={buildStoreMyStockColumns()}
-                data={sortByDateDesc(myStocks)}
+                data={myStocks}
                 searchColumnId="itemName"
+                initialSorting={VOUCHER_TABLE_SORT}
                 emptyMessage="No movement requests from you yet."
               />
             </div>

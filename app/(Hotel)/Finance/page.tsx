@@ -50,8 +50,6 @@ import {
 } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
-import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
-import { InventoryUnitPriceRevisions } from "@/components/hotel/InventoryUnitPriceRevisions";
 import {
   Card,
   CardContent,
@@ -828,16 +826,6 @@ function FinanceInner() {
 
         {financeSection === "history" && (
         <section className="space-y-4">
-          <PurchaseRequestUnitPriceRevisions
-            rows={scopedPurchases}
-            role="Finance"
-            onRefresh={() => void refreshPurchasesOnly()}
-          />
-          <InventoryUnitPriceRevisions
-            rows={inventoryRows}
-            role="Finance"
-            onRefresh={() => void load(true)}
-          />
           <div className="flex items-center gap-2 flex-wrap">
             <div className="p-2 rounded-lg bg-muted/60 border border-border/60">
               <History className="h-4 w-4 text-muted-foreground" />
@@ -908,8 +896,6 @@ function FinanceInner() {
                 embedded
                 readOnly
                 showPaymentSummary
-                inventoryUnitPriceRole="Finance"
-                onInventoryUnitPriceRefresh={() => void load(true)}
               />
             </section>
         )}

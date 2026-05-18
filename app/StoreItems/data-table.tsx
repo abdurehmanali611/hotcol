@@ -53,6 +53,8 @@ export interface DataTableProps<TData, TValue> {
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  /** Initial column sort (e.g. voucher ascending). */
+  initialSorting?: SortingState;
 }
 
 function DataTableInner<TData extends { id?: number }, TValue>(
@@ -67,10 +69,13 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     searchPlaceholder = "Search…",
     emptyMessage = "No records found for this period.",
     className,
+    initialSorting,
   }: DataTableProps<TData, TValue>,
   ref: React.ForwardedRef<DataTableRef>,
 ) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>(
+    () => initialSorting ?? [],
+  );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );

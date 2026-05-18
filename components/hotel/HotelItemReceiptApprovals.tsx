@@ -25,7 +25,8 @@ import {
 import { Printer } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import type { ColumnDef } from "@tanstack/react-table";
-import { formatVoucherDisplay } from "@/lib/voucherFormat";
+import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 
 type RoleMode = "CostControl" | "Finance" | "Manager";
 
@@ -95,16 +96,7 @@ export function HotelItemReceiptApprovals({
 
   const columns: ColumnDef<ItemRegistration>[] = [
     {
-      id: "voucher",
-      header: "Voucher",
-      cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {formatVoucherDisplay(
-            row.original.voucherNumber,
-            row.original.voucherDisplay,
-          )}
-        </span>
-      ),
+      ...buildVoucherColumn<ItemRegistration>(),
     },
     { accessorKey: "name", header: "Item" },
     {
@@ -154,6 +146,7 @@ export function HotelItemReceiptApprovals({
         columns={columns}
         data={pending}
         searchColumnId="name"
+        initialSorting={VOUCHER_TABLE_SORT}
         emptyMessage="No registrations awaiting action."
       />
       <div className="sr-only" aria-hidden>
