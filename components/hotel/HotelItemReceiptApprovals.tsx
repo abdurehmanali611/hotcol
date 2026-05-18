@@ -242,7 +242,7 @@ export function HotelItemReceiptApprovals({
       {pending.length > 0 ? (
         <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <div className="flex items-center">
               <Checkbox
                 checked={
                   selectedIds.length === pending.length
@@ -263,8 +263,7 @@ export function HotelItemReceiptApprovals({
                 }}
                 aria-label="Select all registrations"
               />
-              <span>Select all</span>
-            </label>
+            </div>
             <PendingButton
               size="sm"
               className="shadow-sm"

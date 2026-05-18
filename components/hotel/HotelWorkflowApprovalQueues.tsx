@@ -104,9 +104,9 @@ export function HotelPurchaseManagerQueue({
 
   return (
     <div className="space-y-3">
-        <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
+      <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <div className="flex items-center">
             <Checkbox
               checked={
                 activeSelectedIds.length === pending.length
@@ -120,8 +120,7 @@ export function HotelPurchaseManagerQueue({
               }
               aria-label="Select all purchase requests"
             />
-            <span>Select all</span>
-          </label>
+          </div>
           <PendingButton
             pending={isPending("mgr-pr-batch-a")}
             disabled={activeSelectedIds.length === 0}
@@ -294,7 +293,7 @@ export function HotelStockWorkflowQueue({
 
   return (
     <div className="space-y-3">
-        <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
+      <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-end">
           {role === "CostControl" ? (
             <div className="min-w-[220px] flex-1 space-y-1">
@@ -317,7 +316,7 @@ export function HotelStockWorkflowQueue({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <div className="flex items-center">
               <Checkbox
                 checked={
                   activeSelectedIds.length === pending.length
@@ -331,8 +330,7 @@ export function HotelStockWorkflowQueue({
                 }
                 aria-label="Select all stock movements"
               />
-              <span>Select all</span>
-            </label>
+            </div>
             <PendingButton
               pending={isPending(`so-batch-${role}-a`)}
               disabled={activeSelectedIds.length === 0}
