@@ -331,6 +331,18 @@ export interface ItemRegistration {
   registeredValue?: number;
   statusBy?: string;
   HotelName: string;
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
+  purchaseRequestId?: number | null;
+  approvalStatus?: string;
+  ccProfileId?: number | null;
+  ccActorName?: string | null;
+  ccCheckedAt?: string | null;
+  financeActorName?: string | null;
+  financeApprovedAt?: string | null;
+  managerActorName?: string | null;
+  managerAuthorizedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface createItemRegistration {
@@ -3133,6 +3145,18 @@ export async function fetchItemRegistrations() {
           registeredValue
           statusBy
           HotelName
+          voucherNumber
+          voucherDisplay
+          purchaseRequestId
+          approvalStatus
+          ccProfileId
+          ccActorName
+          ccCheckedAt
+          financeActorName
+          financeApprovedAt
+          managerActorName
+          managerAuthorizedAt
+          rejectionReason
         }
       }
     `;
@@ -3407,12 +3431,18 @@ export interface PurchaseRequestRow {
   category: string;
   status: string;
   storeUserName: string;
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
   ccProfileId?: number | null;
   ccActorName?: string | null;
   ccApprovedAt?: string | null;
   financeActorName?: string | null;
   financeApprovedAt?: string | null;
+  managerActorName?: string | null;
+  managerAuthorizedAt?: string | null;
   rejectionReason?: string | null;
+  pendingUnitPrice?: number | null;
+  unitPriceChangeStatus?: string | null;
   createdAt: string;
 }
 
@@ -3426,9 +3456,16 @@ export interface StockOutRequestRow {
   amount: number;
   stakeHolderOrReason: string;
   status: string;
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
   requestedByUserName: string;
   ccProfileId?: number | null;
   ccActorName?: string | null;
+  ccCheckedAt?: string | null;
+  financeActorName?: string | null;
+  financeApprovedAt?: string | null;
+  managerActorName?: string | null;
+  managerAuthorizedAt?: string | null;
   decidedAt?: string | null;
   rejectionReason?: string | null;
   createdAt: string;
@@ -3526,9 +3563,15 @@ export interface HotelCreditCompanyRow {
   id: number;
   HotelName: string;
   companyName: string;
+  companyTinNumber?: string;
   contactName: string;
   phoneNumber: string;
   email: string;
+  payTiming?: string;
+  approvalStatus?: string;
+  managerActorName?: string | null;
+  managerAuthorizedAt?: string | null;
+  rejectionReason?: string | null;
   creditLevel: string;
   creditLimit: number;
   timeInterval: number;
@@ -3584,6 +3627,12 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
         ccApprovedAt
         financeActorName
         financeApprovedAt
+        managerActorName
+        managerAuthorizedAt
+        voucherNumber
+        voucherDisplay
+        pendingUnitPrice
+        unitPriceChangeStatus
         rejectionReason
         createdAt
       }
@@ -3612,9 +3661,16 @@ export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
         amount
         stakeHolderOrReason
         status
+        voucherNumber
+        voucherDisplay
         requestedByUserName
         ccProfileId
         ccActorName
+        ccCheckedAt
+        financeActorName
+        financeApprovedAt
+        managerActorName
+        managerAuthorizedAt
         decidedAt
         rejectionReason
         createdAt
@@ -3810,7 +3866,7 @@ export async function approvePurchaseRequestCCApi(
     throw new Error(response.data.errors[0]?.message || "Approval failed");
   }
   if (!options?.suppressSuccessToast) {
-    toast.success("Forwarded to finance");
+    toast.success("Checked — forwarded to finance");
   }
   return response.data.data.approvePurchaseRequestCC;
 }
@@ -3865,11 +3921,384 @@ export async function approvePurchaseRequestFinanceApi(
     throw new Error(response.data.errors[0]?.message || "Approval failed");
   }
   if (!options?.suppressSuccessToast) {
-    toast.success(
-      "Payment approved — store registers stock when goods are received",
-    );
+    toast.success("Approved — forwarded to manager for authorization");
   }
   return response.data.data.approvePurchaseRequestFinance;
+}
+
+export async function authorizePurchaseRequestManagerApi(
+  id: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation AuthMgr($id: Int!) {
+      authorizePurchaseRequestManager(id: $id) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Authorization failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Purchase request authorized — store may receive goods");
+  }
+  return response.data.data.authorizePurchaseRequestManager;
+}
+
+export async function rejectPurchaseRequestManagerApi(
+  id: number,
+  reason?: string,
+  options?: HotelMutationToastOptions,
+): Promise<PurchaseRequestRow> {
+  const mutation = `
+    mutation RejectMgr($id: Int!, $reason: String) {
+      rejectPurchaseRequestManager(id: $id, reason: $reason) {
+        ${HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS}
+        managerActorName
+        managerAuthorizedAt
+        voucherNumber
+        voucherDisplay
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Update failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Request rejected");
+  }
+  return response.data.data.rejectPurchaseRequestManager as PurchaseRequestRow;
+}
+
+export async function submitPurchaseRequestUnitPriceChangeApi(
+  id: number,
+  proposedUnitPrice: number,
+) {
+  const mutation = `
+    mutation SubmitPrPrice($id: Int!, $proposedUnitPrice: Float!) {
+      submitPurchaseRequestUnitPriceChange(id: $id, proposedUnitPrice: $proposedUnitPrice) {
+        id
+        unitPriceChangeStatus
+        pendingUnitPrice
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, proposedUnitPrice },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Submit failed");
+  }
+  toast.success("Unit price revision submitted for approval");
+  return response.data.data.submitPurchaseRequestUnitPriceChange;
+}
+
+export async function checkPurchaseRequestUnitPriceCCApi(
+  id: number,
+  costControllerProfileId: number,
+) {
+  const mutation = `
+    mutation CheckPrPriceCC($id: Int!, $costControllerProfileId: Int!) {
+      checkPurchaseRequestUnitPriceCC(id: $id, costControllerProfileId: $costControllerProfileId) {
+        id
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, costControllerProfileId },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Check failed");
+  }
+  toast.success("Price revision checked — forwarded to finance");
+  return response.data.data.checkPurchaseRequestUnitPriceCC;
+}
+
+export async function approvePurchaseRequestUnitPriceFinanceApi(id: number) {
+  const mutation = `
+    mutation ApprovePrPriceFin($id: Int!) {
+      approvePurchaseRequestUnitPriceFinance(id: $id) {
+        id
+        unitPriceChangeStatus
+        estimatedUnitPrice
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query: mutation, variables: { id } });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approval failed");
+  }
+  toast.success("Price revision approved — forwarded to manager");
+  return response.data.data.approvePurchaseRequestUnitPriceFinance;
+}
+
+export async function authorizePurchaseRequestUnitPriceManagerApi(id: number) {
+  const mutation = `
+    mutation AuthPrPriceMgr($id: Int!) {
+      authorizePurchaseRequestUnitPriceManager(id: $id) {
+        id
+        unitPriceChangeStatus
+        estimatedUnitPrice
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query: mutation, variables: { id } });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Authorization failed");
+  }
+  toast.success("Unit price revision authorized");
+  return response.data.data.authorizePurchaseRequestUnitPriceManager;
+}
+
+export async function rejectPurchaseRequestUnitPriceApi(id: number, reason?: string) {
+  const mutation = `
+    mutation RejectPrPrice($id: Int!, $reason: String) {
+      rejectPurchaseRequestUnitPrice(id: $id, reason: $reason) {
+        id
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Reject failed");
+  }
+  toast.success("Price revision rejected");
+  return response.data.data.rejectPurchaseRequestUnitPrice;
+}
+
+export async function checkItemRegistrationCCApi(
+  id: number,
+  costControllerProfileId: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation CheckRegCC($id: Int!, $costControllerProfileId: Int!) {
+      checkItemRegistrationCC(id: $id, costControllerProfileId: $costControllerProfileId) {
+        id
+        approvalStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, costControllerProfileId },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Check failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Checked — forwarded to finance");
+  }
+  return response.data.data.checkItemRegistrationCC;
+}
+
+export async function approveItemRegistrationFinanceApi(
+  id: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation ApproveRegFin($id: Int!) {
+      approveItemRegistrationFinance(id: $id) {
+        id
+        approvalStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approval failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Approved — forwarded to manager");
+  }
+  return response.data.data.approveItemRegistrationFinance;
+}
+
+export async function rejectItemRegistrationFinanceApi(
+  id: number,
+  reason?: string,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation RejectRegFin($id: Int!, $reason: String) {
+      rejectItemRegistrationFinance(id: $id, reason: $reason) {
+        id
+        approvalStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Rejection failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Receipt voided — item will not appear in inventory");
+  }
+  return response.data.data.rejectItemRegistrationFinance;
+}
+
+export async function authorizeItemRegistrationManagerApi(
+  id: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation AuthRegMgr($id: Int!) {
+      authorizeItemRegistrationManager(id: $id) {
+        id
+        approvalStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Authorization failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Registration authorized — item is now in inventory");
+  }
+  return response.data.data.authorizeItemRegistrationManager;
+}
+
+export async function checkStockOutRequestCCApi(
+  id: number,
+  costControllerProfileId: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation CheckSO($id: Int!, $costControllerProfileId: Int!) {
+      checkStockOutRequestCC(id: $id, costControllerProfileId: $costControllerProfileId) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, costControllerProfileId },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Check failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Checked — forwarded to finance");
+  }
+  return response.data.data.checkStockOutRequestCC;
+}
+
+export async function approveStockOutRequestFinanceApi(
+  id: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation ApproveSOFin($id: Int!) {
+      approveStockOutRequestFinance(id: $id) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approval failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Approved — forwarded to manager");
+  }
+  return response.data.data.approveStockOutRequestFinance;
+}
+
+export async function authorizeStockOutRequestManagerApi(
+  id: number,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation AuthSOMgr($id: Int!) {
+      authorizeStockOutRequestManager(id: $id) {
+        id
+        status
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Authorization failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Movement authorized and applied to inventory");
+  }
+  return response.data.data.authorizeStockOutRequestManager;
+}
+
+export async function authorizeHotelCreditCompanyApi(id: number) {
+  const mutation = `
+    mutation AuthCo($id: Int!) {
+      authorizeHotelCreditCompany(id: $id) {
+        id
+        approvalStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Authorization failed");
+  }
+  toast.success("Company authorized for corporate meals");
+  return response.data.data.authorizeHotelCreditCompany;
+}
+
+export async function rejectHotelCreditCompanyApi(id: number, reason?: string) {
+  const mutation = `
+    mutation RejectCo($id: Int!, $reason: String) {
+      rejectHotelCreditCompany(id: $id, reason: $reason) {
+        id
+        approvalStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Rejection failed");
+  }
+  toast.success("Company registration rejected");
+  return response.data.data.rejectHotelCreditCompany;
 }
 
 export async function rejectPurchaseRequestFinanceApi(
@@ -3907,25 +4336,7 @@ export async function approveStockOutRequestApi(
   costControllerProfileId: number,
   options?: HotelMutationToastOptions,
 ) {
-  const mutation = `
-    mutation ApproveSO($id: Int!, $costControllerProfileId: Int!) {
-      approveStockOutRequest(id: $id, costControllerProfileId: $costControllerProfileId) {
-        id
-        status
-      }
-    }
-  `;
-  const response = await api.post(API_URL, {
-    query: mutation,
-    variables: { id, costControllerProfileId },
-  });
-  if (response.data.errors) {
-    throw new Error(response.data.errors[0]?.message || "Approval failed");
-  }
-  if (!options?.suppressSuccessToast) {
-    toast.success("Movement applied to inventory");
-  }
-  return response.data.data.approveStockOutRequest;
+  return checkStockOutRequestCCApi(id, costControllerProfileId, options);
 }
 
 export async function rejectStockOutRequestApi(
@@ -4768,9 +5179,15 @@ export async function fetchHotelCreditCompanies(): Promise<
         id
         HotelName
         companyName
+        companyTinNumber
         contactName
         phoneNumber
         email
+        payTiming
+        approvalStatus
+        managerActorName
+        managerAuthorizedAt
+        rejectionReason
         creditLevel
         creditLimit
         timeInterval
@@ -4887,9 +5304,11 @@ export async function fetchHotelCreditConsumptions(
 
 export async function createHotelCreditCompanyApi(input: {
   companyName: string;
+  companyTinNumber?: string;
   contactName?: string;
-  phoneNumber: string;
+  phoneNumber?: string;
   email?: string;
+  payTiming?: string;
   hotelCorporateCreditTierId: number;
   allowedMenuJson: string;
   dealNotes?: string;
@@ -4898,9 +5317,11 @@ export async function createHotelCreditCompanyApi(input: {
   const mutation = `
     mutation HccCreate(
       $companyName: String!
+      $companyTinNumber: String
       $contactName: String
-      $phoneNumber: String!
+      $phoneNumber: String
       $email: String
+      $payTiming: String
       $hotelCorporateCreditTierId: Int!
       $allowedMenuJson: String!
       $dealNotes: String
@@ -4908,15 +5329,18 @@ export async function createHotelCreditCompanyApi(input: {
     ) {
       createHotelCreditCompany(
         companyName: $companyName
+        companyTinNumber: $companyTinNumber
         contactName: $contactName
         phoneNumber: $phoneNumber
         email: $email
+        payTiming: $payTiming
         hotelCorporateCreditTierId: $hotelCorporateCreditTierId
         allowedMenuJson: $allowedMenuJson
         dealNotes: $dealNotes
         imageUrl: $imageUrl
       ) {
         id
+        approvalStatus
       }
     }
   `;
@@ -4927,16 +5351,18 @@ export async function createHotelCreditCompanyApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Save failed");
   }
-  toast.success("Company credit registered");
+  toast.success("Company submitted — awaiting manager authorization");
   return response.data.data.createHotelCreditCompany;
 }
 
 export async function updateHotelCreditCompanyApi(input: {
   id: number;
   companyName: string;
+  companyTinNumber?: string;
   contactName?: string;
-  phoneNumber: string;
+  phoneNumber?: string;
   email?: string;
+  payTiming?: string;
   hotelCorporateCreditTierId?: number | null;
   allowedMenuJson: string;
   dealNotes?: string;
@@ -4946,9 +5372,11 @@ export async function updateHotelCreditCompanyApi(input: {
     mutation HccUp(
       $id: Int!
       $companyName: String!
+      $companyTinNumber: String
       $contactName: String
-      $phoneNumber: String!
+      $phoneNumber: String
       $email: String
+      $payTiming: String
       $hotelCorporateCreditTierId: Int
       $allowedMenuJson: String!
       $dealNotes: String
@@ -4957,9 +5385,11 @@ export async function updateHotelCreditCompanyApi(input: {
       updateHotelCreditCompany(
         id: $id
         companyName: $companyName
+        companyTinNumber: $companyTinNumber
         contactName: $contactName
         phoneNumber: $phoneNumber
         email: $email
+        payTiming: $payTiming
         hotelCorporateCreditTierId: $hotelCorporateCreditTierId
         allowedMenuJson: $allowedMenuJson
         dealNotes: $dealNotes

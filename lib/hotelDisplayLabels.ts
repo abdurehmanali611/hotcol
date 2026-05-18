@@ -12,11 +12,8 @@ export function formatQtyWithUnit(qty: number, measuredBy: string): string {
 
 /** Consistent, beginner-friendly names for the same concepts across hotel terminals. */
 export const HOTEL_INVENTORY_COPY = {
-  /** Rows in master inventory (what was labeled “SKU” in some dashboards). */
   inventoryItems: "Inventory items",
-  /** Purchase requests not yet fully received / closed. */
   purchasePipeline: "Purchase pipeline",
-  /** Payment & VAT overview sidebar section. */
   paymentAndTax: "Inventory payment & tax",
 } as const;
 
@@ -36,17 +33,23 @@ export function formatMovementType(code: string): string {
 export function formatPurchaseStatus(status: string): string {
   switch (status) {
     case "PENDING_CC":
-      return "Awaiting cost control";
+      return "Awaiting cost control check";
     case "PENDING_FINANCE":
-      return "Awaiting finance";
-    case "APPROVED_CC":
-      return "Approved by cost control";
+      return "Awaiting finance approval";
+    case "PENDING_MANAGER":
+      return "Awaiting manager authorization";
+    case "AUTHORIZED":
     case "APPROVED_FINANCE":
-      return "Approved by finance (awaiting store receipt)";
+      return "Authorized — store may receive goods";
+    case "APPROVED_CC":
+    case "CHECKED_CC":
+      return "Checked by cost control";
     case "REJECTED_CC":
-      return "Rejected by cost control";
+      return "Rejected at cost control";
     case "REJECTED_FINANCE":
       return "Rejected by finance";
+    case "REJECTED_MANAGER":
+      return "Rejected by manager";
     default:
       return status;
   }
@@ -55,13 +58,54 @@ export function formatPurchaseStatus(status: string): string {
 export function formatStockOutRequestStatus(status: string): string {
   switch (status) {
     case "PENDING":
-      return "Awaiting cost control";
+    case "PENDING_CC":
+      return "Awaiting cost control check";
+    case "PENDING_FINANCE":
+      return "Awaiting finance approval";
+    case "PENDING_MANAGER":
+      return "Awaiting manager authorization";
     case "APPROVED":
       return "Applied to inventory";
     case "REJECTED":
       return "Rejected";
     default:
       return status;
+  }
+}
+
+export function formatItemRegistrationStatus(status: string): string {
+  switch (status) {
+    case "PENDING_CC":
+      return "Awaiting cost control check";
+    case "PENDING_FINANCE":
+      return "Awaiting finance approval";
+    case "PENDING_MANAGER":
+      return "Awaiting manager authorization";
+    case "AUTHORIZED":
+      return "Authorized — in inventory";
+    case "VOID":
+      return "Void (finance rejected)";
+    case "REJECTED_CC":
+      return "Rejected at cost control";
+    case "REJECTED_FINANCE":
+      return "Rejected by finance";
+    case "REJECTED_MANAGER":
+      return "Rejected by manager";
+    default:
+      return status || "Authorized";
+  }
+}
+
+export function formatCompanyApprovalStatus(status: string): string {
+  switch (status) {
+    case "PENDING_MANAGER":
+      return "Awaiting manager authorization";
+    case "AUTHORIZED":
+      return "Authorized";
+    case "REJECTED":
+      return "Rejected";
+    default:
+      return status || "Authorized";
   }
 }
 
@@ -73,14 +117,18 @@ export function formatPurchaseRejectorLine(r: PurchaseRequestRow): string {
   }
   if (r.status === "REJECTED_FINANCE") {
     const name = String(r.financeActorName ?? "").trim();
-    return name ? `By finance: ${name}` : "By finance";
+    return name ? `Finance: ${name}` : "Finance";
+  }
+  if (r.status === "REJECTED_MANAGER") {
+    const name = String(r.managerActorName ?? "").trim();
+    return name ? `Manager: ${name}` : "Manager";
   }
   return "";
 }
 
-/** Who rejected a stock movement (cost control). */
+/** Who rejected a stock movement. */
 export function formatStockMovementRejectorLine(r: StockOutRequestRow): string {
   if (r.status !== "REJECTED") return "";
-  const name = String(r.ccActorName ?? "").trim();
-  return name ? `Cost control: ${name}` : "Cost control";
+  const name = String(r.ccActorName ?? r.financeActorName ?? r.managerActorName ?? "").trim();
+  return name ? `Rejected by: ${name}` : "Rejected";
 }

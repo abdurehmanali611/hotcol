@@ -27,6 +27,7 @@ import {
   FilterChipGroup,
   ListPanelFilterBar,
 } from "@/components/hotel/ListPanelFilterBar";
+import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
@@ -34,7 +35,8 @@ const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[]
     { id: "pending", label: "Awaiting approval" },
     { id: "pending_cc", label: "Pending CC" },
     { id: "pending_finance", label: "Pending finance" },
-    { id: "approved", label: "Approved" },
+    { id: "pending_manager", label: "Pending manager" },
+    { id: "approved", label: "Authorized" },
     { id: "rejected", label: "Rejected" },
   ];
 
@@ -43,7 +45,7 @@ function purchaseBadgeVariant(
 ): "default" | "secondary" | "destructive" | "outline" {
   if (status === "REJECTED_CC" || status === "REJECTED_FINANCE")
     return "destructive";
-  if (status === "APPROVED_FINANCE") return "default";
+  if (status === "AUTHORIZED" || status === "APPROVED_FINANCE") return "default";
   return "secondary";
 }
 
@@ -90,7 +92,8 @@ function buildColumns(showStoreUser: boolean): ColumnDef<PurchaseRequestRow>[] {
           variant={purchaseBadgeVariant(row.original.status)}
           className={cn(
             "font-normal",
-            row.original.status === "APPROVED_FINANCE" &&
+            (row.original.status === "AUTHORIZED" ||
+              row.original.status === "APPROVED_FINANCE") &&
               "bg-emerald-600/90 hover:bg-emerald-600/90",
           )}
         >
@@ -151,11 +154,15 @@ export function PurchaseRequestStatusPanel({
   title = "Purchase request status",
   description,
   showStoreUser = false,
+  unitPriceRole,
+  onRefresh,
 }: {
   rows: PurchaseRequestRow[];
   title?: string;
   description?: string;
   showStoreUser?: boolean;
+  unitPriceRole?: "Store" | "CostControl" | "Finance" | "Manager";
+  onRefresh?: () => void;
 }) {
   const [approvalFilter, setApprovalFilter] =
     useState<PurchaseApprovalFilter>("all");
@@ -191,6 +198,14 @@ export function PurchaseRequestStatusPanel({
         ) : null}
       </Card>
 
+      {unitPriceRole && onRefresh ? (
+        <PurchaseRequestUnitPriceRevisions
+          rows={rows}
+          role={unitPriceRole}
+          onRefresh={onRefresh}
+        />
+      ) : null}
+
       <ListPanelFilterBar
         showClear={hasActiveFilters}
         onClear={() => setApprovalFilter("all")}
@@ -207,7 +222,6 @@ export function PurchaseRequestStatusPanel({
         <DataTable
           columns={buildColumns(showStoreUser)}
           data={filtered}
-          hideToolbar
           searchColumnId="itemName"
           emptyMessage="No purchase requests match these filters."
         />

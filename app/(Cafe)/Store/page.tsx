@@ -51,7 +51,7 @@ import PurchaseRequestsTab from "@/components/hotel/PurchaseRequestsTab";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
-import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -788,6 +788,7 @@ export function StoreComponent({
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <StoreItemReceiptPrinting
               items={storeItem}
+              purchaseRequests={requestStatusData.myPurchases}
               propertyName={displayLabel}
               logoUrl={logoUrl}
             />
@@ -799,7 +800,11 @@ export function StoreComponent({
                 <Loader2 className="h-9 w-9 animate-spin text-primary" />
               </div>
             ) : (
-              <PurchaseRequestStatusPanel rows={requestStatusData.myPurchases} />
+              <PurchaseRequestStatusPanel
+                rows={requestStatusData.myPurchases}
+                unitPriceRole="Store"
+                onRefresh={() => void requestStatusData.reload()}
+              />
             )}
           </div>
         ) : activeView === "StockMovementStatus" && hotelInventory ? (
@@ -814,32 +819,32 @@ export function StoreComponent({
           </div>
         ) : activeView === "PaymentCredit" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentCategoryPanel
-              mode="credit"
+            <HotelInventoryPaymentHub
+              initialMode="credit"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentPaid" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentCategoryPanel
-              mode="paid"
+            <HotelInventoryPaymentHub
+              initialMode="paid"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentWithVat" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentCategoryPanel
-              mode="with-vat"
+            <HotelInventoryPaymentHub
+              initialMode="with-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
-            <HotelInventoryPaymentCategoryPanel
-              mode="without-vat"
+            <HotelInventoryPaymentHub
+              initialMode="without-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
             />
@@ -1038,7 +1043,7 @@ export function StoreComponent({
             </header>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth [scrollbar-gutter:stable]">
-                <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-[100rem] 2xl:max-w-[112rem]">
+                <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-400 2xl:max-w-448">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/4 shadow-md overflow-hidden">
                       <div className="h-0.5 bg-linear-to-r from-emerald-500/80 to-teal-400/60" />

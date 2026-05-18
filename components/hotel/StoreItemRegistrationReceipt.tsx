@@ -10,23 +10,66 @@ import {
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
+import { amountToWordsETB } from "@/lib/amountInWords";
+import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
+export type ReceiptGroupItem = ItemRegistration & {
+  purchaseRequestVoucher?: string | null;
+};
+
+function paymentBanner(item: ItemRegistration, owed: number, paid: number) {
+  const bucket = itemPaymentBucket(item);
+  const vatOn = isVatEnabled(item.purchaseWithVat);
+  const vatLabel = vatOn ? "With VAT (15%)" : "Without VAT";
+  if (bucket === "credit") {
+    const pct = owed > 0 ? Math.min(100, Math.round((paid / owed) * 100)) : 0;
+    return {
+      title: "Purchase on credit",
+      detail: `${vatLabel} · Credit ETB ${(owed - paid).toLocaleString()} · ${pct}% paid`,
+    };
+  }
+  if (bucket === "paid" || paid >= owed - 1e-6) {
+    return { title: "Full payment", detail: vatLabel };
+  }
+  return {
+    title: "Partial payment",
+    detail: `${vatLabel} · ${itemPaymentLabel(bucket)}`,
+  };
+}
+
 export function StoreItemRegistrationReceipt({
-  item,
+  items,
   propertyName,
+  propertyTin,
   logoUrl,
 }: {
-  item: ItemRegistration;
+  items: ReceiptGroupItem[];
   propertyName: string;
+  propertyTin?: string | null;
   logoUrl?: string | null;
 }) {
-  const owed = lineOwedETB(item);
-  const paid = Number(item.paidAmount) || 0;
-  const vatOn = isVatEnabled(item.purchaseWithVat);
-  const property = (propertyName || "Property").trim() || "Property";
+  const list = items;
+  const primary = list[0];
+  if (!primary) return null;
 
+  const owed = list.reduce((s, it) => s + lineOwedETB(it), 0);
+  const paid = list.reduce((s, it) => s + (Number(it.paidAmount) || 0), 0);
+  const vatOn = isVatEnabled(primary.purchaseWithVat);
+  const property = (propertyName || "Property").trim() || "Property";
+  const tin = (propertyTin || "").trim();
+  const banner = paymentBanner(primary, owed, paid);
+  const voucherReg = formatVoucherDisplay(
+    primary.voucherNumber,
+    primary.voucherDisplay,
+  );
+  const prVoucher =
+    primary.purchaseRequestVoucher ||
+    (primary.purchaseRequestId
+      ? formatVoucherDisplay(primary.purchaseRequestId, null)
+      : null);
+  const item = primary;
   return (
     <div className="bg-white text-zinc-900 max-w-[210mm] mx-auto font-sans print:text-black">
       {/* Property + system header */}
@@ -54,8 +97,15 @@ export function StoreItemRegistrationReceipt({
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 truncate">
                 {property}
               </h1>
+              {tin ? (
+                <p className="text-xs text-zinc-600 mt-0.5 font-medium">
+                  Hotel TIN: {tin}
+                </p>
+              ) : null}
               <p className="text-xs text-zinc-500 mt-1">
-                Registration #{item.id} · {item.category}
+                Voucher {voucherReg}
+                {prVoucher ? ` · PR voucher ${prVoucher}` : ""} ·{" "}
+                {primary.category}
               </p>
             </div>
           </div>
@@ -74,13 +124,14 @@ export function StoreItemRegistrationReceipt({
             </div>
             <div className="text-right text-xs space-y-0.5">
               <p className="font-semibold text-zinc-800">
-                {new Date(item.registrationDate).toLocaleDateString(undefined, {
-                  dateStyle: "long",
-                })}
+                {new Date(primary.registrationDate).toLocaleDateString(
+                  undefined,
+                  { dateStyle: "long" },
+                )}
               </p>
               <p className="text-zinc-500">
                 Expires{" "}
-                {new Date(item.expireDate).toLocaleDateString(undefined, {
+                {new Date(primary.expireDate).toLocaleDateString(undefined, {
                   dateStyle: "medium",
                 })}
               </p>
@@ -90,6 +141,20 @@ export function StoreItemRegistrationReceipt({
       </div>
 
       <div className="mx-8 h-1 rounded-full bg-linear-to-r from-emerald-600 via-emerald-400 to-teal-500 print:mx-6" />
+
+      <div className="mx-8 mb-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-3 print:mx-6">
+        <p className="text-sm font-bold text-emerald-900">{banner.title}</p>
+        <p className="text-xs text-emerald-800 mt-0.5">{banner.detail}</p>
+      </div>
+
+      {list.length > 1 ? (
+        <div className="px-8 pb-2 print:px-6">
+          <p className="text-xs font-medium text-zinc-600">
+            Combined receipt — {list.length} lines · same supplier & registration
+            date
+          </p>
+        </div>
+      ) : null}
 
       {/* Item hero */}
       <div className="px-8 py-6 print:px-6">
@@ -167,11 +232,14 @@ export function StoreItemRegistrationReceipt({
             </div>
             <Separator className="bg-zinc-200" />
             <div className="flex justify-between font-bold text-base">
-              <span>Line total</span>
+              <span>{list.length > 1 ? "Total" : "Line total"}</span>
               <span className="tabular-nums text-emerald-800">
                 ETB {owed.toLocaleString()}
               </span>
             </div>
+            <p className="text-xs text-zinc-600 italic">
+              Amount in words: {amountToWordsETB(owed)}
+            </p>
             <div className="flex justify-between text-zinc-600">
               <span>Amount paid</span>
               <span className="tabular-nums">ETB {paid.toLocaleString()}</span>

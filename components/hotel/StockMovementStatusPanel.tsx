@@ -211,7 +211,6 @@ export function StockMovementStatusPanel({
         <DataTable
           columns={buildColumns(showRequestedBy)}
           data={filtered}
-          hideToolbar
           searchColumnId="itemName"
           emptyMessage="No stock movement requests match these filters."
         />

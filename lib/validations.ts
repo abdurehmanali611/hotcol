@@ -352,11 +352,23 @@ export const hotelCorporateCreditTierFormSchema = z.object({
 
 export const hotelCreditCompanyDealFormSchema = z.object({
   companyName: z.string().min(2, "Company name is required"),
+  companyTinNumber: z
+    .string()
+    .optional()
+    .refine((s) => !s?.trim() || /^\d{10}$/.test(s.trim()), {
+      message: "Company TIN must be 10 digits",
+    }),
   contactName: z.string().optional(),
-  phoneNumber: z.string().min(8, "Phone number is required"),
+  phoneNumber: z
+    .string()
+    .optional()
+    .refine((s) => !s?.trim() || s.trim().length >= 8, {
+      message: "Phone must be at least 8 digits when provided",
+    }),
   email: z
     .union([z.literal(""), z.string().email("Enter a valid email")])
     .optional(),
+  payTiming: z.enum(["NOW", "AFTER_SERVICE"]).optional(),
   dealNotes: z.string().optional(),
   hotelCorporateCreditTierId: z
     .number()

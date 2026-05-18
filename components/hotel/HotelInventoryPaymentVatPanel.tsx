@@ -222,7 +222,6 @@ export function HotelInventoryPaymentVatPanel({
             creditOnlyWhenCredit: true,
           })}
           data={filtered}
-          hideToolbar
           searchColumnId="name"
           emptyMessage="No rows match these filters."
         />

@@ -18,7 +18,12 @@ import { lineOwedETB, itemPaymentLabel, itemPaymentBucket } from "@/lib/hotelInv
 import { isVatEnabled } from "@/lib/hotelInventoryPayment";
 import { Printer, Receipt } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
-import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
+import {
+  StoreItemRegistrationReceipt,
+  type ReceiptGroupItem,
+} from "./StoreItemRegistrationReceipt";
+import { groupRegistrationsForReceipt } from "@/lib/receiptGrouping";
+import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import {
   Dialog,
   DialogContent,
@@ -121,20 +126,31 @@ function receiptColumns(
 export function StoreItemReceiptPrinting({
   items,
   propertyName,
+  propertyTin,
   logoUrl,
+  purchaseRequests = [],
 }: {
   items: ItemRegistration[];
   propertyName: string;
+  propertyTin?: string | null;
   logoUrl?: string | null;
+  purchaseRequests?: import("@/lib/actions").PurchaseRequestRow[];
 }) {
-  const [previewItem, setPreviewItem] = useState<ItemRegistration | null>(null);
+  const [previewBundle, setPreviewBundle] = useState<ReceiptGroupItem[] | null>(
+    null,
+  );
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: previewItem
-      ? `Receipt_${previewItem.name}_${previewItem.id}`
+    documentTitle: previewBundle?.[0]
+      ? `Receipt_${previewBundle[0].name}_${previewBundle[0].id}`
       : "Store_Receipt",
   });
+
+  const bundles = useMemo(
+    () => groupRegistrationsForReceipt(items, purchaseRequests),
+    [items, purchaseRequests],
+  );
 
   const sorted = useMemo(
     () =>
@@ -146,9 +162,21 @@ export function StoreItemReceiptPrinting({
     [items],
   );
 
-  const openPrint = (item: ItemRegistration) => {
-    setPreviewItem(item);
+  const openPrintBundle = (bundleItems: ItemRegistration[]) => {
+    const withPr: ReceiptGroupItem[] = bundleItems.map((it) => {
+      const bundle = bundles.find((b) => b.items.some((x) => x.id === it.id));
+      return {
+        ...it,
+        purchaseRequestVoucher: bundle?.purchaseRequestVoucher ?? null,
+      };
+    });
+    setPreviewBundle(withPr);
     requestAnimationFrame(() => handlePrint());
+  };
+
+  const openPrint = (item: ItemRegistration) => {
+    const bundle = bundles.find((b) => b.items.some((x) => x.id === item.id));
+    openPrintBundle(bundle?.items ?? [item]);
   };
 
   const cols = useMemo(() => receiptColumns(openPrint), []);
@@ -181,31 +209,31 @@ export function StoreItemReceiptPrinting({
         <DataTable
           columns={cols}
           data={sorted}
-          hideToolbar
           searchColumnId="name"
           emptyMessage="No registration lines to print."
         />
       </div>
 
       <Dialog
-        open={!!previewItem}
-        onOpenChange={(open) => !open && setPreviewItem(null)}
+        open={!!previewBundle}
+        onOpenChange={(open) => !open && setPreviewBundle(null)}
       >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle>Receipt preview</DialogTitle>
           </DialogHeader>
-          {previewItem ? (
+          {previewBundle ? (
             <div className="px-2 pb-6">
               <div ref={printRef}>
                 <StoreItemRegistrationReceipt
-                  item={previewItem}
+                  items={previewBundle}
                   propertyName={propertyName}
+                  propertyTin={propertyTin}
                   logoUrl={logoUrl}
                 />
               </div>
               <div className="flex justify-end gap-2 px-6 pt-4 print:hidden">
-                <Button variant="outline" onClick={() => setPreviewItem(null)}>
+                <Button variant="outline" onClick={() => setPreviewBundle(null)}>
                   Close
                 </Button>
                 <Button className="gap-2" onClick={() => handlePrint()}>

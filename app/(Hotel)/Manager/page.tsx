@@ -56,6 +56,7 @@ import {
   Edit,
   Receipt,
   Table2,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -92,19 +93,27 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
 import StoreItems from "@/app/StoreItems/page";
-import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
+import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
+import {
+  HotelPurchaseManagerQueue,
+  HotelRegistrationApprovalsBlock,
+  HotelStockWorkflowQueue,
+} from "@/components/hotel/HotelWorkflowApprovalQueues";
+import { HotelManagerCompanyApprovals } from "@/components/hotel/HotelManagerCompanyApprovals";
 import {
   isPaymentCategorySection,
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
-import type { PaymentCategoryMode } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { PAYMENT_CATEGORY_NAV } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
+import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
 
 type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
@@ -122,6 +131,7 @@ const sidebarIconMap: Record<
   Package,
   ArrowRightLeft,
   ShoppingCart,
+  Building2,
   ClipboardList,
   Receipt,
   Table2,
@@ -221,6 +231,16 @@ function ManagerContent() {
     }
   }, [rollupFromYmd, rollupToYmd]);
   const [ccProfiles, setCcProfiles] = useState<CostControllerProfileRow[]>([]);
+  const [propertyTin, setPropertyTin] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem("tin_number");
+      setPropertyTin(t?.trim() || null);
+    } catch {
+      setPropertyTin(null);
+    }
+  }, []);
   const [newCcName, setNewCcName] = useState("");
   const [menuItems, setMenuItems] = useState<Item[]>([]);
   const [ccAddPending, setCcAddPending] = useState(false);
@@ -305,8 +325,16 @@ function ManagerContent() {
     [],
   );
 
-  const pendingPurchases = purchases.filter((p) =>
-    ["PENDING_CC", "PENDING_FINANCE"].includes(p.status),
+  const scopedPurchases = useMemo(
+    () =>
+      purchases.filter((p) =>
+        rowHotelMatchesTenantScope(p.HotelName, tenantScope || ""),
+      ),
+    [purchases, tenantScope],
+  );
+
+  const pendingPurchases = scopedPurchases.filter((p) =>
+    ["PENDING_CC", "PENDING_FINANCE", "PENDING_MANAGER"].includes(p.status),
   ).length;
   const pendingStock = stockReqs.filter((s) => s.status === "PENDING").length;
   const beginningsScoped = useMemo(() => {
@@ -636,7 +664,6 @@ function ManagerContent() {
                 <DataTable
                   columns={recentPurchaseColumns}
                   data={purchases.slice(0, 8)}
-                  hideToolbar
                   getRowId={(row) => String(row.id)}
                   emptyMessage="No purchase requests yet."
                 />
@@ -650,7 +677,6 @@ function ManagerContent() {
                 <DataTable
                   columns={recentStockColumns}
                   data={stockReqs.slice(0, 8)}
-                  hideToolbar
                   getRowId={(row) => String(row.id)}
                   emptyMessage="No stock-out requests yet."
                 />
@@ -802,7 +828,6 @@ function ManagerContent() {
             <DataTable
               columns={itemStatusColumns}
               data={statuses as ItemStatus[]}
-              hideToolbar
               getRowId={(row) => String(row.id)}
               emptyMessage="No movement lines for this period."
             />
@@ -811,13 +836,14 @@ function ManagerContent() {
 
       case "reports-purchases":
         return (
-          <div className="p-4 md:p-6 overflow-x-auto">
-            <DataTable
-              columns={purchaseReportColumns}
-              data={purchases}
-              hideToolbar
-              getRowId={(row) => String(row.id)}
-              emptyMessage="No purchase requests for this period."
+          <div className="p-4 md:p-6">
+            <PurchaseRequestStatusPanel
+              rows={scopedPurchases}
+              showStoreUser
+              unitPriceRole="Manager"
+              onRefresh={() => void loadData(true)}
+              title="Purchase pipeline"
+              description={`${scopedPurchases.length} purchase requests for this property.`}
             />
           </div>
         );
@@ -826,6 +852,76 @@ function ManagerContent() {
         return (
           <div className="p-4 md:p-6">
             <HotelCreditorUsageReportPanel tenantLabel={displayName || headerLabel} />
+          </div>
+        );
+
+      case "authorize-purchases":
+        return (
+          <div className="p-4 md:p-6 space-y-6">
+            <PurchaseRequestUnitPriceRevisions
+              rows={scopedPurchases}
+              role="Manager"
+              onRefresh={() => void loadData(true)}
+            />
+            <HotelPurchaseManagerQueue
+              purchases={scopedPurchases}
+              onPatch={(id, status) =>
+                setPurchases((prev) =>
+                  prev.map((p) => (p.id === id ? { ...p, status } : p)),
+                )
+              }
+              onRefresh={() => void loadData(true)}
+            />
+          </div>
+        );
+
+      case "authorize-stock":
+        return (
+          <div className="p-4 md:p-6">
+            <HotelStockWorkflowQueue
+              role="Manager"
+              stocks={stockReqs}
+              profiles={ccProfiles}
+              onPatch={(id, status) =>
+                setStockReqs((prev) =>
+                  prev.map((s) => (s.id === id ? { ...s, status } : s)),
+                )
+              }
+              onRefresh={() => void loadData(true)}
+            />
+          </div>
+        );
+
+      case "authorize-companies":
+        return (
+          <div className="p-4 md:p-6">
+            <HotelManagerCompanyApprovals
+              tenantScope={tenantScope || ""}
+              propertyName={displayName || headerLabel}
+              propertyLogo={logoUrl}
+              propertyTin={propertyTin}
+            />
+          </div>
+        );
+
+      case "item-receipts":
+        return (
+          <div className="p-4 md:p-6 space-y-8">
+            <HotelRegistrationApprovalsBlock
+              role="Manager"
+              items={items}
+              propertyName={displayName || headerLabel}
+              propertyTin={propertyTin}
+              logoUrl={logoUrl}
+              onRefresh={() => void loadData(true)}
+            />
+            <HotelItemReceiptsSection
+              items={items}
+              purchaseRequests={purchases}
+              propertyName={displayName || headerLabel}
+              propertyTin={propertyTin}
+              logoUrl={logoUrl}
+            />
           </div>
         );
 
@@ -910,7 +1006,6 @@ function ManagerContent() {
                 <DataTable
                   columns={managerRollupColumns}
                   data={managerRollupFromDailyRows}
-                  hideToolbar
                   getRowId={(row) => String(row.id)}
                   emptyMessage={`No daily rows in range ${rollupRangeLabel} yet. Enter counts in Cost Control for those days, adjust the dates, or click Reload data.`}
                 />
@@ -954,7 +1049,6 @@ function ManagerContent() {
                     <DataTable
                       columns={managerDailyColumns}
                       data={visibleManagerDailyRows}
-                      hideToolbar
                       getRowId={(row) => String(row.id)}
                       emptyMessage={`No daily rows for ${managerDailyReportDate}. Enter counts in Cost Control for this day, or pick another date.`}
                     />
@@ -1002,11 +1096,12 @@ function ManagerContent() {
 
       default:
         if (isPaymentCategorySection(activeTab)) {
-          const mode = paymentModeFromSection(activeTab) as PaymentCategoryMode;
+          const mode = paymentModeFromSection(activeTab);
+          if (!mode) return null;
           return (
             <div className="p-4 md:p-6">
-              <HotelInventoryPaymentCategoryPanel
-                mode={mode}
+              <HotelInventoryPaymentHub
+                initialMode={mode}
                 tenantLabel={displayName || headerLabel}
                 inventoryItems={items}
               />

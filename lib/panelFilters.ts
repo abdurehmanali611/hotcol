@@ -7,12 +7,16 @@ export type PurchaseApprovalFilter =
   | "pending"
   | "pending_cc"
   | "pending_finance"
+  | "pending_manager"
   | "approved"
   | "rejected";
 
 export type StockApprovalFilter =
   | "all"
   | "pending"
+  | "pending_cc"
+  | "pending_finance"
+  | "pending_manager"
   | "approved"
   | "rejected";
 
@@ -20,11 +24,24 @@ export type CreditAmountFilter = "all" | "under_10k" | "10k_50k" | "over_50k";
 
 export function purchaseApprovalBucket(
   status: string,
-): "pending_cc" | "pending_finance" | "approved" | "rejected" | "other" {
+): "pending_cc" | "pending_finance" | "pending_manager" | "approved" | "rejected" | "other" {
   if (status === "PENDING_CC") return "pending_cc";
   if (status === "PENDING_FINANCE") return "pending_finance";
-  if (status === "APPROVED_CC" || status === "APPROVED_FINANCE") return "approved";
-  if (status === "REJECTED_CC" || status === "REJECTED_FINANCE") return "rejected";
+  if (status === "PENDING_MANAGER") return "pending_manager";
+  if (
+    status === "AUTHORIZED" ||
+    status === "APPROVED_CC" ||
+    status === "APPROVED_FINANCE"
+  ) {
+    return "approved";
+  }
+  if (
+    status === "REJECTED_CC" ||
+    status === "REJECTED_FINANCE" ||
+    status === "REJECTED_MANAGER"
+  ) {
+    return "rejected";
+  }
   return "other";
 }
 
@@ -35,10 +52,15 @@ export function matchesPurchaseApprovalFilter(
   if (filter === "all") return true;
   const bucket = purchaseApprovalBucket(row.status);
   if (filter === "pending") {
-    return bucket === "pending_cc" || bucket === "pending_finance";
+    return (
+      bucket === "pending_cc" ||
+      bucket === "pending_finance" ||
+      bucket === "pending_manager"
+    );
   }
   if (filter === "pending_cc") return bucket === "pending_cc";
   if (filter === "pending_finance") return bucket === "pending_finance";
+  if (filter === "pending_manager") return bucket === "pending_manager";
   if (filter === "approved") return bucket === "approved";
   if (filter === "rejected") return bucket === "rejected";
   return true;
@@ -49,7 +71,19 @@ export function matchesStockApprovalFilter(
   filter: StockApprovalFilter,
 ): boolean {
   if (filter === "all") return true;
-  if (filter === "pending") return row.status === "PENDING";
+  if (filter === "pending") {
+    return (
+      row.status === "PENDING" ||
+      row.status === "PENDING_CC" ||
+      row.status === "PENDING_FINANCE" ||
+      row.status === "PENDING_MANAGER"
+    );
+  }
+  if (filter === "pending_cc") {
+    return row.status === "PENDING" || row.status === "PENDING_CC";
+  }
+  if (filter === "pending_finance") return row.status === "PENDING_FINANCE";
+  if (filter === "pending_manager") return row.status === "PENDING_MANAGER";
   if (filter === "approved") return row.status === "APPROVED";
   if (filter === "rejected") return row.status === "REJECTED";
   return true;

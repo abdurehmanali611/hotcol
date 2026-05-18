@@ -1,15 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { useReactToPrint } from "react-to-print";
-import { toPng } from "html-to-image";
-import jsPDF from "jspdf";
 import {
   createHotelCreditCompanyApi,
   createHotelCreditConsumptionApi,
@@ -77,12 +74,10 @@ import { buildCreditorUsageColumns } from "@/lib/dataTableColumns/creditorUsage"
 import { Badge } from "@/components/ui/badge";
 import {
   Building2,
-  FileDown,
   Info,
   Loader2,
   LogOut,
   Package,
-  Printer,
   RefreshCw,
   Receipt,
   Table2,
@@ -91,6 +86,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
 import { HOTEL_CASHIER_NAV_ITEMS, type HotelCashierNavId } from "@/constants";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
 type AllowedDraft = Record<number, { on: boolean }>;
 
@@ -101,7 +97,7 @@ function defaultOccurredAtLocal() {
 }
 
 function tierSummary(t: HotelCorporateCreditTierRow) {
-  return `ETB ${Number(t.creditCeiling).toLocaleString()} · ${formatCreditCycle(t.timeInterval, t.timeFrame)}`;
+  return `ETB ${Number(t.creditCeiling).toLocaleString()} Â· ${formatCreditCycle(t.timeInterval, t.timeFrame)}`;
 }
 
 export function HotelCashierDashboard() {
@@ -110,12 +106,6 @@ export function HotelCashierDashboard() {
     searchParams.get("hotel"),
   );
   const logoUrl = searchParams.get("logo") || "";
-  const dealRef = useRef<HTMLDivElement>(null);
-  const handlePrint = useReactToPrint({
-    contentRef: dealRef,
-    documentTitle: "Hotel_corporate_deal",
-  });
-
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tiers, setTiers] = useState<HotelCorporateCreditTierRow[]>([]);
@@ -146,8 +136,10 @@ export function HotelCashierDashboard() {
     resolver: zodResolver(hotelCreditCompanyDealFormSchema),
     defaultValues: {
       companyName: "",
+      companyTinNumber: "",
       phoneNumber: "",
       email: "",
+      payTiming: "AFTER_SERVICE" as const,
       dealNotes: "",
       hotelCorporateCreditTierId: 0,
     },
@@ -270,8 +262,10 @@ export function HotelCashierDashboard() {
     setSelCompany(null);
     companyDealForm.reset({
       companyName: "",
+      companyTinNumber: "",
       phoneNumber: "",
       email: "",
+      payTiming: "AFTER_SERVICE",
       dealNotes: "",
       hotelCorporateCreditTierId: tiers[0]?.id ?? 0,
     });
@@ -289,8 +283,10 @@ export function HotelCashierDashboard() {
       const allowedMenuJson = buildAllowedJson();
       const payload = {
         companyName: values.companyName.trim(),
-        phoneNumber: values.phoneNumber.trim(),
+        companyTinNumber: values.companyTinNumber?.trim() || undefined,
+        phoneNumber: values.phoneNumber?.trim() || undefined,
         email: (values.email ?? "").trim(),
+        payTiming: values.payTiming ?? "AFTER_SERVICE",
         dealNotes: values.dealNotes?.trim() ?? "",
         hotelCorporateCreditTierId: values.hotelCorporateCreditTierId,
         allowedMenuJson,
@@ -301,8 +297,10 @@ export function HotelCashierDashboard() {
           id: editingCompanyId,
           ...payload,
         });
+        toast.success("Company deal updated");
       } else {
         await createHotelCreditCompanyApi(payload);
+        toast.success("Submitted for manager authorization");
       }
       await load(true);
       resetCompanyForm();
@@ -312,35 +310,6 @@ export function HotelCashierDashboard() {
       setCompanyDealSaving(false);
     }
   });
-
-  const pdfDeal = async () => {
-    const el = dealRef.current;
-    if (!el) return;
-    try {
-      const dataUrl = await toPng(el, {
-        quality: 1,
-        pixelRatio: 2,
-        cacheBust: true,
-        backgroundColor: "#0f172a",
-      });
-      const pdf = new jsPDF("p", "mm", "a4");
-      const img = document.createElement("img");
-      img.src = dataUrl;
-      await new Promise<void>((res, rej) => {
-        img.onload = () => res();
-        img.onerror = () => rej(new Error("image"));
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (img.height * pdfWidth) / img.width;
-      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(
-        `Deal_${companyDealForm.getValues("companyName") || selCompany?.companyName || "company"}.pdf`,
-      );
-      toast.success("PDF downloaded");
-    } catch {
-      toast.error("Could not build PDF");
-    }
-  };
 
   const loadReport = async () => {
     setReportLoading(true);
@@ -412,17 +381,32 @@ export function HotelCashierDashboard() {
     }
   }, [tiers, editingCompanyId, companyDealForm]);
 
-  const watchedDeal = companyDealForm.watch();
+  const tierIdWatch = companyDealForm.watch("hotelCorporateCreditTierId");
   const selectedTier = useMemo(
-    () => tiers.find((t) => t.id === watchedDeal.hotelCorporateCreditTierId),
-    [tiers, watchedDeal.hotelCorporateCreditTierId],
+    () => tiers.find((t) => t.id === tierIdWatch),
+    [tiers, tierIdWatch],
+  );
+
+  const authorizedCompanies = useMemo(
+    () =>
+      companies.filter(
+        (c) => !c.approvalStatus || c.approvalStatus === "AUTHORIZED",
+      ),
+    [companies],
+  );
+
+  const [occurredYmd, setOccurredYmd] = useState(() =>
+    defaultOccurredAtLocal().slice(0, 10),
+  );
+  const [occurredTime, setOccurredTime] = useState(() =>
+    defaultOccurredAtLocal().slice(11, 16),
   );
 
   const tierLevelSelectList = useMemo(
     () =>
       tiers.map((t) => ({
         id: t.id,
-        name: `${t.name} · ETB ${Number(t.creditCeiling).toLocaleString()} · ${formatCreditCycle(t.timeInterval, t.timeFrame)}`,
+        name: `${t.name} Â· ETB ${Number(t.creditCeiling).toLocaleString()} Â· ${formatCreditCycle(t.timeInterval, t.timeFrame)}`,
         realValue: t.id,
       })),
     [tiers],
@@ -455,7 +439,7 @@ export function HotelCashierDashboard() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-linear-to-b from-background via-muted/20 to-muted/40">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Loading terminal…</span>
+        <span className="text-sm text-muted-foreground">Loading terminalâ€¦</span>
       </div>
     );
   }
@@ -589,7 +573,7 @@ export function HotelCashierDashboard() {
                         <AlertTitle>No credit tiers yet</AlertTitle>
                         <AlertDescription>
                           Your manager must add at least one tier under{" "}
-                          <strong>Manager → Corporate credit tiers</strong>{" "}
+                          <strong>Manager â†’ Corporate credit tiers</strong>{" "}
                           before you can register a company deal.
                         </AlertDescription>
                       </Alert>
@@ -625,8 +609,12 @@ export function HotelCashierDashboard() {
                                     setEditingCompanyId(c.id);
                                     companyDealForm.reset({
                                       companyName: c.companyName,
-                                      phoneNumber: c.phoneNumber,
+                                      companyTinNumber: c.companyTinNumber ?? "",
+                                      phoneNumber: c.phoneNumber ?? "",
                                       email: c.email ?? "",
+                                      payTiming:
+                                        (c.payTiming as "NOW" | "AFTER_SERVICE") ??
+                                        "AFTER_SERVICE",
                                       dealNotes: c.dealNotes ?? "",
                                       hotelCorporateCreditTierId:
                                         c.hotelCorporateCreditTierId != null
@@ -668,6 +656,16 @@ export function HotelCashierDashboard() {
                                       variant="secondary"
                                       className="text-[10px] font-normal"
                                     >
+                                      {c.approvalStatus === "PENDING_MANAGER"
+                                        ? "Pending manager"
+                                        : c.approvalStatus === "AUTHORIZED"
+                                          ? "Authorized"
+                                          : c.approvalStatus || "Draft"}
+                                    </Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] font-normal"
+                                    >
                                       {c.creditLevel}
                                     </Badge>
                                     <span className="tabular-nums">
@@ -675,7 +673,7 @@ export function HotelCashierDashboard() {
                                       {Number(c.creditLimit).toLocaleString()}
                                     </span>
                                     <span>
-                                      ·{" "}
+                                      Â·{" "}
                                       {formatCreditCycle(
                                         c.timeInterval,
                                         c.timeFrame,
@@ -700,7 +698,8 @@ export function HotelCashierDashboard() {
                             </CardTitle>
                             <CardDescription className="mt-2 max-w-prose leading-relaxed">
                               Tier sets the money ceiling and rolling period.
-                              Allowed menu is enforced at checkout.
+                              New deals require manager authorization; the manager
+                              prints the corporate meal agreement.
                             </CardDescription>
                           </CardHeader>
                           <CardContent className="space-y-8 px-5 pb-8 pt-2 md:px-6 md:pb-10 md:space-y-10">
@@ -712,6 +711,27 @@ export function HotelCashierDashboard() {
                                     control={companyDealForm.control}
                                     fieldType={formFieldTypes.INPUT}
                                     label="Company name"
+                                    inputClassName="h-10 w-56"
+                                  />
+                                  <CustomFormField
+                                    name="companyTinNumber"
+                                    control={companyDealForm.control}
+                                    fieldType={formFieldTypes.INPUT}
+                                    label="Company TIN (10 digits)"
+                                    inputClassName="h-10 w-56"
+                                  />
+                                  <CustomFormField
+                                    name="payTiming"
+                                    control={companyDealForm.control}
+                                    fieldType={formFieldTypes.SELECT}
+                                    label="Payment timing"
+                                    listdisplay={[
+                                      { value: "NOW", label: "Pay now" },
+                                      {
+                                        value: "AFTER_SERVICE",
+                                        label: "Pay after service",
+                                      },
+                                    ]}
                                     inputClassName="h-10 w-56"
                                   />
                                   <CustomFormField
@@ -747,7 +767,7 @@ export function HotelCashierDashboard() {
                                     <span className="font-medium text-foreground">
                                       {selectedTier.name}
                                     </span>{" "}
-                                    — {tierSummary(selectedTier)}. Limits apply
+                                    â€” {tierSummary(selectedTier)}. Limits apply
                                     when you save.
                                   </p>
                                 )}
@@ -891,9 +911,9 @@ export function HotelCashierDashboard() {
                                   <AlertDescription>
                                     Your manager can add dishes & drinks under{" "}
                                     <strong className="text-foreground">
-                                      Manager → Add menu item
+                                      Manager â†’ Add menu item
                                     </strong>
-                                    — then they appear here with photos.
+                                    â€” then they appear here with photos.
                                   </AlertDescription>
                                 </Alert>
                               )}
@@ -957,108 +977,6 @@ export function HotelCashierDashboard() {
                               )}
                             </div>
 
-                            <Separator className="my-8 md:my-10" />
-
-                            <div className="space-y-4">
-                              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                                Deal sheet (print / PDF)
-                              </Label>
-                              <div
-                                ref={dealRef}
-                                className="space-y-6 rounded-xl bg-slate-950 p-6 text-sm text-slate-50 shadow-inner ring-1 ring-white/10 print:shadow-none md:p-8"
-                              >
-                                {[
-                                  {
-                                    title:
-                                      "Corporate meal agreement (Management copy)",
-                                    signRight: "management representative",
-                                  },
-                                  {
-                                    title:
-                                      "Corporate meal agreement (Creditor copy)",
-                                    signRight: "creditor representative",
-                                  },
-                                ].map((copy, idx) => (
-                                  <div
-                                    key={copy.title}
-                                    className={
-                                      idx === 1
-                                        ? "break-before-page print:pt-6"
-                                        : ""
-                                    }
-                                  >
-                                    <div className="text-base font-bold border-b border-white/15 pb-2 tracking-tight">
-                                      {copy.title}
-                                    </div>
-                                    <p>
-                                      <span className="text-slate-400">
-                                        Company:
-                                      </span>{" "}
-                                      <span className="font-medium">
-                                        {watchedDeal.companyName || "—"}
-                                      </span>
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-400">
-                                        Phone:
-                                      </span>{" "}
-                                      {watchedDeal.phoneNumber || "—"}
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-400">
-                                        Tier:
-                                      </span>{" "}
-                                      {selectedTier
-                                        ? `${selectedTier.name} — ${tierSummary(selectedTier)}`
-                                        : "—"}
-                                    </p>
-                                    <div>
-                                      <span className="text-slate-400">
-                                        Allowed items
-                                      </span>
-                                      <ul className="list-disc pl-5 mt-1.5 space-y-0.5 text-slate-200">
-                                        {menu
-                                          .filter(
-                                            (it) => allowedDraft[it.id]?.on,
-                                          )
-                                          .map((it) => (
-                                            <li key={`${copy.title}-${it.id}`}>
-                                              {it.name}
-                                            </li>
-                                          ))}
-                                      </ul>
-                                    </div>
-                                    <p className="text-xs text-slate-500 pt-2 border-t border-white/10">
-                                      Signatures: company representative
-                                      ______________ · {copy.signRight}{" "}
-                                      ______________
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="flex flex-wrap gap-3 print:hidden">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="min-h-10"
-                                  onClick={() => handlePrint()}
-                                >
-                                  <Printer className="h-4 w-4 mr-1.5" />
-                                  Print
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="min-h-10"
-                                  onClick={() => void pdfDeal()}
-                                >
-                                  <FileDown className="h-4 w-4 mr-1.5" />
-                                  PDF
-                                </Button>
-                              </div>
-                            </div>
                           </CardContent>
                         </Card>
                       </div>
@@ -1102,7 +1020,7 @@ export function HotelCashierDashboard() {
                                     <SelectValue placeholder="Select company" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {companies.map((c) => (
+                                    {authorizedCompanies.map((c) => (
                                       <SelectItem key={c.id} value={String(c.id)}>
                                         {c.companyName}
                                       </SelectItem>
@@ -1110,15 +1028,23 @@ export function HotelCashierDashboard() {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <CustomFormField
-                                name="occurredAt"
-                                control={consumptionMetaForm.control}
-                                fieldType={formFieldTypes.INPUT}
-                                type="datetime-local"
-                                label="Date & time"
-                                inputClassName="h-10 w-56 ml-0"
-                                formItemClassName="space-y-2"
+                              <HotelDayPicker
+                                label="Date"
+                                value={occurredYmd}
+                                onChange={setOccurredYmd}
+                                className="min-w-[200px]"
                               />
+                              <div className="space-y-2">
+                                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  Time
+                                </Label>
+                                <Input
+                                  type="time"
+                                  value={occurredTime}
+                                  onChange={(e) => setOccurredTime(e.target.value)}
+                                  className="h-10 w-36"
+                                />
+                              </div>
                             </div>
                             <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
                               <CustomFormField
@@ -1319,6 +1245,15 @@ export function HotelCashierDashboard() {
                                 await consumptionMetaForm.trigger();
                               if (!metaOk) return;
                               if (!selCompany) return;
+                              if (
+                                selCompany.approvalStatus &&
+                                selCompany.approvalStatus !== "AUTHORIZED"
+                              ) {
+                                toast.error(
+                                  "Company must be authorized by manager before usage",
+                                );
+                                return;
+                              }
                               const lines = lineRows
                                 .filter((r) => r.name)
                                 .map((r) => ({
@@ -1343,17 +1278,18 @@ export function HotelCashierDashboard() {
                                   linesJson: JSON.stringify(lines),
                                   totalAmount: lineTotal,
                                   occurredAt: new Date(
-                                    consumptionMetaForm.getValues("occurredAt"),
+                                    `${occurredYmd}T${occurredTime}`,
                                   ).toISOString(),
                                 });
                                 setLineRows([
                                   { name: "", qty: 1, unitPrice: 0 },
                                 ]);
                                 consumptionMetaForm.reset({
-                                  occurredAt: defaultOccurredAtLocal(),
                                   guestName: "",
                                   guestPhone: "",
                                 });
+                                setOccurredYmd(defaultOccurredAtLocal().slice(0, 10));
+                                setOccurredTime(defaultOccurredAtLocal().slice(11, 16));
                               } catch (e: unknown) {
                                 notifyApiFailure(
                                   e,
@@ -1386,28 +1322,18 @@ export function HotelCashierDashboard() {
                       </CardHeader>
                       <CardContent className="space-y-6 px-5 pb-8 pt-2 md:px-6 md:pb-10 md:space-y-8">
                         <div className="flex flex-wrap items-end gap-4 md:gap-5">
-                          <div className="space-y-2">
-                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                              From
-                            </Label>
-                            <Input
-                              type="date"
-                              value={reportFrom}
-                              onChange={(e) => setReportFrom(e.target.value)}
-                              className="h-10 w-[160px]"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                              To
-                            </Label>
-                            <Input
-                              type="date"
-                              value={reportTo}
-                              onChange={(e) => setReportTo(e.target.value)}
-                              className="h-10 w-[160px]"
-                            />
-                          </div>
+                          <HotelDayPicker
+                            label="From"
+                            value={reportFrom}
+                            onChange={setReportFrom}
+                            className="min-w-[180px]"
+                          />
+                          <HotelDayPicker
+                            label="To"
+                            value={reportTo}
+                            onChange={setReportTo}
+                            className="min-w-[180px]"
+                          />
                           <PendingButton
                             type="button"
                             className="min-h-11 px-6"
@@ -1463,7 +1389,6 @@ export function HotelCashierDashboard() {
                           <DataTable
                             columns={reportColumns}
                             data={visibleReportRows}
-                            hideToolbar
                             emptyMessage="No usage rows match your filters."
                           />
                         </div>

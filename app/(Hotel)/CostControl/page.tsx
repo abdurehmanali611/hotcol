@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   approvePurchaseRequestCCApi,
   approvePurchaseRequestsCCBatchApi,
-  approveStockOutRequestApi,
+  checkStockOutRequestCCApi,
   approveStockOutRequestsBatchApi,
   createKitchenBarBeginningApi,
   deleteKitchenBarBeginningApi,
@@ -110,7 +110,12 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
-import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
+import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
+import {
+  HotelRegistrationApprovalsBlock,
+  HotelStockWorkflowQueue,
+} from "@/components/hotel/HotelWorkflowApprovalQueues";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
 import {
   HotelRequestStatusSidebarGroup,
@@ -220,7 +225,9 @@ function CostControlInner() {
     | "payment-paid"
     | "payment-with-vat"
     | "payment-without-vat"
-    | "creditor-usage";
+    | "creditor-usage"
+    | "registrations"
+    | "item-receipts";
   const [activeSection, setActiveSection] = useState<CostSection>("purchases");
   const [rollupSyncPending, setRollupSyncPending] = useState(false);
   const { isPending: isCcPending, run: runCcAction } = useConcurrentActions();
@@ -555,7 +562,9 @@ function CostControlInner() {
   const insetBusy = loading;
 
   const pendingPr = purchases.filter((x) => x.status === "PENDING_CC");
-  const pendingSo = stocks.filter((x) => x.status === "PENDING");
+  const pendingSo = stocks.filter(
+    (x) => x.status === "PENDING" || x.status === "PENDING_CC",
+  );
 
   useEffect(() => {
     const allow = new Set(
@@ -566,7 +575,9 @@ function CostControlInner() {
 
   useEffect(() => {
     const allow = new Set(
-      stocks.filter((x) => x.status === "PENDING").map((r) => r.id),
+      stocks
+        .filter((x) => x.status === "PENDING" || x.status === "PENDING_CC")
+        .map((r) => r.id),
     );
     setSelectedSoBatchIds((prev) => prev.filter((id) => allow.has(id)));
   }, [stocks]);
@@ -584,6 +595,16 @@ function CostControlInner() {
       section: "beginnings" as const,
       label: "Daily chef & bar counts",
       icon: LayoutGrid,
+    },
+    {
+      section: "registrations" as const,
+      label: "Registration checks",
+      icon: ClipboardList,
+    },
+    {
+      section: "item-receipts" as const,
+      label: "Item receipts",
+      icon: Receipt,
     },
     {
       section: "creditor-usage" as const,
@@ -656,6 +677,17 @@ function CostControlInner() {
     "payment-without-vat": {
       title: "Items purchased without VAT",
       description: HOTEL_INVENTORY_COPY.paymentAndTax,
+      Icon: Receipt,
+    },
+    registrations: {
+      title: "Item registration checks",
+      description:
+        "Check new store receipts, print them, and forward to finance for approval.",
+      Icon: ClipboardList,
+    },
+    "item-receipts": {
+      title: "Item receipts",
+      description: "Print receiving receipts with voucher numbers and hotel TIN.",
       Icon: Receipt,
     },
     "creditor-usage": {
@@ -776,7 +808,7 @@ function CostControlInner() {
                 insetBusy && "pointer-events-none blur-[1.5px] opacity-75",
               )}
             >
-              <div className="mx-auto w-full min-w-0 max-w-none space-y-10 pb-10 xl:max-w-[100rem] 2xl:max-w-[112rem]">
+              <div className="mx-auto w-full min-w-0 max-w-none space-y-10 pb-10 xl:max-w-400 2xl:max-w-448">
         <HotelWorkflowGlossary variant="costControl" />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -949,7 +981,7 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Approve selected ({selectedPrBatchIds.length})
+                          Check selected ({selectedPrBatchIds.length})
                         </PendingButton>
                         <PendingButton
                           variant="outline"
@@ -1093,7 +1125,7 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Approve → finance
+                          Check → finance
                         </PendingButton>
                         <PendingButton
                           variant="outline"
@@ -1297,7 +1329,7 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Approve selected ({selectedSoBatchIds.length})
+                          Check selected ({selectedSoBatchIds.length})
                         </PendingButton>
                         <PendingButton
                           variant="outline"
@@ -1430,7 +1462,7 @@ function CostControlInner() {
                           }
                           void runCcAction(`so-a-${r.id}`, async () => {
                             try {
-                              const result = await approveStockOutRequestApi(
+                              const result = await checkStockOutRequestCCApi(
                                 r.id,
                                 pid,
                               );
@@ -1448,7 +1480,7 @@ function CostControlInner() {
                           });
                         }}
                       >
-                        Approve & update stock
+                        Check → finance
                       </PendingButton>
                       <PendingButton
                         variant="outline"
@@ -1507,6 +1539,8 @@ function CostControlInner() {
                 <PurchaseRequestStatusPanel
                   rows={propertyRequestStatus.purchases}
                   showStoreUser
+                  unitPriceRole="CostControl"
+                  onRefresh={() => void load(true, false)}
                   description={`${propertyRequestStatus.purchases.length} purchase requests for this property.`}
                 />
               )}
@@ -1529,10 +1563,29 @@ function CostControlInner() {
             </div>
           )}
 
+          {activeSection === "registrations" && (
+            <HotelRegistrationApprovalsBlock
+              role="CostControl"
+              items={inventoryRows}
+              propertyName={displayName || "Property"}
+              logoUrl={logoUrl}
+              onRefresh={() => void load(true, false)}
+            />
+          )}
+
+          {activeSection === "item-receipts" && (
+            <HotelItemReceiptsSection
+              items={inventoryRows}
+              purchaseRequests={purchases}
+              propertyName={displayName || "Property"}
+              logoUrl={logoUrl}
+            />
+          )}
+
           {isPaymentCategorySection(activeSection) && (
             <div className="space-y-6">
-              <HotelInventoryPaymentCategoryPanel
-                mode={paymentModeFromSection(activeSection)!}
+              <HotelInventoryPaymentHub
+                initialMode={paymentModeFromSection(activeSection)!}
                 tenantLabel={displayName || "Property"}
                 inventoryItems={inventoryRows}
               />
@@ -1653,7 +1706,6 @@ function CostControlInner() {
                     <DataTable
                       columns={monthlyRollupColumns}
                       data={monthlySnapshots}
-                      hideToolbar
                       getRowId={(row) => String(row.id)}
                       emptyMessage={`No stored roll-ups for ${rollupRangeLabel}. Adjust From / To or run Sync Monthly Data.`}
                     />
@@ -1960,7 +2012,6 @@ function CostControlInner() {
                 <DataTable
                   columns={dailyKitchenColumns}
                   data={visibleBeginnings}
-                  hideToolbar
                   getRowId={(row) => String(row.id)}
                   emptyMessage={`No daily rows for ${selectedDailyDate}. Add a row above or pick another date.`}
                 />

@@ -298,7 +298,6 @@ export function HotelInventoryPaymentCategoryPanel({
         <DataTable
           columns={inventoryColumns}
           data={filtered}
-          hideToolbar
           searchColumnId="name"
           emptyMessage="No rows match these filters."
         />

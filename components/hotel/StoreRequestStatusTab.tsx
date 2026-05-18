@@ -293,7 +293,6 @@ export default function StoreRequestStatusTab({
               <DataTable
                 columns={buildStoreMyPurchaseColumns()}
                 data={sortByDateDesc(myPurchases)}
-                hideToolbar
                 searchColumnId="itemName"
                 emptyMessage="No purchase requests from you yet."
               />
@@ -326,7 +325,6 @@ export default function StoreRequestStatusTab({
               <DataTable
                 columns={buildStoreMyStockColumns()}
                 data={sortByDateDesc(myStocks)}
-                hideToolbar
                 searchColumnId="itemName"
                 emptyMessage="No movement requests from you yet."
               />

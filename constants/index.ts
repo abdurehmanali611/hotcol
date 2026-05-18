@@ -79,6 +79,10 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "reports-inventory", label: "Inventory items (list)", icon: "Package" },
   { id: "reports-movements", label: "Stock movements", icon: "ArrowRightLeft" },
   { id: "reports-purchases", label: "Purchase pipeline", icon: "ShoppingCart" },
+  { id: "authorize-purchases", label: "Authorize purchases", icon: "ShoppingCart" },
+  { id: "authorize-stock", label: "Authorize stock", icon: "ArrowRightLeft" },
+  { id: "authorize-companies", label: "Corporate companies", icon: "Building2" },
+  { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
   {
     id: "inventory-payment-vat",

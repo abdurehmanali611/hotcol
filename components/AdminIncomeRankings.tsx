@@ -221,7 +221,6 @@ export default function AdminIncomeRankings({
             <DataTable
               columns={waiterIncomeColumns}
               data={rankedWaiters}
-              hideToolbar
               searchColumnId="name"
               searchPlaceholder="Search waiters…"
               emptyMessage="No waiters for this hotel."
@@ -231,7 +230,6 @@ export default function AdminIncomeRankings({
             <DataTable
               columns={tableIncomeColumns}
               data={rankedTables}
-              hideToolbar
               searchColumnId="tableNo"
               searchPlaceholder="Search table #…"
               emptyMessage="No tables for this hotel."

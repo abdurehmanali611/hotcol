@@ -16,9 +16,11 @@ import { useSearchParams } from "next/navigation";
 import {
   approvePurchaseRequestFinanceApi,
   approvePurchaseRequestsFinanceBatchApi,
+  approveStockOutRequestFinanceApi,
   fetchItemRegistrations,
   fetchItemStatus,
   fetchPurchaseRequests,
+  fetchStockOutRequests,
   rejectPurchaseRequestFinanceApi,
   rejectPurchaseRequestsFinanceBatchApi,
   logoutAction,
@@ -26,17 +28,25 @@ import {
   type ItemRegistration,
   type ItemStatus,
   type PurchaseRequestRow,
+  type StockOutRequestRow,
 } from "@/lib/actions";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import StoreItems from "@/app/StoreItems/page";
-import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentHub } from "@/components/hotel/HotelInventoryPaymentHub";
+import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
+import {
+  HotelRegistrationApprovalsBlock,
+  HotelStockWorkflowQueue,
+} from "@/components/hotel/HotelWorkflowApprovalQueues";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
 import {
   isPaymentCategorySection,
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
+import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
+import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
 import {
   Card,
   CardContent,
@@ -74,6 +84,7 @@ import {
   XCircle,
   LayoutGrid,
   Receipt,
+  Send,
   Table2,
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
@@ -88,8 +99,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type FinanceSection =
   | "queue"
+  | "stock-queue"
+  | "purchase-pipeline"
   | "history"
   | "inventory"
+  | "registrations"
+  | "item-receipts"
   | "payment-credit"
   | "payment-paid"
   | "payment-with-vat"
@@ -170,7 +185,7 @@ function buildFinancePendingColumns(
               }}
             >
               <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
-              Approve payment
+              Approve → manager
             </PendingButton>
             <PendingButton
               size="sm"
@@ -231,11 +246,17 @@ function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
         return (
           <Badge
             variant={
-              r.status === "APPROVED_FINANCE" ? "default" : "destructive"
+              r.status === "AUTHORIZED" ||
+              r.status === "APPROVED_FINANCE" ||
+              r.status === "PENDING_MANAGER"
+                ? "default"
+                : "destructive"
             }
             className="rounded-md font-normal gap-1"
           >
-            {r.status === "APPROVED_FINANCE" ? (
+            {r.status === "AUTHORIZED" ||
+            r.status === "APPROVED_FINANCE" ||
+            r.status === "PENDING_MANAGER" ? (
               <CheckCircle2 className="h-3 w-3" />
             ) : (
               <XCircle className="h-3 w-3" />
@@ -295,6 +316,7 @@ function FinanceInner() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
+  const [stockRows, setStockRows] = useState<StockOutRequestRow[]>([]);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const [inactiveRows, setInactiveRows] = useState<ItemStatus[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
@@ -310,13 +332,15 @@ function FinanceInner() {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
         try {
-          const [all, regs, stat] = await Promise.all([
+          const [all, regs, stat, stocks] = await Promise.all([
             fetchPurchaseRequests(),
             fetchItemRegistrations(),
             fetchItemStatus(),
+            fetchStockOutRequests(),
           ]);
           if (isStale()) return;
           setRows(all);
+          setStockRows(stocks);
           const t = String(tenantScope ?? "").trim();
           const regList = regs as ItemRegistration[];
           setInventoryRows(
@@ -376,7 +400,13 @@ function FinanceInner() {
 
   const pending = scopedPurchases.filter((r) => r.status === "PENDING_FINANCE");
   const history = scopedPurchases.filter((r) =>
-    ["APPROVED_FINANCE", "REJECTED_FINANCE"].includes(r.status),
+    [
+      "PENDING_MANAGER",
+      "AUTHORIZED",
+      "APPROVED_FINANCE",
+      "REJECTED_FINANCE",
+      "REJECTED_MANAGER",
+    ].includes(r.status),
   );
   const pendingLineTotal = pending.reduce(
     (sum, r) =>
@@ -439,6 +469,14 @@ function FinanceInner() {
     icon: typeof Inbox;
   }[] = [
     { section: "queue", label: "Payment queue", icon: Inbox },
+    { section: "stock-queue", label: "Stock movements", icon: Receipt },
+    {
+      section: "purchase-pipeline",
+      label: "Purchase pipeline",
+      icon: Send,
+    },
+    { section: "registrations", label: "Registration approvals", icon: Receipt },
+    { section: "item-receipts", label: "Item receipts", icon: Receipt },
     { section: "history", label: "History", icon: History },
     {
       section: "inventory",
@@ -538,7 +576,7 @@ function FinanceInner() {
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto overflow-x-auto p-3 sm:px-4 md:p-6 [scrollbar-gutter:stable]">
-        <div className="mx-auto w-full min-w-0 max-w-none space-y-10 pb-16 xl:max-w-[100rem] 2xl:max-w-[112rem]">
+        <div className="mx-auto w-full min-w-0 max-w-none space-y-10 pb-16 xl:max-w-400 2xl:max-w-448">
         <HotelWorkflowGlossary variant="finance" />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -754,7 +792,6 @@ function FinanceInner() {
                 onRowSelectionChange={(rows) =>
                   setSelectedFinanceIds(rows.map((r) => r.id))
                 }
-                hideToolbar
                 emptyMessage="Nothing is waiting for finance approval."
               />
             </div>
@@ -763,8 +800,26 @@ function FinanceInner() {
         </section>
         )}
 
+        {financeSection === "purchase-pipeline" && (
+          <section className="space-y-4">
+            <PurchaseRequestStatusPanel
+              rows={scopedPurchases}
+              showStoreUser
+              unitPriceRole="Finance"
+              onRefresh={() => void refreshPurchasesOnly()}
+              title="Purchase pipeline"
+              description={`${scopedPurchases.length} purchase requests for this property — filter by approval step or handle unit price revisions.`}
+            />
+          </section>
+        )}
+
         {financeSection === "history" && (
         <section className="space-y-4">
+          <PurchaseRequestUnitPriceRevisions
+            rows={scopedPurchases}
+            role="Finance"
+            onRefresh={() => void refreshPurchasesOnly()}
+          />
           <div className="flex items-center gap-2 flex-wrap">
             <div className="p-2 rounded-lg bg-muted/60 border border-border/60">
               <History className="h-4 w-4 text-muted-foreground" />
@@ -838,10 +893,47 @@ function FinanceInner() {
             </section>
         )}
 
+        {financeSection === "stock-queue" && (
+          <section className="space-y-4">
+            <HotelStockWorkflowQueue
+              role="Finance"
+              stocks={stockRows.filter((r) =>
+                rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
+              )}
+              profiles={[]}
+              onPatch={(id, status) =>
+                setStockRows((prev) =>
+                  prev.map((r) => (r.id === id ? { ...r, status } : r)),
+                )
+              }
+              onRefresh={refreshPurchasesOnly}
+            />
+          </section>
+        )}
+
+        {financeSection === "registrations" && (
+          <HotelRegistrationApprovalsBlock
+            role="Finance"
+            items={inventoryRows}
+            propertyName={displayName || "Property"}
+            logoUrl={logoUrl}
+            onRefresh={() => void load(true)}
+          />
+        )}
+
+        {financeSection === "item-receipts" && (
+          <HotelItemReceiptsSection
+            items={inventoryRows}
+            purchaseRequests={scopedPurchases}
+            propertyName={displayName || "Property"}
+            logoUrl={logoUrl}
+          />
+        )}
+
         {isPaymentCategorySection(financeSection) && (
           <section className="space-y-4">
-            <HotelInventoryPaymentCategoryPanel
-              mode={paymentModeFromSection(financeSection)!}
+            <HotelInventoryPaymentHub
+              initialMode={paymentModeFromSection(financeSection)!}
               tenantLabel={displayName || "Property"}
               inventoryItems={inventoryRows}
             />
