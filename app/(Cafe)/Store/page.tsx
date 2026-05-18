@@ -22,6 +22,7 @@ import {
   ItemRegistration,
   ItemStatus,
   logoutAction,
+  notifyApiFailure,
   uploadImage,
   type PurchaseRequestRow,
   type StockOutRequestRow,
@@ -169,51 +170,83 @@ export function StoreComponent({
   const loadData = useCallback(async () => {
     await loadCoordinator.run(async (isStale) => {
       setFetching(true);
+      const tenantEff = effectiveTenantScopeForHotelTerminal(tenantScope, {
+        requireHotelTerminal: hotelInventory,
+      });
       try {
-        const tenantEff = effectiveTenantScopeForHotelTerminal(tenantScope, {
-          requireHotelTerminal: hotelInventory,
-        });
-        const [itemData, itemStatusData, prData] = await Promise.all([
+        if (hotelInventory) {
+          const itemData = await fetchItemRegistrations();
+          if (isStale()) return;
+          const response = itemData as ItemRegistration[];
+          setStoreItem(
+            Array.isArray(response)
+              ? response.filter((item) =>
+                  rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+                )
+              : [],
+          );
+
+          const [statusResult, prResult] = await Promise.allSettled([
+            fetchItemStatus(),
+            fetchPurchaseRequests(),
+          ]);
+          if (isStale()) return;
+
+          if (statusResult.status === "fulfilled") {
+            const statusResponse = statusResult.value as ItemStatus[];
+            setItemStatus(
+              Array.isArray(statusResponse)
+                ? statusResponse.filter((item) =>
+                    rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+                  )
+                : [],
+            );
+          } else {
+            setItemStatus([]);
+            notifyApiFailure(
+              statusResult.reason,
+              "Could not load movement history",
+            );
+          }
+
+          if (prResult.status === "fulfilled") {
+            setPurchaseRows(
+              (prResult.value as PurchaseRequestRow[]).filter((p) =>
+                rowHotelMatchesTenantScope(p.HotelName, tenantEff),
+              ),
+            );
+          } else {
+            setPurchaseRows([]);
+            notifyApiFailure(
+              prResult.reason,
+              "Could not load purchase requests",
+            );
+          }
+          return;
+        }
+
+        const [itemData, itemStatusData] = await Promise.all([
           fetchItemRegistrations(),
           fetchItemStatus(),
-          hotelInventory ? fetchPurchaseRequests() : Promise.resolve([]),
         ]);
         if (isStale()) return;
         const response = itemData as ItemRegistration[];
         const statusResponse = itemStatusData as ItemStatus[];
-        if (Array.isArray(response)) {
-          const hotelItem = hotelInventory
-            ? response.filter((item) =>
-                rowHotelMatchesTenantScope(item.HotelName, tenantEff),
-              )
-            : response.filter((item) => item.HotelName === tenantScope);
-          setStoreItem(hotelItem);
-        } else {
-          setStoreItem([]);
-        }
-        if (Array.isArray(statusResponse)) {
-          const hotelItem = hotelInventory
+        setStoreItem(
+          Array.isArray(response)
+            ? response.filter((item) => item.HotelName === tenantScope)
+            : [],
+        );
+        setItemStatus(
+          Array.isArray(statusResponse)
             ? statusResponse.filter((item) =>
-                rowHotelMatchesTenantScope(item.HotelName, tenantEff),
-              )
-            : statusResponse.filter((item) =>
                 rowHotelMatchesTenantScope(item.HotelName, tenantScope),
-              );
-          setItemStatus(hotelItem);
-        } else {
-          setItemStatus([]);
-        }
-        if (hotelInventory && Array.isArray(prData)) {
-          setPurchaseRows(
-            (prData as PurchaseRequestRow[]).filter((p) =>
-              rowHotelMatchesTenantScope(p.HotelName, tenantEff),
-            ),
-          );
-        } else {
-          setPurchaseRows([]);
-        }
-      } catch {
-        if (!isStale()) toast.error("Failed to load data");
+              )
+            : [],
+        );
+        setPurchaseRows([]);
+      } catch (e: unknown) {
+        if (!isStale()) notifyApiFailure(e, "Failed to load data");
       } finally {
         setFetching(false);
       }
