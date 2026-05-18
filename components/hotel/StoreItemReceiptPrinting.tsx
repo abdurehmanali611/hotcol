@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import type { ItemRegistration } from "@/lib/actions";
+import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -13,17 +13,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
-import { lineOwedETB, itemPaymentLabel, itemPaymentBucket } from "@/lib/hotelInventoryPayment";
-import { isVatEnabled } from "@/lib/hotelInventoryPayment";
 import { Printer, Receipt } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import {
   StoreItemRegistrationReceipt,
   type ReceiptGroupItem,
 } from "./StoreItemRegistrationReceipt";
-import { groupRegistrationsForReceipt } from "@/lib/receiptGrouping";
-import { formatVoucherDisplay } from "@/lib/voucherFormat";
+import {
+  bundleItemsToPrint,
+  bundleReceivedLabel,
+  bundleSupplierName,
+  bundleTotalETB,
+  groupRegistrationsForReceipt,
+  type ReceiptBundle,
+} from "@/lib/receiptGrouping";
 import {
   Dialog,
   DialogContent,
@@ -31,76 +34,65 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-function receiptColumns(
-  onPrint: (item: ItemRegistration) => void,
-): ColumnDef<ItemRegistration>[] {
+function bundleColumns(
+  onPrint: (bundle: ReceiptBundle) => void,
+): ColumnDef<ReceiptBundle>[] {
   return [
-    {
-      accessorKey: "name",
-      header: "Item",
-      cell: ({ row }) => (
-        <div className="min-w-[140px]">
-          <p className="font-semibold text-sm">{row.original.name}</p>
-          <p className="text-[10px] text-muted-foreground uppercase">
-            {row.original.category} · #{row.original.id}
-          </p>
-        </div>
-      ),
-    },
-    {
-      id: "qty",
-      header: "Quantity",
-      cell: ({ row }) => (
-        <span className="text-sm tabular-nums whitespace-nowrap">
-          {formatQtyWithUnit(row.original.amount, row.original.measuredBy)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "supplierName",
-      header: "Supplier",
-      cell: ({ row }) => (
-        <div className="max-w-[160px]">
-          <p className="text-sm font-medium truncate">{row.original.supplierName}</p>
-          <p className="text-[10px] text-muted-foreground truncate">
-            {row.original.supplierPhone}
-          </p>
-        </div>
-      ),
-    },
-    {
-      id: "value",
-      header: "Line value",
-      cell: ({ row }) => (
-        <span className="text-sm font-semibold tabular-nums">
-          ETB {lineOwedETB(row.original).toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      id: "vat",
-      header: "VAT",
-      cell: ({ row }) => (
-        <Badge variant="outline" className="text-[10px]">
-          {isVatEnabled(row.original.purchaseWithVat) ? "With VAT" : "No VAT"}
-        </Badge>
-      ),
-    },
-    {
-      id: "payment",
-      header: "Payment",
-      cell: ({ row }) => (
-        <Badge variant="secondary" className="text-[10px]">
-          {itemPaymentLabel(itemPaymentBucket(row.original))}
-        </Badge>
-      ),
-    },
     {
       id: "received",
       header: "Received",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {new Date(row.original.registrationDate).toLocaleDateString()}
+        <span className="text-sm whitespace-nowrap font-medium">
+          {bundleReceivedLabel(row.original)}
+        </span>
+      ),
+    },
+    {
+      id: "supplier",
+      header: "Supplier",
+      accessorFn: (row) => bundleSupplierName(row),
+      cell: ({ row }) => {
+        const first = row.original.items[0];
+        return (
+          <div className="max-w-[180px]">
+            <p className="text-sm font-medium truncate">
+              {bundleSupplierName(row.original)}
+            </p>
+            {first?.supplierPhone ? (
+              <p className="text-[10px] text-muted-foreground truncate">
+                {first.supplierPhone}
+              </p>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      id: "lines",
+      header: "Items on receipt",
+      cell: ({ row }) => {
+        const names = row.original.items.map((i) => i.name);
+        const preview =
+          names.length <= 3
+            ? names.join(", ")
+            : `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
+        return (
+          <div className="min-w-[160px] max-w-[280px]">
+            <p className="text-sm text-foreground leading-snug">{preview}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {row.original.items.length} line
+              {row.original.items.length !== 1 ? "s" : ""} · one combined print
+            </p>
+          </div>
+        );
+      },
+    },
+    {
+      id: "total",
+      header: "Total value",
+      cell: ({ row }) => (
+        <span className="text-sm font-semibold tabular-nums whitespace-nowrap">
+          ETB {bundleTotalETB(row.original).toLocaleString()}
         </span>
       ),
     },
@@ -116,7 +108,7 @@ function receiptColumns(
           onClick={() => onPrint(row.original)}
         >
           <Printer className="h-3.5 w-3.5" />
-          Print
+          Print{row.original.items.length > 1 ? ` (${row.original.items.length})` : ""}
         </Button>
       ),
     },
@@ -134,7 +126,7 @@ export function StoreItemReceiptPrinting({
   propertyName: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
-  purchaseRequests?: import("@/lib/actions").PurchaseRequestRow[];
+  purchaseRequests?: PurchaseRequestRow[];
 }) {
   const [previewBundle, setPreviewBundle] = useState<ReceiptGroupItem[] | null>(
     null,
@@ -143,7 +135,9 @@ export function StoreItemReceiptPrinting({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: previewBundle?.[0]
-      ? `Receipt_${previewBundle[0].name}_${previewBundle[0].id}`
+      ? `Receipt_${previewBundle[0].supplierName}_${new Date(
+          previewBundle[0].registrationDate,
+        ).toISOString().slice(0, 10)}`
       : "Store_Receipt",
   });
 
@@ -152,34 +146,17 @@ export function StoreItemReceiptPrinting({
     [items, purchaseRequests],
   );
 
-  const sorted = useMemo(
-    () =>
-      [...items].sort(
-        (a, b) =>
-          new Date(b.registrationDate).getTime() -
-          new Date(a.registrationDate).getTime(),
-      ),
-    [items],
+  const lineCount = useMemo(
+    () => bundles.reduce((n, b) => n + b.items.length, 0),
+    [bundles],
   );
 
-  const openPrintBundle = (bundleItems: ItemRegistration[]) => {
-    const withPr: ReceiptGroupItem[] = bundleItems.map((it) => {
-      const bundle = bundles.find((b) => b.items.some((x) => x.id === it.id));
-      return {
-        ...it,
-        purchaseRequestVoucher: bundle?.purchaseRequestVoucher ?? null,
-      };
-    });
-    setPreviewBundle(withPr);
+  const openPrintBundle = (bundle: ReceiptBundle) => {
+    setPreviewBundle(bundleItemsToPrint(bundle));
     requestAnimationFrame(() => handlePrint());
   };
 
-  const openPrint = (item: ItemRegistration) => {
-    const bundle = bundles.find((b) => b.items.some((x) => x.id === item.id));
-    openPrintBundle(bundle?.items ?? [item]);
-  };
-
-  const cols = useMemo(() => receiptColumns(openPrint), []);
+  const cols = useMemo(() => bundleColumns(openPrintBundle), []);
 
   return (
     <div className="space-y-6 py-2">
@@ -193,23 +170,28 @@ export function StoreItemReceiptPrinting({
             <div>
               <CardTitle className="text-lg">Item receipt printing</CardTitle>
               <CardDescription className="max-w-2xl text-pretty">
-                Every registration line is listed separately — including
-                duplicate item names from different suppliers. Print a receiving
-                receipt for each batch.
+                Registrations with the same supplier and received date are
+                grouped into one receipt. Use a single print action per group.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          {sorted.length} registration line{sorted.length !== 1 ? "s" : ""}
+        <CardContent className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            {bundles.length} receipt group{bundles.length !== 1 ? "s" : ""}
+          </span>
+          <Badge variant="secondary" className="font-normal">
+            {lineCount} registration line{lineCount !== 1 ? "s" : ""}
+          </Badge>
         </CardContent>
       </Card>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
         <DataTable
           columns={cols}
-          data={sorted}
-          searchColumnId="name"
+          data={bundles}
+          getRowId={(row) => String(row.id)}
+          searchColumnId="supplier"
           emptyMessage="No registration lines to print."
         />
       </div>
@@ -245,7 +227,6 @@ export function StoreItemReceiptPrinting({
           ) : null}
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

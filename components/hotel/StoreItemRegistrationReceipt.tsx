@@ -156,7 +156,38 @@ export function StoreItemRegistrationReceipt({
         </div>
       ) : null}
 
-      {/* Item hero */}
+      {list.length > 1 ? (
+        <div className="px-8 py-4 print:px-6">
+          <div className="overflow-hidden rounded-xl border border-zinc-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-zinc-100 text-left text-[10px] uppercase tracking-wider text-zinc-600">
+                  <th className="px-3 py-2 font-semibold">Item</th>
+                  <th className="px-3 py-2 font-semibold">Qty</th>
+                  <th className="px-3 py-2 font-semibold text-right">Unit (ETB)</th>
+                  <th className="px-3 py-2 font-semibold text-right">Line (ETB)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((line) => (
+                  <tr key={line.id} className="border-t border-zinc-200">
+                    <td className="px-3 py-2.5 font-medium">{line.name}</td>
+                    <td className="px-3 py-2.5 text-zinc-600">
+                      {formatQtyWithUnit(line.amount, line.measuredBy)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {line.unitPrice.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                      {lineOwedETB(line).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
       <div className="px-8 py-6 print:px-6">
         <div className="flex gap-5 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4">
           <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm bg-white">
@@ -188,6 +219,7 @@ export function StoreItemRegistrationReceipt({
           </div>
         </div>
       </div>
+      )}
 
       <Separator className="mx-8 bg-zinc-200 print:mx-6" />
 
