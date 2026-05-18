@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
@@ -15,10 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Printer, Receipt } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
-import {
-  StoreItemRegistrationReceipt,
-  type ReceiptGroupItem,
-} from "./StoreItemRegistrationReceipt";
+import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
+import type { ReceiptGroupItem } from "@/lib/receiptGrouping";
 import {
   bundleItemsToPrint,
   bundleReceivedLabel,
@@ -151,12 +149,18 @@ export function StoreItemReceiptPrinting({
     [bundles],
   );
 
-  const openPrintBundle = (bundle: ReceiptBundle) => {
-    setPreviewBundle(bundleItemsToPrint(bundle));
-    requestAnimationFrame(() => handlePrint());
-  };
+  const openPrintBundle = useCallback(
+    (bundle: ReceiptBundle) => {
+      setPreviewBundle(bundleItemsToPrint(bundle));
+      requestAnimationFrame(() => handlePrint());
+    },
+    [handlePrint],
+  );
 
-  const cols = useMemo(() => bundleColumns(openPrintBundle), []);
+  const cols = useMemo(
+    () => bundleColumns(openPrintBundle),
+    [openPrintBundle],
+  );
 
   return (
     <div className="space-y-6 py-2">

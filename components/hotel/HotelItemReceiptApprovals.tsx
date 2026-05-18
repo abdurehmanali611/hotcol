@@ -157,7 +157,7 @@ export function HotelItemReceiptApprovals({
         <div ref={printRef}>
           {preview ? (
             <StoreItemRegistrationReceipt
-              items={[preview]}
+              item={preview}
               propertyName={propertyName}
               propertyTin={propertyTin}
               logoUrl={logoUrl}

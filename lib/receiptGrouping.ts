@@ -2,6 +2,10 @@ import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
 import { lineOwedETB } from "@/lib/hotelInventoryPayment";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 
+export type ReceiptGroupItem = ItemRegistration & {
+  purchaseRequestVoucher?: string | null;
+};
+
 export type ReceiptBundle = {
   key: string;
   /** Stable numeric id for DataTable row keys */
@@ -76,9 +80,7 @@ export function bundleTotalETB(bundle: ReceiptBundle): number {
   return bundle.items.reduce((s, it) => s + lineOwedETB(it), 0);
 }
 
-export function bundleItemsToPrint(bundle: ReceiptBundle): (ItemRegistration & {
-  purchaseRequestVoucher?: string | null;
-})[] {
+export function bundleItemsToPrint(bundle: ReceiptBundle): ReceiptGroupItem[] {
   return bundle.items.map((it) => ({
     ...it,
     purchaseRequestVoucher: bundle.purchaseRequestVoucher,
