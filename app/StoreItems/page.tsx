@@ -15,6 +15,7 @@ import type { DataTableRef } from "./data-table";
 import { InventoryBatchMovementBar } from "@/components/hotel/InventoryBatchMovementBar";
 import UpdateStock from "@/components/UpdateStock";
 import { ActiveInventoryPaymentSummary } from "@/components/hotel/ActiveInventoryPaymentSummary";
+import { InventoryUnitPriceRevisions } from "@/components/hotel/InventoryUnitPriceRevisions";
 import {
   Popover,
   PopoverContent,
@@ -34,6 +35,8 @@ export default function StoreItems({
   /** Merge rows with the same item name (sum qty, list suppliers). */
   aggregateInventory = true,
   onHotelStockRequestCreated,
+  inventoryUnitPriceRole,
+  onInventoryUnitPriceRefresh,
 }: {
   items?: ItemRegistration[];
   hotelStockApprovals?: boolean;
@@ -47,6 +50,8 @@ export default function StoreItems({
   showPaymentSummary?: boolean;
   aggregateInventory?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
+  inventoryUnitPriceRole?: "Store" | "CostControl" | "Finance" | "Manager";
+  onInventoryUnitPriceRefresh?: () => void;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemRegistration | null>(null);
@@ -214,6 +219,16 @@ export default function StoreItems({
       {showPaymentSummary && (
         <ActiveInventoryPaymentSummary items={filteredData} />
       )}
+
+      {hotelStockApprovals &&
+      inventoryUnitPriceRole &&
+      onInventoryUnitPriceRefresh ? (
+        <InventoryUnitPriceRevisions
+          rows={filteredData}
+          role={inventoryUnitPriceRole}
+          onRefresh={onInventoryUnitPriceRefresh}
+        />
+      ) : null}
 
       <div className={tableShell}>
         {hotelStockApprovals && showStoreRowActions && (

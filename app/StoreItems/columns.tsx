@@ -56,6 +56,7 @@ import { cn } from "@/lib/utils";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import { ColumnDef } from "@tanstack/react-table";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
   AlertTriangle,
   ChevronDown,
@@ -103,6 +104,8 @@ export type items = {
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   paidAmount: number;
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
   status?: string;
   statusBy?: string;
   HotelName: string;
@@ -890,6 +893,7 @@ export const columns = (
       </div>
     ),
   },
+  ...(opts?.hotelStockApprovals ? [buildVoucherColumn<items>()] : []),
   {
     accessorKey: "amount",
     header: "Inventory",

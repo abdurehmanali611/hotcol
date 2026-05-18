@@ -115,6 +115,7 @@ import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
+import { InventoryUnitPriceRevisions } from "@/components/hotel/InventoryUnitPriceRevisions";
 
 type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
@@ -814,11 +815,14 @@ function ManagerContent() {
           <div className="p-4 md:p-6">
             <StoreItems
               items={items}
+              hotelStockApprovals
               tenantScope={tenantScope}
               embedded
               readOnly
               showPaymentSummary
               aggregateInventory
+              inventoryUnitPriceRole="Manager"
+              onInventoryUnitPriceRefresh={() => void loadData(true)}
             />
           </div>
         );
@@ -861,6 +865,11 @@ function ManagerContent() {
           <div className="p-4 md:p-6 space-y-6">
             <PurchaseRequestUnitPriceRevisions
               rows={scopedPurchases}
+              role="Manager"
+              onRefresh={() => void loadData(true)}
+            />
+            <InventoryUnitPriceRevisions
+              rows={items}
               role="Manager"
               onRefresh={() => void loadData(true)}
             />

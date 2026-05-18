@@ -1201,6 +1201,8 @@ function CostControlInner() {
                   tenantScope={tenantScope}
                   embedded
                   showPaymentSummary
+                  inventoryUnitPriceRole="CostControl"
+                  onInventoryUnitPriceRefresh={() => void refreshStockQueues()}
                   onHotelStockRequestCreated={() => {
                     void refreshStockQueues();
                   }}

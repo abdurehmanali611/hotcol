@@ -805,6 +805,10 @@ export function StoreComponent({
               hotelStockApprovals={hotelInventory}
               tenantScope={tenantScope}
               showPaymentSummary={hotelInventory}
+              inventoryUnitPriceRole={hotelInventory ? "Store" : undefined}
+              onInventoryUnitPriceRefresh={
+                hotelInventory ? () => void loadData() : undefined
+              }
               onHotelStockRequestCreated={
                 hotelInventory ? handleHotelStockRequestCreated : undefined
               }

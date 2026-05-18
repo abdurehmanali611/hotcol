@@ -9,6 +9,7 @@ import {
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 
 function purchaseBadgeVariant(
   status: string,
@@ -37,6 +38,7 @@ export function buildStoreMyPurchaseColumns(): ColumnDef<PurchaseRequestRow>[] {
         <span className="font-medium">{row.original.itemName}</span>
       ),
     },
+    buildVoucherColumn<PurchaseRequestRow>(),
     {
       id: "quantity",
       header: "Quantity",

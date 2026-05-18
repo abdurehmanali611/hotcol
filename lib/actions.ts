@@ -343,6 +343,8 @@ export interface ItemRegistration {
   managerActorName?: string | null;
   managerAuthorizedAt?: string | null;
   rejectionReason?: string | null;
+  pendingUnitPrice?: number | null;
+  unitPriceChangeStatus?: string | null;
 }
 
 export interface createItemRegistration {
@@ -3157,6 +3159,8 @@ export async function fetchItemRegistrations() {
           managerActorName
           managerAuthorizedAt
           rejectionReason
+          pendingUnitPrice
+          unitPriceChangeStatus
         }
       }
     `;
@@ -4081,6 +4085,117 @@ export async function rejectPurchaseRequestUnitPriceApi(id: number, reason?: str
   }
   toast.success("Price revision rejected");
   return response.data.data.rejectPurchaseRequestUnitPrice;
+}
+
+export async function submitItemRegistrationUnitPriceChangeApi(
+  id: number,
+  proposedUnitPrice: number,
+) {
+  const mutation = `
+    mutation SubmitInvPrice($id: Int!, $proposedUnitPrice: Float!) {
+      submitItemRegistrationUnitPriceChange(id: $id, proposedUnitPrice: $proposedUnitPrice) {
+        id
+        pendingUnitPrice
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, proposedUnitPrice },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Submit failed");
+  }
+  toast.success("Unit price revision submitted");
+  return response.data.data.submitItemRegistrationUnitPriceChange;
+}
+
+export async function checkItemRegistrationUnitPriceCCApi(
+  id: number,
+  costControllerProfileId: number,
+) {
+  const mutation = `
+    mutation CheckInvPriceCC($id: Int!, $costControllerProfileId: Int!) {
+      checkItemRegistrationUnitPriceCC(id: $id, costControllerProfileId: $costControllerProfileId) {
+        id
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, costControllerProfileId },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Check failed");
+  }
+  toast.success("Unit price revision checked");
+  return response.data.data.checkItemRegistrationUnitPriceCC;
+}
+
+export async function approveItemRegistrationUnitPriceFinanceApi(id: number) {
+  const mutation = `
+    mutation ApproveInvPriceFinance($id: Int!) {
+      approveItemRegistrationUnitPriceFinance(id: $id) {
+        id
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Approve failed");
+  }
+  toast.success("Unit price revision approved");
+  return response.data.data.approveItemRegistrationUnitPriceFinance;
+}
+
+export async function authorizeItemRegistrationUnitPriceManagerApi(id: number) {
+  const mutation = `
+    mutation AuthorizeInvPriceManager($id: Int!) {
+      authorizeItemRegistrationUnitPriceManager(id: $id) {
+        id
+        unitPrice
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Authorization failed");
+  }
+  toast.success("Unit price revision authorized");
+  return response.data.data.authorizeItemRegistrationUnitPriceManager;
+}
+
+export async function rejectItemRegistrationUnitPriceApi(
+  id: number,
+  reason?: string,
+) {
+  const mutation = `
+    mutation RejectInvPrice($id: Int!, $reason: String) {
+      rejectItemRegistrationUnitPrice(id: $id, reason: $reason) {
+        id
+        unitPriceChangeStatus
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Reject failed");
+  }
+  toast.success("Price revision rejected");
+  return response.data.data.rejectItemRegistrationUnitPrice;
 }
 
 export async function checkItemRegistrationCCApi(

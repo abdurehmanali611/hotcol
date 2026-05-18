@@ -28,6 +28,7 @@ import {
   FilterChipGroup,
   ListPanelFilterBar,
 } from "@/components/hotel/ListPanelFilterBar";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -63,6 +64,7 @@ function buildColumns(showRequestedBy: boolean): ColumnDef<StockOutRequestRow>[]
         </span>
       ),
     },
+    buildVoucherColumn<StockOutRequestRow>(),
     {
       id: "type",
       header: "Type",

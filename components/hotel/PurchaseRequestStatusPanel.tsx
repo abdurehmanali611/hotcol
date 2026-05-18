@@ -28,6 +28,7 @@ import {
   ListPanelFilterBar,
 } from "@/components/hotel/ListPanelFilterBar";
 import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
@@ -66,6 +67,7 @@ function buildColumns(showStoreUser: boolean): ColumnDef<PurchaseRequestRow>[] {
         <span className="font-medium">{row.original.itemName}</span>
       ),
     },
+    buildVoucherColumn<PurchaseRequestRow>(),
     {
       id: "quantity",
       header: "Quantity",
