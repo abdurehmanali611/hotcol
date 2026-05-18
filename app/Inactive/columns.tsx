@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteItemStatus } from "@/lib/actions";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import { ColumnDef } from "@tanstack/react-table";
 import { Loader2, Trash, Package, Phone, User, Receipt } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +38,8 @@ export type itemStatus = {
   status: string;
   statusBy: string;
   HotelName: string;
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
 };
 
 async function handleDelete(id: number) {
@@ -53,6 +56,7 @@ export const columns = (
   admin: boolean,
   refresh: () => void,
 ): ColumnDef<itemStatus>[] => [
+  buildVoucherColumn<itemStatus>(),
   {
     accessorKey: "name",
     header: "Product",

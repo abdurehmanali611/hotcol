@@ -126,6 +126,11 @@ export function StoreItemReceiptPrinting({
   logoUrl?: string | null;
   purchaseRequests?: PurchaseRequestRow[];
 }) {
+  const resolvedTin =
+    propertyTin ??
+    (typeof window !== "undefined"
+      ? localStorage.getItem("tin_number")?.trim() || null
+      : null);
   const [previewBundle, setPreviewBundle] = useState<ReceiptGroupItem[] | null>(
     null,
   );
@@ -214,7 +219,7 @@ export function StoreItemReceiptPrinting({
                 <StoreItemRegistrationReceipt
                   items={previewBundle}
                   propertyName={propertyName}
-                  propertyTin={propertyTin}
+                  propertyTin={resolvedTin}
                   logoUrl={logoUrl}
                 />
               </div>

@@ -833,6 +833,7 @@ function ManagerContent() {
               columns={itemStatusColumns}
               data={statuses as ItemStatus[]}
               getRowId={(row) => String(row.id)}
+              initialSorting={VOUCHER_TABLE_SORT}
               emptyMessage="No movement lines for this period."
             />
           </div>

@@ -4,8 +4,15 @@ import { useMemo, useState } from "react";
 import type { ItemRegistration } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -30,12 +37,8 @@ import {
   type CreditAmountFilter,
 } from "@/lib/panelFilters";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
-import {
-  FilterChipGroup,
-  ListPanelFilterBar,
-} from "@/components/hotel/ListPanelFilterBar";
-import { Download, Receipt } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
+import { Download, Filter, Receipt } from "lucide-react";
 
 export type PaymentCategoryMode =
   | "credit"
@@ -107,11 +110,6 @@ export function HotelInventoryPaymentCategoryPanel({
   const [dateTo, setDateTo] = useState("");
   const [creditAmountFilter, setCreditAmountFilter] =
     useState<CreditAmountFilter>("all");
-  const [creditMin, setCreditMin] = useState("");
-  const [creditMax, setCreditMax] = useState("");
-
-  const creditMinNum = creditMin.trim() ? Number(creditMin) : null;
-  const creditMaxNum = creditMax.trim() ? Number(creditMax) : null;
 
   const filtered = useMemo(() => {
     return filterRowsByMode(inventoryItems, mode).filter((r) => {
@@ -119,28 +117,11 @@ export function HotelInventoryPaymentCategoryPanel({
         return false;
       }
       if (mode === "credit") {
-        return matchesCreditAmountFilter(
-          r,
-          creditAmountFilter,
-          creditMinNum != null && Number.isFinite(creditMinNum)
-            ? creditMinNum
-            : null,
-          creditMaxNum != null && Number.isFinite(creditMaxNum)
-            ? creditMaxNum
-            : null,
-        );
+        return matchesCreditAmountFilter(r, creditAmountFilter, null, null);
       }
       return true;
     });
-  }, [
-    inventoryItems,
-    mode,
-    dateFrom,
-    dateTo,
-    creditAmountFilter,
-    creditMinNum,
-    creditMaxNum,
-  ]);
+  }, [inventoryItems, mode, dateFrom, dateTo, creditAmountFilter]);
 
   const totalValue = useMemo(
     () => filtered.reduce((s, r) => s + lineOwedETB(r), 0),
@@ -160,15 +141,12 @@ export function HotelInventoryPaymentCategoryPanel({
   const hasActiveFilters =
     dateFrom !== "" ||
     dateTo !== "" ||
-    (mode === "credit" &&
-      (creditAmountFilter !== "all" || creditMin !== "" || creditMax !== ""));
+    (mode === "credit" && creditAmountFilter !== "all");
 
   const clearFilters = () => {
     setDateFrom("");
     setDateTo("");
     setCreditAmountFilter("all");
-    setCreditMin("");
-    setCreditMax("");
   };
 
   return (
@@ -252,43 +230,37 @@ export function HotelInventoryPaymentCategoryPanel({
             />
           </div>
           {mode === "credit" ? (
-            <div className="flex flex-col gap-3 flex-1 min-w-[240px]">
-              <FilterChipGroup
-                label="Credit amount (ETB)"
+            <div className="flex flex-col gap-1.5 min-w-[220px]">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
+                Credit amount (ETB)
+              </span>
+              <Select
                 value={creditAmountFilter}
-                onChange={setCreditAmountFilter}
-                options={CREDIT_AMOUNT_OPTIONS}
-              />
-              <div className="flex flex-wrap gap-3 items-end">
-                <div className="space-y-1.5">
-                  <Label htmlFor="credit-min" className="text-xs">
-                    Min credit (ETB)
-                  </Label>
-                  <Input
-                    id="credit-min"
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={creditMin}
-                    onChange={(e) => setCreditMin(e.target.value)}
-                    className="h-9 w-32 tabular-nums"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="credit-max" className="text-xs">
-                    Max credit (ETB)
-                  </Label>
-                  <Input
-                    id="credit-max"
-                    type="number"
-                    min={0}
-                    placeholder="Any"
-                    value={creditMax}
-                    onChange={(e) => setCreditMax(e.target.value)}
-                    className="h-9 w-32 tabular-nums"
-                  />
-                </div>
-              </div>
+                onValueChange={(v) =>
+                  setCreditAmountFilter(v as CreditAmountFilter)
+                }
+              >
+                <SelectTrigger className="h-10 w-full min-w-[220px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter size={14} className="text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="All credit" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-2xl">
+                  <SelectGroup>
+                    <SelectLabel>Credit amount</SelectLabel>
+                    {CREDIT_AMOUNT_OPTIONS.map((opt) => (
+                      <SelectItem
+                        key={opt.id}
+                        value={opt.id}
+                        className="cursor-pointer"
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
         </div>

@@ -3,9 +3,11 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { ItemStatus } from "@/lib/actions";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 
 export function buildItemStatusColumns(): ColumnDef<ItemStatus>[] {
   return [
+    buildVoucherColumn<ItemStatus>(),
     {
       accessorKey: "name",
       header: "Item",

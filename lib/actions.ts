@@ -390,6 +390,9 @@ export interface ItemStatus {
   status: string;
   statusBy: string;
   HotelName: string;
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
+  stockOutRequestId?: number | null;
 }
 
 export interface CreatingItemStatus {
@@ -3376,6 +3379,9 @@ export async function fetchItemStatus() {
           status
           statusBy
           HotelName
+          voucherNumber
+          voucherDisplay
+          stockOutRequestId
         }
       }
           `;

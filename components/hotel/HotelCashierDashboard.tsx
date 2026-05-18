@@ -651,10 +651,10 @@ export function HotelCashierDashboard() {
                                   <div className="font-semibold text-sm leading-snug">
                                     {c.companyName}
                                   </div>
-                                  <div className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-1.5">
                                     <Badge
                                       variant="secondary"
-                                      className="text-[10px] font-normal"
+                                      className="text-xs font-normal"
                                     >
                                       {c.approvalStatus === "PENDING_MANAGER"
                                         ? "Pending manager"
@@ -664,7 +664,15 @@ export function HotelCashierDashboard() {
                                     </Badge>
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] font-normal"
+                                      className="text-xs font-normal"
+                                    >
+                                      {c.payTiming === "NOW"
+                                        ? "Pay now"
+                                        : "Pay after service"}
+                                    </Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs font-normal"
                                     >
                                       {c.creditLevel}
                                     </Badge>
@@ -725,14 +733,21 @@ export function HotelCashierDashboard() {
                                     control={companyDealForm.control}
                                     fieldType={formFieldTypes.SELECT}
                                     label="Payment timing"
+                                    placeholder="Select when the company pays"
                                     listdisplay={[
-                                      { value: "NOW", label: "Pay now" },
                                       {
+                                        id: "pay-now",
+                                        value: "NOW",
+                                        label: "Pay now",
+                                      },
+                                      {
+                                        id: "pay-after",
                                         value: "AFTER_SERVICE",
                                         label: "Pay after service",
                                       },
                                     ]}
-                                    inputClassName="h-10 w-56"
+                                    inputClassName="h-11 w-full min-w-[14rem] max-w-full text-base [&_[data-slot=select-value]]:text-base"
+                                    formItemClassName="sm:col-span-2"
                                   />
                                   <CustomFormField
                                     name="phoneNumber"

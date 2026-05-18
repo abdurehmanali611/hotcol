@@ -1,6 +1,6 @@
 import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
 import { lineOwedETB } from "@/lib/hotelInventoryPayment";
-import { formatVoucherDisplay } from "@/lib/voucherFormat";
+import { formatVoucherDisplay, formatVoucherRange } from "@/lib/voucherFormat";
 
 export type ReceiptGroupItem = ItemRegistration & {
   purchaseRequestVoucher?: string | null;
@@ -85,4 +85,11 @@ export function bundleItemsToPrint(bundle: ReceiptBundle): ReceiptGroupItem[] {
     ...it,
     purchaseRequestVoucher: bundle.purchaseRequestVoucher,
   }));
+}
+
+/** Item registration voucher(s) for a receipt bundle or line list. */
+export function formatRegistrationVoucherRange(
+  rows: Pick<ItemRegistration, "voucherNumber" | "voucherDisplay">[],
+): string {
+  return formatVoucherRange(rows);
 }

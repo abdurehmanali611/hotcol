@@ -408,12 +408,15 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
             className={clsx(
               {
                 "w-full p-3 cursor-pointer": props.isDoctorList,
-                "w-75 cursor-pointer": !props.isDoctorList,
+                "w-full min-w-48 cursor-pointer": !props.isDoctorList,
               },
               props.inputClassName,
             )}
           >
-            <SelectValue placeholder={props.placeholder} />
+            <SelectValue
+              placeholder={props.placeholder ?? "Select…"}
+              className="text-sm sm:text-base"
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -452,24 +455,33 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                         </Tooltip>
                       ),
                   )
-                : props.listdisplay?.map((item) => (
-                    <SelectItem
-                      key={item.id}
-                      value={
-                        item.realValue !== undefined
-                          ? item.realValue.toString()
-                          : item.name
-                      }
-                      disabled={item.disabled || props.disabled}
-                    >
-                      {item.name}
-                      {item.subText && (
-                        <span className="text-xs text-muted-foreground ml-2">
-                          {item.subText}
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
+                : props.listdisplay?.map((item, index) => {
+                    const optionValue =
+                      item.realValue !== undefined
+                        ? String(item.realValue)
+                        : item.value !== undefined
+                          ? String(item.value)
+                          : item.name !== undefined
+                            ? String(item.name)
+                            : String(item.id ?? index);
+                    const optionLabel =
+                      item.label ?? item.name ?? optionValue;
+                    return (
+                      <SelectItem
+                        key={item.id ?? optionValue ?? index}
+                        value={optionValue}
+                        disabled={item.disabled || props.disabled}
+                        className="text-sm py-2.5"
+                      >
+                        {optionLabel}
+                        {item.subText && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {item.subText}
+                          </span>
+                        )}
+                      </SelectItem>
+                    );
+                  })}
             </SelectGroup>
           </SelectContent>
         </Select>

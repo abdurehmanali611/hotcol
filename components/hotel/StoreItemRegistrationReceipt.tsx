@@ -11,7 +11,10 @@ import {
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
-import { formatVoucherDisplay } from "@/lib/voucherFormat";
+import {
+  formatVoucherDisplay,
+  formatVoucherRange,
+} from "@/lib/voucherFormat";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
@@ -45,6 +48,7 @@ export function StoreItemRegistrationReceipt({
   const totalPaid = lines.reduce((s, it) => s + (Number(it.paidAmount) || 0), 0);
   const prVoucher =
     lines.find((l) => l.purchaseRequestVoucher)?.purchaseRequestVoucher ?? null;
+  const registrationVoucher = formatVoucherRange(lines);
 
   return (
     <div className="bg-white text-zinc-900 max-w-[210mm] mx-auto font-sans print:text-black">
@@ -72,9 +76,12 @@ export function StoreItemRegistrationReceipt({
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 truncate">
                 {property}
               </h1>
-              {tin ? (
-                <p className="text-xs text-zinc-600 mt-0.5">Property TIN: {tin}</p>
-              ) : null}
+              <p className="text-sm font-semibold text-zinc-800 mt-1 tabular-nums">
+                Hotel TIN: {tin || "—"}
+              </p>
+              <p className="text-xs font-mono text-zinc-600 mt-0.5">
+                Voucher {registrationVoucher}
+              </p>
               <p className="text-xs text-zinc-500 mt-1">
                 {isMulti
                   ? `${lines.length} lines · ${primary.category}`
@@ -112,7 +119,10 @@ export function StoreItemRegistrationReceipt({
       <div className="mx-8 h-1 rounded-full bg-linear-to-r from-emerald-600 via-emerald-400 to-teal-500 print:mx-6" />
 
       {isMulti ? (
-        <div className="px-8 py-6 print:px-6">
+        <div className="px-8 py-6 print:px-6 space-y-3">
+          <p className="text-sm font-mono font-medium text-zinc-800">
+            Registration vouchers: {registrationVoucher}
+          </p>
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
@@ -169,11 +179,7 @@ export function StoreItemRegistrationReceipt({
                   ETB {primary.unitPrice.toLocaleString()} / {primary.measuredBy}
                 </p>
                 <p className="text-xs font-mono text-zinc-500">
-                  Voucher{" "}
-                  {formatVoucherDisplay(
-                    primary.voucherNumber,
-                    primary.voucherDisplay,
-                  )}
+                  Voucher {registrationVoucher}
                 </p>
                 <Badge
                   variant="outline"
