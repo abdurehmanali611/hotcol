@@ -33,7 +33,7 @@ import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "pending", label: "Pending" },
-  { id: "approved", label: "Approved" },
+  { id: "approved", label: "Done" },
   { id: "rejected", label: "Rejected" },
 ];
 
@@ -55,6 +55,7 @@ function formatWhen(iso: string | null | undefined) {
 
 function buildColumns(showRequestedBy: boolean): ColumnDef<StockOutRequestRow>[] {
   const cols: ColumnDef<StockOutRequestRow>[] = [
+    buildVoucherColumn<StockOutRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",
@@ -64,7 +65,6 @@ function buildColumns(showRequestedBy: boolean): ColumnDef<StockOutRequestRow>[]
         </span>
       ),
     },
-    buildVoucherColumn<StockOutRequestRow>(),
     {
       id: "type",
       header: "Type",

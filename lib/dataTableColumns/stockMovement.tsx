@@ -10,6 +10,7 @@ import {
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 
 function stockBadgeVariant(
   status: string,
@@ -30,6 +31,7 @@ function formatWhen(iso: string | null | undefined) {
 /** Store user's own stock / wastage / return requests. */
 export function buildStoreMyStockColumns(): ColumnDef<StockOutRequestRow>[] {
   return [
+    buildVoucherColumn<StockOutRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",
@@ -112,6 +114,7 @@ export function buildStockMovementDashboardColumns(
   resolveMeasuredBy: (itemRegistrationId: number) => string,
 ): ColumnDef<StockOutRequestRow>[] {
   return [
+    buildVoucherColumn<StockOutRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",

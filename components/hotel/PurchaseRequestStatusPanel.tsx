@@ -60,6 +60,7 @@ function formatWhen(iso: string | null | undefined) {
 
 function buildColumns(showStoreUser: boolean): ColumnDef<PurchaseRequestRow>[] {
   const cols: ColumnDef<PurchaseRequestRow>[] = [
+    buildVoucherColumn<PurchaseRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",
@@ -67,7 +68,6 @@ function buildColumns(showStoreUser: boolean): ColumnDef<PurchaseRequestRow>[] {
         <span className="font-medium">{row.original.itemName}</span>
       ),
     },
-    buildVoucherColumn<PurchaseRequestRow>(),
     {
       id: "quantity",
       header: "Quantity",

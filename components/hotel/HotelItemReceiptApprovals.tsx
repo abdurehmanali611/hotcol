@@ -94,16 +94,19 @@ export function HotelItemReceiptApprovals({
         : "Authorize";
 
   const columns: ColumnDef<ItemRegistration>[] = [
-    { accessorKey: "name", header: "Item" },
     {
       id: "voucher",
       header: "Voucher",
-      cell: ({ row }) =>
-        formatVoucherDisplay(
-          row.original.voucherNumber,
-          row.original.voucherDisplay,
-        ),
+      cell: ({ row }) => (
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {formatVoucherDisplay(
+            row.original.voucherNumber,
+            row.original.voucherDisplay,
+          )}
+        </span>
+      ),
     },
+    { accessorKey: "name", header: "Item" },
     {
       id: "status",
       header: "Status",

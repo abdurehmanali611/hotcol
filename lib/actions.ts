@@ -3824,6 +3824,8 @@ export async function createStockOutRequestApi(
       ) {
         id
         status
+        voucherNumber
+        voucherDisplay
       }
     }
   `;

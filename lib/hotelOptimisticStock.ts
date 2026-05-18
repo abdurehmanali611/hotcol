@@ -9,7 +9,12 @@ export function buildOptimisticStockOutRequestRow(
   movementType: string,
   amount: number,
   stakeHolderOrReason: string,
-  created: { id: number; status: string },
+  created: {
+    id: number;
+    status: string;
+    voucherNumber?: number | null;
+    voucherDisplay?: string | null;
+  },
   requestedByUserName: string,
 ): StockOutRequestRow {
   const now = new Date().toISOString();
@@ -22,6 +27,8 @@ export function buildOptimisticStockOutRequestRow(
     amount,
     stakeHolderOrReason,
     status: created.status,
+    voucherNumber: created.voucherNumber ?? null,
+    voucherDisplay: created.voucherDisplay ?? null,
     requestedByUserName,
     ccProfileId: null,
     ccActorName: null,

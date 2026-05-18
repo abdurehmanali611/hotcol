@@ -873,6 +873,7 @@ export const columns = (
   },
 ): ColumnDef<items>[] => {
   const defs: ColumnDef<items>[] = [
+  ...(opts?.hotelStockApprovals ? [buildVoucherColumn<items>()] : []),
   {
     accessorKey: "name",
     header: "Product Detail",
@@ -893,7 +894,6 @@ export const columns = (
       </div>
     ),
   },
-  ...(opts?.hotelStockApprovals ? [buildVoucherColumn<items>()] : []),
   {
     accessorKey: "amount",
     header: "Inventory",

@@ -31,6 +31,7 @@ function formatWhen(iso: string | null | undefined) {
 /** Store user's own purchase requests (status tab). */
 export function buildStoreMyPurchaseColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
+    buildVoucherColumn<PurchaseRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",
@@ -38,7 +39,6 @@ export function buildStoreMyPurchaseColumns(): ColumnDef<PurchaseRequestRow>[] {
         <span className="font-medium">{row.original.itemName}</span>
       ),
     },
-    buildVoucherColumn<PurchaseRequestRow>(),
     {
       id: "quantity",
       header: "Quantity",
@@ -103,6 +103,7 @@ export function buildStoreMyPurchaseColumns(): ColumnDef<PurchaseRequestRow>[] {
 /** Dashboard “recent purchases” — item, status, store user, when. */
 export function buildPurchaseRequestDashboardColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
+    buildVoucherColumn<PurchaseRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",
@@ -134,6 +135,7 @@ export function buildPurchaseRequestDashboardColumns(): ColumnDef<PurchaseReques
 /** Full purchase report — all approval columns. */
 export function buildPurchaseRequestReportColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
+    buildVoucherColumn<PurchaseRequestRow>(),
     {
       accessorKey: "itemName",
       header: "Item",

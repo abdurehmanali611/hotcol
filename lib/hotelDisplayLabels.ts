@@ -65,7 +65,7 @@ export function formatStockOutRequestStatus(status: string): string {
     case "PENDING_MANAGER":
       return "Awaiting manager authorization";
     case "APPROVED":
-      return "Applied to inventory";
+      return "Done";
     case "REJECTED":
       return "Rejected";
     default:
