@@ -21,6 +21,7 @@ import { DataTable, type DataTableRef } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -241,23 +242,29 @@ export function HotelItemReceiptApprovals({
       {pending.length > 0 ? (
         <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (selectedIds.length === pending.length) {
-                  clearSelection();
-                } else {
-                  tableRef.current?.setRowSelectionByIds(
-                    pending.map((row) => String(row.id)),
-                  );
-                  setSelectedRows(pending);
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Checkbox
+                checked={
+                  selectedIds.length === pending.length
+                    ? true
+                    : selectedIds.length > 0
+                      ? "indeterminate"
+                      : false
                 }
-              }}
-            >
-              {selectedIds.length === pending.length ? "Clear selection" : "Select all"}
-            </Button>
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    tableRef.current?.setRowSelectionByIds(
+                      pending.map((row) => String(row.id)),
+                    );
+                    setSelectedRows(pending);
+                  } else {
+                    clearSelection();
+                  }
+                }}
+                aria-label="Select all registrations"
+              />
+              <span>Select all</span>
+            </label>
             <PendingButton
               size="sm"
               className="shadow-sm"

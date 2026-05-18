@@ -29,7 +29,6 @@ import {
   isStockPendingFinance,
   isStockPendingManager,
 } from "@/lib/hotelApproval";
-import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
@@ -105,22 +104,24 @@ export function HotelPurchaseManagerQueue({
 
   return (
     <div className="space-y-3">
-      <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
+        <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setSelectedIds(
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Checkbox
+              checked={
                 activeSelectedIds.length === pending.length
-                  ? []
-                  : pending.map((row) => row.id),
-              )
-            }
-          >
-            {activeSelectedIds.length === pending.length ? "Clear selection" : "Select all"}
-          </Button>
+                  ? true
+                  : activeSelectedIds.length > 0
+                    ? "indeterminate"
+                    : false
+              }
+              onCheckedChange={(checked) =>
+                setSelectedIds(checked ? pending.map((row) => row.id) : [])
+              }
+              aria-label="Select all purchase requests"
+            />
+            <span>Select all</span>
+          </label>
           <PendingButton
             pending={isPending("mgr-pr-batch-a")}
             disabled={activeSelectedIds.length === 0}
@@ -293,7 +294,7 @@ export function HotelStockWorkflowQueue({
 
   return (
     <div className="space-y-3">
-      <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
+        <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-end">
           {role === "CostControl" ? (
             <div className="min-w-[220px] flex-1 space-y-1">
@@ -316,20 +317,22 @@ export function HotelStockWorkflowQueue({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setSelectedIds(
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Checkbox
+                checked={
                   activeSelectedIds.length === pending.length
-                    ? []
-                    : pending.map((row) => row.id),
-                )
-              }
-            >
-              {activeSelectedIds.length === pending.length ? "Clear selection" : "Select all"}
-            </Button>
+                    ? true
+                    : activeSelectedIds.length > 0
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={(checked) =>
+                  setSelectedIds(checked ? pending.map((row) => row.id) : [])
+                }
+                aria-label="Select all stock movements"
+              />
+              <span>Select all</span>
+            </label>
             <PendingButton
               pending={isPending(`so-batch-${role}-a`)}
               disabled={activeSelectedIds.length === 0}
