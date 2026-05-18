@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ItemRegistration } from "@/lib/actions";
 import {
   approveItemRegistrationsFinanceBatchApi,
@@ -81,7 +81,12 @@ export function HotelItemReceiptApprovals({
     return items.filter((i) => i.approvalStatus === "PENDING_MANAGER");
   }, [items, role]);
 
-  const act = async (row: ItemRegistration) => {
+  const pendingIdSet = useMemo(
+    () => new Set(pending.map((row) => row.id).filter((id): id is number => typeof id === "number")),
+    [pending],
+  );
+
+  const act = useCallback(async (row: ItemRegistration) => {
     if (role === "CostControl") {
       const pid = Number(ccProfileId);
       if (!pid) throw new Error("Select cost controller identity");
@@ -91,13 +96,13 @@ export function HotelItemReceiptApprovals({
     } else {
       await authorizeItemRegistrationManagerApi(row.id);
     }
-    onRefresh();
-  };
+    await Promise.resolve(onRefresh());
+  }, [ccProfileId, onRefresh, role]);
 
-  const reject = async (row: ItemRegistration) => {
+  const reject = useCallback(async (row: ItemRegistration) => {
     await rejectItemRegistrationFinanceApi(row.id, "Rejected by finance");
-    onRefresh();
-  };
+    await Promise.resolve(onRefresh());
+  }, [onRefresh]);
 
   const label =
     role === "CostControl"
@@ -107,16 +112,21 @@ export function HotelItemReceiptApprovals({
         : "Authorize";
 
   const selectedIds = useMemo(
-    () => selectedRows.map((row) => row.id).filter((id): id is number => typeof id === "number"),
-    [selectedRows],
+    () =>
+      selectedRows
+        .map((row) => row.id)
+        .filter(
+          (id): id is number => typeof id === "number" && pendingIdSet.has(id),
+        ),
+    [pendingIdSet, selectedRows],
   );
 
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     tableRef.current?.resetRowSelection();
     setSelectedRows([]);
-  };
+  }, []);
 
-  const handleBatchAct = () => {
+  const handleBatchAct = useCallback(() => {
     if (selectedIds.length === 0) return;
     if (role === "CostControl") {
       const pid = Number(ccProfileId);
@@ -135,57 +145,82 @@ export function HotelItemReceiptApprovals({
           await authorizeItemRegistrationsManagerBatchApi(selectedIds);
         }
         clearSelection();
-        onRefresh();
+        await Promise.resolve(onRefresh());
       } catch (e) {
         notifyApiFailure(e, `${label} failed`);
       }
     });
-  };
+  }, [ccProfileId, clearSelection, label, onRefresh, role, run, selectedIds]);
 
-  const handleBatchReject = () => {
+  const handleBatchReject = useCallback(() => {
     if (role !== "Finance" || selectedIds.length === 0) return;
     void run("item-reg-batch-finance-reject", async () => {
       try {
         await rejectItemRegistrationsFinanceBatchApi(selectedIds);
         clearSelection();
-        onRefresh();
+        await Promise.resolve(onRefresh());
       } catch (e) {
         notifyApiFailure(e, "Rejection failed");
       }
     });
-  };
+  }, [clearSelection, onRefresh, role, run, selectedIds]);
 
-  const columns: ColumnDef<ItemRegistration>[] = [
-    {
-      ...buildVoucherColumn<ItemRegistration>(),
-    },
-    { accessorKey: "name", header: "Item" },
-    {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge variant="outline">
-          {formatItemRegistrationStatus(row.original.approvalStatus || "")}
-        </Badge>
-      ),
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <ApprovalRowActions
-          role={role}
-          label={label}
-          onPrint={() => {
-            setPreview(row.original);
-            requestAnimationFrame(() => handlePrint());
-          }}
-          onAct={() => void act(row.original)}
-          onReject={() => void reject(row.original)}
-        />
-      ),
-    },
-  ];
+  const columns: ColumnDef<ItemRegistration>[] = useMemo(
+    () => [
+      {
+        ...buildVoucherColumn<ItemRegistration>(),
+      },
+      { accessorKey: "name", header: "Item" },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant="outline">
+            {formatItemRegistrationStatus(row.original.approvalStatus || "")}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const actKey = `item-reg-row-${role}-act-${row.original.id}`;
+          const rejectKey = `item-reg-row-${role}-reject-${row.original.id}`;
+          return (
+            <ApprovalRowActions
+              role={role}
+              label={label}
+              onPrint={() => {
+                setPreview(row.original);
+                requestAnimationFrame(() => handlePrint());
+              }}
+              onAct={() =>
+                void run(actKey, async () => {
+                  try {
+                    await act(row.original);
+                  } catch (e) {
+                    notifyApiFailure(e, `${label} failed`);
+                  }
+                })
+              }
+              onReject={() =>
+                void run(rejectKey, async () => {
+                  try {
+                    await reject(row.original);
+                  } catch (e) {
+                    notifyApiFailure(e, "Rejection failed");
+                  }
+                })
+              }
+              pendingAct={isPending(actKey)}
+              pendingReject={isPending(rejectKey)}
+            />
+          );
+        },
+      },
+    ],
+    [act, handlePrint, isPending, label, reject, role, run],
+  );
 
   return (
     <div className="space-y-4">
@@ -252,6 +287,7 @@ export function HotelItemReceiptApprovals({
         columns={columns}
         data={pending}
         enableRowSelection
+        getRowId={(row) => String(row.id ?? "")}
         onRowSelectionChange={setSelectedRows}
         searchColumnId="name"
         initialSorting={VOUCHER_TABLE_SORT}
@@ -279,12 +315,16 @@ function ApprovalRowActions({
   onPrint,
   onAct,
   onReject,
+  pendingAct,
+  pendingReject,
 }: {
   role: RoleMode;
   label: string;
   onPrint: () => void;
   onAct: () => void;
   onReject: () => void;
+  pendingAct: boolean;
+  pendingReject: boolean;
 }) {
   return (
     <div className="flex gap-2 justify-end">
@@ -292,13 +332,13 @@ function ApprovalRowActions({
         <Printer className="h-3.5 w-3.5 mr-1" />
         Print
       </Button>
-      <Button size="sm" onClick={onAct}>
+      <PendingButton size="sm" pending={pendingAct} onClick={onAct}>
         {label}
-      </Button>
+      </PendingButton>
       {role === "Finance" ? (
-        <Button size="sm" variant="destructive" onClick={onReject}>
+        <PendingButton size="sm" variant="destructive" pending={pendingReject} onClick={onReject}>
           Reject
-        </Button>
+        </PendingButton>
       ) : null}
     </div>
   );
