@@ -135,9 +135,9 @@ export function CorporateMealAgreementDocument(
 ) {
   return (
     <section className="corporate-meal-agreement rounded-xl bg-slate-950 p-4 text-slate-50 print:m-0 print:flex print:h-[297mm] print:w-[210mm] print:flex-col print:rounded-none print:border print:border-stone-300 print:bg-stone-100 print:p-[8mm] print:text-stone-950">
-      <div className="relative flex flex-col gap-3 print:grid print:h-full print:grid-cols-2 print:gap-[6mm] lg:flex-row">
+      <div className="relative flex flex-col gap-3 print:flex print:h-full print:flex-col print:gap-[6mm]">
         <span
-          className="absolute bottom-0 left-1/2 top-0 hidden w-px -translate-x-1/2 border-l-2 border-dashed border-white/30 print:block print:border-stone-400/90"
+          className="absolute left-0 right-0 top-1/2 hidden h-px -translate-y-1/2 border-t-2 border-dashed border-white/30 print:block print:border-stone-400/90"
           aria-hidden
         />
         <CopyBlock
