@@ -17,7 +17,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Printer, Receipt } from "lucide-react";
+import {
+  ArrowRightLeft,
+  FileText,
+  PackagePlus,
+  Printer,
+  Receipt,
+} from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
 import {
@@ -42,6 +48,9 @@ type ReceiptSectionConfig = {
   title: string;
   description: string;
   emptyMessage: string;
+  searchPlaceholder: string;
+  icon: typeof FileText;
+  accentClassName: string;
 };
 
 const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
@@ -51,6 +60,9 @@ const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     description:
       "Print grouped purchase request receipts using the supplier and date rules.",
     emptyMessage: "No purchase request receipts to print.",
+    searchPlaceholder: "Search purchase request receipts...",
+    icon: FileText,
+    accentClassName: "from-sky-500/70 via-cyan-500/55 to-teal-400/45",
   },
   {
     kind: "registration",
@@ -58,6 +70,9 @@ const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     description:
       "Print new item registration receipts grouped by supplier, date, and payment status.",
     emptyMessage: "No new item registration receipts to print.",
+    searchPlaceholder: "Search new registrations...",
+    icon: PackagePlus,
+    accentClassName: "from-emerald-500/70 via-green-500/55 to-lime-400/45",
   },
   {
     kind: "stock_movement",
@@ -65,6 +80,9 @@ const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     description:
       "Print stock movement receipts with specific titles such as stock out movement receipt.",
     emptyMessage: "No stock movement receipts to print.",
+    searchPlaceholder: "Search stock movement receipts...",
+    icon: ArrowRightLeft,
+    accentClassName: "from-amber-500/70 via-orange-500/55 to-rose-400/45",
   },
 ];
 
@@ -76,7 +94,7 @@ function bundleColumns(
       id: "received",
       header: "Date",
       cell: ({ row }) => (
-        <span className="text-sm whitespace-nowrap font-medium">
+        <span className="text-sm whitespace-nowrap font-medium tabular-nums">
           {bundleReceivedLabel(row.original)}
         </span>
       ),
@@ -85,8 +103,10 @@ function bundleColumns(
       id: "type",
       header: "Receipt",
       cell: ({ row }) => (
-        <div className="max-w-[220px]">
-          <p className="text-sm font-medium leading-snug">{row.original.title}</p>
+        <div className="min-w-[220px] max-w-[280px]">
+          <p className="text-sm font-medium leading-snug text-foreground">
+            {row.original.title}
+          </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {bundleTypeLabel(row.original)}
           </p>
@@ -100,8 +120,8 @@ function bundleColumns(
       cell: ({ row }) => {
         const firstPhone = row.original.supplierPhone;
         return (
-          <div className="max-w-[180px]">
-            <p className="text-sm font-medium truncate">
+          <div className="min-w-[170px] max-w-[220px]">
+            <p className="text-sm font-medium truncate text-foreground">
               {bundleSupplierName(row.original)}
             </p>
             {firstPhone ? (
@@ -117,7 +137,7 @@ function bundleColumns(
       id: "lines",
       header: "Items on receipt",
       cell: ({ row }) => (
-        <div className="min-w-[160px] max-w-[280px]">
+        <div className="min-w-[200px] max-w-[320px]">
           <p className="text-sm text-foreground leading-snug">
             {bundleItemSummary(row.original)}
           </p>
@@ -133,7 +153,10 @@ function bundleColumns(
       header: "Payment",
       cell: ({ row }) =>
         row.original.paymentLabel ? (
-          <Badge variant="outline" className="font-normal">
+          <Badge
+            variant="outline"
+            className="font-normal whitespace-nowrap border-emerald-500/30 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200"
+          >
             {row.original.paymentLabel}
           </Badge>
         ) : (
@@ -144,7 +167,7 @@ function bundleColumns(
       id: "total",
       header: "Total value",
       cell: ({ row }) => (
-        <span className="text-sm font-semibold tabular-nums whitespace-nowrap">
+        <span className="text-sm font-semibold tabular-nums whitespace-nowrap text-foreground">
           ETB {bundleTotalETB(row.original).toLocaleString()}
         </span>
       ),
@@ -156,8 +179,8 @@ function bundleColumns(
         <Button
           type="button"
           size="sm"
-          variant="outline"
-          className="gap-1.5"
+          variant="default"
+          className="gap-1.5 whitespace-nowrap"
           onClick={() => onPrint(row.original)}
         >
           <Printer className="h-3.5 w-3.5" />
@@ -206,12 +229,22 @@ export function StoreItemReceiptPrinting({
     () => bundles.reduce((n, b) => n + b.lines.length, 0),
     [bundles],
   );
+  const totalValue = useMemo(
+    () => bundles.reduce((sum, bundle) => sum + bundle.totalETB, 0),
+    [bundles],
+  );
 
   const sectionBundles = useMemo(
     () =>
       RECEIPT_SECTIONS.map((section) => ({
         ...section,
         bundles: bundles.filter((bundle) => bundle.kind === section.kind),
+        totalLines: bundles
+          .filter((bundle) => bundle.kind === section.kind)
+          .reduce((sum, bundle) => sum + bundle.lines.length, 0),
+        totalValue: bundles
+          .filter((bundle) => bundle.kind === section.kind)
+          .reduce((sum, bundle) => sum + bundle.totalETB, 0),
       })),
     [bundles],
   );
@@ -246,11 +279,14 @@ export function StoreItemReceiptPrinting({
           </div>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>
+          <Badge variant="secondary" className="font-normal">
             {bundles.length} receipt group{bundles.length !== 1 ? "s" : ""}
-          </span>
+          </Badge>
           <Badge variant="secondary" className="font-normal">
             {lineCount} line{lineCount !== 1 ? "s" : ""}
+          </Badge>
+          <Badge variant="secondary" className="font-normal">
+            ETB {totalValue.toLocaleString()}
           </Badge>
         </CardContent>
       </Card>
@@ -261,20 +297,37 @@ export function StoreItemReceiptPrinting({
             key={section.kind}
             className="border-border/80 shadow-md bg-card/95 overflow-hidden"
           >
+            <div className={`h-1 bg-linear-to-r ${section.accentClassName}`} />
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base sm:text-lg">
-                    {section.title}
-                  </CardTitle>
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-muted/50">
+                    <section.icon className="h-5 w-5 text-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <CardTitle className="text-base sm:text-lg">
+                      {section.title}
+                    </CardTitle>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="font-normal">
+                        {section.bundles.length} receipt
+                        {section.bundles.length !== 1 ? "s" : ""}
+                      </Badge>
+                      <Badge variant="outline" className="font-normal">
+                        {section.totalLines} line
+                        {section.totalLines !== 1 ? "s" : ""}
+                      </Badge>
+                      <Badge variant="outline" className="font-normal">
+                        ETB {section.totalValue.toLocaleString()}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="max-w-sm text-right">
                   <CardDescription className="max-w-2xl">
                     {section.description}
                   </CardDescription>
                 </div>
-                <Badge variant="secondary" className="font-normal">
-                  {section.bundles.length} receipt
-                  {section.bundles.length !== 1 ? "s" : ""}
-                </Badge>
               </div>
             </CardHeader>
             <CardContent>
@@ -284,6 +337,7 @@ export function StoreItemReceiptPrinting({
                   data={section.bundles}
                   getRowId={(row) => `${section.kind}-${row.id}`}
                   searchColumnId="supplier"
+                  searchPlaceholder={section.searchPlaceholder}
                   emptyMessage={section.emptyMessage}
                 />
               </div>
