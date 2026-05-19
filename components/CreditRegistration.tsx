@@ -36,10 +36,212 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Checkbox } from "./ui/checkbox";
 import Credittor from "@/app/Credittor/page";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
+import { Scissors } from "lucide-react";
 
 interface CreditRegistrationProps {
   hotelName: string;
   businessDisplayName?: string;
+}
+
+type CreditAgreementCopyProps = {
+  copyLabel: string;
+  copyHint: string;
+  businessNameLabel: string;
+  propertyLogoUrl: string | null;
+  customerName: string;
+  customerImageUrl: string;
+  phoneNumber: string;
+  sex: string;
+  creditLevel: string;
+  creditLimit: number;
+  timeInterval: number;
+  timeFrame: string;
+  effectiveDate: Date | undefined;
+  paidAmount: number;
+  allowedItems: string[];
+};
+
+function CreditAgreementDetailRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-white/10 py-2 print:border-stone-200">
+      <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-400 print:text-stone-500">
+        {label}
+      </span>
+      <span
+        className={`text-right text-[11px] font-medium leading-snug ${
+          highlight
+            ? "text-amber-300 print:text-amber-800"
+            : "text-slate-100 print:text-stone-900"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function CreditAgreementCopy({
+  copyLabel,
+  copyHint,
+  businessNameLabel,
+  propertyLogoUrl,
+  customerName,
+  customerImageUrl,
+  phoneNumber,
+  sex,
+  creditLevel,
+  creditLimit,
+  timeInterval,
+  timeFrame,
+  effectiveDate,
+  paidAmount,
+  allowedItems,
+}: CreditAgreementCopyProps) {
+  const displayName = customerName.trim() || "—";
+  const initials = displayName.slice(0, 2).toUpperCase();
+
+  return (
+    <article className="credit-agreement-copy flex min-h-0 flex-1 flex-col overflow-hidden border border-white/10 bg-slate-900/90 px-5 py-4 print:border-stone-300 print:bg-white print:px-[10mm] print:py-[8mm]">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="rounded-full border border-indigo-400/40 bg-indigo-500/15 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-indigo-200 print:border-indigo-300 print:bg-indigo-50 print:text-indigo-900">
+          {copyLabel}
+        </span>
+        <span className="text-[9px] italic text-slate-500 print:text-stone-500">
+          {copyHint}
+        </span>
+      </div>
+
+      <header className="mb-3 flex items-center gap-3 border-b border-white/15 pb-3 print:border-stone-300">
+        <Avatar className="h-11 w-11 shrink-0 border-2 border-white/20 print:border-stone-300">
+          <AvatarImage src={propertyLogoUrl || undefined} alt={businessNameLabel} />
+          <AvatarFallback className="bg-indigo-600/20 text-[10px] font-bold text-indigo-200 print:bg-indigo-100 print:text-indigo-900">
+            {businessNameLabel.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1 text-center">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-slate-400 print:text-stone-500">
+            Credit agreement
+          </p>
+          <h2 className="truncate text-base font-serif font-semibold tracking-wide text-slate-50 print:text-stone-950">
+            {businessNameLabel}
+          </h2>
+          <p className="truncate text-[10px] text-slate-400 print:text-stone-600">
+            & {displayName}
+          </p>
+        </div>
+        <Avatar className="h-11 w-11 shrink-0 border-2 border-white/20 print:border-stone-300">
+          <AvatarImage src={customerImageUrl || undefined} alt={displayName} />
+          <AvatarFallback className="bg-violet-600/20 text-[10px] font-bold text-violet-200 print:bg-violet-100 print:text-violet-900">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+      </header>
+
+      <div className="mb-3 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-1 print:border-stone-200 print:bg-stone-50">
+        <CreditAgreementDetailRow label="Customer" value={displayName} highlight />
+        <CreditAgreementDetailRow label="Phone" value={phoneNumber || "—"} />
+        <CreditAgreementDetailRow label="Gender" value={sex || "—"} />
+        <CreditAgreementDetailRow
+          label="Credit level"
+          value={creditLevel || "—"}
+          highlight
+        />
+        <CreditAgreementDetailRow
+          label="Credit limit"
+          value={`${Number(creditLimit).toLocaleString()} ETB`}
+          highlight
+        />
+        <CreditAgreementDetailRow
+          label="Term"
+          value={formatCreditCycle(timeInterval, timeFrame)}
+        />
+        <CreditAgreementDetailRow
+          label="Effective date"
+          value={
+            effectiveDate ? new Date(effectiveDate).toLocaleDateString() : "—"
+          }
+        />
+      </div>
+
+      <div className="mb-3 min-h-0 flex-1">
+        <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400 print:text-stone-500">
+          Allowed items
+        </p>
+        <ul className="max-h-[28mm] list-disc space-y-0.5 overflow-hidden pl-4 text-[10px] leading-snug text-slate-300 print:text-[10px] print:text-stone-800">
+          {allowedItems.length > 0 ? (
+            allowedItems.map((name) => (
+              <li key={`${copyLabel}-${name}`} className="line-clamp-1">
+                {name}
+              </li>
+            ))
+          ) : (
+            <li className="list-none pl-0 text-slate-500 print:text-stone-500">
+              —
+            </li>
+          )}
+        </ul>
+      </div>
+
+      <div className="mb-3 flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-3 py-2 print:border-emerald-300 print:bg-emerald-50">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300/90 print:text-emerald-800">
+          Initial payment
+        </span>
+        <span className="text-lg font-bold tabular-nums text-emerald-200 print:text-emerald-900">
+          {Number(paidAmount).toLocaleString()} ETB
+        </span>
+      </div>
+
+      <div className="border-t border-white/10 pt-3 print:border-stone-300">
+        <p className="mb-2.5 text-center text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-400 print:text-stone-500">
+          Signatures
+        </p>
+        <div className="grid grid-cols-2 gap-5">
+          <div className="space-y-1">
+            <div className="h-8 border-b-2 border-dotted border-slate-500 print:border-stone-500" />
+            <p className="text-center text-[9px] text-slate-400 print:text-stone-600">
+              Customer
+            </p>
+          </div>
+          <div className="space-y-1">
+            <div className="h-8 border-b-2 border-dotted border-slate-500 print:border-stone-500" />
+            <p className="text-center text-[9px] text-slate-400 print:text-stone-600">
+              {businessNameLabel} representative
+            </p>
+          </div>
+        </div>
+        <p className="mt-2 text-center text-[8px] text-slate-500 print:text-stone-500">
+          Date: ___________________
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function CreditAgreementCutLine() {
+  return (
+    <div
+      role="separator"
+      aria-label="Cut along this line to separate hotel and creditor copies"
+      className="credit-agreement-cut relative z-10 flex h-9 shrink-0 items-center justify-center bg-slate-950 print:h-8 print:bg-white"
+    >
+      <div className="absolute inset-x-0 top-1/2 border-t-2 border-dashed border-amber-400/70 print:border-stone-500" />
+      <div className="relative flex items-center gap-2 rounded-full border-2 border-dashed border-amber-400/60 bg-slate-900 px-4 py-1.5 shadow-lg print:border-stone-500 print:bg-stone-100 print:shadow-none">
+        <Scissors className="h-3.5 w-3.5 text-amber-400 print:text-stone-600" aria-hidden />
+        <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-amber-200 print:text-stone-700">
+          Cut here — hotel copy above · creditor copy below
+        </span>
+        <Scissors className="h-3.5 w-3.5 text-amber-400 print:text-stone-600" aria-hidden />
+      </div>
+    </div>
+  );
 }
 
 const CreditRegistrationForm = ({
@@ -56,6 +258,7 @@ const CreditRegistrationForm = ({
   >([]);
   const [menuItems, setMenuItems] = useState<Item[]>([]);
   const [selectedItems, setSelectedItems] = useState<Record<number, boolean>>({});
+  const [propertyLogoUrl, setPropertyLogoUrl] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof creditRegistrationSchema>>({
     resolver: zodResolver(creditRegistrationSchema),
@@ -73,6 +276,12 @@ const CreditRegistrationForm = ({
         hotelName,
     },
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPropertyLogoUrl(localStorage.getItem("logo_url"));
+    }
+  }, []);
 
   useEffect(() => {
     const fetchingCreditLevel = async () => {
@@ -155,7 +364,7 @@ const CreditRegistrationForm = ({
         quality: 1,
         pixelRatio: 2,
         cacheBust: true,
-        backgroundColor: "#18181b",
+        backgroundColor: "#ffffff",
       });
 
       const pdf = new jsPDF("p", "mm", "a4");
@@ -368,247 +577,70 @@ const CreditRegistrationForm = ({
             </Form>
           </div>
 
-          <div
-            ref={agreementRef}
-            className="lg:col-span-2 flex flex-col gap-4 bg-zinc-900 text-zinc-100 rounded-xl p-6 shadow-2xl border-t-4 border-indigo-500 print:h-[297mm] overflow-auto"
-            style={{ height: "297mm" }}
-          >
-            <div className="h-[148mm] flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <Avatar>
-                  <AvatarImage
-                    src={localStorage.getItem("logo_url") || undefined}
-                    alt={businessNameLabel}
-                  />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                    {businessNameLabel.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-center space-y-1 mb-4">
-                  <h2 className="text-xl font-serif uppercase tracking-widest">
-                    Credit Agreement
-                  </h2>
-                  <p className="text-xs text-zinc-400 italic">
-                    {businessNameLabel} and {watchedValues.name}
-                  </p>
-                </div>
-                <Avatar>
-                  <AvatarImage
-                    src={watchedValues.imageUrl || undefined}
-                    alt={watchedValues.name}
-                  />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                    {watchedValues.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-
-              <div className="space-y-4 text-sm divide-y divide-zinc-800">
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Customer:</span>
-                  <span className="font-medium text-indigo-300">
-                    {watchedValues.name || "---"}
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Phone:</span>
-                  <span>{watchedValues.phoneNumber || "---"}</span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Credit Level:</span>
-                  <span className="font-bold text-yellow-500">
-                    {watchedValues.creditLevel}
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Credit Limit:</span>
-                  <span className="text-green-400 font-mono">
-                    {selectedLevelDetails?.requiredAmount || 0} ETB
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Term:</span>
-                  <span>
-                    {formatCreditCycle(
-                      selectedLevelDetails?.timeInterval || 0,
-                      selectedLevelDetails?.timeFrame || "",
-                    )}
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between border-b pb-2">
-                  <span className="text-zinc-400 italic">Effective Date:</span>
-                  <span>
-                    {watchedValues.registrationDate
-                      ? new Date(watchedValues.registrationDate).toDateString()
-                      : "---"}
-                  </span>
-                </div>
-                <div className="pt-2">
-                  <span className="text-zinc-400 italic block mb-1">Allowed Items:</span>
-                  <span className="text-right block">
-                    {selectedItemNames.length > 0 ? selectedItemNames.join(", ") : "---"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-auto pt-4 space-y-3">
-                <div className="flex justify-between items-center bg-zinc-800 p-3 rounded-lg">
-                  <span className="text-xs uppercase">Initial Payment:</span>
-                  <span className="text-lg font-bold">
-                    {watchedValues.paidAmount} ETB
-                  </span>
-                </div>
-                <div className="mt-3 pt-3 border-t border-zinc-700">
-                  <h3 className="text-center text-sm uppercase tracking-wider mb-4 text-zinc-400">
-                    Agreement Signatures
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-6 text-xs">
-                    <div className="flex flex-col items-center">
-                      <div className="w-full border-b border-zinc-500 h-7"></div>
-                      <span className="mt-2 text-zinc-400">
-                        Customer Signature
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <div className="w-full border-b border-zinc-500 h-7"></div>
-                      <span className="mt-2 text-zinc-400">
-                        {businessNameLabel} Representative
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-dashed"></div>
-            <div className="h-[148mm] flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <Avatar>
-                  <AvatarImage
-                    src={localStorage.getItem("logo_url") || undefined}
-                    alt={businessNameLabel}
-                  />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                    {businessNameLabel.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-center space-y-1 mb-4">
-                  <h2 className="text-xl font-serif uppercase tracking-widest">
-                    Credit Agreement
-                  </h2>
-                  <p className="text-xs text-zinc-400 italic">
-                    {businessNameLabel} and {watchedValues.name}
-                  </p>
-                </div>
-                <Avatar>
-                  <AvatarImage
-                    src={watchedValues.imageUrl || undefined}
-                    alt={watchedValues.name}
-                  />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                    {watchedValues.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-
-              <div className="space-y-4 text-sm divide-y divide-zinc-800">
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Customer:</span>
-                  <span className="font-medium text-indigo-300">
-                    {watchedValues.name || "---"}
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Phone:</span>
-                  <span>{watchedValues.phoneNumber || "---"}</span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Credit Level:</span>
-                  <span className="font-bold text-yellow-500">
-                    {watchedValues.creditLevel}
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Credit Limit:</span>
-                  <span className="text-green-400 font-mono">
-                    {selectedLevelDetails?.requiredAmount || 0} ETB
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <span className="text-zinc-400 italic">Term:</span>
-                  <span>
-                    {formatCreditCycle(
-                      selectedLevelDetails?.timeInterval || 0,
-                      selectedLevelDetails?.timeFrame || "",
-                    )}
-                  </span>
-                </div>
-                <div className="pt-2 flex justify-between border-b pb-2">
-                  <span className="text-zinc-400 italic">Effective Date:</span>
-                  <span>
-                    {watchedValues.registrationDate
-                      ? new Date(watchedValues.registrationDate).toDateString()
-                      : "---"}
-                  </span>
-                </div>
-                <div className="pt-2">
-                  <span className="text-zinc-400 italic block mb-1">Allowed Items:</span>
-                  <span className="text-right block">
-                    {selectedItemNames.length > 0 ? selectedItemNames.join(", ") : "---"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-auto pt-4 space-y-3">
-                <div className="flex justify-between items-center bg-zinc-800 p-3 rounded-lg">
-                  <span className="text-xs uppercase">Initial Payment:</span>
-                  <span className="text-lg font-bold">
-                    {watchedValues.paidAmount} ETB
-                  </span>
-                </div>
-                <div className="mt-3 pt-3 border-t border-zinc-700">
-                  <h3 className="text-center text-sm uppercase tracking-wider mb-4 text-zinc-400">
-                    Agreement Signatures
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-6 text-xs">
-                    <div className="flex flex-col items-center">
-                      <div className="w-full border-b border-zinc-500 h-7"></div>
-                      <span className="mt-2 text-zinc-400">
-                        Customer Signature
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <div className="w-full border-b border-zinc-500 h-7"></div>
-                      <span className="mt-2 text-zinc-400">
-                        {businessNameLabel} Representative
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 print:hidden">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleDownloadPDF()}
-                    disabled={!watchedValues.name || !selectedLevelDetails}
-                    className="w-full text-xs cursor-pointer"
-                  >
-                    Download PDF
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handlePrint()}
-                    disabled={!watchedValues.name || !selectedLevelDetails}
-                    className="w-full text-xs cursor-pointer"
-                  >
-                    Print A4
-                  </Button>
-                </div>
-              </div>
+          <div className="lg:col-span-2 flex flex-col gap-3">
+            <section
+              ref={agreementRef}
+              className="credit-agreement-sheet mx-auto flex w-full max-w-[210mm] flex-col overflow-hidden rounded-xl border border-indigo-500/30 bg-slate-950 text-slate-50 shadow-2xl print:m-0 print:h-[297mm] print:w-[210mm] print:rounded-none print:border-stone-300 print:bg-white print:text-stone-950 print:shadow-none"
+              style={{ height: "297mm" }}
+            >
+              <CreditAgreementCopy
+                copyLabel="Hotel copy"
+                copyHint="Retain at property"
+                businessNameLabel={businessNameLabel}
+                propertyLogoUrl={propertyLogoUrl}
+                customerName={watchedValues.name}
+                customerImageUrl={watchedValues.imageUrl}
+                phoneNumber={watchedValues.phoneNumber}
+                sex={watchedValues.sex}
+                creditLevel={watchedValues.creditLevel}
+                creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
+                timeInterval={selectedLevelDetails?.timeInterval ?? 0}
+                timeFrame={selectedLevelDetails?.timeFrame ?? ""}
+                effectiveDate={watchedValues.registrationDate}
+                paidAmount={watchedValues.paidAmount}
+                allowedItems={selectedItemNames}
+              />
+              <CreditAgreementCutLine />
+              <CreditAgreementCopy
+                copyLabel="Creditor copy"
+                copyHint="Give to customer"
+                businessNameLabel={businessNameLabel}
+                propertyLogoUrl={propertyLogoUrl}
+                customerName={watchedValues.name}
+                customerImageUrl={watchedValues.imageUrl}
+                phoneNumber={watchedValues.phoneNumber}
+                sex={watchedValues.sex}
+                creditLevel={watchedValues.creditLevel}
+                creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
+                timeInterval={selectedLevelDetails?.timeInterval ?? 0}
+                timeFrame={selectedLevelDetails?.timeFrame ?? ""}
+                effectiveDate={watchedValues.registrationDate}
+                paidAmount={watchedValues.paidAmount}
+                allowedItems={selectedItemNames}
+              />
+              <p className="hidden shrink-0 bg-slate-950 py-1 text-center text-[8px] text-slate-500 print:block print:bg-white print:text-stone-500">
+                One A4 sheet — cut along the dashed line — two identical agreements
+              </p>
+            </section>
+            <div className="grid grid-cols-2 gap-2 print:hidden">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleDownloadPDF()}
+                disabled={!watchedValues.name || !selectedLevelDetails}
+                className="w-full text-xs cursor-pointer"
+              >
+                Download PDF
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePrint()}
+                disabled={!watchedValues.name || !selectedLevelDetails}
+                className="w-full text-xs cursor-pointer"
+              >
+                Print A4
+              </Button>
             </div>
           </div>
         </div>
