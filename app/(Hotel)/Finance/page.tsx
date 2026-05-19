@@ -58,6 +58,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
@@ -402,6 +403,10 @@ function FinanceInner() {
   );
 
   const pending = scopedPurchases.filter((r) => r.status === "PENDING_FINANCE");
+  const allPendingFinanceSelected =
+    pending.length > 0 && selectedFinanceIds.length === pending.length;
+  const somePendingFinanceSelected =
+    selectedFinanceIds.length > 0 && selectedFinanceIds.length < pending.length;
   const history = scopedPurchases.filter((r) =>
     [
       "PENDING_MANAGER",
@@ -673,26 +678,30 @@ function FinanceInner() {
             <div className="space-y-3">
               <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
                   <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (selectedFinanceIds.length === pending.length) {
+                    <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Checkbox
+                        checked={
+                          allPendingFinanceSelected
+                            ? true
+                            : somePendingFinanceSelected
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked === true) {
+                            pendingTableRef.current?.setRowSelectionByIds(
+                              pending.map((x) => String(x.id)),
+                            );
+                            setSelectedFinanceIds(pending.map((x) => x.id));
+                            return;
+                          }
                           pendingTableRef.current?.resetRowSelection();
                           setSelectedFinanceIds([]);
-                        } else {
-                          pendingTableRef.current?.setRowSelectionByIds(
-                            pending.map((x) => String(x.id)),
-                          );
-                          setSelectedFinanceIds(pending.map((x) => x.id));
-                        }
-                      }}
-                    >
-                      {selectedFinanceIds.length === pending.length
-                        ? "Clear selection"
-                        : "Select all"}
-                    </Button>
+                        }}
+                        aria-label="Select all finance approvals"
+                      />
+                      <span>Select all</span>
+                    </label>
                     <PendingButton
                       size="sm"
                       className="shadow-sm gap-1.5"
@@ -932,6 +941,9 @@ function FinanceInner() {
           <HotelItemReceiptsSection
             items={inventoryRows}
             purchaseRequests={scopedPurchases}
+            stockMovements={stockRows.filter((r) =>
+              rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
+            )}
             propertyName={displayName || "Property"}
             logoUrl={logoUrl}
           />

@@ -1,38 +1,27 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ItemRegistration, PurchaseRequestRow, StockOutRequestRow } from "@/lib/actions";
 import {
-  approveStockOutRequestsBatchApi,
-  approveStockOutRequestsFinanceBatchApi,
-  approveStockOutRequestFinanceApi,
-  authorizePurchaseRequestsManagerBatchApi,
   authorizePurchaseRequestManagerApi,
-  authorizeStockOutRequestsManagerBatchApi,
   authorizeStockOutRequestManagerApi,
+  approveStockOutRequestFinanceApi,
   checkStockOutRequestCCApi,
   rejectPurchaseRequestManagerApi,
-  rejectPurchaseRequestsManagerBatchApi,
   rejectStockOutRequestApi,
-  rejectStockOutRequestsBatchApi,
   type CostControllerProfileRow,
 } from "@/lib/actions";
 import { HotelItemReceiptApprovals } from "@/components/hotel/HotelItemReceiptApprovals";
-import {
-  formatMovementType,
-  formatPurchaseStatus,
-  formatQtyWithUnit,
-} from "@/lib/hotelDisplayLabels";
+import { formatMovementType, formatPurchaseStatus, formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
-import {
-  isStockPendingCC,
-  isStockPendingFinance,
-  isStockPendingManager,
-} from "@/lib/hotelApproval";
+import { isStockPendingCC, isStockPendingFinance, isStockPendingManager } from "@/lib/hotelApproval";
+import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { notifyApiFailure } from "@/lib/actions";
+import { useState } from "react";
 import {
   Select,
   SelectContent,
@@ -41,7 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 
 type TerminalRole = "CostControl" | "Finance" | "Manager";
 
@@ -83,20 +71,10 @@ export function HotelPurchaseManagerQueue({
 }) {
   const pending = purchases.filter((p) => p.status === "PENDING_MANAGER");
   const { isPending, run } = useConcurrentActions();
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const pendingIdSet = useMemo(() => new Set(pending.map((row) => row.id)), [pending]);
-  const activeSelectedIds = useMemo(
-    () => selectedIds.filter((id) => pendingIdSet.has(id)),
-    [pendingIdSet, selectedIds],
-  );
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds([]);
-  }, []);
 
   if (pending.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-4 py-8 text-center">
         No purchase requests awaiting manager authorization.
       </p>
     );
@@ -104,96 +82,17 @@ export function HotelPurchaseManagerQueue({
 
   return (
     <div className="space-y-3">
-      <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex items-center">
-            <Checkbox
-              checked={
-                activeSelectedIds.length === pending.length
-                  ? true
-                  : activeSelectedIds.length > 0
-                    ? "indeterminate"
-                    : false
-              }
-              onCheckedChange={(checked) =>
-                setSelectedIds(checked ? pending.map((row) => row.id) : [])
-              }
-              aria-label="Select all purchase requests"
-            />
-          </div>
-          <PendingButton
-            pending={isPending("mgr-pr-batch-a")}
-            disabled={activeSelectedIds.length === 0}
-            onClick={() =>
-              void run("mgr-pr-batch-a", async () => {
-                try {
-                  const results = await authorizePurchaseRequestsManagerBatchApi(
-                    activeSelectedIds,
-                  );
-                  for (const res of results) onPatch(res.id, res.status);
-                  clearSelection();
-                  await Promise.resolve(onRefresh());
-                } catch (e) {
-                  notifyApiFailure(e, "Batch authorization failed");
-                }
-              })
-            }
-          >
-            Authorize selected ({activeSelectedIds.length})
-          </PendingButton>
-          <PendingButton
-            variant="outline"
-            className="text-destructive"
-            pending={isPending("mgr-pr-batch-r")}
-            disabled={activeSelectedIds.length === 0}
-            onClick={() =>
-              void run("mgr-pr-batch-r", async () => {
-                try {
-                  const results = await rejectPurchaseRequestsManagerBatchApi(
-                    activeSelectedIds,
-                    "Rejected by manager",
-                  );
-                  for (const res of results) onPatch(res.id, res.status);
-                  clearSelection();
-                  await Promise.resolve(onRefresh());
-                } catch (e) {
-                  notifyApiFailure(e, "Batch rejection failed");
-                }
-              })
-            }
-          >
-            Reject selected ({activeSelectedIds.length})
-          </PendingButton>
-        </CardContent>
-      </Card>
-
       {pending.map((r) => (
         <Card key={r.id}>
           <CardHeader className="py-4">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                checked={activeSelectedIds.includes(r.id)}
-                onCheckedChange={(checked) =>
-                  setSelectedIds((prev) =>
-                    checked === true
-                      ? [...new Set([...prev, r.id])]
-                      : prev.filter((id) => id !== r.id),
-                  )
-                }
-                className="mt-1 shrink-0"
-                aria-label={`Select purchase request ${r.itemName}`}
-              />
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-base">
-                  {r.itemName} · Voucher{" "}
-                  {formatVoucherDisplay(r.voucherNumber, r.voucherDisplay)}
-                </CardTitle>
-                <CardDescription>
-                  {formatQtyWithUnit(r.quantity, r.measuredBy)} · Est.{" "}
-                  {r.estimatedUnitPrice} ETB/unit · {formatPurchaseStatus(r.status)}
-                </CardDescription>
-              </div>
-            </div>
+            <CardTitle className="text-base">
+              {r.itemName} · Voucher{" "}
+              {formatVoucherDisplay(r.voucherNumber, r.voucherDisplay)}
+            </CardTitle>
+            <CardDescription>
+              {formatQtyWithUnit(r.quantity, r.measuredBy)} · Est.{" "}
+              {r.estimatedUnitPrice} ETB/unit · {formatPurchaseStatus(r.status)}
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2 pb-4">
             <PendingButton
@@ -203,7 +102,7 @@ export function HotelPurchaseManagerQueue({
                   try {
                     const res = await authorizePurchaseRequestManagerApi(r.id);
                     onPatch(r.id, res.status);
-                    await Promise.resolve(onRefresh());
+                    await onRefresh();
                   } catch (e) {
                     notifyApiFailure(e, "Authorization failed");
                   }
@@ -224,7 +123,7 @@ export function HotelPurchaseManagerQueue({
                       "Rejected by manager",
                     );
                     onPatch(r.id, res.status);
-                    await Promise.resolve(onRefresh());
+                    await onRefresh();
                   } catch (e) {
                     notifyApiFailure(e, "Rejection failed");
                   }
@@ -255,8 +154,6 @@ export function HotelStockWorkflowQueue({
 }) {
   const { isPending, run } = useConcurrentActions();
   const [ccPick, setCcPick] = useState<Record<number, string>>({});
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [batchCcProfileId, setBatchCcProfileId] = useState("");
 
   const pending = useMemo(() => {
     if (role === "CostControl") {
@@ -269,23 +166,15 @@ export function HotelStockWorkflowQueue({
   }, [stocks, role]);
 
   const actionLabel =
-    role === "CostControl" ? "Check" : role === "Finance" ? "Approve" : "Authorize";
-  const pendingIdSet = useMemo(() => new Set(pending.map((row) => row.id)), [pending]);
-  const activeSelectedIds = useMemo(
-    () => selectedIds.filter((id) => pendingIdSet.has(id)),
-    [pendingIdSet, selectedIds],
-  );
-  const activeCcPick = useMemo(() => {
-    const next: Record<number, string> = {};
-    for (const row of pending) {
-      if (ccPick[row.id]) next[row.id] = ccPick[row.id];
-    }
-    return next;
-  }, [ccPick, pending]);
+    role === "CostControl"
+      ? "Check"
+      : role === "Finance"
+        ? "Approve"
+        : "Authorize";
 
   if (pending.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-4 py-8 text-center">
         No stock movements in this queue.
       </p>
     );
@@ -293,148 +182,29 @@ export function HotelStockWorkflowQueue({
 
   return (
     <div className="space-y-3">
-      <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-end">
-          {role === "CostControl" ? (
-            <div className="min-w-[220px] flex-1 space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                Cost controller identity for batch check
-              </Label>
-              <Select value={batchCcProfileId} onValueChange={setBatchCcProfileId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select name" />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center">
-              <Checkbox
-                checked={
-                  activeSelectedIds.length === pending.length
-                    ? true
-                    : activeSelectedIds.length > 0
-                      ? "indeterminate"
-                      : false
-                }
-                onCheckedChange={(checked) =>
-                  setSelectedIds(checked ? pending.map((row) => row.id) : [])
-                }
-                aria-label="Select all stock movements"
-              />
-            </div>
-            <PendingButton
-              pending={isPending(`so-batch-${role}-a`)}
-              disabled={activeSelectedIds.length === 0}
-              onClick={() =>
-                void run(`so-batch-${role}-a`, async () => {
-                  try {
-                    if (role === "CostControl") {
-                      const pid = Number(batchCcProfileId);
-                      if (!pid) throw new Error("Select cost controller identity");
-                      const results = await approveStockOutRequestsBatchApi(
-                        activeSelectedIds,
-                        pid,
-                      );
-                      for (const res of results) onPatch(res.id, res.status);
-                    } else if (role === "Finance") {
-                      const results = await approveStockOutRequestsFinanceBatchApi(
-                        activeSelectedIds,
-                      );
-                      for (const res of results) onPatch(res.id, res.status);
-                    } else {
-                      const results = await authorizeStockOutRequestsManagerBatchApi(
-                        activeSelectedIds,
-                      );
-                      for (const res of results) onPatch(res.id, res.status);
-                    }
-                    setSelectedIds([]);
-                    await Promise.resolve(onRefresh());
-                  } catch (e) {
-                    notifyApiFailure(e, `${actionLabel} failed`);
-                  }
-                })
-              }
-            >
-              {actionLabel} selected ({activeSelectedIds.length})
-            </PendingButton>
-            <PendingButton
-              variant="outline"
-              className="text-destructive"
-              pending={isPending(`so-batch-${role}-r`)}
-              disabled={activeSelectedIds.length === 0}
-              onClick={() =>
-                void run(`so-batch-${role}-r`, async () => {
-                  try {
-                    const fallbackCcDisplayName =
-                      role === "CostControl"
-                        ? profiles.find((p) => p.id === Number(batchCcProfileId))?.displayName?.trim()
-                        : undefined;
-                    const results = await rejectStockOutRequestsBatchApi(
-                      activeSelectedIds,
-                      `Rejected by ${role}`,
-                      fallbackCcDisplayName,
-                    );
-                    for (const res of results) onPatch(res.id, res.status, res);
-                    setSelectedIds([]);
-                    await Promise.resolve(onRefresh());
-                  } catch (e) {
-                    notifyApiFailure(e, "Rejection failed");
-                  }
-                })
-              }
-            >
-              Reject selected ({activeSelectedIds.length})
-            </PendingButton>
-          </div>
-        </CardContent>
-      </Card>
-
       {pending.map((r) => (
         <Card key={r.id}>
           <CardHeader className="py-4">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                checked={activeSelectedIds.includes(r.id)}
-                onCheckedChange={(checked) =>
-                  setSelectedIds((prev) =>
-                    checked === true
-                      ? [...new Set([...prev, r.id])]
-                      : prev.filter((id) => id !== r.id),
-                  )
-                }
-                className="mt-1 shrink-0"
-                aria-label={`Select stock movement ${r.itemName || r.itemRegistrationId}`}
-              />
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-base">
-                  {r.itemName || `#${r.itemRegistrationId}`} ·{" "}
-                  {formatMovementType(r.movementType)}
-                </CardTitle>
-                <CardDescription>
-                  Voucher {formatVoucherDisplay(r.voucherNumber, r.voucherDisplay)} · Qty{" "}
-                  {r.amount} · {r.stakeHolderOrReason}
-                </CardDescription>
-              </div>
-            </div>
+            <CardTitle className="text-base">
+              {r.itemName || `#${r.itemRegistrationId}`} ·{" "}
+              {formatMovementType(r.movementType)}
+            </CardTitle>
+            <CardDescription>
+              Voucher {formatVoucherDisplay(r.voucherNumber, r.voucherDisplay)} ·
+              Qty {r.amount} · {r.stakeHolderOrReason}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3 pb-4 sm:flex-row">
+          <CardContent className="flex flex-col sm:flex-row gap-3 pb-4">
             {role === "CostControl" ? (
               <div className="flex-1 space-y-1">
                 <Label className="text-xs text-muted-foreground">
                   Cost controller identity
                 </Label>
                 <Select
-                  value={activeCcPick[r.id] ?? ""}
-                  onValueChange={(v) => setCcPick((m) => ({ ...m, [r.id]: v }))}
+                  value={ccPick[r.id] ?? ""}
+                  onValueChange={(v) =>
+                    setCcPick((m) => ({ ...m, [r.id]: v }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select name" />
@@ -449,14 +219,14 @@ export function HotelStockWorkflowQueue({
                 </Select>
               </div>
             ) : null}
-            <div className="flex items-end gap-2">
+            <div className="flex gap-2 items-end">
               <PendingButton
                 pending={isPending(`so-${role}-${r.id}`)}
                 onClick={() =>
                   void run(`so-${role}-${r.id}`, async () => {
                     try {
                       if (role === "CostControl") {
-                        const pid = Number(activeCcPick[r.id]);
+                        const pid = Number(ccPick[r.id]);
                         if (!pid) throw new Error("Select cost controller identity");
                         const res = await checkStockOutRequestCCApi(r.id, pid);
                         onPatch(r.id, res.status, res as StockOutRequestRow);
@@ -467,7 +237,7 @@ export function HotelStockWorkflowQueue({
                         const res = await authorizeStockOutRequestManagerApi(r.id);
                         onPatch(r.id, res.status);
                       }
-                      onRefresh();
+                      await onRefresh();
                     } catch (e) {
                       notifyApiFailure(e, `${actionLabel} failed`);
                     }
@@ -475,16 +245,11 @@ export function HotelStockWorkflowQueue({
                 }
               >
                 {actionLabel}
-                {role === "CostControl"
-                  ? " → finance"
-                  : role === "Finance"
-                    ? " → manager"
-                    : " & apply"}
+                {role === "CostControl" ? " → finance" : role === "Finance" ? " → manager" : " & apply"}
               </PendingButton>
-              <PendingButton
+              <Button
                 variant="outline"
                 className="text-destructive"
-                pending={isPending(`so-r-${r.id}`)}
                 onClick={() =>
                   void run(`so-r-${r.id}`, async () => {
                     try {
@@ -493,7 +258,7 @@ export function HotelStockWorkflowQueue({
                         `Rejected by ${role}`,
                       );
                       onPatch(r.id, res.status, res);
-                      await Promise.resolve(onRefresh());
+                      await onRefresh();
                     } catch (e) {
                       notifyApiFailure(e, "Rejection failed");
                     }
@@ -501,7 +266,7 @@ export function HotelStockWorkflowQueue({
                 }
               >
                 Reject
-              </PendingButton>
+              </Button>
             </div>
           </CardContent>
         </Card>

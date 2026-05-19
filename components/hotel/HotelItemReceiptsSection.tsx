@@ -1,6 +1,10 @@
 "use client";
 
-import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
+import type {
+  ItemRegistration,
+  PurchaseRequestRow,
+  StockOutRequestRow,
+} from "@/lib/actions";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import {
   Card,
@@ -14,12 +18,14 @@ import { Receipt } from "lucide-react";
 export function HotelItemReceiptsSection({
   items,
   purchaseRequests = [],
+  stockMovements = [],
   propertyName,
   propertyTin,
   logoUrl,
 }: {
   items: ItemRegistration[];
   purchaseRequests?: PurchaseRequestRow[];
+  stockMovements?: StockOutRequestRow[];
   propertyName: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
@@ -39,15 +45,16 @@ export function HotelItemReceiptsSection({
           Item receipts
         </CardTitle>
         <CardDescription className="max-w-2xl text-pretty">
-          Print goods receiving receipts with voucher numbers, hotel TIN, and
-          payment type. Lines with the same supplier and registration date print
-          as one combined receipt.
+          Print new registration, purchase request, and stock movement receipts
+          with clear titles, voucher numbers, hotel TIN, payment status, and
+          signature lines.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <StoreItemReceiptPrinting
           items={items}
           purchaseRequests={purchaseRequests}
+          stockMovements={stockMovements}
           propertyName={propertyName}
           propertyTin={tin}
           logoUrl={logoUrl}

@@ -904,9 +904,9 @@ function ManagerContent() {
           </div>
         );
 
-      case "authorize-registrations":
+      case "item-receipts":
         return (
-          <div className="p-4 md:p-6">
+          <div className="p-4 md:p-6 space-y-8">
             <HotelRegistrationApprovalsBlock
               role="Manager"
               items={items}
@@ -915,15 +915,10 @@ function ManagerContent() {
               logoUrl={logoUrl}
               onRefresh={() => void loadData(true)}
             />
-          </div>
-        );
-
-      case "item-receipts":
-        return (
-          <div className="p-4 md:p-6">
             <HotelItemReceiptsSection
               items={items}
               purchaseRequests={purchases}
+              stockMovements={stockReqs}
               propertyName={displayName || headerLabel}
               propertyTin={propertyTin}
               logoUrl={logoUrl}

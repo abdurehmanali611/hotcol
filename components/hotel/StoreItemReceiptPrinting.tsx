@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
+import type {
+  ItemRegistration,
+  PurchaseRequestRow,
+  StockOutRequestRow,
+} from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -16,12 +20,13 @@ import {
 import { Printer, Receipt } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
-import type { ReceiptGroupItem } from "@/lib/receiptGrouping";
 import {
+  bundleItemSummary,
   bundleItemsToPrint,
   bundleReceivedLabel,
   bundleSupplierName,
   bundleTotalETB,
+  bundleTypeLabel,
   groupRegistrationsForReceipt,
   type ReceiptBundle,
 } from "@/lib/receiptGrouping";
@@ -38,7 +43,7 @@ function bundleColumns(
   return [
     {
       id: "received",
-      header: "Received",
+      header: "Date",
       cell: ({ row }) => (
         <span className="text-sm whitespace-nowrap font-medium">
           {bundleReceivedLabel(row.original)}
@@ -46,19 +51,31 @@ function bundleColumns(
       ),
     },
     {
+      id: "type",
+      header: "Receipt",
+      cell: ({ row }) => (
+        <div className="max-w-[220px]">
+          <p className="text-sm font-medium leading-snug">{row.original.title}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {bundleTypeLabel(row.original)}
+          </p>
+        </div>
+      ),
+    },
+    {
       id: "supplier",
       header: "Supplier",
       accessorFn: (row) => bundleSupplierName(row),
       cell: ({ row }) => {
-        const first = row.original.items[0];
+        const firstPhone = row.original.supplierPhone;
         return (
           <div className="max-w-[180px]">
             <p className="text-sm font-medium truncate">
               {bundleSupplierName(row.original)}
             </p>
-            {first?.supplierPhone ? (
+            {firstPhone ? (
               <p className="text-[10px] text-muted-foreground truncate">
-                {first.supplierPhone}
+                {firstPhone}
               </p>
             ) : null}
           </div>
@@ -68,22 +85,29 @@ function bundleColumns(
     {
       id: "lines",
       header: "Items on receipt",
-      cell: ({ row }) => {
-        const names = row.original.items.map((i) => i.name);
-        const preview =
-          names.length <= 3
-            ? names.join(", ")
-            : `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
-        return (
-          <div className="min-w-[160px] max-w-[280px]">
-            <p className="text-sm text-foreground leading-snug">{preview}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {row.original.items.length} line
-              {row.original.items.length !== 1 ? "s" : ""} · one combined print
-            </p>
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <div className="min-w-[160px] max-w-[280px]">
+          <p className="text-sm text-foreground leading-snug">
+            {bundleItemSummary(row.original)}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {row.original.lines.length} line
+            {row.original.lines.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "payment",
+      header: "Payment",
+      cell: ({ row }) =>
+        row.original.paymentLabel ? (
+          <Badge variant="outline" className="font-normal">
+            {row.original.paymentLabel}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        ),
     },
     {
       id: "total",
@@ -106,7 +130,7 @@ function bundleColumns(
           onClick={() => onPrint(row.original)}
         >
           <Printer className="h-3.5 w-3.5" />
-          Print{row.original.items.length > 1 ? ` (${row.original.items.length})` : ""}
+          Print
         </Button>
       ),
     },
@@ -119,38 +143,36 @@ export function StoreItemReceiptPrinting({
   propertyTin,
   logoUrl,
   purchaseRequests = [],
+  stockMovements = [],
 }: {
   items: ItemRegistration[];
   propertyName: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
   purchaseRequests?: PurchaseRequestRow[];
+  stockMovements?: StockOutRequestRow[];
 }) {
   const resolvedTin =
     propertyTin ??
     (typeof window !== "undefined"
       ? localStorage.getItem("tin_number")?.trim() || null
       : null);
-  const [previewBundle, setPreviewBundle] = useState<ReceiptGroupItem[] | null>(
-    null,
-  );
+  const [previewBundle, setPreviewBundle] = useState<ReceiptBundle | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: previewBundle?.[0]
-      ? `Receipt_${previewBundle[0].supplierName}_${new Date(
-          previewBundle[0].registrationDate,
-        ).toISOString().slice(0, 10)}`
+    documentTitle: previewBundle
+      ? `${previewBundle.title.replace(/\s+/g, "_")}_${previewBundle.date || "receipt"}`
       : "Store_Receipt",
   });
 
   const bundles = useMemo(
-    () => groupRegistrationsForReceipt(items, purchaseRequests),
-    [items, purchaseRequests],
+    () => groupRegistrationsForReceipt(items, purchaseRequests, stockMovements),
+    [items, purchaseRequests, stockMovements],
   );
 
   const lineCount = useMemo(
-    () => bundles.reduce((n, b) => n + b.items.length, 0),
+    () => bundles.reduce((n, b) => n + b.lines.length, 0),
     [bundles],
   );
 
@@ -162,10 +184,7 @@ export function StoreItemReceiptPrinting({
     [handlePrint],
   );
 
-  const cols = useMemo(
-    () => bundleColumns(openPrintBundle),
-    [openPrintBundle],
-  );
+  const cols = useMemo(() => bundleColumns(openPrintBundle), [openPrintBundle]);
 
   return (
     <div className="space-y-6 py-2">
@@ -179,8 +198,9 @@ export function StoreItemReceiptPrinting({
             <div>
               <CardTitle className="text-lg">Item receipt printing</CardTitle>
               <CardDescription className="max-w-2xl text-pretty">
-                Registrations with the same supplier and received date are
-                grouped into one receipt. Use a single print action per group.
+                Print new item registration, purchase request, and stock movement
+                receipts. Multi-item receipts are grouped by supplier, date, and
+                payment status when payment applies.
               </CardDescription>
             </div>
           </div>
@@ -190,7 +210,7 @@ export function StoreItemReceiptPrinting({
             {bundles.length} receipt group{bundles.length !== 1 ? "s" : ""}
           </span>
           <Badge variant="secondary" className="font-normal">
-            {lineCount} registration line{lineCount !== 1 ? "s" : ""}
+            {lineCount} line{lineCount !== 1 ? "s" : ""}
           </Badge>
         </CardContent>
       </Card>
@@ -201,7 +221,7 @@ export function StoreItemReceiptPrinting({
           data={bundles}
           getRowId={(row) => String(row.id)}
           searchColumnId="supplier"
-          emptyMessage="No registration lines to print."
+          emptyMessage="No receipt lines to print."
         />
       </div>
 
@@ -217,7 +237,7 @@ export function StoreItemReceiptPrinting({
             <div className="px-2 pb-6">
               <div ref={printRef}>
                 <StoreItemRegistrationReceipt
-                  items={previewBundle}
+                  bundle={previewBundle}
                   propertyName={propertyName}
                   propertyTin={resolvedTin}
                   logoUrl={logoUrl}

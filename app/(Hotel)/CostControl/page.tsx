@@ -565,6 +565,16 @@ function CostControlInner() {
   const pendingSo = stocks.filter(
     (x) => x.status === "PENDING" || x.status === "PENDING_CC",
   );
+  const allPendingPrSelected =
+    pendingPr.length > 0 && selectedPrBatchIds.length === pendingPr.length;
+  const somePendingPrSelected =
+    selectedPrBatchIds.length > 0 &&
+    selectedPrBatchIds.length < pendingPr.length;
+  const allPendingSoSelected =
+    pendingSo.length > 0 && selectedSoBatchIds.length === pendingSo.length;
+  const somePendingSoSelected =
+    selectedSoBatchIds.length > 0 &&
+    selectedSoBatchIds.length < pendingSo.length;
 
   useEffect(() => {
     const allow = new Set(
@@ -687,7 +697,8 @@ function CostControlInner() {
     },
     "item-receipts": {
       title: "Item receipts",
-      description: "Print receiving receipts with voucher numbers and hotel TIN.",
+      description:
+        "Print registration, purchase request, and stock movement receipts with clear titles and signatures.",
       Icon: Receipt,
     },
     "creditor-usage": {
@@ -926,22 +937,24 @@ function CostControlInner() {
                         </Select>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setSelectedPrBatchIds(
-                              selectedPrBatchIds.length === pendingPr.length
-                                ? []
-                                : pendingPr.map((x) => x.id),
-                            )
-                          }
-                        >
-                          {selectedPrBatchIds.length === pendingPr.length
-                            ? "Clear selection"
-                            : "Select all"}
-                        </Button>
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Checkbox
+                            checked={
+                              allPendingPrSelected
+                                ? true
+                                : somePendingPrSelected
+                                  ? "indeterminate"
+                                  : false
+                            }
+                            onCheckedChange={(checked) =>
+                              setSelectedPrBatchIds(
+                                checked === true ? pendingPr.map((x) => x.id) : [],
+                              )
+                            }
+                            aria-label="Select all purchase requests"
+                          />
+                          <span>Select all</span>
+                        </label>
                         <PendingButton
                           className="shadow-sm"
                           pending={isCcPending("batch-pr-a")}
@@ -1274,22 +1287,24 @@ function CostControlInner() {
                         </Select>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setSelectedSoBatchIds(
-                              selectedSoBatchIds.length === pendingSo.length
-                                ? []
-                                : pendingSo.map((x) => x.id),
-                            )
-                          }
-                        >
-                          {selectedSoBatchIds.length === pendingSo.length
-                            ? "Clear selection"
-                            : "Select all"}
-                        </Button>
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Checkbox
+                            checked={
+                              allPendingSoSelected
+                                ? true
+                                : somePendingSoSelected
+                                  ? "indeterminate"
+                                  : false
+                            }
+                            onCheckedChange={(checked) =>
+                              setSelectedSoBatchIds(
+                                checked === true ? pendingSo.map((x) => x.id) : [],
+                              )
+                            }
+                            aria-label="Select all stock movements"
+                          />
+                          <span>Select all</span>
+                        </label>
                         <PendingButton
                           className="shadow-sm"
                           pending={isCcPending("batch-so-a")}
@@ -1577,6 +1592,7 @@ function CostControlInner() {
             <HotelItemReceiptsSection
               items={inventoryRows}
               purchaseRequests={purchases}
+              stockMovements={stocks}
               propertyName={displayName || "Property"}
               logoUrl={logoUrl}
             />

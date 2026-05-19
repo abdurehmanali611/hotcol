@@ -480,7 +480,7 @@ export function StoreComponent({
     ReceiptPrinting: {
       title: "Item receipt printing",
       description:
-        "Print a receiving receipt for each registration line, including duplicate item names from different suppliers.",
+        "Print new item registration, purchase request, and stock movement receipts with payment-aware grouping.",
       Icon: Printer,
     },
     PurchaseRequestStatus: {
@@ -822,6 +822,7 @@ export function StoreComponent({
             <StoreItemReceiptPrinting
               items={storeItem}
               purchaseRequests={requestStatusData.myPurchases}
+              stockMovements={requestStatusData.myStocks}
               propertyName={displayLabel}
               logoUrl={logoUrl}
             />
