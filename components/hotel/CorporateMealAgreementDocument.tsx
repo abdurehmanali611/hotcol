@@ -57,11 +57,11 @@ function CopyBlock({
       : "-";
 
   return (
-    <article className="min-w-0 flex-1 rounded-lg border border-dashed border-white/25 bg-slate-900/80 p-4 print:flex print:min-h-full print:flex-col print:rounded-none print:border-stone-400/80 print:bg-stone-50 print:p-5">
+    <article className="min-w-0 flex-1 rounded-lg border border-dashed border-white/25 bg-slate-900/80 p-4 print:flex print:h-full print:min-h-0 print:overflow-hidden print:flex-col print:rounded-none print:border-stone-400/80 print:bg-stone-50 print:p-4">
       <p className="mb-2 text-[10px] uppercase tracking-[0.22em] text-slate-400 print:text-stone-600">
         Tear here - {title}
       </p>
-      <header className="mb-4 flex items-start gap-3 border-b border-white/15 pb-3 print:border-stone-400/70">
+      <header className="mb-4 flex items-start gap-3 border-b border-white/15 pb-3 print:mb-2 print:pb-2 print:border-stone-400/70">
         {agreement.propertyLogo ? (
           <Image
             src={agreement.propertyLogo}
@@ -82,7 +82,7 @@ function CopyBlock({
           ) : null}
         </div>
       </header>
-      <h3 className="mb-3 text-sm font-semibold tracking-tight print:text-stone-950">
+      <h3 className="mb-3 text-sm font-semibold tracking-tight print:mb-1.5 print:text-stone-950">
         Corporate meal agreement
       </h3>
       <dl className="space-y-1.5 text-[11px] print:text-[11.5px]">
@@ -107,10 +107,10 @@ function CopyBlock({
           <DetailRow label="Payment" value={payTimingLabel(agreement.payTiming)} />
         </div>
       </dl>
-      <p className="mb-1.5 mt-4 text-[10px] uppercase tracking-[0.18em] text-slate-400 print:text-stone-600">
+      <p className="mb-1.5 mt-4 text-[10px] uppercase tracking-[0.18em] text-slate-400 print:mt-2 print:text-stone-600">
         Allowed menu
       </p>
-      <ul className="list-disc space-y-1 pl-4 text-[10px] print:min-h-[122mm] print:text-[10.5px] print:text-stone-900">
+      <ul className="list-disc space-y-0.5 pl-4 text-[10px] print:min-h-0 print:flex-1 print:overflow-hidden print:text-[10px] print:text-stone-900">
         {agreement.allowedItems.length === 0 ? (
           <li className="text-slate-500 print:text-stone-500">-</li>
         ) : (
@@ -123,7 +123,7 @@ function CopyBlock({
         </p>
       ) : null}
       <div className="flex-1" />
-      <p className="mt-4 border-t border-white/10 pt-3 text-[9px] text-slate-500 print:border-stone-300 print:text-[9.5px] print:text-stone-600">
+      <p className="mt-4 shrink-0 border-t border-white/10 pt-3 text-[9px] text-slate-500 print:mt-2 print:pt-2 print:border-stone-300 print:text-[9px] print:text-stone-600">
         Company rep. ______________ - {signRight} ______________ - Date _______
       </p>
     </article>
@@ -134,8 +134,8 @@ export function CorporateMealAgreementDocument(
   props: CorporateMealAgreementProps,
 ) {
   return (
-    <section className="corporate-meal-agreement rounded-xl bg-slate-950 p-4 text-slate-50 print:m-0 print:flex print:h-[297mm] print:w-[210mm] print:flex-col print:rounded-none print:border print:border-stone-300 print:bg-stone-100 print:p-[8mm] print:text-stone-950">
-      <div className="relative flex flex-col gap-3 print:flex print:h-full print:flex-col print:gap-[6mm]">
+    <section className="corporate-meal-agreement rounded-xl bg-slate-950 p-4 text-slate-50 print:m-0 print:flex print:h-[297mm] print:w-[210mm] print:flex-col print:overflow-hidden print:rounded-none print:border print:border-stone-300 print:bg-stone-100 print:p-[8mm] print:text-stone-950">
+      <div className="relative flex min-h-0 flex-1 flex-col gap-3 print:grid print:grid-rows-2 print:gap-[6mm]">
         <span
           className="absolute left-0 right-0 top-1/2 hidden h-px -translate-y-1/2 border-t-2 border-dashed border-white/30 print:block print:border-stone-400/90"
           aria-hidden
@@ -151,7 +151,7 @@ export function CorporateMealAgreementDocument(
           agreement={props}
         />
       </div>
-      <p className="mt-2 text-center text-[9px] text-slate-500 print:mt-3 print:text-[9.5px] print:text-stone-600">
+      <p className="mt-2 shrink-0 text-center text-[9px] text-slate-500 print:mt-2 print:text-[9px] print:text-stone-600">
         One page - perforated tear-off - authorized by hotel manager only
       </p>
     </section>

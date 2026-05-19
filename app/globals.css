@@ -168,5 +168,12 @@
   .corporate-meal-agreement {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .corporate-meal-agreement article {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

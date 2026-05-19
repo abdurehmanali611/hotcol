@@ -381,7 +381,7 @@ export const hotelCreditPartyQuickFormSchema = z.object({
 });
 
 export const hotelCreditConsumptionMetaFormSchema = z.object({
-  occurredAt: z.string().min(1, "Date and time are required"),
+  occurredAt: z.string().min(1, "Date is required"),
   guestName: z.string().optional(),
   guestPhone: z.string().optional(),
 });

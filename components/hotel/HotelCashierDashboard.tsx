@@ -398,9 +398,6 @@ export function HotelCashierDashboard() {
   const [occurredYmd, setOccurredYmd] = useState(() =>
     defaultOccurredAtLocal().slice(0, 10),
   );
-  const [occurredTime, setOccurredTime] = useState(() =>
-    defaultOccurredAtLocal().slice(11, 16),
-  );
 
   const tierLevelSelectList = useMemo(
     () =>
@@ -1009,7 +1006,7 @@ export function HotelCashierDashboard() {
                         </CardTitle>
                         <CardDescription className="mt-2 max-w-prose leading-relaxed">
                           Pick the company, add lines from the deal menu, and
-                          set date/time. Price is fetched from saved items and
+                          set the date. Price is fetched from saved items and
                           totals are calculated automatically.
                         </CardDescription>
                       </CardHeader>
@@ -1049,17 +1046,6 @@ export function HotelCashierDashboard() {
                                 onChange={setOccurredYmd}
                                 className="min-w-[200px]"
                               />
-                              <div className="space-y-2">
-                                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                                  Time
-                                </Label>
-                                <Input
-                                  type="time"
-                                  value={occurredTime}
-                                  onChange={(e) => setOccurredTime(e.target.value)}
-                                  className="h-10 w-36"
-                                />
-                              </div>
                             </div>
                             <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
                               <CustomFormField
@@ -1292,9 +1278,12 @@ export function HotelCashierDashboard() {
                                       ?.trim() || undefined,
                                   linesJson: JSON.stringify(lines),
                                   totalAmount: lineTotal,
-                                  occurredAt: new Date(
-                                    `${occurredYmd}T${occurredTime}`,
-                                  ).toISOString(),
+                                  occurredAt: (() => {
+                                    const [y, m, d] = occurredYmd
+                                      .split("-")
+                                      .map(Number);
+                                    return new Date(y, m - 1, d).toISOString();
+                                  })(),
                                 });
                                 setLineRows([
                                   { name: "", qty: 1, unitPrice: 0 },
@@ -1304,7 +1293,6 @@ export function HotelCashierDashboard() {
                                   guestPhone: "",
                                 });
                                 setOccurredYmd(defaultOccurredAtLocal().slice(0, 10));
-                                setOccurredTime(defaultOccurredAtLocal().slice(11, 16));
                               } catch (e: unknown) {
                                 notifyApiFailure(
                                   e,
