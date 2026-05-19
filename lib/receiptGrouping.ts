@@ -80,17 +80,14 @@ function receiptTitle(kind: ReceiptKind, opts?: {
   movementType?: string | null;
 }): string {
   if (kind === "stock_movement") {
-    const label = formatMovementType(String(opts?.movementType ?? "").trim());
-    return label ? `${label} movement receipt` : "Stock movement receipt";
+    return "Store Issue voucher";
   }
   if (kind === "purchase_request") {
-    return opts?.paymentLabel
-      ? `Purchase request receipt (${opts.paymentLabel})`
-      : "Purchase request receipt";
+    return "Purchase Request";
   }
-  return opts?.paymentLabel
-    ? `New item registration receipt (${opts.paymentLabel})`
-    : "New item registration receipt";
+  return opts?.paymentLabel === "On credit"
+    ? "Credit Goods Receiving voucher"
+    : "Cash Goods Receiving Voucher";
 }
 
 function groupSupplierKey(name: string | null | undefined): string {
@@ -110,7 +107,7 @@ function registrationBundles(
     const day = dateKey(row.registrationDate);
     const supplier = groupSupplierKey(row.supplierName);
     const payment = itemPaymentBucket(row);
-    const kind: ReceiptKind = row.purchaseRequestId ? "purchase_request" : "registration";
+    const kind: ReceiptKind = "registration";
     const key = `${kind}|${supplier}|${day}|${payment}`;
     const bucket = map.get(key) ?? [];
     bucket.push(row);
@@ -135,7 +132,7 @@ function registrationBundles(
     const lines: ReceiptLine[] = items.map((item) => ({
       id: `registration-${item.id}`,
       sourceId: item.id,
-      sourceKind: item.purchaseRequestId ? "purchase_request" : "registration",
+      sourceKind: "registration",
       voucherNumber: item.voucherNumber,
       voucherDisplay: item.voucherDisplay,
       name: item.name,
@@ -147,7 +144,7 @@ function registrationBundles(
       imageUrl: item.imageUrl,
       paymentLabel,
     }));
-    const kind: ReceiptKind = first.purchaseRequestId ? "purchase_request" : "registration";
+    const kind: ReceiptKind = "registration";
     return {
       key,
       id: bundleIdFromKey(key),

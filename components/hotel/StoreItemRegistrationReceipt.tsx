@@ -35,9 +35,7 @@ function receiptMetaLabel(bundle: ReceiptBundle): string {
 }
 
 function receiptCaption(bundle: ReceiptBundle): string {
-  if (bundle.kind === "stock_movement") return "Stock movement receipt";
-  if (bundle.kind === "purchase_request") return "Purchase request receipt";
-  return "New item registration receipt";
+  return bundle.title;
 }
 
 function legacyBundleFromItem(item: ItemRegistration): ReceiptBundle {
@@ -45,10 +43,11 @@ function legacyBundleFromItem(item: ItemRegistration): ReceiptBundle {
   return {
     key: `legacy-registration-${item.id}`,
     id: item.id,
-    kind: item.purchaseRequestId ? "purchase_request" : "registration",
-    title: item.purchaseRequestId
-      ? `Purchase request receipt (${paymentLabel})`
-      : `New item registration receipt (${paymentLabel})`,
+    kind: "registration",
+    title:
+      paymentLabel === "On credit"
+        ? "Credit Goods Receiving voucher"
+        : "Cash Goods Receiving Voucher",
     date: new Date(item.registrationDate).toISOString().slice(0, 10),
     dateLabel: new Date(item.registrationDate).toLocaleDateString(undefined, {
       dateStyle: "medium",
@@ -67,7 +66,7 @@ function legacyBundleFromItem(item: ItemRegistration): ReceiptBundle {
       {
         id: `legacy-line-${item.id}`,
         sourceId: item.id,
-        sourceKind: item.purchaseRequestId ? "purchase_request" : "registration",
+        sourceKind: "registration",
         voucherNumber: item.voucherNumber,
         voucherDisplay: item.voucherDisplay,
         name: item.name,

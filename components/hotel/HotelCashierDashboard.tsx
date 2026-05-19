@@ -97,7 +97,7 @@ function defaultOccurredAtLocal() {
 }
 
 function tierSummary(t: HotelCorporateCreditTierRow) {
-  return `ETB ${Number(t.creditCeiling).toLocaleString()} Â· ${formatCreditCycle(t.timeInterval, t.timeFrame)}`;
+  return `ETB ${Number(t.creditCeiling).toLocaleString()} - ${formatCreditCycle(t.timeInterval, t.timeFrame)}`;
 }
 
 export function HotelCashierDashboard() {
@@ -406,7 +406,7 @@ export function HotelCashierDashboard() {
     () =>
       tiers.map((t) => ({
         id: t.id,
-        name: `${t.name} Â· ETB ${Number(t.creditCeiling).toLocaleString()} Â· ${formatCreditCycle(t.timeInterval, t.timeFrame)}`,
+        name: `${t.name} - ETB ${Number(t.creditCeiling).toLocaleString()} - ${formatCreditCycle(t.timeInterval, t.timeFrame)}`,
         realValue: t.id,
       })),
     [tiers],
@@ -782,7 +782,7 @@ export function HotelCashierDashboard() {
                                     <span className="font-medium text-foreground">
                                       {selectedTier.name}
                                     </span>{" "}
-                                    â€” {tierSummary(selectedTier)}. Limits apply
+                                    - {tierSummary(selectedTier)}. Limits apply
                                     when you save.
                                   </p>
                                 )}
