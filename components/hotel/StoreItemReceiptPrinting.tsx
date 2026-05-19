@@ -37,6 +37,37 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+type ReceiptSectionConfig = {
+  kind: ReceiptBundle["kind"];
+  title: string;
+  description: string;
+  emptyMessage: string;
+};
+
+const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
+  {
+    kind: "purchase_request",
+    title: "Purchase request",
+    description:
+      "Print grouped purchase request receipts using the supplier and date rules.",
+    emptyMessage: "No purchase request receipts to print.",
+  },
+  {
+    kind: "registration",
+    title: "New item registration",
+    description:
+      "Print new item registration receipts grouped by supplier, date, and payment status.",
+    emptyMessage: "No new item registration receipts to print.",
+  },
+  {
+    kind: "stock_movement",
+    title: "Stock movement",
+    description:
+      "Print stock movement receipts with specific titles such as stock out movement receipt.",
+    emptyMessage: "No stock movement receipts to print.",
+  },
+];
+
 function bundleColumns(
   onPrint: (bundle: ReceiptBundle) => void,
 ): ColumnDef<ReceiptBundle>[] {
@@ -176,6 +207,15 @@ export function StoreItemReceiptPrinting({
     [bundles],
   );
 
+  const sectionBundles = useMemo(
+    () =>
+      RECEIPT_SECTIONS.map((section) => ({
+        ...section,
+        bundles: bundles.filter((bundle) => bundle.kind === section.kind),
+      })),
+    [bundles],
+  );
+
   const openPrintBundle = useCallback(
     (bundle: ReceiptBundle) => {
       setPreviewBundle(bundleItemsToPrint(bundle));
@@ -215,14 +255,41 @@ export function StoreItemReceiptPrinting({
         </CardContent>
       </Card>
 
-      <div className="rounded-xl border bg-card shadow-md overflow-hidden">
-        <DataTable
-          columns={cols}
-          data={bundles}
-          getRowId={(row) => String(row.id)}
-          searchColumnId="supplier"
-          emptyMessage="No receipt lines to print."
-        />
+      <div className="space-y-6">
+        {sectionBundles.map((section) => (
+          <Card
+            key={section.kind}
+            className="border-border/80 shadow-md bg-card/95 overflow-hidden"
+          >
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base sm:text-lg">
+                    {section.title}
+                  </CardTitle>
+                  <CardDescription className="max-w-2xl">
+                    {section.description}
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary" className="font-normal">
+                  {section.bundles.length} receipt
+                  {section.bundles.length !== 1 ? "s" : ""}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                <DataTable
+                  columns={cols}
+                  data={section.bundles}
+                  getRowId={(row) => `${section.kind}-${row.id}`}
+                  searchColumnId="supplier"
+                  emptyMessage={section.emptyMessage}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Dialog
