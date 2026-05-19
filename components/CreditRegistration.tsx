@@ -109,7 +109,7 @@ function CreditAgreementCopy({
   const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
-    <article className="credit-agreement-copy flex min-h-0 flex-1 flex-col overflow-hidden border border-white/10 bg-slate-900/90 px-5 py-4 print:border-stone-300 print:bg-white print:px-[10mm] print:py-[8mm]">
+    <article className="credit-agreement-copy flex h-full w-full min-h-0 flex-col overflow-hidden border-0 border-b border-white/10 bg-slate-900/90 px-5 py-3 last:border-b-0 print:border-stone-200 print:bg-white print:px-[10mm] print:py-[7mm]">
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="rounded-full border border-indigo-400/40 bg-indigo-500/15 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-indigo-200 print:border-indigo-300 print:bg-indigo-50 print:text-indigo-900">
           {copyLabel}
@@ -230,16 +230,18 @@ function CreditAgreementCutLine() {
     <div
       role="separator"
       aria-label="Cut along this line to separate hotel and creditor copies"
-      className="credit-agreement-cut relative z-10 flex h-9 shrink-0 items-center justify-center bg-slate-950 print:h-8 print:bg-white"
+      className="credit-agreement-cut relative z-10 flex w-full shrink-0 flex-col items-center justify-center gap-1 bg-slate-950 py-2 print:bg-white"
+      style={{ height: "10mm" }}
     >
-      <div className="absolute inset-x-0 top-1/2 border-t-2 border-dashed border-amber-400/70 print:border-stone-500" />
-      <div className="relative flex items-center gap-2 rounded-full border-2 border-dashed border-amber-400/60 bg-slate-900 px-4 py-1.5 shadow-lg print:border-stone-500 print:bg-stone-100 print:shadow-none">
-        <Scissors className="h-3.5 w-3.5 text-amber-400 print:text-stone-600" aria-hidden />
-        <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-amber-200 print:text-stone-700">
-          Cut here — hotel copy above · creditor copy below
+      <div className="w-full border-t-2 border-dashed border-amber-400/70 print:border-stone-500" />
+      <div className="flex items-center gap-2 rounded-full border border-dashed border-amber-400/50 bg-slate-900 px-3 py-1 print:border-stone-400 print:bg-stone-100">
+        <Scissors className="h-3 w-3 text-amber-400 print:text-stone-600" aria-hidden />
+        <span className="whitespace-nowrap text-[8px] font-bold uppercase tracking-[0.18em] text-amber-200 print:text-stone-700">
+          Cut here
         </span>
-        <Scissors className="h-3.5 w-3.5 text-amber-400 print:text-stone-600" aria-hidden />
+        <Scissors className="h-3 w-3 text-amber-400 print:text-stone-600" aria-hidden />
       </div>
+      <div className="w-full border-t-2 border-dashed border-amber-400/70 print:border-stone-500" />
     </div>
   );
 }
@@ -580,44 +582,54 @@ const CreditRegistrationForm = ({
           <div className="lg:col-span-2 flex flex-col gap-3">
             <section
               ref={agreementRef}
-              className="credit-agreement-sheet mx-auto flex w-full max-w-[210mm] flex-col overflow-hidden rounded-xl border border-indigo-500/30 bg-slate-950 text-slate-50 shadow-2xl print:m-0 print:h-[297mm] print:w-[210mm] print:rounded-none print:border-stone-300 print:bg-white print:text-stone-950 print:shadow-none"
+              className="credit-agreement-sheet mx-auto flex w-full max-w-[210mm] flex-col flex-nowrap overflow-hidden rounded-xl border border-indigo-500/30 bg-slate-950 text-slate-50 shadow-2xl print:m-0 print:flex print:flex-col print:h-[297mm] print:w-[210mm] print:rounded-none print:border-stone-300 print:bg-white print:text-stone-950 print:shadow-none"
               style={{ height: "297mm" }}
             >
-              <CreditAgreementCopy
-                copyLabel="Hotel copy"
-                copyHint="Retain at property"
-                businessNameLabel={businessNameLabel}
-                propertyLogoUrl={propertyLogoUrl}
-                customerName={watchedValues.name}
-                customerImageUrl={watchedValues.imageUrl}
-                phoneNumber={watchedValues.phoneNumber}
-                sex={watchedValues.sex}
-                creditLevel={watchedValues.creditLevel}
-                creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
-                timeInterval={selectedLevelDetails?.timeInterval ?? 0}
-                timeFrame={selectedLevelDetails?.timeFrame ?? ""}
-                effectiveDate={watchedValues.registrationDate}
-                paidAmount={watchedValues.paidAmount}
-                allowedItems={selectedItemNames}
-              />
+              <div
+                className="flex min-h-0 flex-[1_1_0] flex-col"
+                style={{ height: "calc((297mm - 10mm) / 2)" }}
+              >
+                <CreditAgreementCopy
+                  copyLabel="Hotel copy"
+                  copyHint="Retain at property"
+                  businessNameLabel={businessNameLabel}
+                  propertyLogoUrl={propertyLogoUrl}
+                  customerName={watchedValues.name}
+                  customerImageUrl={watchedValues.imageUrl}
+                  phoneNumber={watchedValues.phoneNumber}
+                  sex={watchedValues.sex}
+                  creditLevel={watchedValues.creditLevel}
+                  creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
+                  timeInterval={selectedLevelDetails?.timeInterval ?? 0}
+                  timeFrame={selectedLevelDetails?.timeFrame ?? ""}
+                  effectiveDate={watchedValues.registrationDate}
+                  paidAmount={watchedValues.paidAmount}
+                  allowedItems={selectedItemNames}
+                />
+              </div>
               <CreditAgreementCutLine />
-              <CreditAgreementCopy
-                copyLabel="Creditor copy"
-                copyHint="Give to customer"
-                businessNameLabel={businessNameLabel}
-                propertyLogoUrl={propertyLogoUrl}
-                customerName={watchedValues.name}
-                customerImageUrl={watchedValues.imageUrl}
-                phoneNumber={watchedValues.phoneNumber}
-                sex={watchedValues.sex}
-                creditLevel={watchedValues.creditLevel}
-                creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
-                timeInterval={selectedLevelDetails?.timeInterval ?? 0}
-                timeFrame={selectedLevelDetails?.timeFrame ?? ""}
-                effectiveDate={watchedValues.registrationDate}
-                paidAmount={watchedValues.paidAmount}
-                allowedItems={selectedItemNames}
-              />
+              <div
+                className="flex min-h-0 flex-[1_1_0] flex-col"
+                style={{ height: "calc((297mm - 10mm) / 2)" }}
+              >
+                <CreditAgreementCopy
+                  copyLabel="Creditor copy"
+                  copyHint="Give to customer"
+                  businessNameLabel={businessNameLabel}
+                  propertyLogoUrl={propertyLogoUrl}
+                  customerName={watchedValues.name}
+                  customerImageUrl={watchedValues.imageUrl}
+                  phoneNumber={watchedValues.phoneNumber}
+                  sex={watchedValues.sex}
+                  creditLevel={watchedValues.creditLevel}
+                  creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
+                  timeInterval={selectedLevelDetails?.timeInterval ?? 0}
+                  timeFrame={selectedLevelDetails?.timeFrame ?? ""}
+                  effectiveDate={watchedValues.registrationDate}
+                  paidAmount={watchedValues.paidAmount}
+                  allowedItems={selectedItemNames}
+                />
+              </div>
               <p className="hidden shrink-0 bg-slate-950 py-1 text-center text-[8px] text-slate-500 print:block print:bg-white print:text-stone-500">
                 One A4 sheet — cut along the dashed line — two identical agreements
               </p>
