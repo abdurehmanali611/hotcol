@@ -23,14 +23,18 @@ export type CorporateMealAgreementProps = {
 function payTimingLabel(v?: string | null) {
   if (v === "NOW") return "Pay now (before service)";
   if (v === "AFTER_SERVICE") return "Pay after service";
-  return "—";
+  return "-";
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <p className="flex gap-1 text-[11px] leading-snug">
-      <span className="text-slate-400 shrink-0">{label}:</span>
-      <span className="font-medium text-slate-100">{value}</span>
+      <span className="shrink-0 text-slate-400 print:text-stone-600">
+        {label}:
+      </span>
+      <span className="font-medium text-slate-100 print:text-stone-950">
+        {value}
+      </span>
     </p>
   );
 }
@@ -46,36 +50,42 @@ function CopyBlock({
 }) {
   const tierLine =
     agreement.tierName && agreement.creditLimit != null
-      ? `${agreement.tierName} — ETB ${Number(agreement.creditLimit).toLocaleString()} · ${formatCreditCycle(
+      ? `${agreement.tierName} - ETB ${Number(agreement.creditLimit).toLocaleString()} - ${formatCreditCycle(
           agreement.timeInterval ?? 1,
           agreement.timeFrame ?? "MONTH",
         )}`
-      : "—";
+      : "-";
 
   return (
-    <article className="flex-1 min-w-0 rounded-lg border border-dashed border-white/25 bg-slate-900/80 p-4 print:p-3">
-      <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">
-        Tear here — {title}
+    <article className="min-w-0 flex-1 rounded-lg border border-dashed border-white/25 bg-slate-900/80 p-4 print:flex print:min-h-full print:flex-col print:rounded-none print:border-stone-400/80 print:bg-stone-50 print:p-5">
+      <p className="mb-2 text-[10px] uppercase tracking-[0.22em] text-slate-400 print:text-stone-600">
+        Tear here - {title}
       </p>
-      <header className="flex items-start gap-3 border-b border-white/15 pb-2 mb-3">
+      <header className="mb-4 flex items-start gap-3 border-b border-white/15 pb-3 print:border-stone-400/70">
         {agreement.propertyLogo ? (
           <Image
             src={agreement.propertyLogo}
             alt=""
-            width={40}
-            height={40}
-            className="rounded-md object-cover shrink-0"
+            width={48}
+            height={48}
+            className="shrink-0 rounded-md object-cover"
           />
         ) : null}
         <div className="min-w-0">
-          <p className="font-bold text-sm leading-tight">{agreement.propertyName}</p>
+          <p className="text-sm font-bold leading-tight print:text-base print:text-stone-950">
+            {agreement.propertyName}
+          </p>
           {agreement.propertyTin ? (
-            <p className="text-[10px] text-slate-400">TIN {agreement.propertyTin}</p>
+            <p className="text-[10px] text-slate-400 print:text-stone-600">
+              TIN {agreement.propertyTin}
+            </p>
           ) : null}
         </div>
       </header>
-      <h3 className="text-xs font-semibold mb-2">Corporate meal agreement</h3>
-      <dl className="space-y-1 text-[11px]">
+      <h3 className="mb-3 text-sm font-semibold tracking-tight print:text-stone-950">
+        Corporate meal agreement
+      </h3>
+      <dl className="space-y-1.5 text-[11px] print:text-[11.5px]">
         <div className="flex gap-1">
           <DetailRow label="Company" value={agreement.companyName} />
         </div>
@@ -85,10 +95,10 @@ function CopyBlock({
           </div>
         ) : null}
         <div className="flex gap-1">
-          <DetailRow label="Phone" value={agreement.phone || "—"} />
+          <DetailRow label="Phone" value={agreement.phone || "-"} />
         </div>
         <div className="flex gap-1">
-          <DetailRow label="Email" value={agreement.email || "—"} />
+          <DetailRow label="Email" value={agreement.email || "-"} />
         </div>
         <div className="flex gap-1">
           <DetailRow label="Credit tier" value={tierLine} />
@@ -97,21 +107,24 @@ function CopyBlock({
           <DetailRow label="Payment" value={payTimingLabel(agreement.payTiming)} />
         </div>
       </dl>
-      <p className="text-[10px] text-slate-400 mt-2 mb-1">Allowed menu</p>
-      <ul className="list-disc pl-4 text-[10px] space-y-0.5 max-h-28 overflow-hidden">
+      <p className="mb-1.5 mt-4 text-[10px] uppercase tracking-[0.18em] text-slate-400 print:text-stone-600">
+        Allowed menu
+      </p>
+      <ul className="list-disc space-y-1 pl-4 text-[10px] print:min-h-[122mm] print:text-[10.5px] print:text-stone-900">
         {agreement.allowedItems.length === 0 ? (
-          <li className="text-slate-500">—</li>
+          <li className="text-slate-500 print:text-stone-500">-</li>
         ) : (
           agreement.allowedItems.map((n) => <li key={`${title}-${n}`}>{n}</li>)
         )}
       </ul>
       {agreement.dealNotes?.trim() ? (
-        <p className="text-[10px] text-slate-400 mt-2 italic">
+        <p className="mt-3 text-[10px] italic text-slate-400 print:text-stone-600">
           Notes: {agreement.dealNotes.trim()}
         </p>
       ) : null}
-      <p className="text-[9px] text-slate-500 mt-3 pt-2 border-t border-white/10">
-        Company rep. ______________ · {signRight} ______________ · Date _______
+      <div className="flex-1" />
+      <p className="mt-4 border-t border-white/10 pt-3 text-[9px] text-slate-500 print:border-stone-300 print:text-[9.5px] print:text-stone-600">
+        Company rep. ______________ - {signRight} ______________ - Date _______
       </p>
     </article>
   );
@@ -121,10 +134,10 @@ export function CorporateMealAgreementDocument(
   props: CorporateMealAgreementProps,
 ) {
   return (
-    <section className="corporate-meal-agreement text-slate-50 bg-slate-950 rounded-xl p-4 print:p-2 print:bg-white print:text-black">
-      <div className="flex flex-col lg:flex-row gap-3 print:gap-2 relative">
+    <section className="corporate-meal-agreement rounded-xl bg-slate-950 p-4 text-slate-50 print:m-0 print:flex print:h-[297mm] print:w-[210mm] print:flex-col print:rounded-none print:border print:border-stone-300 print:bg-stone-100 print:p-[8mm] print:text-stone-950">
+      <div className="relative flex flex-col gap-3 print:grid print:h-full print:grid-cols-2 print:gap-[6mm] lg:flex-row">
         <span
-          className="hidden lg:block absolute left-1/2 top-2 bottom-2 w-px border-l border-dashed border-white/30 print:border-black/30"
+          className="absolute bottom-0 left-1/2 top-0 hidden w-px -translate-x-1/2 border-l-2 border-dashed border-white/30 print:block print:border-stone-400/90"
           aria-hidden
         />
         <CopyBlock
@@ -138,8 +151,8 @@ export function CorporateMealAgreementDocument(
           agreement={props}
         />
       </div>
-      <p className="text-[9px] text-center text-slate-500 mt-2 print:text-black/60">
-        One page · perforated tear-off · authorized by hotel manager only
+      <p className="mt-2 text-center text-[9px] text-slate-500 print:mt-3 print:text-[9.5px] print:text-stone-600">
+        One page - perforated tear-off - authorized by hotel manager only
       </p>
     </section>
   );
