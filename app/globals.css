@@ -170,10 +170,12 @@
     -webkit-print-color-adjust: exact;
     break-inside: avoid;
     page-break-inside: avoid;
+    box-shadow: none !important;
   }
 
   .corporate-meal-agreement article {
     break-inside: avoid;
     page-break-inside: avoid;
+    box-shadow: none !important;
   }
 }
