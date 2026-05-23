@@ -87,6 +87,7 @@ import {
 } from "@/lib/hotelInventoryPayment";
 import {
   effectiveTenantScopeForHotelTerminal,
+  resolveCanonicalTenantKey,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
 import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
@@ -145,6 +146,9 @@ export function StoreComponent({
   >([]);
   const [pendingLocalPurchaseRows, setPendingLocalPurchaseRows] = useState<
     PurchaseRequestRow[]
+  >([]);
+  const [pendingLocalRegRows, setPendingLocalRegRows] = useState<
+    ItemRegistration[]
   >([]);
   const { isPending, run } = useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
@@ -320,10 +324,43 @@ export function StoreComponent({
       : undefined,
   });
 
-  const uniqueInventoryCount = useMemo(
-    () => countUniqueInventoryNames(storeItem),
-    [storeItem],
+  const mergeVisibleRegistrations = useCallback(
+    (serverRows: ItemRegistration[]) => {
+      const byId = new Map<number, ItemRegistration>();
+      for (const row of serverRows) {
+        if (row.id != null) byId.set(row.id, row);
+      }
+      for (const pending of pendingLocalRegRows) {
+        if (!byId.has(pending.id)) {
+          byId.set(pending.id, pending);
+        }
+      }
+      return [...byId.values()].sort(
+        (a, b) =>
+          new Date(b.registrationDate).getTime() -
+          new Date(a.registrationDate).getTime(),
+      );
+    },
+    [pendingLocalRegRows],
   );
+
+  const visibleStoreItems = useMemo(
+    () => mergeVisibleRegistrations(storeItem),
+    [storeItem, mergeVisibleRegistrations],
+  );
+
+  const uniqueInventoryCount = useMemo(
+    () => countUniqueInventoryNames(visibleStoreItems),
+    [visibleStoreItems],
+  );
+
+  useEffect(() => {
+    if (!pendingLocalRegRows.length || !storeItem.length) return;
+    const serverIds = new Set(storeItem.map((r) => r.id));
+    setPendingLocalRegRows((prev) =>
+      prev.filter((r) => r.id < 0 || !serverIds.has(r.id)),
+    );
+  }, [storeItem, pendingLocalRegRows.length]);
 
   useEffect(() => {
     void loadData();
@@ -354,7 +391,9 @@ export function StoreComponent({
   });
 
   useEffect(() => {
-    const key = hotelInventory ? inventoryTenantKey : tenantScope.trim();
+    const key = resolveCanonicalTenantKey(
+      hotelInventory ? inventoryTenantKey : tenantScope,
+    );
     if (key) {
       form.setValue("HotelName", key);
     }
@@ -418,6 +457,44 @@ export function StoreComponent({
           toast.error("Registration did not save — please try again.");
           return;
         }
+
+        const tenantKey = resolveCanonicalTenantKey(inventoryTenantKey);
+        const createdRow = created as Partial<ItemRegistration>;
+        const regId =
+          createdRow.id != null && Number(createdRow.id) > 0
+            ? Number(createdRow.id)
+            : -Date.now();
+        const optimistic: ItemRegistration = {
+          id: regId,
+          name: createdRow.name ?? payload.name,
+          imageUrl: createdRow.imageUrl ?? payload.imageUrl,
+          category: createdRow.category ?? payload.category,
+          amount: createdRow.amount ?? payload.amount,
+          measuredBy: createdRow.measuredBy ?? payload.measuredBy,
+          unitPrice: createdRow.unitPrice ?? payload.unitPrice,
+          registrationDate:
+            createdRow.registrationDate ?? payload.registrationDate,
+          expireDate: createdRow.expireDate ?? payload.expireDate,
+          dutyFee: createdRow.dutyFee ?? payload.dutyFee,
+          supplierName: createdRow.supplierName ?? payload.supplierName,
+          supplierPhone: createdRow.supplierPhone ?? payload.supplierPhone,
+          supplierLevel: createdRow.supplierLevel ?? payload.supplierLevel,
+          purchaseWithVat:
+            createdRow.purchaseWithVat ?? payload.purchaseWithVat,
+          supplierTinNumber:
+            createdRow.supplierTinNumber ?? payload.supplierTinNumber,
+          Address: createdRow.Address ?? payload.Address,
+          paidAmount: createdRow.paidAmount ?? payload.paidAmount,
+          HotelName: createdRow.HotelName || tenantKey,
+          approvalStatus:
+            createdRow.approvalStatus ||
+            (hotelInventory ? "PENDING_CC" : "AUTHORIZED"),
+        };
+        setPendingLocalRegRows((prev) => {
+          if (regId > 0 && prev.some((r) => r.id === regId)) return prev;
+          return [optimistic, ...prev];
+        });
+
         toast.success(
           hotelInventory
             ? "Item registered — pending Cost Control / Finance / Manager approval before it is fully authorized."
@@ -811,9 +888,9 @@ export function StoreComponent({
         ) : activeView === "Active" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <StoreItems
-              items={storeItem}
+              items={visibleStoreItems}
               hotelStockApprovals={hotelInventory}
-              tenantScope={tenantScope}
+              tenantScope={inventoryTenantKey}
               embedded
               showPaymentSummary={hotelInventory}
               onHotelStockRequestCreated={
@@ -831,7 +908,7 @@ export function StoreComponent({
         ) : activeView === "ReceiptPrinting" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <StoreItemReceiptPrinting
-              items={storeItem}
+              items={visibleStoreItems}
               purchaseRequests={requestStatusData.myPurchases}
               stockMovements={requestStatusData.myStocks}
               propertyName={displayLabel}
@@ -867,7 +944,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="credit"
               tenantLabel={displayLabel}
-              inventoryItems={storeItem}
+              inventoryItems={visibleStoreItems}
             />
           </div>
         ) : activeView === "PaymentPaid" && hotelInventory ? (
@@ -875,7 +952,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="paid"
               tenantLabel={displayLabel}
-              inventoryItems={storeItem}
+              inventoryItems={visibleStoreItems}
             />
           </div>
         ) : activeView === "PaymentWithVat" && hotelInventory ? (
@@ -883,7 +960,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="with-vat"
               tenantLabel={displayLabel}
-              inventoryItems={storeItem}
+              inventoryItems={visibleStoreItems}
             />
           </div>
         ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
@@ -891,7 +968,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="without-vat"
               tenantLabel={displayLabel}
-              inventoryItems={storeItem}
+              inventoryItems={visibleStoreItems}
             />
           </div>
         ) : activeView === "Inactive" ? (
@@ -904,7 +981,7 @@ export function StoreComponent({
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-            <Suppliers items={storeItem}/>
+            <Suppliers items={visibleStoreItems}/>
           </div>
         );
 
@@ -1103,7 +1180,7 @@ export function StoreComponent({
                               {uniqueInventoryCount}
                             </CardTitle>
                             <p className="text-xs text-muted-foreground">
-                              Unique items ({storeItem.length} registration lines)
+                              Unique items ({visibleStoreItems.length} registration lines)
                             </p>
                           </div>
                         </div>

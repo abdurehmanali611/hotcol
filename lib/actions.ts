@@ -6,7 +6,7 @@ import {
   scheduleSessionExpiredRedirect,
   SessionExpiredError,
 } from "./sessionExpiry";
-import { findRowByTenantScope, rowHotelMatchesTenantScope } from "./tenantRowMatch";
+import { findRowByTenantScope, resolveCanonicalTenantKey, rowHotelMatchesTenantScope } from "./tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "./hotelInventoryPayment";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
@@ -3014,6 +3014,7 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           paidAmount: $paidAmount,
           HotelName: $HotelName
         ) {
+          id
           name
           imageUrl
           category
@@ -3031,6 +3032,7 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           supplierTinNumber
           paidAmount
           HotelName
+          approvalStatus
         }
       }
     `;
@@ -3060,7 +3062,7 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       purchaseWithVat: values.purchaseWithVat !== false,
       supplierTinNumber: (values.supplierTinNumber || "").trim() || null,
       paidAmount: values.paidAmount || 0,
-      HotelName: values.HotelName,
+      HotelName: resolveCanonicalTenantKey(values.HotelName),
     };
 
     const response = await api.post(

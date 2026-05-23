@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 
 function readStoredTenant(fallbackUrl: string): string {
   if (typeof window === "undefined") return fallbackUrl;
-  return localStorage.getItem("hotel_name")?.trim() || fallbackUrl;
+  return (
+    localStorage.getItem("tin_number")?.trim() ||
+    localStorage.getItem("hotel_name")?.trim() ||
+    fallbackUrl
+  );
 }
 
 function readStoredDisplay(): string {
@@ -24,7 +28,10 @@ export function useTenantScopeAndDisplay(hotelFromUrl: string | null | undefined
 
   // Keep in sync when the URL param changes or storage updates after navigation.
   useEffect(() => {
-    const tenant = localStorage.getItem("hotel_name")?.trim() || url;
+    const tenant =
+      localStorage.getItem("tin_number")?.trim() ||
+      localStorage.getItem("hotel_name")?.trim() ||
+      url;
     const display = localStorage.getItem("hotel_display_name")?.trim() || "";
     // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration read from localStorage
     setTenantScope(tenant);
