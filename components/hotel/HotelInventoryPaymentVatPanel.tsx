@@ -154,7 +154,7 @@ export function HotelInventoryPaymentVatPanel({
               variant="default"
               className="gap-2 shadow-sm"
               onClick={() =>
-                exportHotelInventoryWorkbook(fileBase, {
+                void exportHotelInventoryWorkbook(fileBase, {
                   inventoryItems,
                   purchasePipeline,
                   inactiveItems,
@@ -193,7 +193,7 @@ export function HotelInventoryPaymentVatPanel({
             variant="outline"
             className="gap-1.5 h-8"
             onClick={() => {
-              exportRowsExcel(
+              void exportRowsExcel(
                 `${fileBase}_payment_vat_filtered`,
                 "Filtered",
                 filtered.map((r) => ({

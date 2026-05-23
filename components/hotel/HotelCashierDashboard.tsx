@@ -18,6 +18,7 @@ import {
   fetchItems,
   logoutAction,
   notifyApiFailure,
+  uploadImage,
   updateHotelCreditCompanyApi,
   type HotelCorporateCreditTierRow,
   type HotelCreditCompanyRow,
@@ -85,6 +86,10 @@ import {
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
+import {
+  validatePresalePaidAgainstRequested,
+  validateRequestedCreditAgainstCeiling,
+} from "@/lib/creditLimits";
 import { HOTEL_CASHIER_NAV_ITEMS, type HotelCashierNavId } from "@/constants";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
@@ -142,8 +147,27 @@ export function HotelCashierDashboard() {
       payTiming: "AFTER_SERVICE" as const,
       dealNotes: "",
       hotelCorporateCreditTierId: 0,
+      creditLimit: 0,
+      paidAmount: 0,
+      imageUrl: "",
     },
   });
+
+  const [companyLogoPreview, setCompanyLogoPreview] = useState<string | null>(
+    null,
+  );
+
+  const watchedTierId = companyDealForm.watch("hotelCorporateCreditTierId");
+
+  useEffect(() => {
+    const tier = tiers.find((t) => t.id === Number(watchedTierId));
+    if (!tier) return;
+    const cur = Number(companyDealForm.getValues("creditLimit")) || 0;
+    const ceiling = Number(tier.creditCeiling);
+    if (cur <= 0 || cur > ceiling) {
+      companyDealForm.setValue("creditLimit", ceiling, { shouldValidate: true });
+    }
+  }, [watchedTierId, tiers, companyDealForm]);
 
   const consumptionMetaForm = useForm<
     z.infer<typeof hotelCreditConsumptionMetaFormSchema>
@@ -268,7 +292,11 @@ export function HotelCashierDashboard() {
       payTiming: "AFTER_SERVICE",
       dealNotes: "",
       hotelCorporateCreditTierId: tiers[0]?.id ?? 0,
+      creditLimit: tiers[0]?.creditCeiling ?? 0,
+      paidAmount: 0,
+      imageUrl: "",
     });
+    setCompanyLogoPreview(null);
     setAllowedDraft({});
   };
 
@@ -276,6 +304,28 @@ export function HotelCashierDashboard() {
     const anyAllowed = menu.some((it) => allowedDraft[it.id]?.on);
     if (!anyAllowed) {
       toast.error("Allow at least one menu item for this deal");
+      return;
+    }
+    const tier = tiers.find((t) => t.id === values.hotelCorporateCreditTierId);
+    const ceiling = tier ? Number(tier.creditCeiling) : 0;
+    const tierErr = validateRequestedCreditAgainstCeiling(
+      values.creditLimit,
+      ceiling,
+    );
+    if (tierErr) {
+      toast.error(tierErr);
+      return;
+    }
+    const paidErr = validatePresalePaidAgainstRequested(
+      values.paidAmount,
+      values.creditLimit,
+    );
+    if (paidErr) {
+      toast.error(paidErr);
+      return;
+    }
+    if (!values.imageUrl?.trim()) {
+      toast.error("Upload a company logo or photo");
       return;
     }
     setCompanyDealSaving(true);
@@ -290,7 +340,9 @@ export function HotelCashierDashboard() {
         dealNotes: values.dealNotes?.trim() ?? "",
         hotelCorporateCreditTierId: values.hotelCorporateCreditTierId,
         allowedMenuJson,
-        imageUrl: logoUrl || "",
+        imageUrl: values.imageUrl.trim(),
+        creditLimit: values.creditLimit,
+        paidAmount: values.paidAmount,
       };
       if (editingCompanyId) {
         await updateHotelCreditCompanyApi({
@@ -320,13 +372,12 @@ export function HotelCashierDashboard() {
       setReportRows(rows);
       const pmap = new Map<number, HotelCreditPartyRow>();
       const companyIds = [...new Set(rows.map((r) => r.companyId))];
-      for (const cid of companyIds) {
-        try {
-          const plist: HotelCreditPartyRow[] =
-            await fetchHotelCreditParties(cid);
-          for (const p of plist) pmap.set(p.id, p);
-        } catch {
-          /* ignore */
+      const partyLists = await Promise.allSettled(
+        companyIds.map((cid) => fetchHotelCreditParties(cid)),
+      );
+      for (const result of partyLists) {
+        if (result.status === "fulfilled") {
+          for (const p of result.value) pmap.set(p.id, p);
         }
       }
       setReportPartyById(pmap);
@@ -617,7 +668,11 @@ export function HotelCashierDashboard() {
                                         c.hotelCorporateCreditTierId != null
                                           ? c.hotelCorporateCreditTierId
                                           : (tiers[0]?.id ?? 0),
+                                      creditLimit: Number(c.creditLimit) || 0,
+                                      paidAmount: Number(c.paidAmount) || 0,
+                                      imageUrl: c.imageUrl || "",
                                     });
+                                    setCompanyLogoPreview(c.imageUrl || null);
                                     const ad: AllowedDraft = {};
                                     let arr: any[] = [];
                                     try {
@@ -779,10 +834,53 @@ export function HotelCashierDashboard() {
                                     <span className="font-medium text-foreground">
                                       {selectedTier.name}
                                     </span>{" "}
-                                    - {tierSummary(selectedTier)}. Limits apply
-                                    when you save.
+                                    - {tierSummary(selectedTier)}. Requested
+                                    credit must be at or below{" "}
+                                    <span className="font-semibold tabular-nums">
+                                      ETB{" "}
+                                      {Number(
+                                        selectedTier.creditCeiling,
+                                      ).toLocaleString()}
+                                    </span>
+                                    .
                                   </p>
                                 )}
+
+                                <CustomFormField
+                                  name="imageUrl"
+                                  control={companyDealForm.control}
+                                  fieldType={formFieldTypes.IMAGE_UPLOADER}
+                                  label="Company logo / photo"
+                                  previewUrl={companyLogoPreview}
+                                  handleCloudinary={(result) =>
+                                    uploadImage(
+                                      result,
+                                      companyDealForm,
+                                      setCompanyLogoPreview,
+                                      "imageUrl",
+                                    )
+                                  }
+                                  formItemClassName="sm:col-span-2"
+                                />
+
+                                <div className="grid gap-5 sm:grid-cols-2 sm:gap-x-6">
+                                  <CustomFormField
+                                    name="creditLimit"
+                                    control={companyDealForm.control}
+                                    fieldType={formFieldTypes.INPUT}
+                                    label="Credit amount requested (ETB)"
+                                    type="number"
+                                    inputClassName="h-10 w-full min-w-0"
+                                  />
+                                  <CustomFormField
+                                    name="paidAmount"
+                                    control={companyDealForm.control}
+                                    fieldType={formFieldTypes.INPUT}
+                                    label="Presale — paid now (ETB)"
+                                    type="number"
+                                    inputClassName="h-10 w-full min-w-0"
+                                  />
+                                </div>
 
                                 <CustomFormField
                                   name="dealNotes"

@@ -169,7 +169,7 @@ export function HotelCreditorUsageReportPanel({
           variant="outline"
           className="h-10 gap-2"
           onClick={() =>
-            exportRowsExcel(
+            void exportRowsExcel(
               `${tenantLabel}_creditor_usage_report`,
               "Creditor_usage",
               filtered.map((r) => {

@@ -2,8 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    /** Tree-shake icon imports instead of pulling the full lucide package per route. */
-    optimizePackageImports: ["lucide-react"],
+    /** Tree-shake icon and chart imports instead of pulling full packages per route. */
+    optimizePackageImports: [
+      "lucide-react",
+      "recharts",
+      "date-fns",
+      "@tanstack/react-table",
+      "@radix-ui/react-icons",
+    ],
   },
   images: {
     remotePatterns: [

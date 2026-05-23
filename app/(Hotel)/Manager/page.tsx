@@ -33,6 +33,8 @@ import {
   type ItemStatus,
   type KitchenBarBeginningRow,
   type KitchenBarMonthlySnapshotRow,
+  type PurchaseRequestRow,
+  type StockOutRequestRow,
 } from "@/lib/actions";
 import {
   displayKitchenBarStation,
@@ -40,6 +42,10 @@ import {
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
 import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
+import {
+  InventoryAlertsBanner,
+  InventoryNotificationCenter,
+} from "@/components/inventory/InventoryNotificationCenter";
 import {
   LayoutDashboard,
   LogOut,
@@ -630,6 +636,13 @@ function ManagerContent() {
       case "dashboard":
         return (
           <div className="space-y-6">
+            <InventoryAlertsBanner
+              audience="hotel-manager"
+              items={items}
+              purchaseRequests={purchases as PurchaseRequestRow[]}
+              stockMovements={stockReqs as StockOutRequestRow[]}
+              hotelLodging
+            />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Card className="border-primary/15 bg-linear-to-br from-card to-primary/5 shadow-md overflow-hidden">
                 <CardHeader className="pb-2 pt-4">
@@ -1182,6 +1195,13 @@ function ManagerContent() {
                 {sidebarItems.find((i) => i.id === activeTab)?.label}
               </p>
             </div>
+            <InventoryNotificationCenter
+              audience="hotel-manager"
+              items={items}
+              purchaseRequests={purchases as PurchaseRequestRow[]}
+              stockMovements={stockReqs as StockOutRequestRow[]}
+              hotelLodging
+            />
             <Button
               variant="ghost"
               size="icon"

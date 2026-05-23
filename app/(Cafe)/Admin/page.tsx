@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect, useCallback, Suspense } from "react"; // Added Suspense
+import { useState, useEffect, useCallback, Suspense, useRef } from "react"; // Added Suspense
 import { useSearchParams, useRouter } from "next/navigation";
 import { Toaster, toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +29,10 @@ import {
   prepareReportExportData,
   exportToExcel,
   fetchCashout,
+  fetchItemRegistrations,
+  type ItemRegistration,
 } from "@/lib/actions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import {
   FileText,
   PlusCircle,
@@ -41,6 +44,7 @@ import {
   LayoutDashboard,
   Loader2,
   Store,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
@@ -57,8 +61,23 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import InventoryAndCredit from "@/components/InventoryAndCredit";
+import AdminCredit from "@/components/AdminCredit";
+import AdminInventory from "@/components/AdminInventory";
+import {
+  InventoryAlertsBanner,
+  InventoryNotificationCenter,
+} from "@/components/inventory/InventoryNotificationCenter";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+
+type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
+
+const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
+  "create-item": ["items"],
+  "update-item": ["items"],
+  "grant-credential": ["credentials"],
+  "waiter-table": ["waiters", "tables"],
+  "update-credential": ["credentials"],
+};
 
 function AdminDashboardContent() {
   const searchParams = useSearchParams();
@@ -75,46 +94,121 @@ function AdminDashboardContent() {
   const [waiters, setWaiters] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
   const [credentials, setCredentials] = useState<any[]>([]);
+  const [inventoryAlerts, setInventoryAlerts] = useState<ItemRegistration[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const loadedRef = useRef(new Set<AdminDatasetKey>());
 
-  const loadData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-
-    try {
-      const results = await Promise.allSettled([
-        fetchItems(),
-        fetchOrders(),
-        fetchWaiters(),
-        fetchTables(),
-        fetchCredentials(),
-      ]);
-
-      const data = results.map((result, index) => {
-        if (result.status === "fulfilled") return result.value;
-
-        const labels = ["Items", "Orders", "Waiters", "Tables", "Credentials"];
-        toast.error(`Could not load ${labels[index]}`);
-        return null;
-      });
-
-      if (data[0] !== null) setItems(data[0]);
-      if (data[1] !== null) setOrders(data[1]);
-      if (data[2] !== null) setWaiters(data[2]);
-      if (data[3] !== null) setTables(data[3]);
-      if (data[4] !== null) setCredentials(data[4]);
-    } catch {
-      toast.error("An unexpected error occurred while loading data.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const applyDataset = useCallback((key: AdminDatasetKey, value: unknown) => {
+    loadedRef.current.add(key);
+    switch (key) {
+      case "items":
+        setItems(Array.isArray(value) ? value : []);
+        break;
+      case "orders":
+        setOrders(Array.isArray(value) ? value : []);
+        break;
+      case "waiters":
+        setWaiters(Array.isArray(value) ? value : []);
+        break;
+      case "tables":
+        setTables(Array.isArray(value) ? value : []);
+        break;
+      case "credentials":
+        setCredentials(Array.isArray(value) ? value : []);
+        break;
     }
   }, []);
 
+  const ensureAdminData = useCallback(
+    async (keys: AdminDatasetKey[], options?: { refresh?: boolean }) => {
+      const needed = keys.filter(
+        (k) => options?.refresh || !loadedRef.current.has(k),
+      );
+      if (!needed.length) return;
+
+      const fetchers: Record<
+        (typeof needed)[number],
+        () => Promise<unknown>
+      > = {
+        items: fetchItems,
+        orders: fetchOrders,
+        waiters: fetchWaiters,
+        tables: fetchTables,
+        credentials: fetchCredentials,
+      };
+
+      const results = await Promise.allSettled(
+        needed.map((key) => fetchers[key]()),
+      );
+
+      const labels: Record<(typeof needed)[number], string> = {
+        items: "Items",
+        orders: "Orders",
+        waiters: "Waiters",
+        tables: "Tables",
+        credentials: "Credentials",
+      };
+
+      results.forEach((result, index) => {
+        const key = needed[index];
+        if (result.status === "fulfilled") {
+          applyDataset(key, result.value);
+        } else {
+          toast.error(`Could not load ${labels[key]}`);
+        }
+      });
+    },
+    [applyDataset],
+  );
+
+  const loadData = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) {
+        setRefreshing(true);
+        loadedRef.current.clear();
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const keys: AdminDatasetKey[] = isRefresh
+          ? ["items", "orders", "waiters", "tables", "credentials"]
+          : ["orders"];
+        await ensureAdminData(keys, { refresh: isRefresh });
+        try {
+          const regs = await fetchItemRegistrations();
+          setInventoryAlerts(
+            (regs as ItemRegistration[]).filter((r) =>
+              rowHotelMatchesTenantScope(r.HotelName, tenantScope),
+            ),
+          );
+        } catch {
+          /* alerts are optional */
+        }
+      } catch {
+        toast.error("An unexpected error occurred while loading data.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [ensureAdminData, tenantScope],
+  );
+
+  useEffect(() => {
+    if (!tenantScope || loading) return;
+    const keys = ADMIN_TAB_DATA_KEYS[activeTab];
+    if (keys?.length) {
+      void ensureAdminData(keys);
+    }
+  }, [activeTab, tenantScope, loading, ensureAdminData]);
+
   useEffect(() => {
     if (tenantScope) {
-      loadData();
+      void loadData();
     }
   }, [tenantScope, loadData]);
 
@@ -129,6 +223,7 @@ function AdminDashboardContent() {
     Key,
     RefreshCw,
     Store,
+    CreditCard,
   };
 
   const sidebarItems = ADMIN_SIDEBAR_ITEMS.map((item) => {
@@ -269,8 +364,25 @@ function AdminDashboardContent() {
             }}
           />
         );
-      case "inventory/credit":
-        return <InventoryAndCredit hotelName={tenantScope}/>;
+      case "inventory":
+        return (
+          <div className="space-y-4">
+            <InventoryAlertsBanner
+              audience="cafe-admin"
+              items={inventoryAlerts}
+              hotelLodging={false}
+            />
+            <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
+              <AdminInventory hotelName={tenantScope} />
+            </div>
+          </div>
+        );
+      case "credit-registrations":
+        return (
+          <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
+            <AdminCredit hotelName={tenantScope} />
+          </div>
+        );
       default:
         return null;
     }
@@ -326,6 +438,11 @@ function AdminDashboardContent() {
               </h1>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
+              <InventoryNotificationCenter
+                audience="cafe-admin"
+                items={inventoryAlerts}
+                hotelLodging={false}
+              />
               <Button
                 variant="ghost"
                 size="icon"

@@ -110,31 +110,44 @@ export default function PaymentComponent({
     setUnpaidOrders(payRequire);
   }, [orders, hotelName]);
 
-  // Fetch credit registrations
+  // Fetch authorized credit registrations for this property
   useEffect(() => {
+    let cancelled = false;
     const fetchingCredittors = async () => {
       try {
         setIsLoading(true);
         const data = await fetchCreditRegistrations();
+        if (cancelled) return;
         if (Array.isArray(data)) {
           const hotelCredittor = data.filter(
-            (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
+            (item) =>
+              rowHotelMatchesTenantScope(item.HotelName, hotelName) &&
+              (() => {
+                const s = String(item.approvalStatus ?? "").trim().toUpperCase();
+                return !s || s === "AUTHORIZED";
+              })(),
           );
           setCredittors(hotelCredittor);
         } else {
           setCredittors([]);
         }
-      } catch (error: any) {
-        toast.error(error.message);
-        console.error("Error fetching credit registrations:", error);
+      } catch (error: unknown) {
+        if (!cancelled) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Could not load creditors",
+          );
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    if (hotelName) {
-      fetchingCredittors();
-    }
+    if (hotelName) void fetchingCredittors();
+    return () => {
+      cancelled = true;
+    };
   }, [hotelName]);
 
   // Group orders by table
@@ -998,11 +1011,18 @@ export default function PaymentComponent({
                                               </h2>
                                               <h2 className="flex items-center gap-6 font-serif">
                                                 <span className="text-lg text-green-500">
-                                                  Available Credit:{" "}
+                                                  Remaining credit:{" "}
                                                 </span>
-                                                {selectedCredittorData.amount}{" "}
+                                                {selectedCredittorData.amount.toLocaleString()}{" "}
                                                 ETB
                                               </h2>
+                                              {selectedCredittorData.paidAmount > 0 ? (
+                                                <h2 className="flex items-center gap-6 font-serif text-sm text-muted-foreground">
+                                                  Presale paid at registration:{" "}
+                                                  {selectedCredittorData.paidAmount.toLocaleString()}{" "}
+                                                  ETB
+                                                </h2>
+                                              ) : null}
                                               <h2 className="flex items-center gap-6 font-serif">
                                                 <span className="text-lg text-green-500">
                                                   Required Amount:{" "}

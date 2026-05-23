@@ -40,6 +40,7 @@ import {
 import Credittor from "@/app/Credittor/page";
 import { Separator } from "./ui/separator";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
+import { CafeCreditorApprovals } from "@/components/cafe/CafeCreditorApprovals";
 
 interface AdminCreditProps {
   hotelName: string;
@@ -187,6 +188,7 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
 
   return (
     <div className="space-y-8 p-1">
+      <CafeCreditorApprovals tenantScope={hotelName} />
       <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">

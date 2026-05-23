@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import type { ItemRegistration, ItemStatus, PurchaseRequestRow } from "@/lib/actions";
 import {
   creditAmountETB,
@@ -16,15 +14,24 @@ function vatLabel(v: boolean | undefined): string {
   return v === true ? "With VAT" : "Without VAT";
 }
 
+async function loadExcelLibs() {
+  const [{ default: XLSX }, { saveAs }] = await Promise.all([
+    import("xlsx"),
+    import("file-saver"),
+  ]);
+  return { XLSX, saveAs };
+}
+
 /** One workbook, multiple sheets: inventory, pipeline, inactive, supplier payment detail. */
-export function exportHotelInventoryWorkbook(
+export async function exportHotelInventoryWorkbook(
   fileBase: string,
   data: {
     inventoryItems: ItemRegistration[];
     purchasePipeline: PurchaseRequestRow[];
     inactiveItems: ItemStatus[];
   },
-): void {
+): Promise<void> {
+  const { XLSX, saveAs } = await loadExcelLibs();
   const wb = XLSX.utils.book_new();
 
   const invRows = data.inventoryItems.map((r) => ({
@@ -124,11 +131,12 @@ export function exportHotelInventoryWorkbook(
 }
 
 /** Single-sheet export (e.g. current on-screen filter). */
-export function exportRowsExcel(
+export async function exportRowsExcel(
   fileBase: string,
   sheetName: string,
   rows: Record<string, unknown>[],
-): void {
+): Promise<void> {
+  const { XLSX, saveAs } = await loadExcelLibs();
   const wb = XLSX.utils.book_new();
   const sn = sheetName.replace(/[[\]:*?/\\]/g, "_").slice(0, 31) || "Sheet1";
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sn);

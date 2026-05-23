@@ -373,6 +373,9 @@ export const hotelCreditCompanyDealFormSchema = z.object({
   hotelCorporateCreditTierId: z
     .number()
     .min(1, "Select a manager-defined tier"),
+  creditLimit: z.number().min(1, "Enter requested credit for this deal"),
+  paidAmount: z.number().min(0, "Presale paid cannot be negative"),
+  imageUrl: z.string().min(2, "Upload a company logo or photo"),
 });
 
 export const hotelCreditPartyQuickFormSchema = z.object({
@@ -388,14 +391,19 @@ export const hotelCreditConsumptionMetaFormSchema = z.object({
 
 export const creditRegistrationSchema = z.object({
   name: z.string().min(2, "Customer name is required"),
-  imageUrl: z.string().min(2, "Valid image URL is required"),
+  imageUrl: z.string().min(2, "Upload a creditor logo or photo"),
   phoneNumber: z.string().min(8, "Phone number is required"),
-  sex: z.enum(["Male", "Female"], { message: "Sex must be Male or Female" }),
+  sex: z.enum(["Male", "Female", "Company"], {
+    message: "Sex must be Male, Female, or Company",
+  }),
   creditLevel: z.enum(["Bronze", "Silver", "Gold"], {
     message: "Credit level must be Bronze, Silver, or Gold",
   }),
   registrationDate: z.date({ message: "Valid registration date is required" }),
-  paidAmount: z.number().min(0, "Please Enter if Some payment is Done"),
+  requestedCreditAmount: z
+    .number()
+    .min(1, "Enter the credit amount requested"),
+  paidAmount: z.number().min(0, "Presale paid cannot be negative"),
   HotelName: z.string().min(1, "Hotel name is required"),
 });
 

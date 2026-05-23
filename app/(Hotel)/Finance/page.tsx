@@ -49,6 +49,10 @@ import {
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
+import {
+  InventoryAlertsBanner,
+  InventoryNotificationCenter,
+} from "@/components/inventory/InventoryNotificationCenter";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import {
   Card,
@@ -570,6 +574,13 @@ function FinanceInner() {
                 Finance
               </p>
             </div>
+            <InventoryNotificationCenter
+              audience="hotel-finance"
+              items={inventoryRows}
+              purchaseRequests={rows}
+              stockMovements={stockRows}
+              hotelLodging
+            />
             <Button
               variant="ghost"
               size="icon"
@@ -873,6 +884,13 @@ function FinanceInner() {
 
         {financeSection === "inventory" && (
             <section className="space-y-4">
+              <InventoryAlertsBanner
+                audience="hotel-finance"
+                items={inventoryRows}
+                purchaseRequests={rows}
+                stockMovements={stockRows}
+                hotelLodging
+              />
               <Card className="border-violet-500/15 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
                 <div className="h-0.5 bg-linear-to-r from-violet-500/60 to-primary/40" />
                 <CardHeader className="pb-2">

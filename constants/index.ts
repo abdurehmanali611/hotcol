@@ -61,12 +61,45 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "update-credential", label: "Update Credential", icon: "RefreshCw" },
+  { id: "inventory", label: "Inventory", icon: "Store" },
+  { id: "credit-registrations", label: "Credit", icon: "CreditCard" },
+] as const;
+
+/** Café cashier terminal — sidebar section keys. */
+export const CAFE_CASHIER_NAV_ITEMS = [
   {
-    id: "inventory/credit",
-    label: "Inventory and Credit Sync",
-    icon: "Store",
+    id: "order",
+    label: "Orders",
+    icon: "ShoppingCart",
+    description: "Take orders and manage tables.",
+  },
+  {
+    id: "payment",
+    label: "Payment",
+    icon: "Wallet",
+    description: "Collect cash or bank payments for open orders.",
+  },
+  {
+    id: "Cashout",
+    label: "Cashout",
+    icon: "CreditCard",
+    description: "Record end-of-shift cash reconciliation.",
+  },
+  {
+    id: "credit",
+    label: "Credit",
+    icon: "UserPlus",
+    description: "Register company or staff creditors (admin approval required).",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    icon: "FileText",
+    description: "Daily and monthly sales, cashout, and order summaries.",
   },
 ] as const;
+
+export type CafeCashierNavId = (typeof CAFE_CASHIER_NAV_ITEMS)[number]["id"];
 
 export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
 

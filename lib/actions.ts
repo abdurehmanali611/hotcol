@@ -8,6 +8,12 @@ import {
 } from "./sessionExpiry";
 import { findRowByTenantScope, resolveCanonicalTenantKey, rowHotelMatchesTenantScope } from "./tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "./hotelInventoryPayment";
+import { validateCreditUsageAmount } from "./creditLimits";
+import {
+  invalidateGraphqlListCache,
+  readListCache,
+  writeListCache,
+} from "./graphqlListCache";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
@@ -289,6 +295,13 @@ export interface CreditRegistration {
   paidAmount: number;
   registrationDate: Date;
   HotelName: string;
+  registrantType?: string;
+  approvalStatus?: string;
+  companyTinNumber?: string;
+  affiliatedCompany?: string;
+  rejectionReason?: string | null;
+  adminActorName?: string | null;
+  adminAuthorizedAt?: string | null;
 }
 
 export interface CreateCreditRegistration {
@@ -303,6 +316,9 @@ export interface CreateCreditRegistration {
   paidAmount: number;
   registrationDate: Date;
   HotelName: string;
+  registrantType?: "COMPANY" | "STAFF";
+  companyTinNumber?: string;
+  affiliatedCompany?: string;
 }
 
 export interface UpdateCreditRegistration extends CreateCreditRegistration {
@@ -491,6 +507,9 @@ const hotelListReadInflight = new Map<string, Promise<unknown>>();
 
 /** When several surfaces request the same list read at once, share one HTTP round-trip. */
 function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const cached = readListCache<T>(key);
+  if (cached != null) return Promise.resolve(cached);
+
   const existing = hotelListReadInflight.get(key);
   if (existing) return existing as Promise<T>;
   const startedAt =
@@ -499,7 +518,9 @@ function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> 
       : null;
   const p = (async () => {
     try {
-      return await run();
+      const result = await run();
+      writeListCache(key, result);
+      return result;
     } finally {
       hotelListReadInflight.delete(key);
       if (
@@ -517,6 +538,8 @@ function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> 
   hotelListReadInflight.set(key, p);
   return p;
 }
+
+export { invalidateGraphqlListCache };
 
 /** UI catch helper: session expiry is already toasted + redirecting; surface timeouts/network clearly. */
 export function notifyApiFailure(error: unknown, fallback = "Request failed"): void {
@@ -889,6 +912,7 @@ export async function createItem(itemData: CreateItemData) {
     }
 
     toast.success("Item created successfully");
+    invalidateGraphqlListCache("catalog:items");
     return response.data.data.CreateItem;
   } catch (error: any) {
     toast.error(
@@ -954,6 +978,7 @@ export async function deleteItem(id: number) {
     }
 
     toast.success("Item deleted successfully");
+    invalidateGraphqlListCache("catalog:items");
     return response.data.data.DeleteItem;
   } catch (error: any) {
     toast.error("Unable to delete item. Please try again.");
@@ -1542,6 +1567,7 @@ export async function createOrder(orderData: OrderCreationData) {
     }
 
     toast.success("Order sent successfully");
+    invalidateGraphqlListCache("cafe:orders");
     return response.data.data.OrderCreation;
   } catch (error: any) {
     if (error.code === "ECONNABORTED") {
@@ -1726,7 +1752,7 @@ export async function checkCreditRegistrantBalance(
   try {
     const creditRegistrations = await fetchCreditRegistrations();
     const creditRegistrant = creditRegistrations.find(
-      (reg: any) =>
+      (reg: CreditRegistration) =>
         reg.name.toLowerCase() === name.toLowerCase() &&
         rowHotelMatchesTenantScope(reg.HotelName, HotelName),
     );
@@ -1736,16 +1762,18 @@ export async function checkCreditRegistrantBalance(
       return false;
     }
 
-    if (creditRegistrant.amount < requiredAmount) {
-      toast.error(
-        `Insufficient credit balance for ${name}. Available: ${creditRegistrant.amount}, Required: ${requiredAmount}`,
-      );
+    const err = validateCreditUsageAmount(
+      requiredAmount,
+      creditRegistrant.amount,
+    );
+    if (err) {
+      toast.error(`${name}: ${err}`);
       return false;
     }
 
     return true;
-  } catch (error) {
-    console.error("Failed to check credit registrant balance:", error);
+  } catch {
+    toast.error("Could not verify credit balance");
     return false;
   }
 }
@@ -1814,8 +1842,6 @@ export function getPaymentMethod(order: Order): string {
 
 async function UpdateCreditRegistrantDeduction(id: number, amount: number) {
   try {
-    console.log("UpdateCreditRegistrantDeduction called:", { id, amount });
-
     const mutation = `
       mutation UpdateCreditRegistrantDeduction($id: Int!, $amount: Float!) {
         UpdateCreditRegistrantDeduction(id: $id, amount: $amount) {
@@ -1832,23 +1858,16 @@ async function UpdateCreditRegistrantDeduction(id: number, amount: number) {
       variables: { id, amount },
     });
 
-    console.log("UpdateCreditRegistrantDeduction response:", response.data);
-
     if (response.data.errors) {
       const errorMessage =
         response.data.errors[0]?.message ||
         "Failed to Deduct from Credit Registrant";
-      console.error("GraphQL Error:", response.data.errors[0]);
       throw new Error(errorMessage);
     }
 
-    toast.success("Successfully Deducted from Credit Registrant");
+    invalidateGraphqlListCache("finance:creditRegistrations");
     return response.data.data.UpdateCreditRegistrantDeduction;
   } catch (error: any) {
-    console.error("UpdateCreditRegistrantDeduction error:", error);
-    if (error.response) {
-      console.error("Error response:", error.response.data);
-    }
     toast.error("Failed to update credit registrant balance");
     throw error;
   }
@@ -2778,6 +2797,7 @@ export async function DeletePityCash(id: number) {
 
 export async function CreateCreditRegistration(
   values: CreateCreditRegistration,
+  options?: { suppressSuccessToast?: boolean },
 ) {
   try {
     const mutation = `
@@ -2792,7 +2812,10 @@ export async function CreateCreditRegistration(
         $timeFrame: String!,
         $paidAmount: Float!,
         $registrationDate: DateTime!, 
-        $HotelName: String!
+        $HotelName: String!,
+        $registrantType: String,
+        $companyTinNumber: String,
+        $affiliatedCompany: String
       ) {
         CreditRegistration(
           name: $name, 
@@ -2805,7 +2828,10 @@ export async function CreateCreditRegistration(
           timeFrame: $timeFrame,
           paidAmount: $paidAmount,
           registrationDate: $registrationDate, 
-          HotelName: $HotelName
+          HotelName: $HotelName,
+          registrantType: $registrantType,
+          companyTinNumber: $companyTinNumber,
+          affiliatedCompany: $affiliatedCompany
         ) {
           id
           name
@@ -2819,13 +2845,22 @@ export async function CreateCreditRegistration(
           paidAmount
           registrationDate
           HotelName
+          registrantType
+          approvalStatus
+          companyTinNumber
+          affiliatedCompany
         }
       }
     `;
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: values,
+      variables: {
+        ...values,
+        registrantType: values.registrantType ?? "STAFF",
+        companyTinNumber: values.companyTinNumber ?? "",
+        affiliatedCompany: values.affiliatedCompany ?? "",
+      },
     });
 
     if (response.data.errors) {
@@ -2835,10 +2870,76 @@ export async function CreateCreditRegistration(
       );
     }
 
-    toast.success("Credit registration created successfully");
-    return response.data.data.CreditRegistration;
+    const row = response.data.data.CreditRegistration;
+    if (!options?.suppressSuccessToast) {
+      const pending =
+        String(row?.approvalStatus ?? "").toUpperCase() === "PENDING_ADMIN";
+      toast.success(
+        pending
+          ? "Registration submitted — awaiting admin authorization"
+          : "Credit registration created successfully",
+      );
+    }
+    return row;
   } catch (error: any) {
     toast.error("Failed to create credit registration");
+    throw error;
+  }
+}
+
+export async function authorizeCreditRegistrationApi(id: number) {
+  try {
+    const mutation = `
+      mutation AuthorizeCreditRegistration($id: Int!) {
+        AuthorizeCreditRegistration(id: $id) {
+          id
+          approvalStatus
+          adminActorName
+          adminAuthorizedAt
+        }
+      }
+    `;
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id },
+    });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Authorization failed",
+      );
+    }
+    invalidateGraphqlListCache();
+    toast.success("Creditor authorized");
+    return response.data.data.AuthorizeCreditRegistration;
+  } catch (error: any) {
+    toast.error(error?.message || "Authorization failed");
+    throw error;
+  }
+}
+
+export async function rejectCreditRegistrationApi(id: number, reason?: string) {
+  try {
+    const mutation = `
+      mutation RejectCreditRegistration($id: Int!, $reason: String) {
+        RejectCreditRegistration(id: $id, reason: $reason) {
+          id
+          approvalStatus
+          rejectionReason
+        }
+      }
+    `;
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id, reason: reason?.trim() || undefined },
+    });
+    if (response.data.errors) {
+      throw new Error(response.data.errors[0]?.message || "Rejection failed");
+    }
+    invalidateGraphqlListCache();
+    toast.success("Registration rejected");
+    return response.data.data.RejectCreditRegistration;
+  } catch (error: any) {
+    toast.error(error?.message || "Rejection failed");
     throw error;
   }
 }
@@ -2860,6 +2961,13 @@ export async function fetchCreditRegistrations() {
           paidAmount
           registrationDate
           HotelName
+          registrantType
+          approvalStatus
+          companyTinNumber
+          affiliatedCompany
+          rejectionReason
+          adminActorName
+          adminAuthorizedAt
         }
       }
     `;
@@ -3135,6 +3243,10 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       }
     }
 
+    invalidateGraphqlListCache([
+      "ItemRegistration:list",
+      "finance:pityCash",
+    ]);
     return created;
   } catch (error: any) {
     throw error;
@@ -3273,6 +3385,7 @@ export async function UpdateItemRegistration(
     }
 
     toast.success("item registration updated successfully");
+    invalidateGraphqlListCache("ItemRegistration:list");
     return response.data.data.UpdateItemRegistration;
   } catch (error: any) {
     toast.error("Failed to update item registration");
@@ -3302,6 +3415,10 @@ export async function DeleteItemRegistration(id: number) {
     }
 
     toast.success("Item registration deleted successfully");
+    invalidateGraphqlListCache([
+      "ItemRegistration:list",
+      "ItemStatus:list",
+    ]);
     return response.data.data.DeleteItemRegistration;
   } catch (error: any) {
     toast.error("Failed to delete Item registration");
@@ -3364,6 +3481,10 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
     }
 
     toast.success("Status Updated Successfully");
+    invalidateGraphqlListCache([
+      "ItemRegistration:list",
+      "ItemStatus:list",
+    ]);
     return response.data.data.CreateItemStatus;
   } catch (error: any) {
     console.error("Status update error:", error);
@@ -3607,6 +3728,7 @@ export interface HotelCreditCompanyRow {
   allowedMenuJson: string;
   dealNotes: string;
   imageUrl: string;
+  paidAmount?: number;
   createdAt: string;
 }
 
@@ -3822,6 +3944,7 @@ export async function createPurchaseRequestApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Purchase request submitted");
   }
+  invalidateGraphqlListCache("hotel:purchaseRequests");
   return response.data.data.createPurchaseRequest;
 }
 
@@ -3864,6 +3987,10 @@ export async function createStockOutRequestApi(
   if (!options?.suppressSuccessToast) {
     toast.success("Movement submitted for cost control approval");
   }
+  invalidateGraphqlListCache([
+    "hotel:stockOutRequests",
+    "ItemRegistration:list",
+  ]);
   return response.data.data.createStockOutRequest;
 }
 
@@ -5338,17 +5465,18 @@ export async function fetchHotelCreditCompanies(): Promise<
         allowedMenuJson
         dealNotes
         imageUrl
+        paidAmount
         createdAt
       }
     }
   `;
-    const response = await api.post(API_URL, { query });
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to load companies",
-      );
-    }
-    return response.data.data.hotelCreditCompanies || [];
+  const response = await api.post(API_URL, { query });
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to load companies",
+    );
+  }
+  return response.data.data.hotelCreditCompanies || [];
   });
 }
 
@@ -5455,6 +5583,8 @@ export async function createHotelCreditCompanyApi(input: {
   allowedMenuJson: string;
   dealNotes?: string;
   imageUrl?: string;
+  creditLimit: number;
+  paidAmount?: number;
 }) {
   const mutation = `
     mutation HccCreate(
@@ -5468,6 +5598,8 @@ export async function createHotelCreditCompanyApi(input: {
       $allowedMenuJson: String!
       $dealNotes: String
       $imageUrl: String
+      $creditLimit: Float
+      $paidAmount: Float
     ) {
       createHotelCreditCompany(
         companyName: $companyName
@@ -5480,6 +5612,8 @@ export async function createHotelCreditCompanyApi(input: {
         allowedMenuJson: $allowedMenuJson
         dealNotes: $dealNotes
         imageUrl: $imageUrl
+        creditLimit: $creditLimit
+        paidAmount: $paidAmount
       ) {
         id
         approvalStatus
@@ -5509,6 +5643,8 @@ export async function updateHotelCreditCompanyApi(input: {
   allowedMenuJson: string;
   dealNotes?: string;
   imageUrl?: string;
+  creditLimit?: number;
+  paidAmount?: number;
 }) {
   const mutation = `
     mutation HccUp(
@@ -5523,6 +5659,8 @@ export async function updateHotelCreditCompanyApi(input: {
       $allowedMenuJson: String!
       $dealNotes: String
       $imageUrl: String
+      $creditLimit: Float
+      $paidAmount: Float
     ) {
       updateHotelCreditCompany(
         id: $id
@@ -5536,6 +5674,8 @@ export async function updateHotelCreditCompanyApi(input: {
         allowedMenuJson: $allowedMenuJson
         dealNotes: $dealNotes
         imageUrl: $imageUrl
+        creditLimit: $creditLimit
+        paidAmount: $paidAmount
       ) {
         id
       }

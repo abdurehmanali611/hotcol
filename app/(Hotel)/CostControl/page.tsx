@@ -132,6 +132,10 @@ import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorU
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
+import {
+  InventoryAlertsBanner,
+  InventoryNotificationCenter,
+} from "@/components/inventory/InventoryNotificationCenter";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import {
   Sidebar,
@@ -780,6 +784,13 @@ function CostControlInner() {
                 {displayName || "Property"}
               </h1>
             </div>
+            <InventoryNotificationCenter
+              audience="hotel-cost-control"
+              items={inventoryRows}
+              purchaseRequests={purchases}
+              stockMovements={stocks}
+              hotelLodging
+            />
             <Button
               variant="ghost"
               size="icon"
@@ -1188,6 +1199,13 @@ function CostControlInner() {
           )}
           {activeSection === "inventory" && (
           <div className="space-y-4">
+            <InventoryAlertsBanner
+              audience="hotel-cost-control"
+              items={inventoryRows}
+              purchaseRequests={purchases}
+              stockMovements={stocks}
+              hotelLodging
+            />
             <p className="text-sm text-muted-foreground text-pretty max-w-3xl">
               Same live inventory as the store terminal: quantities, pricing context, and
               stock-out flows for <span className="text-foreground font-medium">{displayName || "your property"}</span>.

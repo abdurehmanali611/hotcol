@@ -55,6 +55,11 @@ import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPri
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
+import {
+  InventoryAlertsBanner,
+  InventoryNotificationCenter,
+} from "@/components/inventory/InventoryNotificationCenter";
 import { toast } from "sonner";
 import {
   Sidebar,
@@ -121,6 +126,18 @@ const HOTEL_STORE_NAV_TOP: {
   { id: "ReceiptPrinting", label: "Item receipts", icon: Printer },
 ];
 
+const CAFE_STORE_NAV_TOP: {
+  id: StoreView;
+  label: string;
+  icon: typeof PackagePlus;
+}[] = [
+  { id: "Register", label: "Register", icon: PackagePlus },
+  { id: "Active", label: "Inventory", icon: ShoppingCart },
+  { id: "Inactive", label: "Inactive", icon: MinusCircle },
+  { id: "Supplier", label: "Suppliers", icon: StoreIcon },
+  { id: "ReceiptPrinting", label: "Item receipts", icon: Printer },
+];
+
 const REQUEST_STATUS_VIEWS: StoreView[] = [
   "PurchaseRequestStatus",
   "StockMovementStatus",
@@ -147,12 +164,12 @@ export function StoreComponent({
   const [pendingLocalPurchaseRows, setPendingLocalPurchaseRows] = useState<
     PurchaseRequestRow[]
   >([]);
-  const [pendingLocalRegRows, setPendingLocalRegRows] = useState<
-    ItemRegistration[]
-  >([]);
   const { isPending, run } = useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
   const registerSubmitKey = "item-registration";
+  const [registerSubView, setRegisterSubView] = useState<"single" | "batch">(
+    "single",
+  );
   const [activeView, setActiveView] = useState<StoreView>("Register");
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
@@ -179,22 +196,29 @@ export function StoreComponent({
       });
       try {
         if (hotelInventory) {
-          const itemData = await fetchItemRegistrations();
-          if (isStale()) return;
-          const response = itemData as ItemRegistration[];
-          setStoreItem(
-            Array.isArray(response)
-              ? response.filter((item) =>
-                  rowHotelMatchesTenantScope(item.HotelName, tenantEff),
-                )
-              : [],
-          );
-
-          const [statusResult, prResult] = await Promise.allSettled([
+          const [itemResult, statusResult, prResult] = await Promise.allSettled([
+            fetchItemRegistrations(),
             fetchItemStatus(),
             fetchPurchaseRequests(),
           ]);
           if (isStale()) return;
+
+          if (itemResult.status === "fulfilled") {
+            const response = itemResult.value as ItemRegistration[];
+            setStoreItem(
+              Array.isArray(response)
+                ? response.filter((item) =>
+                    rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+                  )
+                : [],
+            );
+          } else {
+            setStoreItem([]);
+            notifyApiFailure(
+              itemResult.reason,
+              "Could not load inventory",
+            );
+          }
 
           if (statusResult.status === "fulfilled") {
             const statusResponse = statusResult.value as ItemStatus[];
@@ -324,43 +348,10 @@ export function StoreComponent({
       : undefined,
   });
 
-  const mergeVisibleRegistrations = useCallback(
-    (serverRows: ItemRegistration[]) => {
-      const byId = new Map<number, ItemRegistration>();
-      for (const row of serverRows) {
-        if (row.id != null) byId.set(row.id, row);
-      }
-      for (const pending of pendingLocalRegRows) {
-        if (!byId.has(pending.id)) {
-          byId.set(pending.id, pending);
-        }
-      }
-      return [...byId.values()].sort(
-        (a, b) =>
-          new Date(b.registrationDate).getTime() -
-          new Date(a.registrationDate).getTime(),
-      );
-    },
-    [pendingLocalRegRows],
-  );
-
-  const visibleStoreItems = useMemo(
-    () => mergeVisibleRegistrations(storeItem),
-    [storeItem, mergeVisibleRegistrations],
-  );
-
   const uniqueInventoryCount = useMemo(
-    () => countUniqueInventoryNames(visibleStoreItems),
-    [visibleStoreItems],
+    () => countUniqueInventoryNames(storeItem),
+    [storeItem],
   );
-
-  useEffect(() => {
-    if (!pendingLocalRegRows.length || !storeItem.length) return;
-    const serverIds = new Set(storeItem.map((r) => r.id));
-    setPendingLocalRegRows((prev) =>
-      prev.filter((r) => r.id < 0 || !serverIds.has(r.id)),
-    );
-  }, [storeItem, pendingLocalRegRows.length]);
 
   useEffect(() => {
     void loadData();
@@ -458,48 +449,9 @@ export function StoreComponent({
           return;
         }
 
-        const tenantKey = resolveCanonicalTenantKey(inventoryTenantKey);
-        const createdRow = created as Partial<ItemRegistration>;
-        const regId =
-          createdRow.id != null && Number(createdRow.id) > 0
-            ? Number(createdRow.id)
-            : -Date.now();
-        const optimistic: ItemRegistration = {
-          id: regId,
-          name: createdRow.name ?? payload.name,
-          imageUrl: createdRow.imageUrl ?? payload.imageUrl,
-          category: createdRow.category ?? payload.category,
-          amount: createdRow.amount ?? payload.amount,
-          measuredBy: createdRow.measuredBy ?? payload.measuredBy,
-          unitPrice: createdRow.unitPrice ?? payload.unitPrice,
-          registrationDate:
-            createdRow.registrationDate ?? payload.registrationDate,
-          expireDate: createdRow.expireDate ?? payload.expireDate,
-          dutyFee: createdRow.dutyFee ?? payload.dutyFee,
-          supplierName: createdRow.supplierName ?? payload.supplierName,
-          supplierPhone: createdRow.supplierPhone ?? payload.supplierPhone,
-          supplierLevel: createdRow.supplierLevel ?? payload.supplierLevel,
-          purchaseWithVat:
-            createdRow.purchaseWithVat ?? payload.purchaseWithVat,
-          supplierTinNumber:
-            createdRow.supplierTinNumber ?? payload.supplierTinNumber,
-          Address: createdRow.Address ?? payload.Address,
-          paidAmount: createdRow.paidAmount ?? payload.paidAmount,
-          HotelName: createdRow.HotelName || tenantKey,
-          approvalStatus:
-            createdRow.approvalStatus ||
-            (hotelInventory ? "PENDING_CC" : "AUTHORIZED"),
-          voucherNumber: createdRow.voucherNumber ?? null,
-          voucherDisplay: createdRow.voucherDisplay ?? null,
-        };
-        setPendingLocalRegRows((prev) => {
-          if (regId > 0 && prev.some((r) => r.id === regId)) return prev;
-          return [optimistic, ...prev];
-        });
-
         toast.success(
           hotelInventory
-            ? "Item registered — pending Cost Control / Finance / Manager approval before it is fully authorized."
+            ? "Item submitted for approval. It will appear in Inventory only after Cost Control, Finance, and Manager authorization."
             : "Item created successfully!",
         );
         form.reset({
@@ -692,9 +644,31 @@ export function StoreComponent({
     </header>
   );
 
+  const storeNavTop = hotelInventory ? HOTEL_STORE_NAV_TOP : CAFE_STORE_NAV_TOP;
+
   const panels =
         activeView === "Register" ? (
-          <Card className="max-w-5xl mx-auto shadow-2xl border-border bg-card overflow-hidden">
+          !hotelInventory && registerSubView === "batch" ? (
+            <BatchItemRegistrationForm
+              hotelName={inventoryTenantKey || tenantScope}
+              onRegistered={() => loadData()}
+            />
+          ) : (
+          <div className="space-y-4 max-w-5xl mx-auto w-full">
+            {!hotelInventory ? (
+              <Tabs
+                value={registerSubView}
+                onValueChange={(v) =>
+                  setRegisterSubView(v as "single" | "batch")
+                }
+              >
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="single">Single item</TabsTrigger>
+                  <TabsTrigger value="batch">Batch (same supplier)</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            ) : null}
+          <Card className="shadow-2xl border-border bg-card overflow-hidden">
             <div className="h-1.5 bg-linear-to-r from-emerald-600 via-emerald-400 to-cyan-500" />
             <CardHeader className="pb-4 space-y-1">
               <div className="flex items-center gap-3">
@@ -887,10 +861,12 @@ export function StoreComponent({
               </Form>
             </CardContent>
           </Card>
+          </div>
+          )
         ) : activeView === "Active" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <StoreItems
-              items={visibleStoreItems}
+              items={storeItem}
               hotelStockApprovals={hotelInventory}
               tenantScope={inventoryTenantKey}
               embedded
@@ -910,7 +886,7 @@ export function StoreComponent({
         ) : activeView === "ReceiptPrinting" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <StoreItemReceiptPrinting
-              items={visibleStoreItems}
+              items={storeItem}
               purchaseRequests={requestStatusData.myPurchases}
               stockMovements={requestStatusData.myStocks}
               propertyName={displayLabel}
@@ -946,7 +922,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="credit"
               tenantLabel={displayLabel}
-              inventoryItems={visibleStoreItems}
+              inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentPaid" && hotelInventory ? (
@@ -954,7 +930,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="paid"
               tenantLabel={displayLabel}
-              inventoryItems={visibleStoreItems}
+              inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentWithVat" && hotelInventory ? (
@@ -962,7 +938,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="with-vat"
               tenantLabel={displayLabel}
-              inventoryItems={visibleStoreItems}
+              inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
@@ -970,7 +946,7 @@ export function StoreComponent({
             <HotelInventoryPaymentCategoryPanel
               mode="without-vat"
               tenantLabel={displayLabel}
-              inventoryItems={visibleStoreItems}
+              inventoryItems={storeItem}
             />
           </div>
         ) : activeView === "Inactive" ? (
@@ -983,12 +959,11 @@ export function StoreComponent({
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-            <Suppliers items={visibleStoreItems}/>
+            <Suppliers items={storeItem}/>
           </div>
         );
 
-  if (hotelInventory) {
-    return (
+  return (
       <SidebarProvider>
         <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
           <Sidebar
@@ -1005,7 +980,7 @@ export function StoreComponent({
                     Terminal
                   </p>
                   <span className="block truncate font-semibold leading-tight">
-                    Hotel store
+                    {hotelInventory ? "Hotel store" : "Cafe store"}
                   </span>
                 </div>
               </div>
@@ -1015,7 +990,7 @@ export function StoreComponent({
             </div>
             <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
               <SidebarMenu className="gap-1">
-                {HOTEL_STORE_NAV_TOP.map(({ id, label, icon: Icon }) => (
+                {storeNavTop.map(({ id, label, icon: Icon }) => (
                   <SidebarMenuItem key={id}>
                     <SidebarMenuButton
                       isActive={activeView === id}
@@ -1030,6 +1005,7 @@ export function StoreComponent({
                   </SidebarMenuItem>
                 ))}
 
+                {hotelInventory ? (
                 <Collapsible
                   defaultOpen={REQUEST_STATUS_VIEWS.includes(activeView)}
                   className="group/collapsible"
@@ -1071,7 +1047,9 @@ export function StoreComponent({
                     </CollapsibleContent>
                   </SidebarMenuItem>
                 </Collapsible>
+                ) : null}
 
+                {hotelInventory ? (
                 <Collapsible
                   defaultOpen={PAYMENT_VAT_VIEWS.includes(activeView)}
                   className="group/collapsible"
@@ -1131,6 +1109,7 @@ export function StoreComponent({
                     </CollapsibleContent>
                   </SidebarMenuItem>
                 </Collapsible>
+                ) : null}
               </SidebarMenu>
             </SidebarContent>
           <SidebarFooter className="p-4 pt-2">
@@ -1151,6 +1130,20 @@ export function StoreComponent({
                   {displayLabel}
                 </h1>
               </div>
+              <InventoryNotificationCenter
+                audience={hotelInventory ? "hotel-store" : "cafe-store"}
+                items={storeItem}
+                purchaseRequests={
+                  hotelInventory ? requestStatusData.myPurchases : undefined
+                }
+                stockMovements={
+                  hotelInventory ? requestStatusData.myStocks : undefined
+                }
+                storeUserName={
+                  hotelInventory ? requestStatusData.userName : undefined
+                }
+                hotelLodging={hotelInventory}
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -1168,6 +1161,22 @@ export function StoreComponent({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth [scrollbar-gutter:stable]">
                 <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-400 2xl:max-w-448">
+                  <InventoryAlertsBanner
+                    audience={hotelInventory ? "hotel-store" : "cafe-store"}
+                    items={storeItem}
+                    purchaseRequests={
+                      hotelInventory ? requestStatusData.myPurchases : undefined
+                    }
+                    stockMovements={
+                      hotelInventory ? requestStatusData.myStocks : undefined
+                    }
+                    storeUserName={
+                      hotelInventory ? requestStatusData.userName : undefined
+                    }
+                    hotelLodging={hotelInventory}
+                    className="mb-2"
+                  />
+                  {hotelInventory ? (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/4 shadow-md overflow-hidden">
                       <div className="h-0.5 bg-linear-to-r from-emerald-500/80 to-teal-400/60" />
@@ -1182,7 +1191,7 @@ export function StoreComponent({
                               {uniqueInventoryCount}
                             </CardTitle>
                             <p className="text-xs text-muted-foreground">
-                              Unique items ({visibleStoreItems.length} registration lines)
+                              Unique items ({storeItem.length} registration lines)
                             </p>
                           </div>
                         </div>
@@ -1208,6 +1217,7 @@ export function StoreComponent({
                       </CardHeader>
                     </Card>
                   </div>
+                  ) : null}
                   {(() => {
                     const {
                       title,
@@ -1242,18 +1252,6 @@ export function StoreComponent({
           </SidebarInset>
         </div>
       </SidebarProvider>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col gap-6 pb-10">
-      {storeTerminalHeader}
-      <main className="p-3 md:p-6">
-        <div className="mx-auto max-w-7xl w-full">
-          {panels}
-        </div>
-      </main>
-    </div>
   );
 }
 export default function Store() {

@@ -36,7 +36,15 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Checkbox } from "./ui/checkbox";
 import Credittor from "@/app/Credittor/page";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
+import {
+  validatePresalePaidAgainstRequested,
+  validateRequestedCreditAgainstCeiling,
+} from "@/lib/creditLimits";
 import { Scissors } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 interface CreditRegistrationProps {
   hotelName: string;
@@ -261,6 +269,11 @@ const CreditRegistrationForm = ({
   const [menuItems, setMenuItems] = useState<Item[]>([]);
   const [selectedItems, setSelectedItems] = useState<Record<number, boolean>>({});
   const [propertyLogoUrl, setPropertyLogoUrl] = useState<string | null>(null);
+  const [registrantMode, setRegistrantMode] = useState<"STAFF" | "COMPANY">(
+    "STAFF",
+  );
+  const [companyTin, setCompanyTin] = useState("");
+  const [affiliatedCompany, setAffiliatedCompany] = useState("");
 
   const form = useForm<z.infer<typeof creditRegistrationSchema>>({
     resolver: zodResolver(creditRegistrationSchema),
@@ -271,6 +284,7 @@ const CreditRegistrationForm = ({
       sex: "Male",
       creditLevel: "Bronze",
       registrationDate: new Date(),
+      requestedCreditAmount: 0,
       paidAmount: 0,
       HotelName:
         (typeof window !== "undefined" &&
@@ -403,15 +417,43 @@ const CreditRegistrationForm = ({
         toast.error(
           `${values.creditLevel} is not Created yet: Please Announce the Admin`,
         );
+      } else if (registrantMode === "COMPANY" && !companyTin.trim()) {
+        toast.error("Company TIN is required for corporate registration");
       } else {
+        const ceiling = Number(selectedLevelDetails.requiredAmount);
+        const requested = Number(values.requestedCreditAmount);
+        const tierErr = validateRequestedCreditAgainstCeiling(requested, ceiling);
+        if (tierErr) {
+          toast.error(tierErr);
+          return;
+        }
+        const paidErr = validatePresalePaidAgainstRequested(
+          values.paidAmount,
+          requested,
+        );
+        if (paidErr) {
+          toast.error(paidErr);
+          return;
+        }
         const payload = {
-          ...values,
-          amount: selectedLevelDetails.requiredAmount,
+          name: values.name,
+          imageUrl: values.imageUrl,
+          phoneNumber: values.phoneNumber,
+          sex: registrantMode === "COMPANY" ? "Company" : values.sex,
+          creditLevel: values.creditLevel,
+          registrationDate: values.registrationDate,
+          paidAmount: values.paidAmount,
+          HotelName: values.HotelName,
+          amount: requested,
           timeInterval: selectedLevelDetails.timeInterval,
           timeFrame: selectedLevelDetails.timeFrame,
+          registrantType: registrantMode,
+          companyTinNumber:
+            registrantMode === "COMPANY" ? companyTin.trim() : "",
+          affiliatedCompany:
+            registrantMode === "STAFF" ? affiliatedCompany.trim() : "",
         };
         await CreateCreditRegistration(payload);
-        toast.success("Credit registration successful");
       }
     } catch (error: any) {
       toast.error(error?.message || "Registration failed");
@@ -433,23 +475,61 @@ const CreditRegistrationForm = ({
       </CardHeader>
 
       <CardContent>
+        <Alert className="mb-6 border-amber-500/30 bg-amber-500/5">
+          <AlertTitle>Admin authorization required</AlertTitle>
+          <AlertDescription>
+            New company and staff creditors are submitted for admin approval and
+            appear at payment only after authorization (same workflow as hotel
+            corporate credit).
+          </AlertDescription>
+        </Alert>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border h-fit">
+            <Tabs
+              value={registrantMode}
+              onValueChange={(v) => setRegistrantMode(v as "STAFF" | "COMPANY")}
+              className="mb-6"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="STAFF">Staff creditor</TabsTrigger>
+                <TabsTrigger value="COMPANY">Company creditor</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <h2 className="text-xl font-semibold mb-6 border-b pb-2">
-              User Information
+              {registrantMode === "COMPANY"
+                ? "Company information"
+                : "Staff information"}
             </h2>
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-6"
               >
+                <CustomFormField
+                  name="imageUrl"
+                  control={form.control}
+                  fieldType={formFieldTypes.IMAGE_UPLOADER}
+                  label="Creditor logo / photo"
+                  previewUrl={previewUrl}
+                  handleCloudinary={(result) =>
+                    uploadImage(result, form, setPreviewUrl, "imageUrl")
+                  }
+                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <CustomFormField
                     name="name"
                     control={form.control}
                     fieldType={formFieldTypes.INPUT}
-                    label="Customer Name"
-                    placeholder="e.g. John Doe"
+                    label={
+                      registrantMode === "COMPANY"
+                        ? "Company name"
+                        : "Customer name"
+                    }
+                    placeholder={
+                      registrantMode === "COMPANY"
+                        ? "e.g. Apex Trading PLC"
+                        : "e.g. John Doe"
+                    }
                     inputClassName="h-fit p-2 w-56"
                   />
                   <CustomFormField
@@ -461,7 +541,29 @@ const CreditRegistrationForm = ({
                   />
                 </div>
 
+                {registrantMode === "COMPANY" ? (
+                  <div className="space-y-2">
+                    <Label>Company TIN</Label>
+                    <Input
+                      value={companyTin}
+                      onChange={(e) => setCompanyTin(e.target.value)}
+                      placeholder="Tax identification number"
+                      className="max-w-md"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Affiliated company (optional)</Label>
+                    <Input
+                      value={affiliatedCompany}
+                      onChange={(e) => setAffiliatedCompany(e.target.value)}
+                      placeholder="Employer or sponsoring company"
+                      className="max-w-md"
+                    />
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {registrantMode === "STAFF" ? (
                   <CustomFormField
                     name="sex"
                     control={form.control}
@@ -470,6 +572,9 @@ const CreditRegistrationForm = ({
                     listdisplay={["Male", "Female"]}
                     inputClassName="h-fit p-2 w-56"
                   />
+                  ) : (
+                    <div className="hidden" aria-hidden />
+                  )}
                   <CustomFormField
                     name="creditLevel"
                     control={form.control}
@@ -484,6 +589,45 @@ const CreditRegistrationForm = ({
                   />
                 </div>
 
+                {selectedLevelDetails ? (
+                  <p className="text-sm text-muted-foreground rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+                    Tier maximum for {selectedLevelDetails.level}:{" "}
+                    <span className="font-semibold tabular-nums text-foreground">
+                      ETB{" "}
+                      {Number(
+                        selectedLevelDetails.requiredAmount,
+                      ).toLocaleString()}
+                    </span>
+                    {selectedLevelDetails.timeFrame
+                      ? ` · ${formatCreditCycle(
+                          selectedLevelDetails.timeInterval,
+                          selectedLevelDetails.timeFrame,
+                        )}`
+                      : ""}
+                  </p>
+                ) : null}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <CustomFormField
+                    name="requestedCreditAmount"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Credit amount requested (ETB)"
+                    type="number"
+                    placeholder="Must be at or below tier maximum"
+                    inputClassName="h-fit p-2 w-56"
+                  />
+                  <CustomFormField
+                    name="paidAmount"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Presale — paid now (ETB)"
+                    type="number"
+                    placeholder="Cannot exceed requested credit"
+                    inputClassName="h-fit p-2 w-56"
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <CustomFormField
                     name="registrationDate"
@@ -492,25 +636,7 @@ const CreditRegistrationForm = ({
                     label="Registration Date"
                     inputClassName="mx-1 h-fit p-2 w-40"
                   />
-                  <CustomFormField
-                    name="paidAmount"
-                    control={form.control}
-                    fieldType={formFieldTypes.INPUT}
-                    label="Paid Amount"
-                    type="number"
-                    inputClassName="h-fit p-2 w-56"
-                  />
                 </div>
-                <CustomFormField
-                  name="imageUrl"
-                  control={form.control}
-                  fieldType={formFieldTypes.IMAGE_UPLOADER}
-                  label="Customer Image"
-                  previewUrl={previewUrl}
-                  handleCloudinary={(result) =>
-                    uploadImage(result, form, setPreviewUrl, "imageUrl")
-                  }
-                />
                 <div className="space-y-3">
                   <div className="space-y-1">
                     <h3 className="text-base font-semibold">Select allowed items</h3>
@@ -573,7 +699,11 @@ const CreditRegistrationForm = ({
                   type="submit"
                   className="w-full bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer"
                 >
-                  {loading ? "Registering..." : "Register User"}
+                  {loading
+                    ? "Submitting..."
+                    : registrantMode === "COMPANY"
+                      ? "Register company"
+                      : "Register staff creditor"}
                 </Button>
               </form>
             </Form>
@@ -599,7 +729,11 @@ const CreditRegistrationForm = ({
                   phoneNumber={watchedValues.phoneNumber}
                   sex={watchedValues.sex}
                   creditLevel={watchedValues.creditLevel}
-                  creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
+                  creditLimit={
+                    Number(watchedValues.requestedCreditAmount) ||
+                    selectedLevelDetails?.requiredAmount ||
+                    0
+                  }
                   timeInterval={selectedLevelDetails?.timeInterval ?? 0}
                   timeFrame={selectedLevelDetails?.timeFrame ?? ""}
                   effectiveDate={watchedValues.registrationDate}
@@ -622,7 +756,11 @@ const CreditRegistrationForm = ({
                   phoneNumber={watchedValues.phoneNumber}
                   sex={watchedValues.sex}
                   creditLevel={watchedValues.creditLevel}
-                  creditLimit={selectedLevelDetails?.requiredAmount ?? 0}
+                  creditLimit={
+                    Number(watchedValues.requestedCreditAmount) ||
+                    selectedLevelDetails?.requiredAmount ||
+                    0
+                  }
                   timeInterval={selectedLevelDetails?.timeInterval ?? 0}
                   timeFrame={selectedLevelDetails?.timeFrame ?? ""}
                   effectiveDate={watchedValues.registrationDate}

@@ -183,7 +183,7 @@ export function HotelInventoryPaymentCategoryPanel({
             className="gap-1.5 cursor-pointer"
             disabled={!filtered.length}
             onClick={() =>
-              exportRowsExcel(
+              void exportRowsExcel(
                 `${fileBase}_${meta.sheet}`,
                 meta.sheet,
                 filtered.map((r) => ({
