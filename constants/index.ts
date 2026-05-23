@@ -62,6 +62,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "update-credential", label: "Update Credential", icon: "RefreshCw" },
   { id: "inventory", label: "Inventory", icon: "Store" },
+  { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
 ] as const;
 
@@ -80,22 +81,18 @@ export const CAFE_CASHIER_NAV_ITEMS = [
     description: "Collect cash or bank payments for open orders.",
   },
   {
-    id: "Cashout",
+    id: "cashout",
     label: "Cashout",
-    icon: "CreditCard",
-    description: "Record end-of-shift cash reconciliation.",
+    icon: "Receipt",
+    description:
+      "Record petty-cash purchases from the till and review today's entries.",
   },
   {
     id: "credit",
     label: "Corporate credit",
     icon: "Building2",
-    description: "Register company deals and record staff usage. Agreement printing is done in Admin → Corporate credit.",
-  },
-  {
-    id: "reports",
-    label: "Reports",
-    icon: "FileText",
-    description: "Daily and monthly sales, cashout, and order summaries.",
+    description:
+      "Register company deals and view usage reports. Staff are recorded at payment. Agreements are printed in Admin → Corporate credit.",
   },
 ] as const;
 

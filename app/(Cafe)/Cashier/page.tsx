@@ -7,14 +7,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ShoppingCart,
-  CreditCard,
   Store,
   RefreshCw,
   Loader2,
-  FileText,
   Wallet,
   Building2,
   LogOut,
+  Receipt,
 } from "lucide-react";
 import {
   Item,
@@ -29,9 +28,8 @@ import OrderComponent from "@/components/Order";
 import PaymentComponent from "@/components/Payment";
 import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Button } from "@/components/ui/button";
-import { HotelCashierDashboard } from "@/components/hotel/HotelCashierDashboard";
-import CashoutForm from "@/components/CashoutForm";
-import { CafeCashierReportsPanel } from "@/components/cafe/CafeCashierReportsPanel";
+import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCorporateCreditPanel";
+import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import {
   CAFE_CASHIER_NAV_ITEMS,
@@ -57,9 +55,8 @@ const NAV_ICONS: Record<
 > = {
   ShoppingCart,
   Wallet,
-  CreditCard,
   Building2,
-  FileText,
+  Receipt,
 };
 
 function CashierContent() {
@@ -190,10 +187,6 @@ function CashierContent() {
     );
   }
 
-  if (activeView === "credit") {
-    return <HotelCashierDashboard onBack={() => setActiveView("order")} />;
-  }
-
   const panel =
     activeView === "order" ? (
       <OrderComponent
@@ -210,11 +203,14 @@ function CashierContent() {
         onHandlePayment={handlePayment}
         onRefresh={loadData}
       />
-    ) : activeView === "reports" ? (
-      <CafeCashierReportsPanel orders={orders} hotelName={tenantScope} />
-    ) : (
-      <CashoutForm hotelName={tenantScope} />
-    );
+    ) : activeView === "credit" ? (
+      <CafeCashierCorporateCreditPanel />
+    ) : activeView === "cashout" ? (
+      <CafeCashierCashoutPanel
+        tenantScope={tenantScope}
+        propertyName={displayLabel}
+      />
+    ) : null;
 
   return (
     <SidebarProvider>
@@ -298,13 +294,25 @@ function CashierContent() {
               </AvatarFallback>
             </Avatar>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
-            {sectionMeta?.description ? (
+          <div
+            className={
+              activeView === "order"
+                ? "min-h-0 flex-1 overflow-y-auto"
+                : "min-h-0 flex-1 overflow-y-auto p-4 md:p-6"
+            }
+          >
+            {activeView !== "order" && sectionMeta?.description ? (
               <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
                 {sectionMeta.description}
               </p>
             ) : null}
-            <div className="rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4">
+            <div
+              className={
+                activeView === "order"
+                  ? "min-h-full"
+                  : "rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4"
+              }
+            >
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {panel}
               </div>

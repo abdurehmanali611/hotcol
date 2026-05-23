@@ -382,7 +382,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
               ) : (
                 <Inactive
                   items={fetchedItemStatus}
-                  admin={true}
+                  admin={false}
                   hotelName={hotelName}
                 />
               )}

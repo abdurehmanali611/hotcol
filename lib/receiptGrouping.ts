@@ -286,8 +286,6 @@ function stockMovementBundles(
 }
 
 export type ReceiptGroupingOptions = {
-  /** Café store: only petty-cash (fully paid) registration receipts. */
-  cafeCashoutOnly?: boolean;
   /** Omit purchase-request and stock-movement receipt groups. */
   registrationsOnly?: boolean;
 };
@@ -301,9 +299,7 @@ export function groupRegistrationsForReceipt(
   const printableRows = rows.filter((row) =>
     isItemRegistrationPrintable(row.approvalStatus),
   );
-  const registrationRows = options?.cafeCashoutOnly
-    ? printableRows.filter((row) => itemPaymentBucket(row) === "paid")
-    : printableRows;
+  const registrationRows = printableRows;
 
   const printablePr = options?.registrationsOnly
     ? []

@@ -33,7 +33,6 @@ export type itemStatus = {
   supplierName: string;
   supplierPhone: string;
   Address: string;
-  supplierLevel: string;
   paidAmount: number;
   status: string;
   statusBy: string;

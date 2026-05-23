@@ -15,11 +15,9 @@ export type items = {
   unitPrice: number;
   registrationDate: Date;
   expireDate: Date;
-  dutyFee: number;
   supplierName: string;
   supplierPhone: string;
   Address: string;
-  supplierLevel: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   paidAmount: number;

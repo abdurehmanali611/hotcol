@@ -173,6 +173,12 @@
     box-shadow: none !important;
   }
 
+  .corporate-meal-agreement .agreement-platform-footer,
+  .corporate-meal-agreement .agreement-copy-brand {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .corporate-meal-agreement article {
     break-inside: avoid;
     page-break-inside: avoid;

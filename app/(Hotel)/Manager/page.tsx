@@ -938,7 +938,7 @@ function ManagerContent() {
       case "corporate-credit-tiers":
         return (
           <div className="p-4 md:p-6">
-            <ManagerCorporateCreditTiers />
+            <ManagerCorporateCreditTiers variant="hotel" />
           </div>
         );
 

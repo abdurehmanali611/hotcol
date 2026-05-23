@@ -96,11 +96,9 @@ export type items = {
   unitPrice: number;
   registrationDate: Date;
   expireDate: Date;
-  dutyFee: number;
   supplierName: string;
   supplierPhone: string;
   Address: string;
-  supplierLevel: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   paidAmount: number;
@@ -244,7 +242,6 @@ function primaryRegistrationLine(data: items): items {
 
 function statusExtrasFromItem(d: items) {
   return {
-    supplierLevel: d.supplierLevel ?? "",
     purchaseWithVat: isVatEnabled(d.purchaseWithVat),
     supplierTinNumber: (d.supplierTinNumber ?? "").trim(),
   };

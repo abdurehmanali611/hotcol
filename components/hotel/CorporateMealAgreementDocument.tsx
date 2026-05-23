@@ -1,13 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
+import { APEX_SOLUTION, HOTCOL_SYSTEM } from "@/constants/branding";
 
 export type CorporateMealAgreementProps = {
   propertyName: string;
   propertyLogo?: string | null;
   propertyTin?: string | null;
   companyName: string;
+  companyLogo?: string | null;
   companyTin?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -18,6 +19,9 @@ export type CorporateMealAgreementProps = {
   payTiming?: string | null;
   dealNotes?: string | null;
   allowedItems: string[];
+  venueSignLabel?: string;
+  /** Header label for venue party — e.g. Hotel or Café */
+  venueLabel?: string;
 };
 
 function payTimingLabel(v?: string | null) {
@@ -46,6 +50,55 @@ function SignatureField({ label }: { label: string }) {
   );
 }
 
+function PartyLogo({
+  logo,
+  name,
+  tin,
+  label,
+  align = "left",
+}: {
+  logo?: string | null;
+  name: string;
+  tin?: string | null;
+  label: string;
+  align?: "left" | "right";
+}) {
+  return (
+    <div
+      className={`flex min-w-0 max-w-[48%] items-start gap-2 ${align === "right" ? "flex-row-reverse text-right" : ""}`}
+    >
+      {logo ? (
+        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border-2 border-emerald-600/20 shadow-sm print:h-10 print:w-10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logo} alt="" className="h-full w-full object-cover" />
+        </div>
+      ) : (
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-emerald-600/20 bg-emerald-50 text-[10px] font-bold text-emerald-800 print:h-10 print:w-10"
+          aria-hidden
+        >
+          {name.slice(0, 2).toUpperCase()}
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+          {label}
+        </p>
+        <p className="text-[13px] font-bold leading-tight tracking-tight text-zinc-900 print:text-[12px]">
+          {name}
+        </p>
+        {tin?.trim() ? (
+          <p className="mt-0.5 text-[9px] font-medium text-zinc-500">
+            TIN {tin.trim()}
+          </p>
+        ) : (
+          <p className="mt-0.5 text-[9px] font-medium text-zinc-400">TIN —</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CopyBlock({
   title,
   signRight,
@@ -66,6 +119,8 @@ function CopyBlock({
   const copyLabel =
     title === "Management copy" ? "Management copy" : "Creditor copy";
 
+  const venueLabel = agreement.venueLabel ?? "Venue";
+
   return (
     <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-dashed border-zinc-300 bg-white shadow-sm print:rounded-md print:shadow-none">
       <div className="border-b border-dashed border-zinc-300 bg-linear-to-r from-zinc-50 via-emerald-50/60 to-zinc-50 px-3 py-1.5 text-center print:py-1">
@@ -75,35 +130,20 @@ function CopyBlock({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col px-4 py-3 print:px-4 print:py-3">
-        <header className="flex items-start gap-3">
-          {agreement.propertyLogo ? (
-            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border-2 border-emerald-600/20 shadow-sm print:h-10 print:w-10">
-              <Image
-                src={agreement.propertyLogo}
-                alt=""
-                width={44}
-                height={44}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          ) : (
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-emerald-600/20 bg-emerald-50 text-[10px] font-bold text-emerald-800 print:h-10 print:w-10"
-              aria-hidden
-            >
-              {agreement.propertyName.slice(0, 2).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-bold leading-tight tracking-tight text-zinc-900 print:text-[14px]">
-              {agreement.propertyName}
-            </p>
-            {agreement.propertyTin ? (
-              <p className="mt-0.5 text-[9px] font-medium text-zinc-500">
-                TIN {agreement.propertyTin}
-              </p>
-            ) : null}
-          </div>
+        <header className="flex items-start justify-between gap-3">
+          <PartyLogo
+            logo={agreement.propertyLogo}
+            name={agreement.propertyName}
+            tin={agreement.propertyTin}
+            label={venueLabel}
+          />
+          <PartyLogo
+            logo={agreement.companyLogo}
+            name={agreement.companyName}
+            tin={agreement.companyTin}
+            label="Company"
+            align="right"
+          />
         </header>
 
         <div
@@ -117,9 +157,20 @@ function CopyBlock({
 
         <dl className="mt-2 grid grid-cols-[minmax(72px,88px)_1fr] gap-x-2 gap-y-1 text-[10px] leading-snug print:mt-1.5 print:gap-y-0.5 print:text-[10.5px]">
           <DetailRow label="Company" value={agreement.companyName} />
-          {agreement.companyTin ? (
-            <DetailRow label="Company TIN" value={agreement.companyTin} />
-          ) : null}
+          <DetailRow
+            label={`${venueLabel} TIN`}
+            value={
+              agreement.propertyTin?.trim()
+                ? agreement.propertyTin.trim()
+                : "—"
+            }
+          />
+          <DetailRow
+            label="Company TIN"
+            value={
+              agreement.companyTin?.trim() ? agreement.companyTin.trim() : "—"
+            }
+          />
           <DetailRow label="Phone" value={agreement.phone || "-"} />
           <DetailRow label="Email" value={agreement.email || "-"} />
           <DetailRow label="Credit tier" value={tierLine} />
@@ -161,13 +212,67 @@ function CopyBlock({
           </div>
         </div>
       </div>
+
+      <CopyBrandingStrip copyLabel={copyLabel} />
     </article>
+  );
+}
+
+function CopyBrandingStrip({ copyLabel }: { copyLabel: string }) {
+  const apexSite = APEX_SOLUTION.website.replace(/^https?:\/\//, "");
+  const printedAt = new Date().toLocaleString();
+
+  return (
+    <div className="agreement-copy-brand shrink-0 border-t border-dashed border-zinc-300 bg-zinc-50/80 px-2 py-1.5 print:py-1">
+      <p className="mb-1 text-center text-[6.5px] leading-snug text-zinc-500 print:text-[7px]">
+        {copyLabel} · Valid when signed by venue management
+      </p>
+      <div className="overflow-hidden rounded border border-zinc-800 bg-zinc-900 text-white">
+        <div className="flex items-center justify-between gap-1.5 px-1.5 py-1 print:py-0.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={APEX_SOLUTION.logoPath}
+              alt={APEX_SOLUTION.name}
+              className="h-5 w-auto max-w-[72px] shrink-0 object-contain print:h-[18px]"
+            />
+            <div className="min-w-0 leading-tight">
+              <p className="text-[7px] font-semibold">{APEX_SOLUTION.name}</p>
+              <p className="text-[6px] text-zinc-300">{apexSite}</p>
+              <p className="mt-px text-[5.5px] leading-snug text-zinc-400 print:text-[6px]">
+                Hospitality software · inventory, corporate credit &amp; reporting
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={HOTCOL_SYSTEM.logoPath}
+              alt={HOTCOL_SYSTEM.name}
+              className="h-3.5 w-3.5 shrink-0 rounded object-cover print:h-3 print:w-3"
+            />
+            <div className="text-right text-[5.5px] leading-snug text-zinc-400 print:text-[6px]">
+              <p>
+                Powered by{" "}
+                <span className="font-medium text-zinc-200">
+                  {HOTCOL_SYSTEM.name}
+                </span>
+              </p>
+              <p className="mt-px">Corporate credit &amp; meal agreements</p>
+              <p className="mt-px tabular-nums">{printedAt}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function CorporateMealAgreementDocument(
   props: CorporateMealAgreementProps,
 ) {
+  const venueSign = props.venueSignLabel ?? "Hotel management";
+
   return (
     <section className="corporate-meal-agreement mx-auto flex h-[297mm] w-[210mm] flex-col overflow-hidden bg-white p-[7mm] font-sans text-zinc-900 shadow-lg print:m-0 print:shadow-none">
       <div className="relative grid min-h-0 flex-1 grid-rows-2 gap-[5mm]">
@@ -184,7 +289,7 @@ export function CorporateMealAgreementDocument(
 
         <CopyBlock
           title="Management copy"
-          signRight="Hotel management"
+          signRight={venueSign}
           agreement={props}
         />
         <CopyBlock
@@ -193,16 +298,6 @@ export function CorporateMealAgreementDocument(
           agreement={props}
         />
       </div>
-
-      <footer className="mt-[3mm] shrink-0 border-t border-zinc-200 pt-2 text-center">
-        <p className="text-[8.5px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
-          Authorized corporate meal agreement
-        </p>
-        <p className="mt-0.5 text-[8px] leading-relaxed text-zinc-500">
-          One page · perforated tear-off · valid only when signed by hotel
-          management
-        </p>
-      </footer>
     </section>
   );
 }

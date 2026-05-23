@@ -335,10 +335,8 @@ export interface ItemRegistration {
   unitPrice: number;
   registrationDate: Date;
   expireDate: Date;
-  dutyFee: number;
   supplierName: string;
   supplierPhone: string;
-  supplierLevel: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   Address: string;
@@ -372,10 +370,8 @@ export interface createItemRegistration {
   unitPrice: number;
   registrationDate: Date;
   expireDate: Date;
-  dutyFee: number;
   supplierName: string;
   supplierPhone: string;
-  supplierLevel: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   Address: string;
@@ -399,7 +395,6 @@ export interface ItemStatus {
   supplierName: string;
   supplierPhone: string;
   Address: string;
-  supplierLevel: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   paidAmount: number;
@@ -422,7 +417,6 @@ export interface CreatingItemStatus {
   supplierName: string;
   supplierPhone: string;
   Address: string;
-  supplierLevel: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   paidAmount: number;
@@ -2133,6 +2127,7 @@ export async function CreateCashout(data: any) {
     }
 
     toast.success("Cashout created successfully");
+    invalidateGraphqlListCache("finance:cashouts");
     return response.data.data.CreateCashout;
   } catch (error: any) {
     if (isSessionExpiredError(error)) throw error;
@@ -3093,11 +3088,9 @@ export async function CreateItemRegistration(values: createItemRegistration) {
         $unitPrice: Float!, 
         $registrationDate: DateTime!,
         $expireDate: DateTime!,
-        $dutyFee: Float!,
         $supplierName: String!, 
         $supplierPhone: String!,
         $Address: String!,
-        $supplierLevel: String!,
         $purchaseWithVat: Boolean,
         $supplierTinNumber: String,
         $paidAmount: Float!,
@@ -3112,11 +3105,9 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           unitPrice: $unitPrice,
           registrationDate: $registrationDate,
           expireDate: $expireDate,
-          dutyFee: $dutyFee,
           supplierName: $supplierName,
           supplierPhone: $supplierPhone,
           Address: $Address,
-          supplierLevel: $supplierLevel,
           purchaseWithVat: $purchaseWithVat,
           supplierTinNumber: $supplierTinNumber,
           paidAmount: $paidAmount,
@@ -3131,11 +3122,9 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           unitPrice
           registrationDate
           expireDate
-          dutyFee
           supplierName
           supplierPhone
           Address
-          supplierLevel
           purchaseWithVat
           supplierTinNumber
           paidAmount
@@ -3164,11 +3153,9 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       unitPrice: values.unitPrice || 0,
       registrationDate: values.registrationDate || new Date(),
       expireDate: values.expireDate || new Date(),
-      dutyFee: values.dutyFee || 0,
       supplierName: values.supplierName || "",
       supplierPhone: values.supplierPhone || "",
       Address: values.Address || "",
-      supplierLevel: values.supplierLevel || "",
       purchaseWithVat: values.purchaseWithVat !== false,
       supplierTinNumber: (values.supplierTinNumber || "").trim() || null,
       paidAmount: values.paidAmount || 0,
@@ -3220,12 +3207,11 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           pityCashList,
           values.HotelName,
         );
-        const totalCalc =
-          computeInventoryPaidAmountETB(
+        const totalCalc = computeInventoryPaidAmountETB(
             values.amount,
             values.unitPrice,
             values.purchaseWithVat,
-          ) + values.dutyFee;
+          );
 
         if (currentPityCash) {
           const newAmount = currentPityCash.amount - totalCalc;
@@ -3267,10 +3253,8 @@ export async function fetchItemRegistrations() {
           unitPrice
           registrationDate
           expireDate
-          dutyFee
           supplierName
           supplierPhone
-          supplierLevel
           purchaseWithVat
           supplierTinNumber
           Address
@@ -3324,11 +3308,9 @@ export async function UpdateItemRegistration(
         $unitPrice: Float!, 
         $registrationDate: DateTime!,
         $expireDate: DateTime!,
-        $dutyFee: Float!,
         $supplierName: String!, 
         $supplierPhone: String!,
         $Address: String!,
-        $supplierLevel: String!,
         $purchaseWithVat: Boolean,
         $supplierTinNumber: String,
         $paidAmount: Float!
@@ -3343,11 +3325,9 @@ export async function UpdateItemRegistration(
           unitPrice: $unitPrice, 
           registrationDate: $registrationDate,
           expireDate: $expireDate,
-          dutyFee: $dutyFee,
           supplierName: $supplierName,
           supplierPhone: $supplierPhone,
           Address: $Address,
-          supplierLevel: $supplierLevel,
           purchaseWithVat: $purchaseWithVat,
           supplierTinNumber: $supplierTinNumber,
           paidAmount: $paidAmount
@@ -3361,11 +3341,9 @@ export async function UpdateItemRegistration(
           unitPrice
           registrationDate
           expireDate
-          dutyFee
           supplierName
           supplierPhone
           Address
-          supplierLevel
           purchaseWithVat
           supplierTinNumber
           paidAmount
@@ -3438,13 +3416,12 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
     $supplierName: String!,
     $supplierPhone: String!,   
     $Address:       String!,
-    $supplierLevel: String!,
     $purchaseWithVat: Boolean,
     $supplierTinNumber: String,
     $paidAmount: Float!,
     $status: String!,
     $statusBy: String!, $HotelName: String!) {
-      CreateItemStatus(name: $name, imageUrl: $imageUrl, category: $category, amount: $amount, measuredBy: $measuredBy, unitPrice: $unitPrice, actionDate: $actionDate, supplierName: $supplierName, supplierPhone: $supplierPhone, Address: $Address, supplierLevel: $supplierLevel, purchaseWithVat: $purchaseWithVat, supplierTinNumber: $supplierTinNumber, paidAmount: $paidAmount, status: $status, statusBy: $statusBy, HotelName: $HotelName) {
+      CreateItemStatus(name: $name, imageUrl: $imageUrl, category: $category, amount: $amount, measuredBy: $measuredBy, unitPrice: $unitPrice, actionDate: $actionDate, supplierName: $supplierName, supplierPhone: $supplierPhone, Address: $Address, purchaseWithVat: $purchaseWithVat, supplierTinNumber: $supplierTinNumber, paidAmount: $paidAmount, status: $status, statusBy: $statusBy, HotelName: $HotelName) {
        name
        imageUrl
        category
@@ -3455,7 +3432,6 @@ export async function CreateItemStatus(data: CreatingItemStatus) {
        supplierName
        supplierPhone
        Address
-       supplierLevel
        purchaseWithVat
        supplierTinNumber
        paidAmount
@@ -3510,7 +3486,6 @@ export async function fetchItemStatus() {
           supplierName
           supplierPhone
           Address
-          supplierLevel
           purchaseWithVat
           supplierTinNumber
           paidAmount
@@ -4546,6 +4521,7 @@ export async function authorizeHotelCreditCompanyApi(id: number) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Authorization failed");
   }
+  invalidateGraphqlListCache("hotel:creditCompanies");
   toast.success("Company authorized for corporate meals");
   return response.data.data.authorizeHotelCreditCompany;
 }
@@ -4566,6 +4542,7 @@ export async function rejectHotelCreditCompanyApi(id: number, reason?: string) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Rejection failed");
   }
+  invalidateGraphqlListCache("hotel:creditCompanies");
   toast.success("Company registration rejected");
   return response.data.data.rejectHotelCreditCompany;
 }
@@ -5627,7 +5604,8 @@ export async function createHotelCreditCompanyApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Save failed");
   }
-  toast.success("Company submitted — awaiting manager authorization");
+  invalidateGraphqlListCache("hotel:creditCompanies");
+  toast.success("Company submitted — awaiting authorization");
   return response.data.data.createHotelCreditCompany;
 }
 
@@ -5688,6 +5666,7 @@ export async function updateHotelCreditCompanyApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Update failed");
   }
+  invalidateGraphqlListCache("hotel:creditCompanies");
   toast.success("Company updated");
   return response.data.data.updateHotelCreditCompany;
 }
@@ -5705,6 +5684,7 @@ export async function deleteHotelCreditCompanyApi(id: number) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Delete failed");
   }
+  invalidateGraphqlListCache("hotel:creditCompanies");
   toast.success("Company removed");
 }
 
@@ -5741,6 +5721,7 @@ export async function createHotelCorporateCreditTierApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Save failed");
   }
+  invalidateGraphqlListCache("hotel:corporateCreditTiers");
   toast.success("Credit tier saved");
   return response.data.data.createHotelCorporateCreditTier;
 }
@@ -5781,6 +5762,7 @@ export async function updateHotelCorporateCreditTierApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Update failed");
   }
+  invalidateGraphqlListCache("hotel:corporateCreditTiers");
   toast.success("Tier updated");
   return response.data.data.updateHotelCorporateCreditTier;
 }
@@ -5798,6 +5780,7 @@ export async function deleteHotelCorporateCreditTierApi(id: number) {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Delete failed");
   }
+  invalidateGraphqlListCache("hotel:corporateCreditTiers");
   toast.success("Tier removed");
 }
 

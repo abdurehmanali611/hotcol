@@ -14,10 +14,14 @@ import {
   type HotelCorporateCreditTierRow,
 } from "@/lib/actions";
 import {
+  CAFE_CORPORATE_CREDIT_TIER_SORT_ORDER,
+  CAFE_CREDIT_LEVELS,
   CAFE_CREDIT_TIMEFRAMES,
+  cafeCorporateCreditTierFormSchema,
   HOTEL_CORPORATE_CREDIT_TIER_LEVELS,
   HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER,
   hotelCorporateCreditTierFormSchema,
+  type CafeCreditLevel,
   type HotelCorporateCreditTierLevelName,
 } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
@@ -52,25 +56,43 @@ import {
   Trash,
 } from "lucide-react";
 
-const TIER_LEVEL_SELECT_OPTIONS = HOTEL_CORPORATE_CREDIT_TIER_LEVELS.map(
-  (level, idx) => ({ id: idx + 1, name: level }),
-);
+export function ManagerCorporateCreditTiers({
+  variant = "hotel",
+}: {
+  /** Café admin: Bronze / Silver / Gold only (no Platinum). */
+  variant?: "hotel" | "cafe";
+}) {
+  const isCafe = variant === "cafe";
+  const tierLevels = isCafe
+    ? CAFE_CREDIT_LEVELS
+    : HOTEL_CORPORATE_CREDIT_TIER_LEVELS;
+  const tierSortOrder = isCafe
+    ? CAFE_CORPORATE_CREDIT_TIER_SORT_ORDER
+    : HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER;
+  const formSchema = isCafe
+    ? cafeCorporateCreditTierFormSchema
+    : hotelCorporateCreditTierFormSchema;
+  type TierFormValues = z.infer<typeof formSchema>;
 
-export function ManagerCorporateCreditTiers() {
+  const tierLevelSelectOptions = useMemo(
+    () => tierLevels.map((level, idx) => ({ id: idx + 1, name: level })),
+    [tierLevels],
+  );
+
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<HotelCorporateCreditTierRow[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingTierId, setDeletingTierId] = useState<number | null>(null);
 
-  const form = useForm<z.infer<typeof hotelCorporateCreditTierFormSchema>>({
-    resolver: zodResolver(hotelCorporateCreditTierFormSchema),
+  const form = useForm<TierFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "Bronze",
       creditCeiling: 0,
       timeInterval: 0,
       timeFrame: "Daily",
-      sortOrder: HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER.Bronze,
+      sortOrder: tierSortOrder.Bronze,
     },
   });
 
@@ -92,6 +114,11 @@ export function ManagerCorporateCreditTiers() {
     void load();
   }, [load]);
 
+  const visibleRows = useMemo(
+    () => (isCafe ? rows.filter((r) => r.name !== "Platinum") : rows),
+    [rows, isCafe],
+  );
+
   const resetToDefaults = useCallback(() => {
     setEditingId(null);
     form.reset({
@@ -99,23 +126,20 @@ export function ManagerCorporateCreditTiers() {
       creditCeiling: 0,
       timeInterval: 0,
       timeFrame: "Daily",
-      sortOrder: HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER.Bronze,
+      sortOrder: tierSortOrder.Bronze,
     });
-  }, [form]);
+  }, [form, tierSortOrder]);
 
-  const onSubmit = async (
-    values: z.infer<typeof hotelCorporateCreditTierFormSchema>,
-  ) => {
+  const onSubmit = async (values: TierFormValues) => {
     try {
       setSubmitting(true);
-      const wasEditing = editingId != null;
-      if (!editingId && rows.some((row) => row.name === values.name)) {
+      if (!editingId && visibleRows.some((row) => row.name === values.name)) {
         toast.error("This credit level already exists");
         setSubmitting(false);
         return;
       }
       const sortOrder =
-        HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER[values.name];
+        tierSortOrder[values.name as keyof typeof tierSortOrder];
       if (editingId) {
         await updateHotelCorporateCreditTierApi({
           id: editingId,
@@ -125,9 +149,9 @@ export function ManagerCorporateCreditTiers() {
       } else {
         await createHotelCorporateCreditTierApi({ ...values, sortOrder });
       }
-      await load();
+      const data = await fetchHotelCorporateCreditTiers();
+      setRows(data);
       resetToDefaults();
-      toast.success(wasEditing ? "Tier updated" : "Tier created");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -137,25 +161,23 @@ export function ManagerCorporateCreditTiers() {
 
   const handleEdit = (r: HotelCorporateCreditTierRow) => {
     setEditingId(r.id);
-    const levelOk = (
-      HOTEL_CORPORATE_CREDIT_TIER_LEVELS as readonly string[]
-    ).includes(r.name);
+    const levelOk = (tierLevels as readonly string[]).includes(r.name);
     const tfOk = (CAFE_CREDIT_TIMEFRAMES as readonly string[]).includes(
       r.timeFrame,
     );
     form.reset({
       name: levelOk
-        ? (r.name as HotelCorporateCreditTierLevelName)
+        ? (r.name as TierFormValues["name"])
         : "Bronze",
       creditCeiling: r.creditCeiling,
       timeInterval: r.timeInterval,
       timeFrame: tfOk
-        ? (r.timeFrame as (typeof CAFE_CREDIT_TIMEFRAMES)[number])
+        ? (r.timeFrame as TierFormValues["timeFrame"])
         : "Daily",
       sortOrder: levelOk
-        ? HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER[r.name as HotelCorporateCreditTierLevelName]
+        ? tierSortOrder[r.name as keyof typeof tierSortOrder]
         : r.sortOrder,
-    });
+    } satisfies TierFormValues);
   };
 
   const handleCancelEdit = () => {
@@ -165,7 +187,8 @@ export function ManagerCorporateCreditTiers() {
   const handleDelete = async (id: number) => {
     try {
       await deleteHotelCorporateCreditTierApi(id);
-      await load();
+      const data = await fetchHotelCorporateCreditTiers();
+      setRows(data);
       if (editingId === id) resetToDefaults();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Delete failed");
@@ -194,11 +217,11 @@ export function ManagerCorporateCreditTiers() {
 
   const sortedRows = useMemo(
     () =>
-      [...rows].sort(
+      [...visibleRows].sort(
         (a, b) =>
           a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
       ),
-    [rows],
+    [visibleRows],
   );
 
   return (
@@ -214,8 +237,9 @@ export function ManagerCorporateCreditTiers() {
                 Corporate credit tiers
               </CardTitle>
               <CardDescription>
-                Configure corporate deal ceilings and reset cycles (same layout as
-                café credit). Cashiers pick from these tiers only.
+                {isCafe
+                  ? "Café only: Bronze, Silver, and Gold — Platinum is not used on café properties."
+                  : "Hotel: Platinum, Gold, Silver, and Bronze corporate deal ceilings and reset cycles."}
               </CardDescription>
             </div>
           </div>
@@ -239,7 +263,7 @@ export function ManagerCorporateCreditTiers() {
                     control={form.control}
                     fieldType={formFieldTypes.SELECT}
                     label="Tier Level"
-                    listdisplay={TIER_LEVEL_SELECT_OPTIONS}
+                    listdisplay={tierLevelSelectOptions}
                     inputClassName="h-fit w-56 p-2"
                   />
                   <CustomFormField
@@ -297,7 +321,9 @@ export function ManagerCorporateCreditTiers() {
             <div className="text-center">
               <h3 className="text-xl font-bold">Active Credit Tiers</h3>
               <p className="text-sm text-muted-foreground">
-                Current levels available for hotel cashier company deals
+                {isCafe
+                  ? "Bronze, Silver, and Gold only (no Platinum)"
+                  : "Platinum, Gold, Silver, and Bronze for hotel cashier company deals"}
               </p>
             </div>
 

@@ -1,7 +1,6 @@
 "use client";
 
 import Reports from "@/components/reports";
-import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import {
   exportToExcel,
   fetchCashout,
@@ -10,8 +9,6 @@ import {
   type Order,
 } from "@/lib/actions";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
 export function CafeCashierReportsPanel({
   orders,
@@ -20,61 +17,51 @@ export function CafeCashierReportsPanel({
   orders: Order[];
   hotelName: string;
 }) {
-  const { displayName } = useTenantScopeAndDisplay(hotelName);
-
   return (
-    <Tabs defaultValue="sales" className="w-full space-y-6 p-4 md:p-6">
-      <TabsList className="grid w-full max-w-md grid-cols-2">
-        <TabsTrigger value="sales">Sales & cashout</TabsTrigger>
-        <TabsTrigger value="corporate">Corporate credit usage</TabsTrigger>
-      </TabsList>
-      <TabsContent value="sales" className="mt-0">
-    <Reports
-      orders={orders}
-      hotelName={hotelName}
-      onGenerateReport={async ({
-        date,
-        type,
-      }: {
-        date: Date;
-        type: "Daily" | "Monthly";
-      }) => {
-        try {
-          const cashouts = await fetchCashout(hotelName);
-          return await generateReport(orders, cashouts, {
-            date,
-            type,
-            HotelName: hotelName,
-          });
-        } catch (error: unknown) {
-          const msg =
-            error instanceof Error ? error.message : "Report failed";
-          toast.error("Failed to generate report: " + msg);
-          throw error;
-        }
-      }}
-      onExportReport={async (reportData: unknown, reportType: "Daily" | "Monthly") => {
-        try {
-          const data = reportData as { orders?: Order[] };
-          const exportData = prepareReportExportData(
-            data.orders ?? [],
-            reportType,
-          );
-          await exportToExcel(exportData);
-        } catch (error: unknown) {
-          const msg =
-            error instanceof Error ? error.message : "Export failed";
-          toast.error("Failed to export report: " + msg);
-          throw error;
-        }
-      }}
-    />
-      </TabsContent>
-      <TabsContent value="corporate" className="mt-0">
-        <HotelCreditorUsageReportPanel
-          tenantLabel={displayName || hotelName}
-        />
-      </TabsContent>
-    </Tabs>
+    <div className="w-full p-4 md:p-6">
+      <Reports
+        orders={orders}
+        hotelName={hotelName}
+        onGenerateReport={async ({
+          date,
+          type,
+        }: {
+          date: Date;
+          type: "Daily" | "Monthly";
+        }) => {
+          try {
+            const cashouts = await fetchCashout(hotelName);
+            return await generateReport(orders, cashouts, {
+              date,
+              type,
+              HotelName: hotelName,
+            });
+          } catch (error: unknown) {
+            const msg =
+              error instanceof Error ? error.message : "Report failed";
+            toast.error("Failed to generate report: " + msg);
+            throw error;
+          }
+        }}
+        onExportReport={async (
+          reportData: unknown,
+          reportType: "Daily" | "Monthly",
+        ) => {
+          try {
+            const data = reportData as { orders?: Order[] };
+            const exportData = prepareReportExportData(
+              data.orders ?? [],
+              reportType,
+            );
+            await exportToExcel(exportData);
+          } catch (error: unknown) {
+            const msg =
+              error instanceof Error ? error.message : "Export failed";
+            toast.error("Failed to export report: " + msg);
+            throw error;
+          }
+        }}
+      />
+    </div>
   );
 }

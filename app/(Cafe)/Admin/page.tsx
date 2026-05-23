@@ -45,6 +45,7 @@ import {
   Loader2,
   Store,
   Building2,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
@@ -63,6 +64,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import AdminInventory from "@/components/AdminInventory";
+import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
@@ -84,6 +86,16 @@ function AdminDashboardContent() {
   );
   const headerLabel = displayName || "Admin";
   const logoUrl = searchParams.get("logo") || "";
+  const [propertyTin, setPropertyTin] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem("tin_number");
+      setPropertyTin(t?.trim() || null);
+    } catch {
+      setPropertyTin(null);
+    }
+  }, []);
 
   const [activeTab, setActiveTab] = useState("reports");
   const [items, setItems] = useState<any[]>([]);
@@ -221,6 +233,7 @@ function AdminDashboardContent() {
     RefreshCw,
     Store,
     Building2,
+    Receipt,
   };
 
   const sidebarItems = ADMIN_SIDEBAR_ITEMS.map((item) => {
@@ -369,6 +382,18 @@ function AdminDashboardContent() {
             </div>
           </div>
         );
+      case "item-receipts":
+        return (
+          <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
+            <StoreItemReceiptPrinting
+              items={inventoryAlerts}
+              propertyName={displayName || tenantScope}
+              propertyTin={propertyTin}
+              logoUrl={logoUrl || null}
+              variant="cafe-store"
+            />
+          </div>
+        );
       case "credit-registrations":
         return (
           <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
@@ -376,6 +401,7 @@ function AdminDashboardContent() {
               tenantScope={tenantScope}
               propertyName={displayName || tenantScope}
               propertyLogo={logoUrl || null}
+              propertyTin={propertyTin}
             />
           </div>
         );

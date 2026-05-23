@@ -106,11 +106,18 @@ function tierSummary(t: HotelCorporateCreditTierRow) {
 }
 
 export function HotelCashierDashboard({
-  onBack,
+  embedded = false,
+  cafeCashier = false,
+  companiesOnly = false,
 }: {
-  /** Café cashier: return to main terminal without signing out. */
-  onBack?: () => void;
+  /** Render inside café cashier shell (no hotel sidebar / sign-out). */
+  embedded?: boolean;
+  /** Café: no Platinum tiers; no register-consumption (staff at payment). */
+  cafeCashier?: boolean;
+  /** With `embedded`: company-deals UI only (tabs live in parent). */
+  companiesOnly?: boolean;
 } = {}) {
+  const isCafeTerminal = cafeCashier;
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
@@ -119,6 +126,11 @@ export function HotelCashierDashboard({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tiers, setTiers] = useState<HotelCorporateCreditTierRow[]>([]);
+  const availableTiers = useMemo(
+    () =>
+      isCafeTerminal ? tiers.filter((t) => t.name !== "Platinum") : tiers,
+    [tiers, isCafeTerminal],
+  );
   const [menu, setMenu] = useState<Item[]>([]);
   const [companies, setCompanies] = useState<HotelCreditCompanyRow[]>([]);
   const [selCompany, setSelCompany] = useState<HotelCreditCompanyRow | null>(
@@ -163,16 +175,24 @@ export function HotelCashierDashboard({
   );
 
   const watchedTierId = companyDealForm.watch("hotelCorporateCreditTierId");
+  const watchedPayTiming = companyDealForm.watch("payTiming");
+  const showPresalePaid = watchedPayTiming === "NOW";
 
   useEffect(() => {
-    const tier = tiers.find((t) => t.id === Number(watchedTierId));
+    if (!showPresalePaid) {
+      companyDealForm.setValue("paidAmount", 0, { shouldValidate: true });
+    }
+  }, [showPresalePaid, companyDealForm]);
+
+  useEffect(() => {
+    const tier = availableTiers.find((t) => t.id === Number(watchedTierId));
     if (!tier) return;
     const cur = Number(companyDealForm.getValues("creditLimit")) || 0;
     const ceiling = Number(tier.creditCeiling);
     if (cur <= 0 || cur > ceiling) {
       companyDealForm.setValue("creditLimit", ceiling, { shouldValidate: true });
     }
-  }, [watchedTierId, tiers, companyDealForm]);
+  }, [watchedTierId, availableTiers, companyDealForm]);
 
   const consumptionMetaForm = useForm<
     z.infer<typeof hotelCreditConsumptionMetaFormSchema>
@@ -296,8 +316,8 @@ export function HotelCashierDashboard({
       email: "",
       payTiming: "AFTER_SERVICE",
       dealNotes: "",
-      hotelCorporateCreditTierId: tiers[0]?.id ?? 0,
-      creditLimit: tiers[0]?.creditCeiling ?? 0,
+      hotelCorporateCreditTierId: availableTiers[0]?.id ?? 0,
+      creditLimit: availableTiers[0]?.creditCeiling ?? 0,
       paidAmount: 0,
       imageUrl: "",
     });
@@ -311,7 +331,9 @@ export function HotelCashierDashboard({
       toast.error("Allow at least one menu item for this deal");
       return;
     }
-    const tier = tiers.find((t) => t.id === values.hotelCorporateCreditTierId);
+    const tier = availableTiers.find(
+      (t) => t.id === values.hotelCorporateCreditTierId,
+    );
     const ceiling = tier ? Number(tier.creditCeiling) : 0;
     const tierErr = validateRequestedCreditAgainstCeiling(
       values.creditLimit,
@@ -321,10 +343,13 @@ export function HotelCashierDashboard({
       toast.error(tierErr);
       return;
     }
-    const paidErr = validatePresalePaidAgainstRequested(
-      values.paidAmount,
-      values.creditLimit,
-    );
+    const paidErr =
+      values.payTiming === "NOW"
+        ? validatePresalePaidAgainstRequested(
+            values.paidAmount,
+            values.creditLimit,
+          )
+        : null;
     if (paidErr) {
       toast.error(paidErr);
       return;
@@ -347,7 +372,7 @@ export function HotelCashierDashboard({
         allowedMenuJson,
         imageUrl: values.imageUrl.trim(),
         creditLimit: values.creditLimit,
-        paidAmount: values.paidAmount,
+        paidAmount: values.payTiming === "NOW" ? values.paidAmount : 0,
       };
       if (editingCompanyId) {
         await updateHotelCreditCompanyApi({
@@ -428,19 +453,23 @@ export function HotelCashierDashboard({
   );
 
   useEffect(() => {
-    if (!tiers.length || editingCompanyId != null) return;
+    if (!availableTiers.length || editingCompanyId != null) return;
     const cur = companyDealForm.getValues("hotelCorporateCreditTierId");
     if (!cur || cur === 0) {
-      companyDealForm.setValue("hotelCorporateCreditTierId", tiers[0].id, {
-        shouldValidate: true,
-      });
+      companyDealForm.setValue(
+        "hotelCorporateCreditTierId",
+        availableTiers[0].id,
+        {
+          shouldValidate: true,
+        },
+      );
     }
-  }, [tiers, editingCompanyId, companyDealForm]);
+  }, [availableTiers, editingCompanyId, companyDealForm]);
 
   const tierIdWatch = companyDealForm.watch("hotelCorporateCreditTierId");
   const selectedTier = useMemo(
-    () => tiers.find((t) => t.id === tierIdWatch),
-    [tiers, tierIdWatch],
+    () => availableTiers.find((t) => t.id === tierIdWatch),
+    [availableTiers, tierIdWatch],
   );
 
   const authorizedCompanies = useMemo(
@@ -457,12 +486,12 @@ export function HotelCashierDashboard({
 
   const tierLevelSelectList = useMemo(
     () =>
-      tiers.map((t) => ({
+      availableTiers.map((t) => ({
         id: t.id,
         name: `${t.name} - ETB ${Number(t.creditCeiling).toLocaleString()} - ${formatCreditCycle(t.timeInterval, t.timeFrame)}`,
         realValue: t.id,
       })),
-    [tiers],
+    [availableTiers],
   );
 
   const filteredMenuForDeal = useMemo(() => {
@@ -488,13 +517,26 @@ export function HotelCashierDashboard({
     [menu],
   );
 
+  const showCompanies = companiesOnly || activeSection === "companies";
+  const showUsage =
+    !cafeCashier && !companiesOnly && activeSection === "usage";
+  const showReport =
+    !cafeCashier && !companiesOnly && activeSection === "report";
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-linear-to-b from-background via-muted/20 to-muted/40">
+    const loadingUi = (
+      <div
+        className={
+          embedded
+            ? "flex justify-center py-16"
+            : "min-h-screen flex flex-col items-center justify-center gap-3 bg-linear-to-b from-background via-muted/20 to-muted/40"
+        }
+      >
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Loading terminalâ€¦</span>
+        <span className="text-sm text-muted-foreground">Loading…</span>
       </div>
     );
+    return loadingUi;
   }
 
   const sectionMeta = HOTEL_CASHIER_NAV_ITEMS.find(
@@ -507,9 +549,15 @@ export function HotelCashierDashboard({
         ? Receipt
         : Table2;
 
-  return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
+  const workspace = (
+    <div
+      className={
+        embedded
+          ? "w-full space-y-6"
+          : "flex min-h-screen w-full bg-muted/40 text-foreground"
+      }
+    >
+      {!embedded ? (
         <Sidebar
           collapsible="icon"
           className="border-r border-sidebar-border shadow-sm"
@@ -569,21 +617,18 @@ export function HotelCashierDashboard({
             </Button>
           </SidebarFooter>
         </Sidebar>
+      ) : null}
 
-        <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
+      <div
+        className={
+          embedded
+            ? "w-full"
+            : "flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10"
+        }
+      >
+          {!embedded ? (
           <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
             <SidebarTrigger />
-            {onBack ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={onBack}
-              >
-                Back
-              </Button>
-            ) : null}
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {displayName || "Property"}
@@ -609,10 +654,37 @@ export function HotelCashierDashboard({
               </AvatarFallback>
             </Avatar>
           </header>
+          ) : (
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => load(true)}
+                disabled={refreshing}
+                aria-label="Refresh"
+                className={refreshing ? "animate-spin" : ""}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20 p-4">
-            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 scroll-smooth md:px-6 md:py-6">
+          <div
+            className={
+              embedded
+                ? "w-full"
+                : "flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20 p-4"
+            }
+          >
+            <div
+              className={
+                embedded
+                  ? "w-full"
+                  : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 scroll-smooth md:px-6 md:py-6"
+              }
+            >
               <div className="mx-auto max-w-6xl space-y-10 pb-10">
+                {!embedded && !companiesOnly ? (
                 <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-6 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-8 lg:p-10">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-8">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 md:h-14 md:w-14">
@@ -628,16 +700,23 @@ export function HotelCashierDashboard({
                     </div>
                   </div>
                 </div>
+                ) : null}
 
-                {activeSection === "companies" && (
+                {showCompanies && (
                   <div className="space-y-6 md:space-y-8 focus-visible:outline-none">
-                    {tiers.length === 0 && (
+                    {availableTiers.length === 0 && (
                       <Alert className="border-amber-500/30 bg-amber-500/5">
                         <Info className="h-4 w-4 text-amber-600" />
                         <AlertTitle>No credit tiers yet</AlertTitle>
                         <AlertDescription>
-                          Your manager must add at least one tier under{" "}
-                          <strong>Manager â†’ Corporate credit tiers</strong>{" "}
+                          {isCafeTerminal
+                            ? "Admin must add at least one tier (Bronze, Silver, or Gold) under "
+                            : "Your manager must add at least one tier under "}
+                          <strong>
+                            {isCafeTerminal
+                              ? "Admin → Corporate credit"
+                              : "Manager → Corporate credit tiers"}
+                          </strong>{" "}
                           before you can register a company deal.
                         </AlertDescription>
                       </Alert>
@@ -683,7 +762,7 @@ export function HotelCashierDashboard({
                                       hotelCorporateCreditTierId:
                                         c.hotelCorporateCreditTierId != null
                                           ? c.hotelCorporateCreditTierId
-                                          : (tiers[0]?.id ?? 0),
+                                          : (availableTiers[0]?.id ?? 0),
                                       creditLimit: Number(c.creditLimit) || 0,
                                       paidAmount: Number(c.paidAmount) || 0,
                                       imageUrl: c.imageUrl || "",
@@ -775,8 +854,8 @@ export function HotelCashierDashboard({
                             <CardDescription className="mt-2 max-w-prose leading-relaxed">
                               Tier sets the money ceiling and rolling period.
                               New deals require admin authorization.
-                              {onBack
-                                ? " Admin prints the corporate meal agreement from the Admin → Corporate credit screen — not from this cashier terminal."
+                              {isCafeTerminal
+                                ? " Admin prints the corporate meal agreement from Admin → Corporate credit — not from this terminal."
                                 : " The manager prints the corporate meal agreement after authorization."}
                             </CardDescription>
                           </CardHeader>
@@ -833,7 +912,7 @@ export function HotelCashierDashboard({
                                     fieldType={formFieldTypes.SELECT}
                                     label="Tier Level"
                                     isNumeric
-                                    disabled={tiers.length === 0}
+                                    disabled={availableTiers.length === 0}
                                     listdisplay={tierLevelSelectList}
                                     inputClassName="h-fit w-56 p-2 md:max-w-xs"
                                   />
@@ -890,14 +969,16 @@ export function HotelCashierDashboard({
                                     type="number"
                                     inputClassName="h-10 w-full min-w-0"
                                   />
-                                  <CustomFormField
-                                    name="paidAmount"
-                                    control={companyDealForm.control}
-                                    fieldType={formFieldTypes.INPUT}
-                                    label="Presale — paid now (ETB)"
-                                    type="number"
-                                    inputClassName="h-10 w-full min-w-0"
-                                  />
+                                  {showPresalePaid ? (
+                                    <CustomFormField
+                                      name="paidAmount"
+                                      control={companyDealForm.control}
+                                      fieldType={formFieldTypes.INPUT}
+                                      label="Presale — paid now (ETB)"
+                                      type="number"
+                                      inputClassName="h-10 w-full min-w-0"
+                                    />
+                                  ) : null}
                                 </div>
 
                                 <CustomFormField
@@ -1050,7 +1131,7 @@ export function HotelCashierDashboard({
                             <div className="flex flex-wrap gap-3 pt-1">
                               <PendingButton
                                 type="button"
-                                disabled={tiers.length === 0}
+                                disabled={availableTiers.length === 0}
                                 className="min-h-11 px-6"
                                 pending={companyDealSaving}
                                 onClick={() => void saveCompanyDeal()}
@@ -1112,7 +1193,7 @@ export function HotelCashierDashboard({
                   </div>
                 )}
 
-                {activeSection === "usage" && (
+                {showUsage && (
                   <div className="space-y-6 md:space-y-8 focus-visible:outline-none">
                     <Card className="gap-0 overflow-hidden py-0 shadow-md border-border/80">
                       <div className="h-1.5 shrink-0 bg-linear-to-r from-emerald-500/60 to-teal-400/40" />
@@ -1427,7 +1508,7 @@ export function HotelCashierDashboard({
                   </div>
                 )}
 
-                {activeSection === "report" && (
+                {showReport && (
                   <div className="space-y-6 md:space-y-8 focus-visible:outline-none">
                     <Card className="gap-0 overflow-hidden py-0 shadow-md border-border/80">
                       <CardHeader className="px-5 pb-4 pt-6 md:px-6 md:pb-5 md:pt-8">
@@ -1518,8 +1599,13 @@ export function HotelCashierDashboard({
               </div>
             </div>
           </div>
-        </SidebarInset>
       </div>
-    </SidebarProvider>
+    </div>
   );
+
+  if (embedded) {
+    return workspace;
+  }
+
+  return <SidebarProvider>{workspace}</SidebarProvider>;
 }

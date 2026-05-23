@@ -13,7 +13,6 @@ export function ActiveInventoryPaymentSummary({
   const s = summarizeInventoryPayment(items, (r) => ({
     amount: r.amount,
     unitPrice: r.unitPrice,
-    dutyFee: r.dutyFee,
     paidAmount: r.paidAmount,
     purchaseWithVat: r.purchaseWithVat,
     registeredAmount: r.registeredAmount,

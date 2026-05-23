@@ -35,11 +35,10 @@ export function computeInventoryPaidAmountETB(
   return subtotal + computeInventoryVatETB(subtotal, purchaseWithVat);
 }
 
-/** Canonical inventory total: subtotal + duty fee + VAT(15% when enabled). */
+/** Canonical inventory total: subtotal + VAT(15% when enabled). */
 export function lineOwedETB(item: {
   amount: number;
   unitPrice: number;
-  dutyFee: number;
   purchaseWithVat?: unknown;
   registeredAmount?: number;
   registeredValue?: number;
@@ -50,14 +49,12 @@ export function lineOwedETB(item: {
       ? registeredAmount
       : Number(item.amount) || 0;
   const u = Number(item.unitPrice) || 0;
-  const duty = Number(item.dutyFee) || 0;
-  return computeInventoryPaidAmountETB(a, u, item.purchaseWithVat) + duty;
+  return computeInventoryPaidAmountETB(a, u, item.purchaseWithVat);
 }
 
 export function creditAmountETB(item: {
   amount: number;
   unitPrice: number;
-  dutyFee: number;
   paidAmount: number;
   purchaseWithVat?: unknown;
   registeredAmount?: number;
@@ -73,7 +70,6 @@ export type InventoryPaymentBucket = "paid" | "credit" | "none";
 export function itemPaymentBucket(item: {
   amount: number;
   unitPrice: number;
-  dutyFee: number;
   paidAmount: number;
   purchaseWithVat?: unknown;
   registeredAmount?: number;
@@ -102,13 +98,12 @@ export function summarizeInventoryPayment<T>(
   pick: (r: T) => {
     amount: number;
     unitPrice: number;
-    dutyFee: number;
     paidAmount: number;
     purchaseWithVat?: unknown;
     registeredAmount?: number;
     registeredValue?: number;
   },
-) : {
+): {
   paid: number;
   credit: number;
   none: number;
@@ -126,8 +121,7 @@ export function summarizeInventoryPayment<T>(
     else if (b === "credit") {
       credit += 1;
       creditAmount += creditAmountETB(item);
-    }
-    else none += 1;
+    } else none += 1;
   }
   return { paid, credit, none, total: rows.length, creditAmount };
 }

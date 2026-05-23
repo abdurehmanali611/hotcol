@@ -315,6 +315,16 @@ export const CAFE_CREDIT_LEVELS = ["Bronze", "Silver", "Gold"] as const;
 
 export type CafeCreditLevel = (typeof CAFE_CREDIT_LEVELS)[number];
 
+/** Café corporate credit tiers — Gold highest, then Silver, Bronze (no Platinum). */
+export const CAFE_CORPORATE_CREDIT_TIER_SORT_ORDER: Record<
+  CafeCreditLevel,
+  number
+> = {
+  Gold: 0,
+  Silver: 1,
+  Bronze: 2,
+};
+
 /** Hotel manager corporate tiers — café levels plus Platinum (top tier). */
 export const HOTEL_CORPORATE_CREDIT_TIER_LEVELS = [
   "Platinum",
@@ -340,6 +350,19 @@ export const HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER: Record<
 /** Manager corporate tier config — same fields/logic as café credit tiers. */
 export const hotelCorporateCreditTierFormSchema = z.object({
   name: z.enum(HOTEL_CORPORATE_CREDIT_TIER_LEVELS, {
+    message: "Select a tier level",
+  }),
+  creditCeiling: z.number().min(0, "Amount must be positive"),
+  timeInterval: z.number().min(0, "Please Enter Valid Number"),
+  timeFrame: z.enum(CAFE_CREDIT_TIMEFRAMES, {
+    message: "Time frame must be Daily, Weekly, or Monthly",
+  }),
+  sortOrder: z.number().min(0),
+});
+
+/** Café admin corporate tiers — Bronze / Silver / Gold only. */
+export const cafeCorporateCreditTierFormSchema = z.object({
+  name: z.enum(CAFE_CREDIT_LEVELS, {
     message: "Select a tier level",
   }),
   creditCeiling: z.number().min(0, "Amount must be positive"),
@@ -419,16 +442,10 @@ export const ItemRegistrationSchema = z.object({
   unitPrice: z.number().min(0, "Please Enter the unit price of the item"),
   registrationDate: z.date({message: "Please Enter when the item stocked in"}),
   expireDate: z.date({message: "Please Enter the expected Last Day of the item"}),
-  dutyFee: z.number().min(0, "Duty Fee must be positive"),
   imageUrl: z.string().min(2, "Valid image URL is required"),
   supplierName: z.string().min(2, "Supplier name is required"),
   supplierPhone: z.string().min(3, "Please Enter Valid Phone Number"),
   Address: z.string().min(2, "Please Enter Valid Address"),
-  /** Café: Bronze, Silver, or Gold. Hotel store: leave blank (supplier tier is not used). */
-  supplierLevel: z.union([
-    z.enum(["Bronze", "Silver", "Gold"]),
-    z.literal(""),
-  ]),
   purchaseWithVat: z.boolean().default(true),
   supplierTinNumber: z
     .string()

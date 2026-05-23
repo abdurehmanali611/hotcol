@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import Image from "next/image";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PackagePlus, Plus, Trash2 } from "lucide-react";
+import { CldUploadButton } from "next-cloudinary";
+import { PackagePlus, Plus, Trash2, Upload } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -13,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -24,42 +29,57 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { CreateItemRegistration, checkPityCashBalance } from "@/lib/actions";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
+import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 import {
   HotelFormFieldStack,
   HotelFormSection,
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 
-const CATEGORIES = [
+const PhoneInput = dynamic(
+  () => import("@/components/phone-input").then((m) => m.PhoneInput),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+    ),
+  },
+);
+
+const REGISTRATION_CATEGORIES = [
   "Food",
   "Beverage",
   "House Keeping",
-  "Maintainance",
+  "Maintenance",
   "Office Supplies",
   "Others",
 ] as const;
 
-const MEASURES = ["Litre", "Kilogram", "Piece", "Pack", "Box", "Bottle"] as const;
-
-type Line = {
+type RegistrationLine = {
   key: string;
   name: string;
-  category: (typeof CATEGORIES)[number];
+  category: (typeof REGISTRATION_CATEGORIES)[number];
   amount: number;
   measuredBy: string;
   unitPrice: number;
   registrationDate: string;
   expireDate: string;
-  dutyFee: number;
+  imageUrl: string;
   purchaseWithVat: boolean;
   paidAmount: number;
-  imageUrl: string;
-  supplierLevel: string;
+  paidAmountDirty: boolean;
 };
 
-function emptyLine(): Line {
+function newLineKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function emptyLine(): RegistrationLine {
   const today = new Date().toISOString().slice(0, 10);
   return {
-    key: crypto.randomUUID(),
+    key: newLineKey(),
     name: "",
     category: "Food",
     amount: 0,
@@ -67,19 +87,42 @@ function emptyLine(): Line {
     unitPrice: 0,
     registrationDate: today,
     expireDate: today,
-    dutyFee: 0,
+    imageUrl: "",
     purchaseWithVat: true,
     paidAmount: 0,
-    imageUrl: "",
-    supplierLevel: "Bronze",
+    paidAmountDirty: false,
   };
+}
+
+function suggestedPaidAmount(line: RegistrationLine): number {
+  return computeInventoryPaidAmountETB(
+    line.amount,
+    line.unitPrice,
+    line.purchaseWithVat,
+  );
+}
+
+function resolvePaidAmount(line: RegistrationLine): number {
+  if (line.paidAmountDirty) {
+    return Math.max(0, Number(line.paidAmount) || 0);
+  }
+  return suggestedPaidAmount(line);
+}
+
+function buildAddressWithNote(address: string, note: string): string {
+  const base = address.trim();
+  const n = note.trim();
+  if (!n) return base;
+  return `${base}\n\n[Registration note]: ${n}`;
 }
 
 export function BatchItemRegistrationForm({
   hotelName,
+  hotelInventory = false,
   onRegistered,
 }: {
   hotelName: string;
+  hotelInventory?: boolean;
   onRegistered?: () => void | Promise<void>;
 }) {
   const { isPending, run } = useConcurrentActions();
@@ -88,16 +131,34 @@ export function BatchItemRegistrationForm({
   const [supplierPhone, setSupplierPhone] = useState("");
   const [address, setAddress] = useState("");
   const [supplierTinNumber, setSupplierTinNumber] = useState("");
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [sharedNote, setSharedNote] = useState("");
+  const [lines, setLines] = useState<RegistrationLine[]>([emptyLine()]);
+  const lastAutoPaidRef = useRef<Map<string, number>>(new Map());
 
   const validLines = useMemo(
     () => lines.filter((l) => l.name.trim().length >= 2),
     [lines],
   );
 
-  const updateLine = useCallback((key: string, patch: Partial<Line>) => {
+  const updateLine = useCallback((key: string, patch: Partial<RegistrationLine>) => {
     setLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+      prev.map((l) => {
+        if (l.key !== key) return l;
+        const next = { ...l, ...patch };
+        const pricingChanged =
+          patch.amount !== undefined ||
+          patch.unitPrice !== undefined ||
+          patch.purchaseWithVat !== undefined;
+        if (pricingChanged && !next.paidAmountDirty) {
+          const suggested = suggestedPaidAmount(next);
+          lastAutoPaidRef.current.set(key, suggested);
+          next.paidAmount = suggested;
+        }
+        if (patch.paidAmount !== undefined) {
+          next.paidAmountDirty = true;
+        }
+        return next;
+      }),
     );
   }, []);
 
@@ -106,7 +167,10 @@ export function BatchItemRegistrationForm({
   }, []);
 
   const removeLine = useCallback((key: string) => {
-    setLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)));
+    setLines((prev) =>
+      prev.length <= 1 ? prev : prev.filter((l) => l.key !== key),
+    );
+    lastAutoPaidRef.current.delete(key);
   }, []);
 
   const onSubmit = (e: React.FormEvent) => {
@@ -120,47 +184,43 @@ export function BatchItemRegistrationForm({
       return;
     }
     if (validLines.length === 0) {
-      toast.error("Add at least one item with a name");
+      toast.error("Add at least one item with a name (2+ characters)");
       return;
     }
+
+    const addressPayload = buildAddressWithNote(address, sharedNote);
 
     void run(submitKey, async () => {
       let ok = 0;
       let failed = 0;
       for (const l of validLines) {
-        const paidAmount =
-          computeInventoryPaidAmountETB(
-            l.amount,
-            l.unitPrice,
-            l.purchaseWithVat,
-          ) + l.dutyFee;
-        const totalCalc = paidAmount;
+        const paidAmount = resolvePaidAmount(l);
         try {
-          const hasCash = await checkPityCashBalance(hotelName, totalCalc);
-          if (!hasCash) {
-            toast.error(`Insufficient petty cash for ${l.name.trim()}`);
-            failed++;
-            continue;
+          if (!hotelInventory) {
+            const hasCash = await checkPityCashBalance(hotelName, paidAmount);
+            if (!hasCash) {
+              toast.error(`Insufficient petty cash for ${l.name.trim()}`);
+              failed++;
+              continue;
+            }
           }
           await CreateItemRegistration({
-            name: l.name.trim(),
-            imageUrl: l.imageUrl || "https://placehold.co/200x200/png",
-            category: l.category,
-            amount: l.amount,
-            measuredBy: l.measuredBy,
-            unitPrice: l.unitPrice,
-            registrationDate: new Date(l.registrationDate),
-            expireDate: new Date(l.expireDate),
-            dutyFee: l.dutyFee,
-            supplierName: supplierName.trim(),
-            supplierPhone: supplierPhone.trim(),
-            Address: address.trim(),
-            supplierLevel: l.supplierLevel,
-            purchaseWithVat: l.purchaseWithVat,
-            supplierTinNumber: supplierTinNumber.trim(),
-            paidAmount,
-            HotelName: hotelName,
-          });
+              name: l.name.trim(),
+              imageUrl: l.imageUrl || "https://placehold.co/200x200/png",
+              category: l.category,
+              amount: l.amount,
+              measuredBy: l.measuredBy,
+              unitPrice: l.unitPrice,
+              registrationDate: new Date(l.registrationDate),
+              expireDate: new Date(l.expireDate),
+              supplierName: supplierName.trim(),
+              supplierPhone: supplierPhone.trim(),
+              Address: addressPayload,
+              purchaseWithVat: l.purchaseWithVat,
+              supplierTinNumber: supplierTinNumber.trim(),
+              paidAmount,
+              HotelName: hotelName,
+            });
           ok++;
         } catch {
           failed++;
@@ -168,9 +228,13 @@ export function BatchItemRegistrationForm({
       }
       if (ok > 0) {
         toast.success(
-          `Registered ${ok} item${ok === 1 ? "" : "s"}${failed ? ` (${failed} failed)` : ""}`,
+          hotelInventory
+            ? `Submitted ${ok} item${ok === 1 ? "" : "s"} for approval${failed ? ` (${failed} failed)` : ""}`
+            : `Registered ${ok} item${ok === 1 ? "" : "s"}${failed ? ` (${failed} failed)` : ""}`,
         );
         setLines([emptyLine()]);
+        setSharedNote("");
+        lastAutoPaidRef.current.clear();
         await onRegistered?.();
       } else {
         toast.error("Could not register items");
@@ -178,39 +242,45 @@ export function BatchItemRegistrationForm({
     });
   };
 
+  const accentBar = hotelInventory
+    ? "from-primary/55 via-violet-500/45 to-cyan-500/40"
+    : "from-emerald-600 via-emerald-400 to-cyan-500";
+
   return (
-    <Card className="max-w-6xl mx-auto border-emerald-500/20 shadow-xl overflow-hidden bg-card/95 ring-1 ring-black/5 dark:ring-white/10">
-      <div className="h-1 bg-linear-to-r from-emerald-600 via-emerald-400 to-cyan-500" />
-      <CardHeader className="pb-2 space-y-1">
+    <Card className="mx-auto max-w-6xl overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+      <div className={`h-1 bg-linear-to-r ${accentBar}`} />
+      <CardHeader className="space-y-1 pb-2">
         <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
           <PackagePlus className="h-5 w-5 text-emerald-600" />
-          Batch item registration
+          Item registration (shared supplier)
         </CardTitle>
-        <CardDescription className="text-pretty max-w-3xl leading-relaxed">
-          Add one line per product. Supplier name, phone, address, and TIN are shared
-          for the whole batch (like the note block on purchase requests).
+        <CardDescription className="max-w-3xl text-pretty leading-relaxed">
+          Add one or more items under the same supplier. Each line has its own
+          quantity, price, dates, image, VAT setting, and paid amount — supplier
+          details and note are shared once for the whole batch.
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-8">
         <form onSubmit={onSubmit} className="space-y-8">
           <HotelFormSection
-            title="Item lines"
-            description="Each card is one product. Quantity, price, dates, and category can differ per line."
+            title="Registration lines"
+            description="Add one card per product. Item name through paid amount are unique per line."
           >
-            <div className="space-y-3 min-w-0">
+            <div className="min-w-0 space-y-3">
               {lines.map((l, index) => (
                 <div
                   key={l.key}
-                  className="rounded-xl border border-border/70 bg-card p-4 sm:p-5 space-y-4 shadow-sm"
+                  className="min-w-0 space-y-4 rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm ring-1 ring-black/4 sm:p-5 dark:ring-white/6"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Line {index + 1}
                     </span>
                     <Button
                       type="button"
-                      variant="ghost"
                       size="icon"
+                      variant="ghost"
+                      className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
                       disabled={lines.length <= 1}
                       onClick={() => removeLine(l.key)}
                       aria-label="Remove line"
@@ -218,34 +288,36 @@ export function BatchItemRegistrationForm({
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 min-w-0">
-                    <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-                      <Label htmlFor={`bi-name-${l.key}`}>Item name</Label>
-                      <Input
-                        id={`bi-name-${l.key}`}
-                        value={l.name}
-                        onChange={(e) =>
-                          updateLine(l.key, { name: e.target.value })
-                        }
-                        placeholder="Product name"
-                        className="h-10"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
+
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor={`reg-name-${l.key}`}>Item name</Label>
+                    <Input
+                      id={`reg-name-${l.key}`}
+                      value={l.name}
+                      onChange={(e) =>
+                        updateLine(l.key, { name: e.target.value })
+                      }
+                      placeholder="Product name"
+                      className="h-10 min-w-0"
+                    />
+                  </div>
+
+                  <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="col-span-2 space-y-1.5 sm:col-span-1">
                       <Label>Category</Label>
                       <Select
                         value={l.category}
                         onValueChange={(v) =>
                           updateLine(l.key, {
-                            category: v as (typeof CATEGORIES)[number],
+                            category: v as (typeof REGISTRATION_CATEGORIES)[number],
                           })
                         }
                       >
-                        <SelectTrigger className="h-10">
+                        <SelectTrigger className="h-10 w-full min-w-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {CATEGORIES.map((c) => (
+                          {REGISTRATION_CATEGORIES.map((c) => (
                             <SelectItem key={c} value={c}>
                               {c}
                             </SelectItem>
@@ -254,30 +326,12 @@ export function BatchItemRegistrationForm({
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Supplier level</Label>
-                      <Select
-                        value={l.supplierLevel}
-                        onValueChange={(v) =>
-                          updateLine(l.key, { supplierLevel: v })
-                        }
-                      >
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["Bronze", "Silver", "Gold"].map((lvl) => (
-                            <SelectItem key={lvl} value={lvl}>
-                              {lvl}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Quantity</Label>
+                      <Label htmlFor={`reg-qty-${l.key}`}>Quantity</Label>
                       <Input
+                        id={`reg-qty-${l.key}`}
                         type="number"
                         min={0}
+                        step={0.01}
                         className="h-10 tabular-nums"
                         value={l.amount}
                         onChange={(e) =>
@@ -288,28 +342,32 @@ export function BatchItemRegistrationForm({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Measured by</Label>
+                      <Label>Unit</Label>
                       <Select
                         value={l.measuredBy}
-                        onValueChange={(v) => updateLine(l.key, { measuredBy: v })}
+                        onValueChange={(v) =>
+                          updateLine(l.key, { measuredBy: v })
+                        }
                       >
-                        <SelectTrigger className="h-10">
+                        <SelectTrigger className="h-10 w-full min-w-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {MEASURES.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
+                          {INVENTORY_UNIT_SELECT_OPTIONS.map((u) => (
+                            <SelectItem key={u.id} value={u.name}>
+                              {u.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Unit price (ETB)</Label>
+                      <Label htmlFor={`reg-price-${l.key}`}>Unit price (ETB)</Label>
                       <Input
+                        id={`reg-price-${l.key}`}
                         type="number"
                         min={0}
+                        step={0.01}
                         className="h-10 tabular-nums"
                         value={l.unitPrice}
                         onChange={(e) =>
@@ -320,33 +378,23 @@ export function BatchItemRegistrationForm({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Duty fee (ETB)</Label>
+                      <Label htmlFor={`reg-in-${l.key}`}>Registration date</Label>
                       <Input
-                        type="number"
-                        min={0}
-                        className="h-10 tabular-nums"
-                        value={l.dutyFee}
+                        id={`reg-in-${l.key}`}
+                        type="date"
+                        className="h-10"
+                        value={l.registrationDate}
                         onChange={(e) =>
                           updateLine(l.key, {
-                            dutyFee: Number(e.target.value) || 0,
+                            registrationDate: e.target.value,
                           })
                         }
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Stock-in date</Label>
+                      <Label htmlFor={`reg-exp-${l.key}`}>Expiry date</Label>
                       <Input
-                        type="date"
-                        className="h-10"
-                        value={l.registrationDate}
-                        onChange={(e) =>
-                          updateLine(l.key, { registrationDate: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Expiry date</Label>
-                      <Input
+                        id={`reg-exp-${l.key}`}
                         type="date"
                         className="h-10"
                         value={l.expireDate}
@@ -355,16 +403,90 @@ export function BatchItemRegistrationForm({
                         }
                       />
                     </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label>Image URL (optional)</Label>
+                    <div className="col-span-2 space-y-1.5 sm:col-span-1">
+                      <Label htmlFor={`reg-paid-${l.key}`}>Paid amount (ETB)</Label>
                       <Input
-                        value={l.imageUrl}
+                        id={`reg-paid-${l.key}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        className="h-10 tabular-nums"
+                        value={l.paidAmount}
                         onChange={(e) =>
-                          updateLine(l.key, { imageUrl: e.target.value })
+                          updateLine(l.key, {
+                            paidAmount: Number(e.target.value) || 0,
+                            paidAmountDirty: true,
+                          })
                         }
-                        placeholder="Leave blank for placeholder"
-                        className="h-10"
                       />
+                      {!l.paidAmountDirty ? (
+                        <p className="text-[10px] text-muted-foreground">
+                          Auto from qty × price
+                          {l.purchaseWithVat ? " (incl. VAT)" : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/80 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id={`reg-vat-${l.key}`}
+                        checked={l.purchaseWithVat}
+                        onCheckedChange={(checked) =>
+                          updateLine(l.key, { purchaseWithVat: checked })
+                        }
+                      />
+                      <Label
+                        htmlFor={`reg-vat-${l.key}`}
+                        className="cursor-pointer text-sm font-normal"
+                      >
+                        Price includes VAT
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {l.imageUrl ? (
+                        <div className="relative h-12 w-12 overflow-hidden rounded-md border">
+                          <Image
+                            src={l.imageUrl}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      ) : null}
+                      <CldUploadButton
+                        uploadPreset={
+                          process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME
+                        }
+                        options={{
+                          sources: ["local", "url", "camera"],
+                          multiple: false,
+                          maxFiles: 1,
+                          clientAllowedFormats: [
+                            "png",
+                            "jpeg",
+                            "jpg",
+                            "webp",
+                            "jfif",
+                          ],
+                        }}
+                        onSuccess={(result) => {
+                          const info = result?.info;
+                          const url =
+                            typeof info === "object" &&
+                            info !== null &&
+                            "secure_url" in info
+                              ? String(info.secure_url)
+                              : "";
+                          if (url) updateLine(l.key, { imageUrl: url });
+                        }}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-muted"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {l.imageUrl ? "Change image" : "Upload image"}
+                      </CldUploadButton>
                     </div>
                   </div>
                 </div>
@@ -384,13 +506,13 @@ export function BatchItemRegistrationForm({
 
           <HotelFormSection
             title="Shared supplier (whole batch)"
-            description="These four fields apply to every line above — same pattern as the shared note on purchase requests."
+            description="Supplier name, phone, address, and TIN apply to every line above."
           >
-            <div className="grid gap-4 sm:grid-cols-2 min-w-0">
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
               <HotelFormFieldStack>
-                <Label htmlFor="bi-supplier-name">Supplier name</Label>
+                <Label htmlFor="reg-supplier-name">Supplier name</Label>
                 <Input
-                  id="bi-supplier-name"
+                  id="reg-supplier-name"
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
                   placeholder="Supplier legal name"
@@ -399,34 +521,32 @@ export function BatchItemRegistrationForm({
                 />
               </HotelFormFieldStack>
               <HotelFormFieldStack>
-                <Label htmlFor="bi-supplier-phone">Supplier phone</Label>
-                <Input
-                  id="bi-supplier-phone"
+                <Label htmlFor="reg-supplier-phone">Supplier phone</Label>
+                <PhoneInput
+                  id="reg-supplier-phone"
                   value={supplierPhone}
-                  onChange={(e) => setSupplierPhone(e.target.value)}
-                  placeholder="+251..."
-                  className="h-10"
-                  required
+                  onChange={(v) => setSupplierPhone((v as string) || "")}
+                  className="w-full min-w-0"
                 />
               </HotelFormFieldStack>
               <HotelFormFieldStack className="sm:col-span-2">
-                <Label htmlFor="bi-supplier-address">Supplier address</Label>
+                <Label htmlFor="reg-supplier-address">Supplier address</Label>
                 <Input
-                  id="bi-supplier-address"
+                  id="reg-supplier-address"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Address"
+                  placeholder="Physical address"
                   className="h-10"
                   required
                 />
               </HotelFormFieldStack>
               <HotelFormFieldStack>
-                <Label htmlFor="bi-supplier-tin">Supplier TIN</Label>
+                <Label htmlFor="reg-supplier-tin">Supplier TIN</Label>
                 <Input
-                  id="bi-supplier-tin"
+                  id="reg-supplier-tin"
                   value={supplierTinNumber}
                   onChange={(e) => setSupplierTinNumber(e.target.value)}
-                  placeholder="TIN"
+                  placeholder="Tax identification number"
                   className="h-10"
                   required
                 />
@@ -434,12 +554,31 @@ export function BatchItemRegistrationForm({
             </div>
           </HotelFormSection>
 
+          <HotelFormSection
+            title="Shared note for this batch"
+            description="Optional context for the whole submission (delivery window, invoice ref, etc.) — like purchase request notes."
+          >
+            <HotelFormFieldStack>
+              <Label htmlFor="reg-shared-note">Note for all lines</Label>
+              <Textarea
+                id="reg-shared-note"
+                value={sharedNote}
+                onChange={(e) => setSharedNote(e.target.value)}
+                placeholder="Optional — applies to each item registered in this batch"
+                rows={4}
+                className="min-h-24 resize-y border-border/80 shadow-sm"
+              />
+            </HotelFormFieldStack>
+          </HotelFormSection>
+
           <PendingButton
             type="submit"
-            className="w-full h-11 text-base font-semibold shadow-md"
+            className="h-11 w-full text-base font-semibold shadow-md"
             pending={isPending(submitKey)}
           >
-            {`Register ${validLines.length || 0} item${validLines.length === 1 ? "" : "s"}`}
+            {hotelInventory
+              ? `Submit ${validLines.length || 0} item${validLines.length === 1 ? "" : "s"} for approval`
+              : `Register ${validLines.length || 0} item${validLines.length === 1 ? "" : "s"}`}
           </PendingButton>
         </form>
       </CardContent>

@@ -1,8 +1,4 @@
 "use client";
-import { ItemRegistrationSchema } from "@/lib/validations";
-import { useForm, type Resolver } from "react-hook-form";
-import z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
   CardHeader,
@@ -10,12 +6,8 @@ import {
   CardContent,
   CardDescription,
 } from "@/components/ui/card";
-import { Form } from "@/components/ui/form";
-import CustomFormField, { formFieldTypes } from "@/components/customFormField";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  checkPityCashBalance,
-  CreateItemRegistration,
   fetchItemRegistrations,
   fetchItemStatus,
   fetchPurchaseRequests,
@@ -23,21 +15,17 @@ import {
   ItemStatus,
   logoutAction,
   notifyApiFailure,
-  uploadImage,
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { PendingButton } from "@/components/ui/pending-button";
-import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Building,
   ChevronRight,
   ClipboardList,
-  Edit,
   Loader2,
   MinusCircle,
   PackagePlus,
@@ -82,19 +70,13 @@ import {
 import StoreItems from "../../StoreItems/page";
 import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
-import { Separator } from "@/components/ui/separator";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import {
-  computeInventoryPaidAmountETB,
-} from "@/lib/hotelInventoryPayment";
-import {
   effectiveTenantScopeForHotelTerminal,
-  resolveCanonicalTenantKey,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
 import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
-import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 
 type StoreView =
   | "Register"
@@ -132,7 +114,7 @@ const CAFE_STORE_NAV_TOP: {
   { id: "Active", label: "Inventory", icon: ShoppingCart },
   { id: "Inactive", label: "Inactive", icon: MinusCircle },
   { id: "Supplier", label: "Suppliers", icon: StoreIcon },
-  { id: "ReceiptPrinting", label: "Cashout receipts", icon: Printer },
+  { id: "ReceiptPrinting", label: "Item receipts", icon: Printer },
 ];
 
 const REQUEST_STATUS_VIEWS: StoreView[] = [
@@ -152,7 +134,6 @@ export function StoreComponent({
 }: {
   hotelInventory?: boolean;
 }) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
   const [requestStatusSeed, setRequestStatusSeed] = useState(0);
   const [pendingLocalStockRows, setPendingLocalStockRows] = useState<
@@ -161,12 +142,7 @@ export function StoreComponent({
   const [pendingLocalPurchaseRows, setPendingLocalPurchaseRows] = useState<
     PurchaseRequestRow[]
   >([]);
-  const { isPending, run } = useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
-  const registerSubmitKey = "item-registration";
-  const [registerSubView, setRegisterSubView] = useState<"single" | "batch">(
-    "single",
-  );
   const [activeView, setActiveView] = useState<StoreView>("Register");
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
@@ -354,133 +330,6 @@ export function StoreComponent({
     void loadData();
   }, [loadData]);
 
-  type ItemRegForm = z.infer<typeof ItemRegistrationSchema>;
-  const form = useForm<ItemRegForm>({
-    resolver: zodResolver(ItemRegistrationSchema) as Resolver<ItemRegForm>,
-    defaultValues: {
-      name: "",
-      imageUrl: "",
-      category: "Food",
-      amount: 0,
-      measuredBy: "Litre",
-      unitPrice: 0,
-      registrationDate: new Date(),
-      expireDate: new Date(),
-      dutyFee: 0,
-      supplierName: "",
-      supplierPhone: "",
-      Address: "",
-      supplierLevel: "",
-      purchaseWithVat: true,
-      supplierTinNumber: "",
-      paidAmount: 0,
-      HotelName: inventoryTenantKey || "",
-    },
-  });
-
-  useEffect(() => {
-    const key = resolveCanonicalTenantKey(
-      hotelInventory ? inventoryTenantKey : tenantScope,
-    );
-    if (key) {
-      form.setValue("HotelName", key);
-    }
-  }, [tenantScope, hotelInventory, inventoryTenantKey, form]);
-
-  useEffect(() => {
-    if (hotelInventory) {
-      form.setValue("dutyFee", 0);
-    }
-  }, [hotelInventory, form]);
-
-  const watchedAmount = form.watch("amount");
-  const watchedUnitPrice = form.watch("unitPrice");
-  const watchedPurchaseWithVat = form.watch("purchaseWithVat");
-  const lastAutoPaidAmountRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const paidAmount = computeInventoryPaidAmountETB(
-      watchedAmount,
-      watchedUnitPrice,
-      watchedPurchaseWithVat,
-    );
-    const currentPaidAmount = Number(form.getValues("paidAmount")) || 0;
-    const paidAmountState = form.getFieldState("paidAmount");
-    const canAutoSync =
-      !paidAmountState.isDirty ||
-      currentPaidAmount === lastAutoPaidAmountRef.current;
-
-    if (canAutoSync) {
-      form.setValue("paidAmount", paidAmount, {
-        shouldDirty: false,
-        shouldValidate: true,
-      });
-    }
-
-    lastAutoPaidAmountRef.current = paidAmount;
-  }, [form, watchedAmount, watchedUnitPrice, watchedPurchaseWithVat]);
-
-  const onSubmit = (values: ItemRegForm) => {
-    void run(registerSubmitKey, async () => {
-      try {
-        const payload = hotelInventory ? { ...values, dutyFee: 0 } : values;
-        if (!hotelInventory) {
-          const totalCalc =
-            computeInventoryPaidAmountETB(
-              payload.amount,
-              payload.unitPrice,
-              payload.purchaseWithVat,
-            ) + payload.dutyFee;
-          const hasEnoughPityCash = await checkPityCashBalance(
-            payload.HotelName,
-            totalCalc,
-          );
-          if (!hasEnoughPityCash) {
-            toast.error("Insufficient Petty Cash balance");
-            return;
-          }
-        }
-        const created = await CreateItemRegistration(payload);
-        if (!created) {
-          toast.error("Registration did not save — please try again.");
-          return;
-        }
-
-        toast.success(
-          hotelInventory
-            ? "Item submitted for approval. It will appear in Inventory only after Cost Control, Finance, and Manager authorization."
-            : "Item created successfully!",
-        );
-        form.reset({
-          ...form.getValues(),
-          name: "",
-          imageUrl: "",
-          category: "Food",
-          amount: 0,
-          measuredBy: "Litre",
-          unitPrice: 0,
-          registrationDate: new Date(),
-          expireDate: new Date(),
-          dutyFee: 0,
-          supplierName: "",
-          supplierPhone: "",
-          Address: "",
-          supplierLevel: "",
-          purchaseWithVat: true,
-          supplierTinNumber: "",
-          paidAmount: 0,
-          HotelName: inventoryTenantKey || "",
-        });
-        setPreviewUrl(null);
-        await loadData();
-      } catch (error: unknown) {
-        const msg =
-          error instanceof Error ? error.message : "Failed to create item";
-        toast.error(`Failed to create Item: ${msg}`);
-      }
-    });
-  };
-
   const storeWorkspaceIntro: Record<
     StoreView,
     { title: string; description: string; Icon: typeof PackagePlus }
@@ -488,7 +337,7 @@ export function StoreComponent({
     Register: {
       title: "Register new items",
       description:
-        "Create new inventory lines for this property. For hotels, duty fee is fixed to 0 to keep purchasing consistent.",
+        "Add one or more items under a shared supplier — each line has its own quantity, price, dates, and image.",
       Icon: PackagePlus,
     },
     Active: {
@@ -516,9 +365,10 @@ export function StoreComponent({
       Icon: Send,
     },
     ReceiptPrinting: {
-      title: "Cashout receipt printing",
-      description:
-        "Print petty-cash goods receiving vouchers for fully authorized stock-in registrations.",
+      title: hotelInventory ? "Item receipt printing" : "Item receipts",
+      description: hotelInventory
+        ? "Print new registration, purchase request, and stock movement receipts."
+        : "Print goods receiving vouchers for all authorized store registrations, including newly registered items and petty-cash stock-in.",
       Icon: Printer,
     },
     PurchaseRequestStatus: {
@@ -645,221 +495,11 @@ export function StoreComponent({
 
   const panels =
         activeView === "Register" ? (
-          !hotelInventory && registerSubView === "batch" ? (
-            <BatchItemRegistrationForm
-              hotelName={inventoryTenantKey || tenantScope}
-              onRegistered={() => loadData()}
-            />
-          ) : (
-          <div className="space-y-4 max-w-5xl mx-auto w-full">
-            {!hotelInventory ? (
-              <Tabs
-                value={registerSubView}
-                onValueChange={(v) =>
-                  setRegisterSubView(v as "single" | "batch")
-                }
-              >
-                <TabsList className="grid w-full max-w-md grid-cols-2">
-                  <TabsTrigger value="single">Single item</TabsTrigger>
-                  <TabsTrigger value="batch">Batch (same supplier)</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            ) : null}
-          <Card className="shadow-2xl border-border bg-card overflow-hidden">
-            <div className="h-1.5 bg-linear-to-r from-emerald-600 via-emerald-400 to-cyan-500" />
-            <CardHeader className="pb-4 space-y-1">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/10 rounded-xl">
-                  <PackagePlus className="h-6 w-6 text-emerald-500" />
-                </div>
-                <div>
-                  <CardTitle className="text-2xl">Register New Item</CardTitle>
-                  <CardDescription>Enter details to add stock to the central warehouse</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <Separator className="mx-6 w-auto bg-border/60" />
-            <CardContent className="pt-8">
-              <Form {...form}>
-                <form
-                  className="space-y-10"
-                  onSubmit={form.handleSubmit(onSubmit)}
-                >
-                  <section className="space-y-6">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                      <Edit className="h-3.5 w-3.5" /> Item Information
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      <CustomFormField
-                        name="name"
-                        control={form.control}
-                        fieldType={formFieldTypes.INPUT}
-                        label="Item Name"
-                        placeholder="e.g. Arabica Coffee"
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                      <CustomFormField
-                        name="category"
-                        control={form.control}
-                        fieldType={formFieldTypes.SELECT}
-                        label="Category"
-                        listdisplay={[
-                          { id: 1, name: "Food" },
-                          { id: 2, name: "Beverage" },
-                          { id: 3, name: "House Keeping" },
-                          { id: 4, name: "Maintenance" },
-                          { id: 5, name: "Office Supplies" },
-                          { id: 6, name: "Others" },
-                        ]}
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                      <CustomFormField
-                        name="amount"
-                        control={form.control}
-                        fieldType={formFieldTypes.INPUT}
-                        label="Quantity"
-                        type="number"
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                      <CustomFormField
-                        name="measuredBy"
-                        control={form.control}
-                        fieldType={formFieldTypes.SELECT}
-                        label="Unit"
-                        listdisplay={INVENTORY_UNIT_SELECT_OPTIONS.map((u) => ({
-                          id: u.id,
-                          name: u.name,
-                        }))}
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                    </div>
-
-                    <div
-                      className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${hotelInventory ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}
-                    >
-                      <CustomFormField
-                        name="unitPrice"
-                        control={form.control}
-                        fieldType={formFieldTypes.INPUT}
-                        label="Unit Price"
-                        type="number"
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                      {!hotelInventory && (
-                        <CustomFormField
-                          name="dutyFee"
-                          control={form.control}
-                          fieldType={formFieldTypes.INPUT}
-                          label="Duty Fee"
-                          type="number"
-                          inputClassName="h-fit p-2 w-56"
-                        />
-                      )}
-                      <CustomFormField
-                        name="registrationDate"
-                        control={form.control}
-                        fieldType={formFieldTypes.CALENDAR}
-                        label="Date Received"
-                        inputClassName="h-fit p-2 w-56 mx-0"
-                      />
-                      <CustomFormField
-                        name="expireDate"
-                        control={form.control}
-                        fieldType={formFieldTypes.CALENDAR}
-                        label="Expiry Date"
-                        inputClassName="h-fit p-2 w-56 mx-0"
-                      />
-                    </div>
-                  </section>
-
-                  <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-border transition-colors hover:border-primary/50">
-                    <CustomFormField
-                      name="imageUrl"
-                      control={form.control}
-                      fieldType={formFieldTypes.IMAGE_UPLOADER}
-                      label="Item Image"
-                      previewUrl={previewUrl}
-                      handleCloudinary={(result) =>
-                        uploadImage(result, form, setPreviewUrl, "imageUrl")
-                      }
-                    />
-                  </div>
-
-                  <section className="space-y-6 pt-4">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                      <StoreIcon className="h-3.5 w-3.5" /> Supplier Logistics
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-center">
-                      <CustomFormField
-                        name="supplierName"
-                        control={form.control}
-                        fieldType={formFieldTypes.INPUT}
-                        label="Supplier Name"
-                        placeholder="Company Name"
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                      <CustomFormField
-                        name="supplierPhone"
-                        control={form.control}
-                        fieldType={formFieldTypes.PHONE_INPUT}
-                        label="Phone Number"
-                        inputClassName="h-fit p-2 w-64"
-                      />
-                      <CustomFormField
-                        name="Address"
-                        control={form.control}
-                        fieldType={formFieldTypes.INPUT}
-                        label="Address"
-                        placeholder="Physical location"
-                        inputClassName="h-fit p-2 w-56"
-                      />
-                    </div>
-
-                    <div className="flex flex-col md:flex-row gap-8 items-end bg-accent/30 p-6 rounded-xl border border-border">
-                      <div className="flex-1 w-full space-y-4">
-                        <CustomFormField
-                          name="purchaseWithVat"
-                          control={form.control}
-                          fieldType={formFieldTypes.SWITCH}
-                          label="Purchase price includes VAT"
-                        />
-                        <CustomFormField
-                          name="supplierTinNumber"
-                          control={form.control}
-                          fieldType={formFieldTypes.INPUT}
-                          label="Supplier TIN (tax ID)"
-                          placeholder="e.g. 10-digit TIN"
-                          inputClassName="h-fit p-2 w-full max-w-md"
-                        />
-                      </div>
-                      <div className="w-full md:w-64">
-                        <CustomFormField
-                          name="paidAmount"
-                          control={form.control}
-                          fieldType={formFieldTypes.INPUT}
-                          label="Amount Paid (ETB)"
-                          type="number"
-                          inputClassName="h-fit p-2 w-56"
-                        />
-                      </div>
-                    </div>
-                  </section>
-
-                  <PendingButton
-                    type="submit"
-                    pending={isPending(registerSubmitKey)}
-                    className="w-full h-14 text-base font-bold shadow-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-[0.99] disabled:opacity-70"
-                  >
-                    {isPending(registerSubmitKey)
-                      ? "Saving Item..."
-                      : "Register Item into Inventory"}
-                  </PendingButton>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-          </div>
-          )
+          <BatchItemRegistrationForm
+            hotelName={inventoryTenantKey || tenantScope}
+            hotelInventory={hotelInventory}
+            onRegistered={() => loadData()}
+          />
         ) : activeView === "Active" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <StoreItems

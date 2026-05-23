@@ -89,11 +89,11 @@ const HOTEL_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
 const CAFE_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
   {
     kind: "registration",
-    title: "Cashout receipts",
+    title: "Item receipts",
     description:
-      "Print cash goods receiving vouchers for fully authorized, petty-cash registrations only.",
-    emptyMessage: "No cashout receipts ready to print.",
-    searchPlaceholder: "Search cashout receipts...",
+      "Print goods receiving vouchers for authorized store registrations, including newly registered items and petty-cash stock-in.",
+    emptyMessage: "No item receipts ready to print.",
+    searchPlaceholder: "Search item receipts...",
     icon: PackagePlus,
     accentClassName: "from-emerald-500/70 via-green-500/55 to-lime-400/45",
   },
@@ -225,7 +225,7 @@ export function StoreItemReceiptPrinting({
   logoUrl?: string | null;
   purchaseRequests?: PurchaseRequestRow[];
   stockMovements?: StockOutRequestRow[];
-  /** Café store: cashout registration receipts only (no PR / stock movement). */
+  /** Café store: registration receipts only (no PR / stock movement). */
   variant?: "hotel" | "cafe-store";
 }) {
   const isCafe = variant === "cafe-store";
@@ -247,7 +247,6 @@ export function StoreItemReceiptPrinting({
   const bundles = useMemo(
     () =>
       groupRegistrationsForReceipt(items, purchaseRequests, stockMovements, {
-        cafeCashoutOnly: isCafe,
         registrationsOnly: isCafe,
       }),
     [items, purchaseRequests, stockMovements, isCafe],
@@ -301,11 +300,11 @@ export function StoreItemReceiptPrinting({
             </div>
             <div>
               <CardTitle className="text-lg">
-                {isCafe ? "Cashout receipt printing" : "Item receipt printing"}
+                Item receipt printing
               </CardTitle>
               <CardDescription className="max-w-2xl text-pretty">
                 {isCafe
-                  ? "Print petty-cash (fully paid) goods receiving vouchers for authorized registrations only."
+                  ? "Print goods receiving vouchers for all authorized store registrations, including newly registered items and petty-cash stock-in."
                   : "Print new item registration, purchase request, and stock movement receipts. Multi-item receipts are grouped by supplier, date, and payment status when payment applies."}
               </CardDescription>
             </div>

@@ -23,7 +23,7 @@ export function CafeAdminCorporateCredit({
         propertyLogo={propertyLogo}
         propertyTin={propertyTin}
       />
-      <ManagerCorporateCreditTiers />
+      <ManagerCorporateCreditTiers variant="cafe" />
     </div>
   );
 }
