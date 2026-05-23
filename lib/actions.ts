@@ -3033,6 +3033,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           paidAmount
           HotelName
           approvalStatus
+          voucherNumber
+          voucherDisplay
         }
       }
     `;
@@ -3805,6 +3807,8 @@ export async function createPurchaseRequestApi(
       ) {
         id
         status
+        voucherNumber
+        voucherDisplay
       }
     }
   `;

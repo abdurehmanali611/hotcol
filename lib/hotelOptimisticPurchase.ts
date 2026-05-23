@@ -11,7 +11,7 @@ export function buildOptimisticPurchaseRequestRow(
     supplierPhone?: string;
     category?: string;
   },
-  created: { id: number; status: string },
+  created: { id: number; status: string; voucherNumber?: number | null; voucherDisplay?: string | null },
   storeUserName: string,
   hotelName: string,
 ): PurchaseRequestRow {
@@ -36,5 +36,7 @@ export function buildOptimisticPurchaseRequestRow(
     financeApprovedAt: null,
     rejectionReason: null,
     createdAt: now,
+    voucherNumber: created.voucherNumber ?? null,
+    voucherDisplay: created.voucherDisplay ?? null,
   };
 }

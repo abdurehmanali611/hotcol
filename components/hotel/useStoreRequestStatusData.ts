@@ -7,6 +7,10 @@ import {
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
+import {
+  resolveCanonicalTenantKey,
+  rowHotelMatchesTenantScope,
+} from "@/lib/tenantRowMatch";
 import { toast } from "sonner";
 
 function mergeStockOutRows(
@@ -70,8 +74,13 @@ export function useStoreRequestStatusData({
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
       ]);
-      setPurchases(pr);
-      setStocks(so);
+      const tenant = resolveCanonicalTenantKey();
+      setPurchases(
+        pr.filter((p) => rowHotelMatchesTenantScope(p.HotelName, tenant)),
+      );
+      setStocks(
+        so.filter((s) => rowHotelMatchesTenantScope(s.HotelName, tenant)),
+      );
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "Could not load request status";

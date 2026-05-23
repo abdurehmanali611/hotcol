@@ -239,14 +239,14 @@ export function StoreComponent({
         setStoreItem(
           Array.isArray(response)
             ? response.filter((item) =>
-                rowHotelMatchesTenantScope(item.HotelName, tenantScope),
+                rowHotelMatchesTenantScope(item.HotelName, inventoryTenantKey),
               )
             : [],
         );
         setItemStatus(
           Array.isArray(statusResponse)
             ? statusResponse.filter((item) =>
-                rowHotelMatchesTenantScope(item.HotelName, tenantScope),
+                rowHotelMatchesTenantScope(item.HotelName, inventoryTenantKey),
               )
             : [],
         );
@@ -257,7 +257,7 @@ export function StoreComponent({
         setFetching(false);
       }
     });
-  }, [hotelInventory, tenantScope, loadCoordinator]);
+  }, [hotelInventory, tenantScope, inventoryTenantKey, loadCoordinator]);
 
   const refreshPurchasesOnly = useCallback(async () => {
     if (!hotelInventory) return;
@@ -489,6 +489,8 @@ export function StoreComponent({
           approvalStatus:
             createdRow.approvalStatus ||
             (hotelInventory ? "PENDING_CC" : "AUTHORIZED"),
+          voucherNumber: createdRow.voucherNumber ?? null,
+          voucherDisplay: createdRow.voucherDisplay ?? null,
         };
         setPendingLocalRegRows((prev) => {
           if (regId > 0 && prev.some((r) => r.id === regId)) return prev;

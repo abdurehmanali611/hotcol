@@ -36,6 +36,7 @@ import {
   UpdateCreditRegistration,
 } from "@/lib/actions";
 import { formatCreditCycle } from "@/lib/creditCycleLabel";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { creditRegistrationSchemaUpdate } from "@/lib/validations";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
@@ -100,7 +101,7 @@ function EditForm({
       .then((response) => {
         if (Array.isArray(response)) {
           const hotelCredits = response.filter(
-            (item) => item.HotelName === customer.HotelName,
+            (item) => rowHotelMatchesTenantScope(item.HotelName, customer.HotelName),
           );
           setCreditLevels(hotelCredits);
         }
