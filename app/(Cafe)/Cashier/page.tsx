@@ -13,7 +13,7 @@ import {
   Loader2,
   FileText,
   Wallet,
-  UserPlus,
+  Building2,
   LogOut,
 } from "lucide-react";
 import {
@@ -29,7 +29,7 @@ import OrderComponent from "@/components/Order";
 import PaymentComponent from "@/components/Payment";
 import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Button } from "@/components/ui/button";
-import CreditRegistrationForm from "../../../components/CreditRegistration";
+import { HotelCashierDashboard } from "@/components/hotel/HotelCashierDashboard";
 import CashoutForm from "@/components/CashoutForm";
 import { CafeCashierReportsPanel } from "@/components/cafe/CafeCashierReportsPanel";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
@@ -58,7 +58,7 @@ const NAV_ICONS: Record<
   ShoppingCart,
   Wallet,
   CreditCard,
-  UserPlus,
+  Building2,
   FileText,
 };
 
@@ -190,6 +190,10 @@ function CashierContent() {
     );
   }
 
+  if (activeView === "credit") {
+    return <HotelCashierDashboard onBack={() => setActiveView("order")} />;
+  }
+
   const panel =
     activeView === "order" ? (
       <OrderComponent
@@ -205,11 +209,6 @@ function CashierContent() {
         hotelName={tenantScope}
         onHandlePayment={handlePayment}
         onRefresh={loadData}
-      />
-    ) : activeView === "credit" ? (
-      <CreditRegistrationForm
-        hotelName={tenantScope}
-        businessDisplayName={displayLabel}
       />
     ) : activeView === "reports" ? (
       <CafeCashierReportsPanel orders={orders} hotelName={tenantScope} />

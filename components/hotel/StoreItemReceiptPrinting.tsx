@@ -53,7 +53,7 @@ type ReceiptSectionConfig = {
   accentClassName: string;
 };
 
-const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
+const HOTEL_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
   {
     kind: "purchase_request",
     title: "Purchase request",
@@ -86,8 +86,22 @@ const RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
   },
 ];
 
+const CAFE_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
+  {
+    kind: "registration",
+    title: "Cashout receipts",
+    description:
+      "Print cash goods receiving vouchers for fully authorized, petty-cash registrations only.",
+    emptyMessage: "No cashout receipts ready to print.",
+    searchPlaceholder: "Search cashout receipts...",
+    icon: PackagePlus,
+    accentClassName: "from-emerald-500/70 via-green-500/55 to-lime-400/45",
+  },
+];
+
 function bundleColumns(
   onPrint: (bundle: ReceiptBundle) => void,
+  printable: boolean,
 ): ColumnDef<ReceiptBundle>[] {
   return [
     {
@@ -175,18 +189,23 @@ function bundleColumns(
     {
       id: "print",
       header: "",
-      cell: ({ row }) => (
-        <Button
-          type="button"
-          size="sm"
-          variant="default"
-          className="gap-1.5 whitespace-nowrap"
-          onClick={() => onPrint(row.original)}
-        >
-          <Printer className="h-3.5 w-3.5" />
-          Print
-        </Button>
-      ),
+      cell: ({ row }) =>
+        printable ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="gap-1.5 whitespace-nowrap"
+            onClick={() => onPrint(row.original)}
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Print
+          </Button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+            Not authorized
+          </span>
+        ),
     },
   ];
 }
@@ -198,6 +217,7 @@ export function StoreItemReceiptPrinting({
   logoUrl,
   purchaseRequests = [],
   stockMovements = [],
+  variant = "hotel",
 }: {
   items: ItemRegistration[];
   propertyName: string;
@@ -205,7 +225,11 @@ export function StoreItemReceiptPrinting({
   logoUrl?: string | null;
   purchaseRequests?: PurchaseRequestRow[];
   stockMovements?: StockOutRequestRow[];
+  /** Café store: cashout registration receipts only (no PR / stock movement). */
+  variant?: "hotel" | "cafe-store";
 }) {
+  const isCafe = variant === "cafe-store";
+  const receiptSections = isCafe ? CAFE_RECEIPT_SECTIONS : HOTEL_RECEIPT_SECTIONS;
   const resolvedTin =
     propertyTin ??
     (typeof window !== "undefined"
@@ -221,8 +245,12 @@ export function StoreItemReceiptPrinting({
   });
 
   const bundles = useMemo(
-    () => groupRegistrationsForReceipt(items, purchaseRequests, stockMovements),
-    [items, purchaseRequests, stockMovements],
+    () =>
+      groupRegistrationsForReceipt(items, purchaseRequests, stockMovements, {
+        cafeCashoutOnly: isCafe,
+        registrationsOnly: isCafe,
+      }),
+    [items, purchaseRequests, stockMovements, isCafe],
   );
 
   const lineCount = useMemo(
@@ -236,7 +264,7 @@ export function StoreItemReceiptPrinting({
 
   const sectionBundles = useMemo(
     () =>
-      RECEIPT_SECTIONS.map((section) => ({
+      receiptSections.map((section) => ({
         ...section,
         bundles: bundles.filter((bundle) => bundle.kind === section.kind),
         totalLines: bundles
@@ -246,7 +274,7 @@ export function StoreItemReceiptPrinting({
           .filter((bundle) => bundle.kind === section.kind)
           .reduce((sum, bundle) => sum + bundle.totalETB, 0),
       })),
-    [bundles],
+    [bundles, receiptSections],
   );
 
   const openPrintBundle = useCallback(
@@ -257,7 +285,10 @@ export function StoreItemReceiptPrinting({
     [handlePrint],
   );
 
-  const cols = useMemo(() => bundleColumns(openPrintBundle), [openPrintBundle]);
+  const cols = useMemo(
+    () => bundleColumns(openPrintBundle, true),
+    [openPrintBundle],
+  );
 
   return (
     <div className="space-y-6 py-2">
@@ -269,11 +300,13 @@ export function StoreItemReceiptPrinting({
               <Receipt className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-lg">Item receipt printing</CardTitle>
+              <CardTitle className="text-lg">
+                {isCafe ? "Cashout receipt printing" : "Item receipt printing"}
+              </CardTitle>
               <CardDescription className="max-w-2xl text-pretty">
-                Print new item registration, purchase request, and stock movement
-                receipts. Multi-item receipts are grouped by supplier, date, and
-                payment status when payment applies.
+                {isCafe
+                  ? "Print petty-cash (fully paid) goods receiving vouchers for authorized registrations only."
+                  : "Print new item registration, purchase request, and stock movement receipts. Multi-item receipts are grouped by supplier, date, and payment status when payment applies."}
               </CardDescription>
             </div>
           </div>

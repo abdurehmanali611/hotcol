@@ -42,10 +42,7 @@ import {
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
 import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
-import {
-  InventoryAlertsBanner,
-  InventoryNotificationCenter,
-} from "@/components/inventory/InventoryNotificationCenter";
+import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import {
   LayoutDashboard,
   LogOut,
@@ -636,13 +633,6 @@ function ManagerContent() {
       case "dashboard":
         return (
           <div className="space-y-6">
-            <InventoryAlertsBanner
-              audience="hotel-manager"
-              items={items}
-              purchaseRequests={purchases as PurchaseRequestRow[]}
-              stockMovements={stockReqs as StockOutRequestRow[]}
-              hotelLodging
-            />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Card className="border-primary/15 bg-linear-to-br from-card to-primary/5 shadow-md overflow-hidden">
                 <CardHeader className="pb-2 pt-4">
@@ -917,9 +907,9 @@ function ManagerContent() {
           </div>
         );
 
-      case "item-receipts":
+      case "authorize-item-registrations":
         return (
-          <div className="p-4 md:p-6 space-y-8">
+          <div className="p-4 md:p-6">
             <HotelRegistrationApprovalsBlock
               role="Manager"
               items={items}
@@ -928,6 +918,12 @@ function ManagerContent() {
               logoUrl={logoUrl}
               onRefresh={() => void loadData(true)}
             />
+          </div>
+        );
+
+      case "item-receipts":
+        return (
+          <div className="p-4 md:p-6">
             <HotelItemReceiptsSection
               items={items}
               purchaseRequests={purchases}

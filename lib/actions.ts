@@ -5846,6 +5846,7 @@ export async function createHotelCreditConsumptionApi(input: {
   linesJson: string;
   totalAmount: number;
   occurredAt?: string;
+  suppressSuccessToast?: boolean;
 }) {
   const mutation = `
     mutation Hccon(
@@ -5877,6 +5878,8 @@ export async function createHotelCreditConsumptionApi(input: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Could not save usage");
   }
-  toast.success("Consumption recorded");
+  if (!input.suppressSuccessToast) {
+    toast.success("Consumption recorded");
+  }
   return response.data.data.createHotelCreditConsumption;
 }

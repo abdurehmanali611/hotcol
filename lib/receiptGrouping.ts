@@ -8,6 +8,11 @@ import {
   formatQtyWithUnit,
 } from "@/lib/hotelDisplayLabels";
 import {
+  isItemRegistrationPrintable,
+  isPurchaseRequestPrintable,
+  isStockMovementPrintable,
+} from "@/lib/hotelApproval";
+import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
@@ -280,27 +285,53 @@ function stockMovementBundles(
   });
 }
 
+export type ReceiptGroupingOptions = {
+  /** Café store: only petty-cash (fully paid) registration receipts. */
+  cafeCashoutOnly?: boolean;
+  /** Omit purchase-request and stock-movement receipt groups. */
+  registrationsOnly?: boolean;
+};
+
 export function groupRegistrationsForReceipt(
   rows: ItemRegistration[],
   purchaseRequests: PurchaseRequestRow[] = [],
   stockMovements: StockOutRequestRow[] = [],
+  options?: ReceiptGroupingOptions,
 ): ReceiptBundle[] {
+  const printableRows = rows.filter((row) =>
+    isItemRegistrationPrintable(row.approvalStatus),
+  );
+  const registrationRows = options?.cafeCashoutOnly
+    ? printableRows.filter((row) => itemPaymentBucket(row) === "paid")
+    : printableRows;
+
+  const printablePr = options?.registrationsOnly
+    ? []
+    : purchaseRequests.filter((row) => isPurchaseRequestPrintable(row.status));
+  const printableStock = options?.registrationsOnly
+    ? []
+    : stockMovements.filter((row) => isStockMovementPrintable(row.status));
+
   const prById = new Map(
-    purchaseRequests.map((p) => [
+    printablePr.map((p) => [
       p.id,
       formatVoucherDisplay(p.voucherNumber, p.voucherDisplay),
     ]),
   );
-  const itemById = mapItemById(rows);
+  const itemById = mapItemById(registrationRows);
 
-  const receivedItems = rows.filter((row) => row.purchaseRequestId != null);
-  const directRegistrations = rows.filter((row) => row.purchaseRequestId == null);
+  const receivedItems = registrationRows.filter(
+    (row) => row.purchaseRequestId != null,
+  );
+  const directRegistrations = registrationRows.filter(
+    (row) => row.purchaseRequestId == null,
+  );
   const linkedPrIds = new Set(
     receivedItems
       .map((row) => row.purchaseRequestId)
       .filter((id): id is number => id != null),
   );
-  const standalonePurchaseRequests = purchaseRequests.filter(
+  const standalonePurchaseRequests = printablePr.filter(
     (row) => !linkedPrIds.has(row.id),
   );
 
@@ -308,7 +339,7 @@ export function groupRegistrationsForReceipt(
     ...registrationBundles(directRegistrations, prById),
     ...registrationBundles(receivedItems, prById),
     ...purchaseRequestBundles(standalonePurchaseRequests),
-    ...stockMovementBundles(stockMovements, itemById),
+    ...stockMovementBundles(printableStock, itemById),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 

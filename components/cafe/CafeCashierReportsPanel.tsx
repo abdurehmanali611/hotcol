@@ -1,6 +1,7 @@
 "use client";
 
 import Reports from "@/components/reports";
+import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import {
   exportToExcel,
   fetchCashout,
@@ -9,6 +10,8 @@ import {
   type Order,
 } from "@/lib/actions";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
 export function CafeCashierReportsPanel({
   orders,
@@ -17,7 +20,15 @@ export function CafeCashierReportsPanel({
   orders: Order[];
   hotelName: string;
 }) {
+  const { displayName } = useTenantScopeAndDisplay(hotelName);
+
   return (
+    <Tabs defaultValue="sales" className="w-full space-y-6 p-4 md:p-6">
+      <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsTrigger value="sales">Sales & cashout</TabsTrigger>
+        <TabsTrigger value="corporate">Corporate credit usage</TabsTrigger>
+      </TabsList>
+      <TabsContent value="sales" className="mt-0">
     <Reports
       orders={orders}
       hotelName={hotelName}
@@ -58,5 +69,12 @@ export function CafeCashierReportsPanel({
         }
       }}
     />
+      </TabsContent>
+      <TabsContent value="corporate" className="mt-0">
+        <HotelCreditorUsageReportPanel
+          tenantLabel={displayName || hotelName}
+        />
+      </TabsContent>
+    </Tabs>
   );
 }

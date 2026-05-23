@@ -105,7 +105,12 @@ function tierSummary(t: HotelCorporateCreditTierRow) {
   return `ETB ${Number(t.creditCeiling).toLocaleString()} - ${formatCreditCycle(t.timeInterval, t.timeFrame)}`;
 }
 
-export function HotelCashierDashboard() {
+export function HotelCashierDashboard({
+  onBack,
+}: {
+  /** Café cashier: return to main terminal without signing out. */
+  onBack?: () => void;
+} = {}) {
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
@@ -568,6 +573,17 @@ export function HotelCashierDashboard() {
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
           <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
             <SidebarTrigger />
+            {onBack ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={onBack}
+              >
+                Back
+              </Button>
+            ) : null}
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {displayName || "Property"}
@@ -758,8 +774,10 @@ export function HotelCashierDashboard() {
                             </CardTitle>
                             <CardDescription className="mt-2 max-w-prose leading-relaxed">
                               Tier sets the money ceiling and rolling period.
-                              New deals require manager authorization; the manager
-                              prints the corporate meal agreement.
+                              New deals require admin authorization.
+                              {onBack
+                                ? " Admin prints the corporate meal agreement from the Admin → Corporate credit screen — not from this cashier terminal."
+                                : " The manager prints the corporate meal agreement after authorization."}
                             </CardDescription>
                           </CardHeader>
                           <CardContent className="space-y-8 px-5 pb-8 pt-2 md:px-6 md:pb-10 md:space-y-10">

@@ -56,10 +56,7 @@ import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInve
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
-import {
-  InventoryAlertsBanner,
-  InventoryNotificationCenter,
-} from "@/components/inventory/InventoryNotificationCenter";
+import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { toast } from "sonner";
 import {
   Sidebar,
@@ -135,7 +132,7 @@ const CAFE_STORE_NAV_TOP: {
   { id: "Active", label: "Inventory", icon: ShoppingCart },
   { id: "Inactive", label: "Inactive", icon: MinusCircle },
   { id: "Supplier", label: "Suppliers", icon: StoreIcon },
-  { id: "ReceiptPrinting", label: "Item receipts", icon: Printer },
+  { id: "ReceiptPrinting", label: "Cashout receipts", icon: Printer },
 ];
 
 const REQUEST_STATUS_VIEWS: StoreView[] = [
@@ -519,9 +516,9 @@ export function StoreComponent({
       Icon: Send,
     },
     ReceiptPrinting: {
-      title: "Item receipt printing",
+      title: "Cashout receipt printing",
       description:
-        "Print new item registration, purchase request, and stock movement receipts with payment-aware grouping.",
+        "Print petty-cash goods receiving vouchers for fully authorized stock-in registrations.",
       Icon: Printer,
     },
     PurchaseRequestStatus: {
@@ -887,10 +884,15 @@ export function StoreComponent({
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <StoreItemReceiptPrinting
               items={storeItem}
-              purchaseRequests={requestStatusData.myPurchases}
-              stockMovements={requestStatusData.myStocks}
+              purchaseRequests={
+                hotelInventory ? requestStatusData.myPurchases : undefined
+              }
+              stockMovements={
+                hotelInventory ? requestStatusData.myStocks : undefined
+              }
               propertyName={displayLabel}
               logoUrl={logoUrl}
+              variant={hotelInventory ? "hotel" : "cafe-store"}
             />
           </div>
         ) : activeView === "PurchaseRequestStatus" && hotelInventory ? (
@@ -1161,21 +1163,6 @@ export function StoreComponent({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth [scrollbar-gutter:stable]">
                 <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-400 2xl:max-w-448">
-                  <InventoryAlertsBanner
-                    audience={hotelInventory ? "hotel-store" : "cafe-store"}
-                    items={storeItem}
-                    purchaseRequests={
-                      hotelInventory ? requestStatusData.myPurchases : undefined
-                    }
-                    stockMovements={
-                      hotelInventory ? requestStatusData.myStocks : undefined
-                    }
-                    storeUserName={
-                      hotelInventory ? requestStatusData.userName : undefined
-                    }
-                    hotelLodging={hotelInventory}
-                    className="mb-2"
-                  />
                   {hotelInventory ? (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/4 shadow-md overflow-hidden">

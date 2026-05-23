@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PurchaseRequestRow } from "@/lib/actions";
 import {
   submitPurchaseRequestUnitPriceChangeApi,
@@ -28,6 +28,8 @@ import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { notifyApiFailure } from "@/lib/actions";
 import { toast } from "sonner";
 
+const STORE_PAGE_SIZE = 8;
+
 export function PurchaseRequestUnitPriceRevisions({
   rows,
   role,
@@ -47,7 +49,14 @@ export function PurchaseRequestUnitPriceRevisions({
   );
   const [draftPrice, setDraftPrice] = useState<Record<number, string>>({});
   const [ccProfileId, setCcProfileId] = useState("");
+  const [storePage, setStorePage] = useState(0);
   const { isPending, run } = useConcurrentActions();
+
+  const storePageCount = Math.max(1, Math.ceil(eligible.length / STORE_PAGE_SIZE));
+  const storePageItems = useMemo(() => {
+    const start = storePage * STORE_PAGE_SIZE;
+    return eligible.slice(start, start + STORE_PAGE_SIZE);
+  }, [eligible, storePage]);
 
   if (role === "Store") {
     return (
@@ -66,7 +75,39 @@ export function PurchaseRequestUnitPriceRevisions({
               No authorized purchase requests available.
             </p>
           ) : (
-            eligible.map((r) => (
+            <>
+            {eligible.length > STORE_PAGE_SIZE ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  Showing {storePage * STORE_PAGE_SIZE + 1}–
+                  {Math.min((storePage + 1) * STORE_PAGE_SIZE, eligible.length)} of{" "}
+                  {eligible.length}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={storePage <= 0}
+                    onClick={() => setStorePage((p) => Math.max(0, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={storePage >= storePageCount - 1}
+                    onClick={() =>
+                      setStorePage((p) => Math.min(storePageCount - 1, p + 1))
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {storePageItems.map((r) => (
               <div
                 key={r.id}
                 className="flex flex-wrap items-end gap-2 border rounded-lg p-3"
@@ -115,7 +156,8 @@ export function PurchaseRequestUnitPriceRevisions({
                   Submit revision
                 </PendingButton>
               </div>
-            ))
+            ))}
+            </>
           )}
         </CardContent>
       </Card>

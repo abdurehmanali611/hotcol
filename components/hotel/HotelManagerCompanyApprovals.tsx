@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Printer } from "lucide-react";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { isCompanyAuthorized } from "@/lib/hotelApproval";
 
 function parseAllowedNames(json: string): string[] {
   try {
@@ -30,17 +31,51 @@ function parseAllowedNames(json: string): string[] {
   }
 }
 
+function buildAgreementProps(
+  company: HotelCreditCompanyRow,
+  tierById: Map<number, HotelCorporateCreditTierRow>,
+  propertyName: string,
+  propertyLogo?: string | null,
+  propertyTin?: string | null,
+) {
+  const tier = company.hotelCorporateCreditTierId
+    ? tierById.get(company.hotelCorporateCreditTierId)
+    : undefined;
+  return {
+    propertyName,
+    propertyLogo,
+    propertyTin,
+    companyName: company.companyName,
+    companyTin: company.companyTinNumber,
+    phone: company.phoneNumber,
+    email: company.email,
+    tierName: tier?.name ?? company.creditLevel,
+    creditLimit: tier ? Number(tier.creditCeiling) : company.creditLimit,
+    timeInterval: tier?.timeInterval ?? company.timeInterval,
+    timeFrame: tier?.timeFrame ?? company.timeFrame,
+    payTiming: company.payTiming,
+    dealNotes: company.dealNotes,
+    allowedItems: parseAllowedNames(company.allowedMenuJson),
+  };
+}
+
 export function HotelManagerCompanyApprovals({
   tenantScope,
   propertyName,
   propertyLogo,
   propertyTin,
+  audience = "hotel-manager",
 }: {
   tenantScope: string;
   propertyName: string;
   propertyLogo?: string | null;
   propertyTin?: string | null;
+  /** Café: admin authorizes and prints; cashier does not print agreements. */
+  audience?: "hotel-manager" | "cafe-admin";
 }) {
+  const isCafeAdmin = audience === "cafe-admin";
+  const printOnPending = !isCafeAdmin;
+
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<HotelCreditCompanyRow[]>([]);
   const [tiers, setTiers] = useState<HotelCorporateCreditTierRow[]>([]);
@@ -80,6 +115,11 @@ export function HotelManagerCompanyApprovals({
     [companies],
   );
 
+  const authorized = useMemo(
+    () => companies.filter((c) => isCompanyAuthorized(c.approvalStatus)),
+    [companies],
+  );
+
   const tierById = useMemo(() => {
     const m = new Map<number, HotelCorporateCreditTierRow>();
     for (const t of tiers) m.set(t.id, t);
@@ -88,26 +128,19 @@ export function HotelManagerCompanyApprovals({
 
   const agreementProps = useMemo(() => {
     if (!printTarget) return null;
-    const tier = printTarget.hotelCorporateCreditTierId
-      ? tierById.get(printTarget.hotelCorporateCreditTierId)
-      : undefined;
-    return {
+    return buildAgreementProps(
+      printTarget,
+      tierById,
       propertyName,
       propertyLogo,
       propertyTin,
-      companyName: printTarget.companyName,
-      companyTin: printTarget.companyTinNumber,
-      phone: printTarget.phoneNumber,
-      email: printTarget.email,
-      tierName: tier?.name ?? printTarget.creditLevel,
-      creditLimit: tier ? Number(tier.creditCeiling) : printTarget.creditLimit,
-      timeInterval: tier?.timeInterval ?? printTarget.timeInterval,
-      timeFrame: tier?.timeFrame ?? printTarget.timeFrame,
-      payTiming: printTarget.payTiming,
-      dealNotes: printTarget.dealNotes,
-      allowedItems: parseAllowedNames(printTarget.allowedMenuJson),
-    };
+    );
   }, [printTarget, propertyLogo, propertyName, propertyTin, tierById]);
+
+  const triggerPrint = (company: HotelCreditCompanyRow) => {
+    setPrintTarget(company);
+    setTimeout(() => handlePrint(), 150);
+  };
 
   if (loading) {
     return (
@@ -123,8 +156,9 @@ export function HotelManagerCompanyApprovals({
         <CardHeader>
           <CardTitle>Corporate company authorization</CardTitle>
           <CardDescription>
-            Cashier registers deals; manager authorizes before usage and prints the
-            one-page corporate meal agreement.
+            {isCafeAdmin
+              ? "Cashier registers company deals from the terminal. Authorize here, then print the corporate meal agreement for the customer — printing is not done on the cashier screen."
+              : "Cashier registers deals; manager authorizes before usage and may print the one-page corporate meal agreement."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -138,7 +172,7 @@ export function HotelManagerCompanyApprovals({
                 <CardHeader className="py-4">
                   <CardTitle className="text-base flex items-center gap-2">
                     {c.companyName}
-                    <Badge variant="secondary">Pending manager</Badge>
+                    <Badge variant="secondary">Pending authorization</Badge>
                   </CardTitle>
                   <CardDescription>
                     {c.phoneNumber || "No phone"} · TIN {c.companyTinNumber || "—"} ·{" "}
@@ -170,7 +204,7 @@ export function HotelManagerCompanyApprovals({
                         try {
                           await rejectHotelCreditCompanyApi(
                             c.id,
-                            "Rejected by manager",
+                            isCafeAdmin ? "Rejected by admin" : "Rejected by manager",
                           );
                           await load();
                         } catch (e) {
@@ -181,24 +215,68 @@ export function HotelManagerCompanyApprovals({
                   >
                     Reject
                   </PendingButton>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setPrintTarget(c);
-                      setTimeout(() => handlePrint(), 150);
-                    }}
-                  >
-                    <Printer className="h-4 w-4 mr-1.5" />
-                    Print agreement
-                  </Button>
+                  {printOnPending ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => triggerPrint(c)}
+                    >
+                      <Printer className="h-4 w-4 mr-1.5" />
+                      Print agreement
+                    </Button>
+                  ) : null}
                 </CardContent>
               </Card>
             ))
           )}
         </CardContent>
       </Card>
+
+      {isCafeAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Print corporate meal agreements</CardTitle>
+            <CardDescription>
+              After you authorize a company, print the signed agreement here and give
+              copies to the customer. Cashier staff record usage only — they do not
+              print agreements.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {authorized.length === 0 ? (
+              <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-4 py-8 text-center">
+                No authorized companies yet. Approve a pending deal above first.
+              </p>
+            ) : (
+              authorized.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/80 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{c.companyName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      TIN {c.companyTinNumber || "—"} · ETB{" "}
+                      {Number(c.creditLimit).toLocaleString()}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="gap-1.5 shrink-0"
+                    onClick={() => triggerPrint(c)}
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print agreement
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {agreementProps ? (
         <div className="sr-only print:not-sr-only print:block">

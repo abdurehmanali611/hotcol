@@ -44,7 +44,7 @@ import {
   LayoutDashboard,
   Loader2,
   Store,
-  CreditCard,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
@@ -61,12 +61,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import AdminCredit from "@/components/AdminCredit";
+import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import AdminInventory from "@/components/AdminInventory";
-import {
-  InventoryAlertsBanner,
-  InventoryNotificationCenter,
-} from "@/components/inventory/InventoryNotificationCenter";
+import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
@@ -223,7 +220,7 @@ function AdminDashboardContent() {
     Key,
     RefreshCw,
     Store,
-    CreditCard,
+    Building2,
   };
 
   const sidebarItems = ADMIN_SIDEBAR_ITEMS.map((item) => {
@@ -367,11 +364,6 @@ function AdminDashboardContent() {
       case "inventory":
         return (
           <div className="space-y-4">
-            <InventoryAlertsBanner
-              audience="cafe-admin"
-              items={inventoryAlerts}
-              hotelLodging={false}
-            />
             <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
               <AdminInventory hotelName={tenantScope} />
             </div>
@@ -380,7 +372,11 @@ function AdminDashboardContent() {
       case "credit-registrations":
         return (
           <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
-            <AdminCredit hotelName={tenantScope} />
+            <CafeAdminCorporateCredit
+              tenantScope={tenantScope}
+              propertyName={displayName || tenantScope}
+              propertyLogo={logoUrl || null}
+            />
           </div>
         );
       default:

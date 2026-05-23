@@ -29,3 +29,16 @@ export function isCompanyAuthorized(status?: string | null): boolean {
   const s = String(status || "AUTHORIZED");
   return s === "AUTHORIZED" || s === "";
 }
+
+/** Receipts may only print when workflow is complete for the entity type. */
+export function isItemRegistrationPrintable(status?: string | null): boolean {
+  return isItemRegAuthorized(status) && !isItemRegVoid(status);
+}
+
+export function isPurchaseRequestPrintable(status: string): boolean {
+  return isPurchaseAuthorized(status);
+}
+
+export function isStockMovementPrintable(status: string): boolean {
+  return status === "APPROVED";
+}

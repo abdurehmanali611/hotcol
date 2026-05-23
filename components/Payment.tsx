@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import {
-  CreditRegistration,
   Order,
-  fetchCreditRegistrations,
+  createHotelCreditConsumptionApi,
+  fetchHotelCreditCompanies,
+  fetchHotelCreditParties,
   fetchTables,
   fetchWaiters,
   filterUnpaidOrders,
@@ -14,10 +15,17 @@ import {
   updateOrderCredit,
   updateTablePayment,
   updateWaiterPayment,
-  checkCreditRegistrantBalance,
-  deductFromCreditRegistrant,
+  type HotelCreditCompanyRow,
+  type HotelCreditPartyRow,
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { isCompanyAuthorized } from "@/lib/hotelApproval";
+import {
+  corporateCreditorDisplayName,
+  isCorporateCreditFormReady,
+  ordersToConsumptionLines,
+} from "@/lib/corporateCreditPayment";
+import { CorporateCreditPaymentFields } from "@/components/payment/CorporateCreditPaymentFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,16 +88,16 @@ export default function PaymentComponent({
   const [selectedTableForAll, setSelectedTableForAll] = useState<number | null>(
     null,
   );
-  const [credittors, setCredittors] = useState<CreditRegistration[]>([]);
+  const [creditCompanies, setCreditCompanies] = useState<HotelCreditCompanyRow[]>(
+    [],
+  );
+  const [creditParties, setCreditParties] = useState<HotelCreditPartyRow[]>([]);
+  const [creditCompanyId, setCreditCompanyId] = useState("");
+  const [creditStaffName, setCreditStaffName] = useState("");
+  const [creditStaffPhone, setCreditStaffPhone] = useState("");
 
-  // Credit payment states for batch payment
   const [allCreditActive, setAllCreditActive] = useState(false);
-  const [selectedCredittor, setSelectedCredittor] = useState<string>("");
-
-  // Credit payment states for single order
   const [singleCreditActive, setSingleCreditActive] = useState(false);
-  const [selectedSingleCredittor, setSelectedSingleCredittor] =
-    useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -110,45 +118,65 @@ export default function PaymentComponent({
     setUnpaidOrders(payRequire);
   }, [orders, hotelName]);
 
-  // Fetch authorized credit registrations for this property
+  const authorizedCreditCompanies = useMemo(
+    () =>
+      creditCompanies.filter((c) =>
+        rowHotelMatchesTenantScope(c.HotelName, hotelName) &&
+        isCompanyAuthorized(c.approvalStatus),
+      ),
+    [creditCompanies, hotelName],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    const fetchingCredittors = async () => {
+    const load = async () => {
       try {
         setIsLoading(true);
-        const data = await fetchCreditRegistrations();
+        const data = await fetchHotelCreditCompanies();
         if (cancelled) return;
-        if (Array.isArray(data)) {
-          const hotelCredittor = data.filter(
-            (item) =>
-              rowHotelMatchesTenantScope(item.HotelName, hotelName) &&
-              (() => {
-                const s = String(item.approvalStatus ?? "").trim().toUpperCase();
-                return !s || s === "AUTHORIZED";
-              })(),
-          );
-          setCredittors(hotelCredittor);
-        } else {
-          setCredittors([]);
-        }
+        setCreditCompanies(Array.isArray(data) ? data : []);
       } catch (error: unknown) {
         if (!cancelled) {
           toast.error(
             error instanceof Error
               ? error.message
-              : "Could not load creditors",
+              : "Could not load corporate credit companies",
           );
         }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     };
-
-    if (hotelName) void fetchingCredittors();
+    if (hotelName) void load();
     return () => {
       cancelled = true;
     };
   }, [hotelName]);
+
+  useEffect(() => {
+    if (!creditCompanyId) {
+      setCreditParties([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchHotelCreditParties(Number(creditCompanyId))
+      .then((rows) => {
+        if (!cancelled) setCreditParties(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setCreditParties([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [creditCompanyId]);
+
+  const resetCorporateCreditFields = () => {
+    setCreditCompanyId("");
+    setCreditStaffName("");
+    setCreditStaffPhone("");
+    setCreditParties([]);
+  };
 
   // Group orders by table
   const groupedOrders = useMemo(() => {
@@ -239,70 +267,105 @@ export default function PaymentComponent({
     }
   };
 
-  // Handle credit payment for single order
-  const handleSingleCreditPayment = async (
-    id: number,
-    order: Order,
-    credittor: string,
-    amount: number,
+  const recordCorporateCreditAndPayOrders = async (
+    orders: Order[],
+    totalAmount: number,
   ) => {
+    const company = authorizedCreditCompanies.find(
+      (c) => String(c.id) === creditCompanyId,
+    );
+    if (!company) {
+      toast.error("Select an authorized company");
+      return;
+    }
+    if (!isCorporateCreditFormReady(creditCompanyId, creditStaffName, creditStaffPhone)) {
+      toast.error("Enter staff name and phone for this credit payment");
+      return;
+    }
+
+    const lines = ordersToConsumptionLines(orders);
+    if (lines.length === 0) {
+      toast.error("No order lines to bill to corporate credit");
+      return;
+    }
+
+    await createHotelCreditConsumptionApi({
+      companyId: company.id,
+      guestName: creditStaffName.trim(),
+      guestPhone: creditStaffPhone.trim(),
+      linesJson: JSON.stringify(lines),
+      totalAmount,
+      suppressSuccessToast: true,
+    });
+
+    const creditorLabel = corporateCreditorDisplayName(
+      company.companyName,
+      creditStaffName,
+    );
+
+    const updatedOrders: Order[] = [];
+    for (const order of orders) {
+      const lineAmount = order.price * order.orderAmount;
+      const result = await updateOrderCredit(order.id, creditorLabel, lineAmount);
+      updatedOrders.push({ ...order, ...result, payment: "Paid" });
+    }
+
+    const waiters = (await fetchWaiters()).filter((item) =>
+      rowHotelMatchesTenantScope(item.HotelName, hotelName),
+    );
+    const ordersByWaiter = updatedOrders.reduce(
+      (acc, order) => {
+        if (!acc[order.waiterName]) acc[order.waiterName] = [];
+        acc[order.waiterName].push(order);
+        return acc;
+      },
+      {} as Record<string, Order[]>,
+    );
+    for (const [waiterName, waiterOrders] of Object.entries(ordersByWaiter)) {
+      const waiter = waiters.find((item) => item.name === waiterName);
+      if (waiter) {
+        await updateWaiterPayment(
+          transformOrderDataForWaiterUpdate(waiterOrders, waiter.id),
+        );
+      }
+    }
+
+    const tableNos = [...new Set(updatedOrders.map((o) => o.tableNo))];
+    const tables = (await fetchTables()).filter((item) =>
+      rowHotelMatchesTenantScope(item.HotelName, hotelName),
+    );
+    for (const tableNo of tableNos) {
+      const table = tables.find((item) => item.tableNo === tableNo);
+      const tableOrders = updatedOrders.filter((o) => o.tableNo === tableNo);
+      if (table) {
+        await updateTablePayment(
+          transformOrderDataForTableUpdate(tableOrders, table.id, tableNo),
+        );
+      }
+    }
+  };
+
+  const handleSingleCreditPayment = async (id: number, order: Order) => {
     setProcessingPayment(id);
     setDialogOpen(false);
+    const amount = calculateSingleOrderTotal(order);
 
     try {
-      // Check if credittor has sufficient balance
-      const hasBalance = await checkCreditRegistrantBalance(
-        credittor,
-        amount,
-        hotelName,
-      );
-
-      if (!hasBalance) {
-        toast.error("Insufficient credit balance");
-        setProcessingPayment(null);
-        return;
-      }
-
-      // Update order with credit payment
-      // This will set: credit=true, withBank=null, payment="Paid"
-      const result = await updateOrderCredit(id, credittor, amount);
-      const updatedOrder = { ...order, ...result, payment: "Paid" };
-
-      // Deduct from credit registrant's balance
-      await deductFromCreditRegistrant(credittor, amount);
-
-      // Update waiter and table records
-      const [waiter, Table] = await Promise.all([
-        findWaiterForHotel(order.waiterName),
-        findTableForHotel(order.tableNo),
-      ]);
-
-      if (waiter) {
-        const waiterUpdateData = transformOrderDataForWaiterUpdate(
-          [updatedOrder],
-          waiter.id,
-        );
-        await updateWaiterPayment(waiterUpdateData);
-      }
-      if (Table) {
-        const tableUpdateData = transformOrderDataForTableUpdate(
-          [updatedOrder],
-          Table.id,
-          order.tableNo,
-        );
-        await updateTablePayment(tableUpdateData);
-      }
-
-      toast.success("Credit payment processed successfully");
+      await recordCorporateCreditAndPayOrders([order], amount);
+      toast.success("Corporate credit payment recorded");
       await onRefresh();
     } catch (error) {
       console.error("Credit payment processing error:", error);
-      toast.error("Failed to process credit payment");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to process credit payment",
+      );
     } finally {
       setProcessingPayment(null);
       setSelectedOrderId(null);
       setSingleCreditActive(false);
-      setSelectedSingleCredittor("");
+      resetCorporateCreditFields();
     }
   };
 
@@ -381,12 +444,7 @@ export default function PaymentComponent({
     }
   };
 
-  // Handle credit payment for all orders at a table
-  const handleCreditAllForTable = async (
-    tableNo: number,
-    credittor: string,
-    totalAmount: number,
-  ) => {
+  const handleCreditAllForTable = async (tableNo: number, totalAmount: number) => {
     const tableOrders = groupedOrders[tableNo];
     if (!tableOrders) return;
 
@@ -394,88 +452,24 @@ export default function PaymentComponent({
     setDialogOpen(false);
 
     try {
-      // Check if credittor has sufficient balance for total amount
-      const hasBalance = await checkCreditRegistrantBalance(
-        credittor,
-        totalAmount,
-        hotelName,
-      );
-
-      if (!hasBalance) {
-        toast.error("Insufficient credit balance for total amount");
-        setProcessingAll(null);
-        return;
-      }
-
       const completedOrders = tableOrders.filter(
         (order) => order.status?.toLowerCase() === "completed",
       );
-
-      // Update all orders in parallel
-      const updatedOrders = await Promise.all(
-        completedOrders.map(async (order) => {
-          const result = await updateOrderCredit(
-            order.id,
-            credittor,
-            order.price * order.orderAmount,
-          );
-          return { ...order, ...result, payment: "Paid" };
-        }),
-      );
-
-      // Deduct the total amount from the credit registrant's balance once
-      await deductFromCreditRegistrant(credittor, totalAmount);
-
-      // Update waiter records
-      const waiters = (await fetchWaiters()).filter(
-        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
-      );
-      const ordersByWaiter = updatedOrders.reduce(
-        (acc, order) => {
-          if (!acc[order.waiterName]) {
-            acc[order.waiterName] = [];
-          }
-          acc[order.waiterName].push(order);
-          return acc;
-        },
-        {} as Record<string, Order[]>,
-      );
-
-      for (const [waiterName, orders] of Object.entries(ordersByWaiter)) {
-        const waiter = waiters.find((item) => item.name === waiterName);
-        if (waiter) {
-          const waiterUpdateData = transformOrderDataForWaiterUpdate(
-            orders as Order[],
-            waiter.id,
-          );
-          await updateWaiterPayment(waiterUpdateData);
-        }
-      }
-
-      // Update table record
-      const tables = (await fetchTables()).filter(
-        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
-      );
-      const table = tables.find((item) => item.tableNo === tableNo);
-      if (table) {
-        const tableUpdateData = transformOrderDataForTableUpdate(
-          updatedOrders,
-          table.id,
-          tableNo,
-        );
-        await updateTablePayment(tableUpdateData);
-      }
-
-      toast.success("Batch credit payment processed successfully");
+      await recordCorporateCreditAndPayOrders(completedOrders, totalAmount);
+      toast.success("Batch corporate credit payment recorded");
       await onRefresh();
     } catch (error) {
       console.error("Batch credit processing error:", error);
-      toast.error("Failed to complete batch credit process");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to complete batch credit process",
+      );
     } finally {
       setProcessingAll(null);
       setSelectedTableForAll(null);
       setAllCreditActive(false);
-      setSelectedCredittor("");
+      resetCorporateCreditFields();
     }
   };
 
@@ -496,8 +490,7 @@ export default function PaymentComponent({
       setSelectedTableForAll(null);
       setAllCreditActive(false);
       setSingleCreditActive(false);
-      setSelectedCredittor("");
-      setSelectedSingleCredittor("");
+      resetCorporateCreditFields();
     }
   };
 
@@ -532,105 +525,6 @@ export default function PaymentComponent({
   const clearSearch = () => {
     setSearchQuery("");
   };
-
-  const calculateRemainingCreditTime = (
-    registrationDate: Date | string,
-    timeInterval: number,
-    timeFrame: string,
-  ) => {
-    if (!registrationDate || !timeInterval || !timeFrame) return 0;
-
-    const regDate = new Date(registrationDate);
-    const currentDate = new Date();
-
-    const diffTime = currentDate.getTime() - regDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-    switch (timeFrame.toLowerCase()) {
-      case "daily":
-        const daysInCycle = diffDays % timeInterval;
-        return daysInCycle === 0 ? timeInterval : timeInterval - daysInCycle;
-
-      case "weekly":
-        const weeksInDays = timeInterval * 7;
-        const weeksInCycle = diffDays % weeksInDays;
-        return weeksInCycle === 0 ? weeksInDays : weeksInDays - weeksInCycle;
-
-      case "monthly":
-        const monthsDiff =
-          (currentDate.getFullYear() - regDate.getFullYear()) * 12 +
-          (currentDate.getMonth() - regDate.getMonth());
-        const monthsInCycle = monthsDiff % timeInterval;
-
-        if (monthsInCycle === 0) return timeInterval;
-
-        const nextPaymentDate = new Date(regDate);
-        nextPaymentDate.setMonth(
-          regDate.getMonth() +
-            Math.ceil(monthsDiff / timeInterval) * timeInterval,
-        );
-        const daysUntilNextPayment = Math.ceil(
-          (nextPaymentDate.getTime() - currentDate.getTime()) /
-            (1000 * 60 * 60 * 24),
-        );
-
-        return daysUntilNextPayment;
-
-      default:
-        return 0;
-    }
-  };
-
-  const calculateRemainingCreditTimeSimple = (
-    registrationDate: Date | string,
-    timeInterval: number,
-    timeFrame: string,
-  ) => {
-    if (!registrationDate || !timeInterval || !timeFrame) return 0;
-
-    const regDate = new Date(registrationDate);
-    const currentDate = new Date();
-
-    switch (timeFrame.toLowerCase()) {
-      case "daily": {
-        const diffDays = Math.floor(
-          (currentDate.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        const daysInCycle = diffDays % timeInterval;
-        return daysInCycle === 0 ? timeInterval : timeInterval - daysInCycle;
-      }
-
-      case "weekly": {
-        const diffDays = Math.floor(
-          (currentDate.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        const weeksInDays = timeInterval * 7;
-        const daysInCycle = diffDays % weeksInDays;
-        return daysInCycle === 0 ? weeksInDays : weeksInDays - daysInCycle;
-      }
-
-      case "monthly": {
-        const monthsDiff =
-          (currentDate.getFullYear() - regDate.getFullYear()) * 12 +
-          (currentDate.getMonth() - regDate.getMonth());
-        const monthsInCycle = monthsDiff % timeInterval;
-        return monthsInCycle === 0
-          ? timeInterval
-          : timeInterval - monthsInCycle;
-      }
-
-      default:
-        return 0;
-    }
-  };
-
-  const selectedCredittorData = credittors.find(
-    (item) => item.name === selectedCredittor,
-  );
-
-  const selectedSingleCredittorData = credittors.find(
-    (item) => item.name === selectedSingleCredittor,
-  );
 
   if (isLoading) {
     return (
@@ -958,7 +852,7 @@ export default function PaymentComponent({
                                       disabled={
                                         processingAll ===
                                           parseInt(tableNo.toString()) ||
-                                        credittors.length === 0
+                                        authorizedCreditCompanies.length === 0
                                       }
                                     >
                                       <Icon
@@ -970,135 +864,49 @@ export default function PaymentComponent({
                                           Credit Transfer
                                         </h2>
                                         <p className="text-xs text-muted-foreground">
-                                          Pay with credit (withBank=null)
+                                          Corporate credit (company + staff)
                                         </p>
                                       </div>
                                     </Button>
 
                                     {allCreditActive && (
                                       <>
-                                        <Select
-                                          value={selectedCredittor}
-                                          onValueChange={(value: string) =>
-                                            setSelectedCredittor(value)
-                                          }
-                                        >
-                                          <SelectTrigger className="h-fit p-2 w-56 self-center">
-                                            <SelectValue placeholder="Select Credittor" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {credittors.map((item) => (
-                                              <SelectItem
-                                                key={item.id}
-                                                value={item.name}
-                                              >
-                                                {item.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-
-                                        {selectedCredittor &&
-                                          selectedCredittorData && (
-                                            <div className="flex flex-col gap-5 w-full bg-neutral-800 p-2 rounded-md">
-                                              <h2 className="flex items-center gap-6 font-serif">
-                                                <span className="text-lg text-green-500">
-                                                  Credit Level:{" "}
-                                                </span>
-                                                {
-                                                  selectedCredittorData.creditLevel
-                                                }
-                                              </h2>
-                                              <h2 className="flex items-center gap-6 font-serif">
-                                                <span className="text-lg text-green-500">
-                                                  Remaining credit:{" "}
-                                                </span>
-                                                {selectedCredittorData.amount.toLocaleString()}{" "}
-                                                ETB
-                                              </h2>
-                                              {selectedCredittorData.paidAmount > 0 ? (
-                                                <h2 className="flex items-center gap-6 font-serif text-sm text-muted-foreground">
-                                                  Presale paid at registration:{" "}
-                                                  {selectedCredittorData.paidAmount.toLocaleString()}{" "}
-                                                  ETB
-                                                </h2>
-                                              ) : null}
-                                              <h2 className="flex items-center gap-6 font-serif">
-                                                <span className="text-lg text-green-500">
-                                                  Required Amount:{" "}
-                                                </span>
-                                                {tableTotal} ETB
-                                              </h2>
-                                              <h2 className="flex items-center gap-6 font-serif">
-                                                <span className="text-lg text-green-500">
-                                                  Remaining Credit Time:{" "}
-                                                </span>
-                                                {(() => {
-                                                  const remainingTime =
-                                                    calculateRemainingCreditTime(
-                                                      selectedCredittorData.registrationDate,
-                                                      selectedCredittorData.timeInterval,
-                                                      selectedCredittorData.timeFrame,
-                                                    );
-
-                                                  if (
-                                                    selectedCredittorData.timeFrame.toLowerCase() ===
-                                                    "monthly"
-                                                  ) {
-                                                    const remainingMonths =
-                                                      calculateRemainingCreditTimeSimple(
-                                                        selectedCredittorData.registrationDate,
-                                                        selectedCredittorData.timeInterval,
-                                                        selectedCredittorData.timeFrame,
-                                                      );
-                                                    return `${remainingMonths} months remaining (${remainingTime} days)`;
-                                                  } else {
-                                                    return `${remainingTime} days remaining`;
-                                                  }
-                                                })()}
-                                              </h2>
-                                            </div>
+                                        <CorporateCreditPaymentFields
+                                          companies={authorizedCreditCompanies}
+                                          parties={creditParties}
+                                          companyId={creditCompanyId}
+                                          onCompanyIdChange={setCreditCompanyId}
+                                          staffName={creditStaffName}
+                                          onStaffNameChange={setCreditStaffName}
+                                          staffPhone={creditStaffPhone}
+                                          onStaffPhoneChange={setCreditStaffPhone}
+                                          amountETB={tableTotal}
+                                          ordersForDealCheck={tableOrders.filter(
+                                            (o) =>
+                                              o.status?.toLowerCase() ===
+                                              "completed",
                                           )}
-
+                                        />
                                         <Button
                                           disabled={
-                                            !selectedCredittor ||
-                                            !selectedCredittorData ||
-                                            selectedCredittorData.amount ===
-                                              0 ||
-                                            selectedCredittorData.amount -
-                                              tableTotal <
-                                              0 ||
+                                            !isCorporateCreditFormReady(
+                                              creditCompanyId,
+                                              creditStaffName,
+                                              creditStaffPhone,
+                                            ) ||
                                             processingAll ===
-                                              parseInt(tableNo.toString()) ||
-                                            (calculateRemainingCreditTime(
-                                              selectedCredittorData?.registrationDate ||
-                                                new Date(),
-                                              selectedCredittorData?.timeInterval ||
-                                                0,
-                                              selectedCredittorData?.timeFrame ||
-                                                "",
-                                            ) === 0 &&
-                                              calculateRemainingCreditTimeSimple(
-                                                selectedCredittorData?.registrationDate ||
-                                                  new Date(),
-                                                selectedCredittorData?.timeInterval ||
-                                                  0,
-                                                selectedCredittorData?.timeFrame ||
-                                                  "",
-                                              ) === 0)
+                                              parseInt(tableNo.toString())
                                           }
                                           onClick={() =>
                                             handleCreditAllForTable(
                                               parseInt(tableNo.toString()),
-                                              selectedCredittor,
                                               tableTotal,
                                             )
                                           }
                                           className="flex gap-4 items-center bg-green-600 hover:bg-green-700"
                                         >
                                           <Wallet />
-                                          Pay All with Credit
+                                          Pay all with corporate credit
                                         </Button>
                                       </>
                                     )}
@@ -1327,7 +1135,7 @@ export default function PaymentComponent({
                                       variant="outline"
                                       disabled={
                                         processingPayment === order.id ||
-                                        credittors.length === 0
+                                        authorizedCreditCompanies.length === 0
                                       }
                                     >
                                       <Icon
@@ -1336,119 +1144,48 @@ export default function PaymentComponent({
                                       />
                                       <div>
                                         <h2 className="font-bold text-lg">
-                                          Credit Transfer
+                                          Corporate credit
                                         </h2>
                                         <p className="text-xs text-muted-foreground">
-                                          Pay with credit (withBank=null)
+                                          Company + staff phone
                                         </p>
                                       </div>
                                     </Button>
 
                                     {singleCreditActive && (
-                                      <div className="space-y-4 mt-4 p-4 border rounded-lg">
-                                        <Select
-                                          value={selectedSingleCredittor}
-                                          onValueChange={(value: string) =>
-                                            setSelectedSingleCredittor(value)
-                                          }
-                                        >
-                                          <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Select Credittor" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {credittors.map((item) => (
-                                              <SelectItem
-                                                key={item.id}
-                                                value={item.name}
-                                              >
-                                                {item.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-
-                                        {selectedSingleCredittor &&
-                                          selectedSingleCredittorData && (
-                                            <div className="space-y-2 bg-neutral-800 p-3 rounded-md">
-                                              <p className="text-sm">
-                                                <span className="text-green-500">
-                                                  Level:
-                                                </span>{" "}
-                                                {
-                                                  selectedSingleCredittorData.creditLevel
-                                                }
-                                              </p>
-                                              <p className="text-sm">
-                                                <span className="text-green-500">
-                                                  Available:
-                                                </span>{" "}
-                                                {
-                                                  selectedSingleCredittorData.amount
-                                                }{" "}
-                                                ETB
-                                              </p>
-                                              <p className="text-sm">
-                                                <span className="text-green-500">
-                                                  Required:
-                                                </span>{" "}
-                                                {calculateSingleOrderTotal(
-                                                  order,
-                                                )}{" "}
-                                                ETB
-                                              </p>
-                                              <p className="text-sm">
-                                                <span className="text-green-500">
-                                                  After payment:
-                                                </span>{" "}
-                                                {(
-                                                  selectedSingleCredittorData.amount -
-                                                  calculateSingleOrderTotal(
-                                                    order,
-                                                  )
-                                                ).toFixed(2)}{" "}
-                                                ETB
-                                              </p>
-                                            </div>
+                                      <div className="space-y-4 mt-4">
+                                        <CorporateCreditPaymentFields
+                                          companies={authorizedCreditCompanies}
+                                          parties={creditParties}
+                                          companyId={creditCompanyId}
+                                          onCompanyIdChange={setCreditCompanyId}
+                                          staffName={creditStaffName}
+                                          onStaffNameChange={setCreditStaffName}
+                                          staffPhone={creditStaffPhone}
+                                          onStaffPhoneChange={setCreditStaffPhone}
+                                          amountETB={calculateSingleOrderTotal(
+                                            order,
                                           )}
-
+                                          ordersForDealCheck={[order]}
+                                        />
                                         <Button
                                           disabled={
-                                            !selectedSingleCredittor ||
-                                            !selectedSingleCredittorData ||
-                                            selectedSingleCredittorData.amount ===
-                                              0 ||
-                                            selectedSingleCredittorData.amount -
-                                              calculateSingleOrderTotal(order) <
-                                              0 ||
-                                            processingPayment === order.id ||
-                                            (calculateRemainingCreditTime(
-                                              selectedSingleCredittorData?.registrationDate ||
-                                                new Date(),
-                                              selectedSingleCredittorData?.timeInterval ||
-                                                0,
-                                              selectedSingleCredittorData?.timeFrame ||
-                                                "",
-                                            ) === 0 &&
-                                              calculateRemainingCreditTimeSimple(
-                                                selectedSingleCredittorData?.registrationDate ||
-                                                  new Date(),
-                                                selectedSingleCredittorData?.timeInterval ||
-                                                  0,
-                                                selectedSingleCredittorData?.timeFrame ||
-                                                  "",
-                                              ) === 0)
+                                            !isCorporateCreditFormReady(
+                                              creditCompanyId,
+                                              creditStaffName,
+                                              creditStaffPhone,
+                                            ) ||
+                                            processingPayment === order.id
                                           }
                                           onClick={() =>
                                             handleSingleCreditPayment(
                                               order.id,
                                               order,
-                                              selectedSingleCredittor,
-                                              calculateSingleOrderTotal(order),
                                             )
                                           }
                                           className="w-full bg-green-600 hover:bg-green-700"
                                         >
-                                          Pay with Credit
+                                          Pay with corporate credit
                                         </Button>
                                       </div>
                                     )}

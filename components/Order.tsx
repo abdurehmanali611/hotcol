@@ -154,19 +154,19 @@ export default function OrderComponent({
   );
 
   return (
-    <div className="space-y-8 p-5">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 md:p-6 max-w-[1600px] mx-auto">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">New Order</h2>
-          <p className="text-sm text-muted-foreground">
-            Select items to add to the ticket
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">New order</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Tap a card for a quick order, or select several and use Order now
           </p>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
           <Input
-            placeholder="search name..."
+            placeholder="Search menu…"
             type="text"
-            className="h-fit p-2 w-72"
+            className="h-10 w-full sm:w-64"
             value={searchedText}
             onChange={(e) => setSearchedText(e.target.value)}
           />
@@ -190,7 +190,7 @@ export default function OrderComponent({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {selectedItems.length > 0 && (
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="h-8 px-3">
@@ -239,7 +239,7 @@ export default function OrderComponent({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <Section
           title="Kitchen"
           icon={Utensils}
@@ -335,7 +335,7 @@ const Section = ({
           {data.length}
         </Badge>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.map((item) => {
           const isSelected = getIsSelected(item);
           const quantity = getQuantity(item);
@@ -344,35 +344,36 @@ const Section = ({
           return (
             <Card
               key={item.id}
-              className={`group cursor-pointer hover:border-primary/50 transition-all hover:shadow-md ${
-                isSelected ? "border-2 border-primary" : ""
+              className={`group cursor-pointer overflow-hidden hover:border-primary/50 transition-all hover:shadow-lg ${
+                isSelected ? "border-2 border-primary ring-2 ring-primary/20" : ""
               }`}
             >
               <CardContent
-                className="p-3 overflow-hidden rounded-t-xl cursor-pointer"
+                className="p-0 overflow-hidden cursor-pointer"
                 onClick={() => onItemSelect(item)}
               >
-                <div className="aspect-video relative">
+                <div className="aspect-4/3 relative min-h-[140px]">
                   <Image
                     src={item.imageUrl || "/placeholder-food.jpg"}
                     alt={item.name}
                     fill
-                    className="object-cover group-hover:scale-110 transition-transform duration-300"
+                    sizes="(max-width: 640px) 100vw, 280px"
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
               </CardContent>
-              <CardFooter className="p-3 flex flex-col gap-3">
+              <CardFooter className="p-4 flex flex-col gap-3 bg-card">
                 <div
-                  className="flex flex-col gap-1 items-center cursor-pointer"
+                  className="flex flex-col gap-1.5 min-w-0 cursor-pointer"
                   onClick={() => onItemSelect(item)}
                 >
-                  <p className="font-semibold text-sm truncate w-full text-center">
+                  <p className="font-semibold text-base leading-snug line-clamp-2">
                     {item.name}
                   </p>
-                  <p className="text-primary font-bold text-sm">
+                  <p className="text-primary font-bold text-lg tabular-nums">
                     {item.price.toFixed(2)} ETB
                   </p>
-                  <Badge variant="outline" className="capitalize text-[10px]">
+                  <Badge variant="outline" className="capitalize text-xs w-fit">
                     {item.type}
                   </Badge>
                 </div>

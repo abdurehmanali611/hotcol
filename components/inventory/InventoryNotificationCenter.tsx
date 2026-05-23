@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   Bell,
   CalendarClock,
+  Check,
   CheckCircle2,
   ClipboardList,
+  AlertTriangle,
   Package,
   ShieldAlert,
   TrendingUp,
@@ -28,6 +29,11 @@ import {
   type InventoryNotificationAudience,
   type InventoryNotificationInput,
 } from "@/lib/inventoryNotifications";
+import {
+  inventoryNotificationSeenKey,
+  readSeenNotificationIds,
+  writeSeenNotificationIds,
+} from "@/lib/inventoryNotificationSeen";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -80,11 +86,24 @@ function notificationIcon(n: InventoryNotification) {
   return Package;
 }
 
-function NotificationRow({ n }: { n: InventoryNotification }) {
+function NotificationRow({
+  n,
+  seen,
+  onMarkSeen,
+}: {
+  n: InventoryNotification;
+  seen: boolean;
+  onMarkSeen: () => void;
+}) {
   const Icon = notificationIcon(n);
 
   return (
-    <li className="rounded-lg border border-border/70 bg-card/80 px-3 py-2.5 space-y-1.5">
+    <li
+      className={cn(
+        "rounded-lg border border-border/70 bg-card/80 px-3 py-2.5 space-y-1.5",
+        seen && "opacity-60",
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
           <Icon
@@ -103,7 +122,25 @@ function NotificationRow({ n }: { n: InventoryNotification }) {
             <p className="text-xs text-muted-foreground">{n.title}</p>
           </div>
         </div>
-        <SeverityBadge severity={n.severity} />
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <SeverityBadge severity={n.severity} />
+          {seen ? (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Check className="h-3 w-3" />
+              Seen
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={onMarkSeen}
+            >
+              Mark seen
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed pl-6">{n.message}</p>
       <div className="flex flex-wrap gap-2 pl-6 text-[10px] text-muted-foreground">
@@ -136,9 +173,7 @@ export type InventoryNotificationCenterProps = {
   className?: string;
 } & InventoryNotificationInput;
 
-function useInventoryAlerts(
-  props: InventoryNotificationCenterProps,
-) {
+function useInventoryAlerts(props: InventoryNotificationCenterProps) {
   const {
     audience,
     hotelLodging,
@@ -167,21 +202,88 @@ function useInventoryAlerts(
   ]);
 }
 
+function useSeenNotifications(
+  audience: InventoryNotificationAudience,
+  storeUserName?: string,
+) {
+  const storageKey = useMemo(
+    () => inventoryNotificationSeenKey(audience, storeUserName),
+    [audience, storeUserName],
+  );
+  const [seenIds, setSeenIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setSeenIds(readSeenNotificationIds(storageKey));
+  }, [storageKey]);
+
+  const markSeen = useCallback(
+    (id: string) => {
+      setSeenIds((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        writeSeenNotificationIds(storageKey, next);
+        return next;
+      });
+    },
+    [storageKey],
+  );
+
+  const markAllSeen = useCallback(
+    (ids: string[]) => {
+      setSeenIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        writeSeenNotificationIds(storageKey, next);
+        return next;
+      });
+    },
+    [storageKey],
+  );
+
+  const isSeen = useCallback((id: string) => seenIds.has(id), [seenIds]);
+
+  return { isSeen, markSeen, markAllSeen };
+}
+
+function unseenCount(
+  notifications: InventoryNotification[],
+  isSeen: (id: string) => boolean,
+  severities: InventoryAlertSeverity[],
+): number {
+  return notifications.filter(
+    (n) => severities.includes(n.severity) && !isSeen(n.id),
+  ).length;
+}
+
 export function InventoryNotificationCenter(
   props: InventoryNotificationCenterProps,
 ) {
-  const { audience, className } = props;
+  const { audience, storeUserName, className } = props;
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<InventoryAlertSeverity | "all">("all");
 
   const { notifications, summary } = useInventoryAlerts(props);
+  const { isSeen, markSeen, markAllSeen } = useSeenNotifications(
+    audience,
+    storeUserName,
+  );
 
   const visible = useMemo(
     () => filterNotificationsBySeverity(notifications, filter),
     [notifications, filter],
   );
 
-  const badgeCount = summary.critical + summary.warning;
+  const unseenCriticalWarning = unseenCount(notifications, isSeen, [
+    "critical",
+    "warning",
+  ]);
+  const unseenInfo = unseenCount(notifications, isSeen, ["info"]);
+  const hasUnseen = notifications.some((n) => !isSeen(n.id));
+
+  const markAllVisible = useCallback(() => {
+    markAllSeen(notifications.map((n) => n.id));
+  }, [markAllSeen, notifications]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -191,14 +293,14 @@ export function InventoryNotificationCenter(
           variant="outline"
           size="icon"
           className={cn("relative shrink-0", className)}
-          aria-label={`Inventory alerts, ${badgeCount} need attention`}
+          aria-label={`Inventory alerts, ${unseenCriticalWarning} need attention`}
         >
           <Bell className="h-4 w-4" />
-          {badgeCount > 0 ? (
+          {unseenCriticalWarning > 0 ? (
             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-              {badgeCount > 99 ? "99+" : badgeCount}
+              {unseenCriticalWarning > 99 ? "99+" : unseenCriticalWarning}
             </span>
-          ) : summary.info > 0 ? (
+          ) : unseenInfo > 0 ? (
             <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
           ) : null}
         </Button>
@@ -207,12 +309,27 @@ export function InventoryNotificationCenter(
         align="end"
         className="w-[min(24rem,calc(100vw-2rem))] p-0"
       >
-        <div className="border-b px-4 py-3 space-y-1">
-          <p className="text-sm font-semibold">Inventory alerts</p>
-          <p className="text-xs text-muted-foreground">
-            {audienceLabel(audience)} · {summary.workflowCount} workflow ·{" "}
-            {summary.stockExpiryCount} stock/expiry
-          </p>
+        <div className="border-b px-4 py-3 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1 min-w-0">
+              <p className="text-sm font-semibold">Inventory alerts</p>
+              <p className="text-xs text-muted-foreground">
+                {audienceLabel(audience)} · {summary.workflowCount} workflow ·{" "}
+                {summary.stockExpiryCount} stock/expiry
+              </p>
+            </div>
+            {hasUnseen ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 h-8 text-xs"
+                onClick={markAllVisible}
+              >
+                Mark all seen
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b bg-muted/20">
           <div className="rounded-md border border-destructive/25 bg-destructive/5 px-2 py-1.5 text-center">
@@ -265,72 +382,17 @@ export function InventoryNotificationCenter(
           ) : (
             <ul className="space-y-2 p-4 pt-3">
               {visible.map((n) => (
-                <NotificationRow key={n.id} n={n} />
+                <NotificationRow
+                  key={n.id}
+                  n={n}
+                  seen={isSeen(n.id)}
+                  onMarkSeen={() => markSeen(n.id)}
+                />
               ))}
             </ul>
           )}
         </ScrollArea>
       </PopoverContent>
     </Popover>
-  );
-}
-
-export function InventoryAlertsBanner({
-  className,
-  maxItems = 4,
-  ...props
-}: InventoryNotificationCenterProps & {
-  className?: string;
-  maxItems?: number;
-}) {
-  const { notifications, summary } = useInventoryAlerts(props);
-  const actionable = useMemo(
-    () => notifications.filter((n) => n.severity !== "info"),
-    [notifications],
-  );
-
-  if (actionable.length === 0) return null;
-
-  const top = actionable.slice(0, maxItems);
-
-  return (
-    <div
-      className={cn(
-        "rounded-xl border border-amber-500/30 bg-linear-to-r from-amber-500/8 via-card to-card p-4 shadow-sm",
-        summary.critical > 0 && "border-destructive/35 from-destructive/8",
-        className,
-      )}
-    >
-      <div className="flex flex-wrap items-start gap-3 justify-between mb-3">
-        <div className="flex items-start gap-2">
-          <AlertTriangle
-            className={cn(
-              "h-5 w-5 shrink-0 mt-0.5",
-              summary.critical > 0 ? "text-destructive" : "text-amber-600",
-            )}
-          />
-          <div>
-            <p className="text-sm font-semibold">Inventory needs attention</p>
-            <p className="text-xs text-muted-foreground">
-              {summary.critical} critical · {summary.warning} warning
-              {summary.workflowCount > 0
-                ? ` · ${summary.workflowCount} pending approval`
-                : ""}
-            </p>
-          </div>
-        </div>
-        <InventoryNotificationCenter {...props} />
-      </div>
-      <ul className="space-y-2">
-        {top.map((n) => (
-          <NotificationRow key={n.id} n={n} />
-        ))}
-      </ul>
-      {actionable.length > maxItems ? (
-        <p className="text-xs text-muted-foreground mt-2 pl-1">
-          +{actionable.length - maxItems} more — open alerts for full list
-        </p>
-      ) : null}
-    </div>
   );
 }

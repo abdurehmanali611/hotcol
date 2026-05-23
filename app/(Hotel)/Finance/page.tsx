@@ -49,10 +49,7 @@ import {
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
-import {
-  InventoryAlertsBanner,
-  InventoryNotificationCenter,
-} from "@/components/inventory/InventoryNotificationCenter";
+import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import {
   Card,
@@ -560,12 +557,6 @@ function FinanceInner() {
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20">
           <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-6">
             <SidebarTrigger />
-            <Avatar className="h-8 w-8 border shadow-sm">
-              <AvatarImage src={logoUrl} alt={displayName || "Property"} />
-              <AvatarFallback>
-                {(displayName || "P").slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
             <div className="flex-1 min-w-0">
               <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
                 {displayName || "Property"}
@@ -591,6 +582,12 @@ function FinanceInner() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+            <Avatar className="h-8 w-8 border shadow-sm">
+              <AvatarImage src={logoUrl} alt={displayName || "Property"} />
+              <AvatarFallback>
+                {(displayName || "P").slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto overflow-x-auto p-3 sm:px-4 md:p-6 [scrollbar-gutter:stable]">
@@ -884,13 +881,6 @@ function FinanceInner() {
 
         {financeSection === "inventory" && (
             <section className="space-y-4">
-              <InventoryAlertsBanner
-                audience="hotel-finance"
-                items={inventoryRows}
-                purchaseRequests={rows}
-                stockMovements={stockRows}
-                hotelLodging
-              />
               <Card className="border-violet-500/15 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
                 <div className="h-0.5 bg-linear-to-r from-violet-500/60 to-primary/40" />
                 <CardHeader className="pb-2">

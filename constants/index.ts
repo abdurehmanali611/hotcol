@@ -62,7 +62,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "update-credential", label: "Update Credential", icon: "RefreshCw" },
   { id: "inventory", label: "Inventory", icon: "Store" },
-  { id: "credit-registrations", label: "Credit", icon: "CreditCard" },
+  { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
 ] as const;
 
 /** Café cashier terminal — sidebar section keys. */
@@ -87,9 +87,9 @@ export const CAFE_CASHIER_NAV_ITEMS = [
   },
   {
     id: "credit",
-    label: "Credit",
-    icon: "UserPlus",
-    description: "Register company or staff creditors (admin approval required).",
+    label: "Corporate credit",
+    icon: "Building2",
+    description: "Register company deals and record staff usage. Agreement printing is done in Admin → Corporate credit.",
   },
   {
     id: "reports",
@@ -112,6 +112,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "reports-inventory", label: "Inventory items (list)", icon: "Package" },
   { id: "reports-movements", label: "Stock movements", icon: "ArrowRightLeft" },
   { id: "reports-purchases", label: "Purchase pipeline", icon: "ShoppingCart" },
+  { id: "authorize-item-registrations", label: "Authorize registrations", icon: "Package" },
   { id: "authorize-purchases", label: "Authorize purchases", icon: "ShoppingCart" },
   { id: "authorize-stock", label: "Authorize stock", icon: "ArrowRightLeft" },
   { id: "authorize-companies", label: "Corporate companies", icon: "Building2" },
