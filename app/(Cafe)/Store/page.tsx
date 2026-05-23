@@ -234,7 +234,9 @@ export function StoreComponent({
         const statusResponse = itemStatusData as ItemStatus[];
         setStoreItem(
           Array.isArray(response)
-            ? response.filter((item) => item.HotelName === tenantScope)
+            ? response.filter((item) =>
+                rowHotelMatchesTenantScope(item.HotelName, tenantScope),
+              )
             : [],
         );
         setItemStatus(
@@ -411,8 +413,16 @@ export function StoreComponent({
             return;
           }
         }
-        await CreateItemRegistration(payload);
-        toast.success("Item created successfully!");
+        const created = await CreateItemRegistration(payload);
+        if (!created) {
+          toast.error("Registration did not save — please try again.");
+          return;
+        }
+        toast.success(
+          hotelInventory
+            ? "Item registered — pending Cost Control / Finance / Manager approval before it is fully authorized."
+            : "Item created successfully!",
+        );
         form.reset({
           ...form.getValues(),
           name: "",
@@ -804,6 +814,7 @@ export function StoreComponent({
               items={storeItem}
               hotelStockApprovals={hotelInventory}
               tenantScope={tenantScope}
+              embedded
               showPaymentSummary={hotelInventory}
               onHotelStockRequestCreated={
                 hotelInventory ? handleHotelStockRequestCreated : undefined

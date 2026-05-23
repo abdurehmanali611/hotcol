@@ -21,7 +21,7 @@ export function computeInventoryVatETB(
 /**
  * UI/business rule for supplier-paid amount:
  * - without VAT: amount * unit price
- * - with VAT: amount * unit price + 15% of the unit price
+ * - with VAT: amount * unit price + 15% VAT on that subtotal
  */
 export function computeInventoryPaidAmountETB(
   amount: number,
@@ -32,7 +32,7 @@ export function computeInventoryPaidAmountETB(
   const price = Number(unitPrice) || 0;
   const subtotal = qty * price;
   if (!isVatEnabled(purchaseWithVat)) return subtotal;
-  return subtotal + price * INVENTORY_VAT_RATE;
+  return subtotal + computeInventoryVatETB(subtotal, purchaseWithVat);
 }
 
 /** Canonical inventory total: subtotal + duty fee + VAT(15% when enabled). */

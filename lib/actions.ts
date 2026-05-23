@@ -6,7 +6,7 @@ import {
   scheduleSessionExpiredRedirect,
   SessionExpiredError,
 } from "./sessionExpiry";
-import { rowHotelMatchesTenantScope } from "./tenantRowMatch";
+import { findRowByTenantScope, rowHotelMatchesTenantScope } from "./tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "./hotelInventoryPayment";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { toast } from "sonner";
@@ -1687,9 +1687,7 @@ export async function checkPityCashBalance(
 ): Promise<boolean> {
   try {
     const pityCashList = await fetchPityCash();
-    const currentPityCash = pityCashList.find(
-      (p: any) => p.HotelName === HotelName,
-    );
+    const currentPityCash = findRowByTenantScope(pityCashList, HotelName);
 
     if (!currentPityCash) {
       toast.error("No pity cash found for this hotel");
@@ -1730,7 +1728,7 @@ export async function checkCreditRegistrantBalance(
     const creditRegistrant = creditRegistrations.find(
       (reg: any) =>
         reg.name.toLowerCase() === name.toLowerCase() &&
-        reg.HotelName === HotelName,
+        rowHotelMatchesTenantScope(reg.HotelName, HotelName),
     );
 
     if (!creditRegistrant) {
@@ -2691,7 +2689,7 @@ export async function CreatePityCash(values: CreatePityCash) {
   }
 }
 
-export async function fetchPityCash() {
+export async function fetchPityCash(): Promise<pityCash[]> {
   return dedupeHotelListRead("finance:pityCash", async () => {
     const query = `
       query {
@@ -3087,11 +3085,28 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       throw new Error(errorMessage);
     }
 
-    if (response.data.data.ItemRegistration) {
+    const created = response.data.data?.ItemRegistration;
+    if (!created) {
+      const errorMessage = "Item registration was not saved by the server";
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const businessType =
+      typeof window !== "undefined"
+        ? localStorage.getItem("business_type")?.trim() || ""
+        : "";
+    const isLodgingStore =
+      businessType === "Hotel" ||
+      businessType === "Resort" ||
+      businessType === "Pension";
+
+    if (!isLodgingStore) {
       try {
         const pityCashList = await fetchPityCash();
-        const currentPityCash = pityCashList.find(
-          (p: any) => p.HotelName === values.HotelName,
+        const currentPityCash = findRowByTenantScope(
+          pityCashList,
+          values.HotelName,
         );
         const totalCalc =
           computeInventoryPaidAmountETB(
@@ -3107,19 +3122,17 @@ export async function CreateItemRegistration(values: createItemRegistration) {
             await UpdatePityDeduction(currentPityCash.id, newAmount);
           } catch {
             toast.warning(
-              "Item created but failed to update pity cash balance",
+              "Item created but failed to update petty cash balance",
             );
           }
         }
       } catch {
-        toast.error("Failed to fetch pity cash");
+        toast.error("Failed to fetch petty cash");
       }
     }
 
-    toast.success("Item registration created successfully");
-    return response.data.data.ItemRegistration;
+    return created;
   } catch (error: any) {
-    toast.error("Failed to create Item registration");
     throw error;
   }
 }

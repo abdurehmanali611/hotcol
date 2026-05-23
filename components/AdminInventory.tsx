@@ -131,7 +131,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
         const hotelPityCash = response.find(
           (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
         );
-        setPityCashSummary(hotelPityCash);
+        setPityCashSummary(hotelPityCash ?? null);
       } else {
         setPityCashSummary(null);
       }
@@ -310,7 +310,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                               const hotelPityCash = response.find(
                                 (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
                               );
-                              setPityCashSummary(hotelPityCash);
+                              setPityCashSummary(hotelPityCash ?? null);
                             } else {
                               setPityCashSummary(null);
                             }

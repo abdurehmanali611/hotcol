@@ -26,6 +26,19 @@ export function normalizeInventoryItemName(name: string): string {
  * is applied. Hotel terminals should fall back to that key so fetches and filters never
  * briefly show every property's rows.
  */
+/** Find the first row whose `HotelName` matches the tenant scope (TIN or display name). */
+export function findRowByTenantScope<T>(
+  rows: T[],
+  tenantScope: string | null | undefined,
+): T | undefined {
+  return rows.find((row) =>
+    rowHotelMatchesTenantScope(
+      (row as { HotelName?: string | null }).HotelName,
+      tenantScope,
+    ),
+  );
+}
+
 export function effectiveTenantScopeForHotelTerminal(
   reactTenantScope: string | null | undefined,
   options?: { requireHotelTerminal?: boolean },
