@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { Button } from "@/components/ui/button";
@@ -92,36 +92,6 @@ export function InventoryBatchMovementBar({
   const [lines, setLines] = useState<LineDraft[]>([]);
   const { isPending, run } = useConcurrentActions();
   const batchKey = "inventory-batch-movements";
-
-  const selectedSig = useMemo(
-    () =>
-      [...selected]
-        .map((r) => r.id)
-        .sort((a, b) => a - b)
-        .join(","),
-    [selected],
-  );
-
-  const initSigRef = useRef("");
-
-  // When nothing is selected, drop dialog drafts so a later selection never reuses old lines.
-  useEffect(() => {
-    if (selected.length === 0) {
-      setOpen(false);
-      setLines([]);
-      initSigRef.current = "";
-    }
-  }, [selected.length]);
-
-  useEffect(() => {
-    if (!open) {
-      initSigRef.current = "";
-      return;
-    }
-    if (initSigRef.current === selectedSig) return;
-    initSigRef.current = selectedSig;
-    setLines(rowsToDrafts(selected));
-  }, [open, selected, selectedSig]);
 
   const updateLine = useCallback((id: number, patch: Partial<LineDraft>) => {
     setLines((prev) =>
@@ -243,7 +213,10 @@ export function InventoryBatchMovementBar({
             <Button
               type="button"
               className="gap-2 font-semibold shadow-sm"
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                setLines(rowsToDrafts(selected));
+                setOpen(true);
+              }}
             >
               <Send className="size-4 shrink-0" aria-hidden />
               Review and submit

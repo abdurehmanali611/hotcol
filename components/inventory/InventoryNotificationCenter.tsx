@@ -67,23 +67,42 @@ function SeverityBadge({ severity }: { severity: InventoryAlertSeverity }) {
   );
 }
 
-function notificationIcon(n: InventoryNotification) {
+function NotificationIcon({
+  n,
+  className,
+}: {
+  n: InventoryNotification;
+  className?: string;
+}) {
   if (
     n.kind === "expired" ||
     n.kind === "expiring_soon" ||
     n.kind === "expiring_upcoming"
   ) {
-    return CalendarClock;
+    return <CalendarClock className={className} />;
   }
-  if (n.sourceType === "purchase_request" || n.sourceType === "unit_price_purchase") {
-    return ClipboardList;
+  if (
+    n.sourceType === "purchase_request" ||
+    n.sourceType === "unit_price_purchase"
+  ) {
+    return <ClipboardList className={className} />;
   }
-  if (n.sourceType === "stock_movement") return Truck;
-  if (n.sourceType === "unit_price_inventory") return TrendingUp;
-  if (n.kind === "request_approved") return CheckCircle2;
-  if (n.kind === "request_rejected") return AlertTriangle;
-  if (n.kind.startsWith("pending")) return ShieldAlert;
-  return Package;
+  if (n.sourceType === "stock_movement") {
+    return <Truck className={className} />;
+  }
+  if (n.sourceType === "unit_price_inventory") {
+    return <TrendingUp className={className} />;
+  }
+  if (n.kind === "request_approved") {
+    return <CheckCircle2 className={className} />;
+  }
+  if (n.kind === "request_rejected") {
+    return <AlertTriangle className={className} />;
+  }
+  if (n.kind.startsWith("pending")) {
+    return <ShieldAlert className={className} />;
+  }
+  return <Package className={className} />;
 }
 
 function NotificationRow({
@@ -95,8 +114,6 @@ function NotificationRow({
   seen: boolean;
   onMarkSeen: () => void;
 }) {
-  const Icon = notificationIcon(n);
-
   return (
     <li
       className={cn(
@@ -106,7 +123,8 @@ function NotificationRow({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
-          <Icon
+          <NotificationIcon
+            n={n}
             className={cn(
               "h-4 w-4 shrink-0 mt-0.5",
               n.severity === "critical" && "text-destructive",

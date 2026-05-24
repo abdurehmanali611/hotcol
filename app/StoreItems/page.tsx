@@ -58,12 +58,11 @@ export default function StoreItems({
   );
   const tableRef = useRef<DataTableRef>(null);
   const [batchSelected, setBatchSelected] = useState<ItemRegistration[]>([]);
-  const [isStoreTerminalUser, setIsStoreTerminalUser] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setIsStoreTerminalUser(localStorage.getItem("user_role") === "Store");
-  }, []);
+  const [isStoreTerminalUser] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("user_role") === "Store",
+  );
 
   /** Row actions (edit, delete, movements, batch) are for Store credentials only. */
   const showStoreRowActions = !readOnly && isStoreTerminalUser;

@@ -89,17 +89,20 @@ export function useStoreRequestStatusData({
   }, []);
 
   useEffect(() => {
-    void (async () => {
-      setInitialLoading(true);
-      await load();
-      setInitialLoading(false);
-    })();
-  }, [load]);
+    let cancelled = false;
+    const isInitial = refreshSignal === 0;
 
-  useEffect(() => {
-    if (refreshSignal === 0) return;
-    void load();
-  }, [refreshSignal, load]);
+    void (async () => {
+      if (isInitial) setInitialLoading(true);
+      await load();
+      if (!cancelled && isInitial) setInitialLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- remote list sync on mount / refresh signal
+  }, [load, refreshSignal]);
 
   useEffect(() => {
     if (!onClearInjectedStockIds || !injectedStockRows?.length) return;

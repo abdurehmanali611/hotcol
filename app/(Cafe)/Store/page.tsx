@@ -3,7 +3,6 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardContent,
   CardDescription,
 } from "@/components/ui/card";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -23,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Building,
   ChevronRight,
   ClipboardList,
   Loader2,
@@ -42,7 +40,6 @@ import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatus
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { toast } from "sonner";
@@ -77,6 +74,38 @@ import {
 } from "@/lib/tenantRowMatch";
 import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import type { LucideIcon } from "lucide-react";
+
+function StoreWorkspaceIntro({
+  title,
+  description,
+  Icon,
+}: {
+  title: string;
+  description: string;
+  Icon: LucideIcon;
+}) {
+  return (
+    <Card className="border-primary/15 bg-card/95 shadow-lg backdrop-blur-sm overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+      <div className="h-1 bg-linear-to-r from-primary/60 via-violet-500/50 to-cyan-500/40" />
+      <CardHeader className="pb-3 pt-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <div className="flex h-fit shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 p-2.5">
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-xl tracking-tight sm:text-2xl">
+              {title}
+            </CardTitle>
+            <CardDescription className="max-w-2xl text-pretty leading-relaxed">
+              {description}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+}
 
 type StoreView =
   | "Register"
@@ -146,7 +175,6 @@ export function StoreComponent({
   const [activeView, setActiveView] = useState<StoreView>("Register");
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
-  const [purchaseRows, setPurchaseRows] = useState<PurchaseRequestRow[]>([]);
   const searchedParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchedParams.get("hotel"),
@@ -210,14 +238,7 @@ export function StoreComponent({
             );
           }
 
-          if (prResult.status === "fulfilled") {
-            setPurchaseRows(
-              (prResult.value as PurchaseRequestRow[]).filter((p) =>
-                rowHotelMatchesTenantScope(p.HotelName, tenantEff),
-              ),
-            );
-          } else {
-            setPurchaseRows([]);
+          if (prResult.status === "rejected") {
             notifyApiFailure(
               prResult.reason,
               "Could not load purchase requests",
@@ -247,7 +268,6 @@ export function StoreComponent({
               )
             : [],
         );
-        setPurchaseRows([]);
       } catch (e: unknown) {
         if (!isStale()) notifyApiFailure(e, "Failed to load data");
       } finally {
@@ -265,11 +285,6 @@ export function StoreComponent({
         });
         const prData = await fetchPurchaseRequests();
         if (isStale()) return;
-        setPurchaseRows(
-          (prData as PurchaseRequestRow[]).filter((p) =>
-            rowHotelMatchesTenantScope(p.HotelName, tenantEff),
-          ),
-        );
         setRequestStatusSeed((n) => n + 1);
       } catch {
         if (!isStale()) toast.error("Failed to refresh purchase pipeline");
@@ -330,10 +345,14 @@ export function StoreComponent({
     void loadData();
   }, [loadData]);
 
-  const storeWorkspaceIntro: Record<
-    StoreView,
-    { title: string; description: string; Icon: typeof PackagePlus }
-  > = {
+  const handleItemsRegistered = useCallback(() => {
+    void loadData();
+  }, [loadData]);
+
+  const storeWorkspaceIntro = useMemo<
+    Record<StoreView, { title: string; description: string; Icon: LucideIcon }>
+  >(
+    () => ({
     Register: {
       title: "Register new items",
       description:
@@ -404,92 +423,11 @@ export function StoreComponent({
       description: "Registrations recorded without VAT on the unit price.",
       Icon: Receipt,
     },
-  };
-
-  const storeTerminalHeader = (
-    <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 backdrop-blur-xl shadow-sm transition-all supports-backdrop-filter:bg-background/75">
-      <div className="w-full px-3 md:px-6">
-        <div className="flex flex-col md:flex-row md:h-24 py-4 md:py-0 items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            {hotelInventory && (
-              <div className="-ml-1 mr-1 pr-3 flex items-center border-r border-border/60">
-                <SidebarTrigger className="size-9 shrink-0 md:size-8" />
-              </div>
-            )}
-            <div className="relative h-14 w-14 group">
-              <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-md transition-transform group-hover:scale-105">
-                <AvatarImage
-                  src={logoUrl || ""}
-                  alt={displayLabel}
-                  className="object-cover"
-                />
-                <AvatarFallback className="bg-muted">
-                  <Building className="text-muted-foreground h-6 w-6" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="absolute -bottom-1 -right-1 bg-emerald-500 h-4 w-4 rounded-full border-2 border-background shadow-sm" />
-            </div>
-            <div className="flex flex-col gap-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-                <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">
-                  {displayLabel}
-                </h1>
-                <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary border border-primary/20">
-                  Inventory Terminal
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground truncate">
-                Register items, manage stock, and track requests
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => loadData()}
-              disabled={fetching}
-              className="rounded-full h-10 w-10 border-border hover:bg-accent"
-            >
-              <RefreshCw className={`h-4 w-4 ${fetching ? "animate-spin text-primary" : ""}`} />
-            </Button>
-
-            {!hotelInventory && (
-              <Tabs
-                value={activeView}
-                onValueChange={(v) => setActiveView(v as StoreView)}
-                className="w-auto"
-              >
-                <TabsList className="h-12 items-center bg-muted/50 p-1.5 rounded-xl border border-border">
-                  <TabsTrigger value="Register" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                    <PackagePlus size={16} />
-                    <span className="hidden sm:inline">Register</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="Active" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background">
-                    <ShoppingCart size={16} />
-                    <span className="hidden sm:inline">Inventory</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="Inactive" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background">
-                    <MinusCircle size={16} />
-                    <span className="hidden sm:inline">Inactive</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="Supplier" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background">
-                    <StoreIcon size={16} />
-                    <span className="hidden sm:inline">Suppliers</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="ReceiptPrinting" className="rounded-lg gap-2 px-4 data-[state=active]:bg-background">
-                    <Printer size={16} />
-                    <span className="hidden sm:inline">Receipts</span>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            )}
-          </div>
-        </div>
-      </div>
-    </header>
+    }),
+    [hotelInventory],
   );
+
+  const activeIntro = storeWorkspaceIntro[activeView];
 
   const storeNavTop = hotelInventory ? HOTEL_STORE_NAV_TOP : CAFE_STORE_NAV_TOP;
 
@@ -498,7 +436,7 @@ export function StoreComponent({
           <BatchItemRegistrationForm
             hotelName={inventoryTenantKey || tenantScope}
             hotelInventory={hotelInventory}
-            onRegistered={() => loadData()}
+            onRegistered={handleItemsRegistered}
           />
         ) : activeView === "Active" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
@@ -845,33 +783,11 @@ export function StoreComponent({
                     </Card>
                   </div>
                   ) : null}
-                  {(() => {
-                    const {
-                      title,
-                      description,
-                      Icon: IntroIcon,
-                    } = storeWorkspaceIntro[activeView];
-                    return (
-                      <Card className="border-primary/15 bg-card/95 shadow-lg backdrop-blur-sm overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
-                        <div className="h-1 bg-linear-to-r from-primary/60 via-violet-500/50 to-cyan-500/40" />
-                        <CardHeader className="pb-3 pt-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                            <div className="flex h-fit shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 p-2.5">
-                              <IntroIcon className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="min-w-0 space-y-1">
-                              <CardTitle className="text-xl tracking-tight sm:text-2xl">
-                                {title}
-                              </CardTitle>
-                              <CardDescription className="max-w-2xl text-pretty leading-relaxed">
-                                {description}
-                              </CardDescription>
-                            </div>
-                          </div>
-                        </CardHeader>
-                      </Card>
-                    );
-                  })()}
+                  <StoreWorkspaceIntro
+                    title={activeIntro.title}
+                    description={activeIntro.description}
+                    Icon={activeIntro.Icon}
+                  />
                   {panels}
                 </div>
               </div>

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CldUploadButton } from "next-cloudinary";
+import { ITEM_REGISTRATION_IMAGE_UPLOAD_OPTIONS } from "@/lib/cloudinaryUploadOptions";
 import { PackagePlus, Plus, Trash2, Upload } from "lucide-react";
 import {
   Card,
@@ -460,18 +461,7 @@ export function BatchItemRegistrationForm({
                         uploadPreset={
                           process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME
                         }
-                        options={{
-                          sources: ["local", "url", "camera"],
-                          multiple: false,
-                          maxFiles: 1,
-                          clientAllowedFormats: [
-                            "png",
-                            "jpeg",
-                            "jpg",
-                            "webp",
-                            "jfif",
-                          ],
-                        }}
+                        options={{ ...ITEM_REGISTRATION_IMAGE_UPLOAD_OPTIONS }}
                         onSuccess={(result) => {
                           const info = result?.info;
                           const url =

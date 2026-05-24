@@ -45,10 +45,76 @@ async function handleDelete(id: number) {
   try {
     await DeleteItemStatus(id);
     toast.success("Record permanently removed");
-  } catch (error: any) {
+  } catch (error: unknown) {
     toast.error("Failed to delete record");
     throw error;
   }
+}
+
+function InactiveDeleteCell({
+  id,
+  name,
+  refresh,
+}: {
+  id: number;
+  name: string;
+  refresh: () => void;
+}) {
+  const [deleting, setDeleting] = React.useState(false);
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+        >
+          <Trash size={14} />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent className="rounded-xl border-border/40">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-xl">Delete Entry?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will remove{" "}
+            <span className="font-bold text-foreground">{name}</span> from the
+            history. This action is irreversible.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="gap-2 sm:gap-0">
+          <AlertDialogCancel className="rounded-lg" disabled={deleting}>
+            Keep Entry
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-red-500 hover:bg-red-600 rounded-lg"
+            disabled={deleting}
+            onClick={(e) => {
+              e.preventDefault();
+              void (async () => {
+                setDeleting(true);
+                try {
+                  await handleDelete(id);
+                  await refresh();
+                } finally {
+                  setDeleting(false);
+                }
+              })();
+            }}
+          >
+            {deleting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              "Delete Record"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 export const columns = (
@@ -152,57 +218,12 @@ export const columns = (
     id: "action",
     cell: ({ row }) => {
       if (!admin) return null;
-      const [deleting, setDeleting] = React.useState(false);
       return (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
-            >
-              <Trash size={14} />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent className="rounded-xl border-border/40">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-xl">Delete Entry?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will remove <span className="font-bold text-foreground">{row.original.name}</span> from the history. This action is irreversible.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="gap-2 sm:gap-0">
-              <AlertDialogCancel className="rounded-lg" disabled={deleting}>
-                Keep Entry
-              </AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-red-500 hover:bg-red-600 rounded-lg"
-                disabled={deleting}
-                onClick={(e) => {
-                  e.preventDefault();
-                  void (async () => {
-                    setDeleting(true);
-                    try {
-                      await handleDelete(row.original.id);
-                      await refresh();
-                    } finally {
-                      setDeleting(false);
-                    }
-                  })();
-                }}
-              >
-                {deleting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Deleting…
-                  </>
-                ) : (
-                  "Delete Record"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <InactiveDeleteCell
+          id={row.original.id}
+          name={row.original.name}
+          refresh={refresh}
+        />
       );
     },
   },

@@ -35,7 +35,10 @@ export default function Suppliers({
   items?: ItemRegistration[];
 }) {
   const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
-  const safeItems = Array.isArray(items) ? items : [];
+  const safeItems = useMemo(
+    () => (Array.isArray(items) ? items : []),
+    [items],
+  );
 
   const supplierSummaries = useMemo(() => {
     const map = new Map<string, SupplierSummary>();

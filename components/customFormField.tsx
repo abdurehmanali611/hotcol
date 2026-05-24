@@ -35,6 +35,7 @@ import {
 } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { CldUploadButton } from "next-cloudinary";
+import { ITEM_REGISTRATION_MEDIA_UPLOAD_OPTIONS } from "@/lib/cloudinaryUploadOptions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -494,23 +495,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
             <CldUploadButton
               uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME}
               onSuccess={props.handleCloudinary}
-              options={{
-                sources: ["local", "url", "camera"],
-                multiple: false,
-                maxFiles: 1,
-                clientAllowedFormats: [
-                  "png",
-                  "jpeg",
-                  "jpg",
-                  "webp",
-                  "jfif",
-                  "mp4",
-                  "webm",
-                  "ogg",
-                  "mov",
-                  "avi",
-                ],
-              }}
+              options={{ ...ITEM_REGISTRATION_MEDIA_UPLOAD_OPTIONS }}
               className={clsx(
                 "flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
                 props.inputClassName,

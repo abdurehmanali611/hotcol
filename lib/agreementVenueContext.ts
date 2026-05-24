@@ -3,7 +3,7 @@ export function resolveAgreementVenueContext(
   propertyLogo?: string | null,
   propertyTin?: string | null,
 ): { propertyLogo: string | null; propertyTin: string | null } {
-  let logo = String(propertyLogo ?? "").trim();
+  const logo = String(propertyLogo ?? "").trim();
   let tin = String(propertyTin ?? "").trim();
 
   if (typeof window !== "undefined") {
