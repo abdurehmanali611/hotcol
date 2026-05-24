@@ -35,6 +35,7 @@ import {
   HotelFormFieldStack,
   HotelFormSection,
 } from "@/components/hotel/HotelTerminalInitFormLayout";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -180,10 +181,6 @@ export function BatchItemRegistrationForm({
       toast.error("Enter shared supplier name, phone, and address");
       return;
     }
-    if (!supplierTinNumber.trim()) {
-      toast.error("Enter supplier TIN for this batch");
-      return;
-    }
     if (validLines.length === 0) {
       toast.error("Add at least one item with a name (2+ characters)");
       return;
@@ -218,7 +215,7 @@ export function BatchItemRegistrationForm({
               supplierPhone: supplierPhone.trim(),
               Address: addressPayload,
               purchaseWithVat: l.purchaseWithVat,
-              supplierTinNumber: supplierTinNumber.trim(),
+              supplierTinNumber: supplierTinNumber.trim() || undefined,
               paidAmount,
               HotelName: hotelName,
             });
@@ -378,32 +375,24 @@ export function BatchItemRegistrationForm({
                         }
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`reg-in-${l.key}`}>Registration date</Label>
-                      <Input
-                        id={`reg-in-${l.key}`}
-                        type="date"
-                        className="h-10"
-                        value={l.registrationDate}
-                        onChange={(e) =>
-                          updateLine(l.key, {
-                            registrationDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`reg-exp-${l.key}`}>Expiry date</Label>
-                      <Input
-                        id={`reg-exp-${l.key}`}
-                        type="date"
-                        className="h-10"
-                        value={l.expireDate}
-                        onChange={(e) =>
-                          updateLine(l.key, { expireDate: e.target.value })
-                        }
-                      />
-                    </div>
+                    <HotelDayPicker
+                      id={`reg-in-${l.key}`}
+                      label="Registration date"
+                      value={l.registrationDate}
+                      onChange={(ymd) =>
+                        updateLine(l.key, { registrationDate: ymd })
+                      }
+                      buttonClassName="min-w-0"
+                    />
+                    <HotelDayPicker
+                      id={`reg-exp-${l.key}`}
+                      label="Expiry date"
+                      value={l.expireDate}
+                      onChange={(ymd) =>
+                        updateLine(l.key, { expireDate: ymd })
+                      }
+                      buttonClassName="min-w-0"
+                    />
                     <div className="col-span-2 space-y-1.5 sm:col-span-1">
                       <Label htmlFor={`reg-paid-${l.key}`}>Paid amount (ETB)</Label>
                       <Input
@@ -496,7 +485,7 @@ export function BatchItemRegistrationForm({
 
           <HotelFormSection
             title="Shared supplier (whole batch)"
-            description="Supplier name, phone, address, and TIN apply to every line above."
+            description="Supplier name, phone, and address apply to every line above. TIN is optional."
           >
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
               <HotelFormFieldStack>
@@ -514,12 +503,15 @@ export function BatchItemRegistrationForm({
                 <Label htmlFor="reg-supplier-phone">Supplier phone</Label>
                 <PhoneInput
                   id="reg-supplier-phone"
+                  defaultCountry="ET"
+                  international
+                  countryCallingCodeEditable
                   value={supplierPhone}
                   onChange={(v) => setSupplierPhone((v as string) || "")}
                   className="w-full min-w-0"
                 />
               </HotelFormFieldStack>
-              <HotelFormFieldStack className="sm:col-span-2">
+              <HotelFormFieldStack>
                 <Label htmlFor="reg-supplier-address">Supplier address</Label>
                 <Input
                   id="reg-supplier-address"
@@ -531,14 +523,18 @@ export function BatchItemRegistrationForm({
                 />
               </HotelFormFieldStack>
               <HotelFormFieldStack>
-                <Label htmlFor="reg-supplier-tin">Supplier TIN</Label>
+                <Label htmlFor="reg-supplier-tin">
+                  Supplier TIN{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </Label>
                 <Input
                   id="reg-supplier-tin"
                   value={supplierTinNumber}
                   onChange={(e) => setSupplierTinNumber(e.target.value)}
                   placeholder="Tax identification number"
                   className="h-10"
-                  required
                 />
               </HotelFormFieldStack>
             </div>

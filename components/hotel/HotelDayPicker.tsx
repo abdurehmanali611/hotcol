@@ -1,5 +1,6 @@
 "use client";
 
+import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -51,7 +52,7 @@ export function HotelDayPicker({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4 shrink-0 opacity-70" />
-            {value ? value : placeholder}
+            {selected ? format(selected, "PPP") : placeholder}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

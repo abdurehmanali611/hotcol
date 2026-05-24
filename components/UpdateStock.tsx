@@ -354,23 +354,22 @@ const UpdateStock = ({
                   placeholder="123 street"
                   inputClassName="h-fit p-2 w-56"
                 />
-                <>
-                  <CustomFormField
-                    name="purchaseWithVat"
-                    control={form.control}
-                    fieldType={formFieldTypes.SWITCH}
-                    label="Purchase price includes VAT"
-                  />
-                  <CustomFormField
-                    name="supplierTinNumber"
-                    control={form.control}
-                    fieldType={formFieldTypes.INPUT}
-                    label="Supplier TIN (tax ID)"
-                    placeholder="10-digit TIN"
-                    inputClassName="h-fit p-2 w-56"
-                  />
-                </>
+                <CustomFormField
+                  name="supplierTinNumber"
+                  control={form.control}
+                  fieldType={formFieldTypes.INPUT}
+                  label="Supplier TIN (optional)"
+                  placeholder="10-digit TIN"
+                  inputClassName="h-fit p-2 w-56"
+                />
               </div>
+
+              <CustomFormField
+                name="purchaseWithVat"
+                control={form.control}
+                fieldType={formFieldTypes.SWITCH}
+                label="Purchase price includes VAT"
+              />
 
               <CustomFormField
                 name="paidAmount"
