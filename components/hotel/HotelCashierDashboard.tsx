@@ -31,6 +31,7 @@ import {
   hotelCreditConsumptionMetaFormSchema,
 } from "@/lib/validations";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
@@ -117,6 +118,7 @@ export function HotelCashierDashboard({
   /** With `embedded`: company-deals UI only (tabs live in parent). */
   companiesOnly?: boolean;
 } = {}) {
+  useTenantRouteGuard(embedded ? undefined : { role: "HotelCashier" });
   const isCafeTerminal = cafeCashier;
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(

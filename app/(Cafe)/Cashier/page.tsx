@@ -35,6 +35,9 @@ import {
   CAFE_CASHIER_NAV_ITEMS,
   type CafeCashierNavId,
 } from "@/constants";
+import { filterCafeCashierNavId } from "@/lib/subscriptionModules";
+import { useTenantModules } from "@/hooks/useTenantModules";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +63,7 @@ const NAV_ICONS: Record<
 };
 
 function CashierContent() {
+  useTenantRouteGuard({ role: "Cashier" });
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
@@ -74,10 +78,28 @@ function CashierContent() {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
 
-  const sectionMeta = useMemo(
-    () => CAFE_CASHIER_NAV_ITEMS.find((n) => n.id === activeView),
-    [activeView],
+  const tenantModules = useTenantModules();
+  const navItems = useMemo(
+    () =>
+      CAFE_CASHIER_NAV_ITEMS.filter((item) =>
+        filterCafeCashierNavId(item.id, tenantModules),
+      ),
+    [tenantModules],
   );
+
+  const sectionMeta = useMemo(
+    () => navItems.find((n) => n.id === activeView),
+    [activeView, navItems],
+  );
+
+  useEffect(() => {
+    if (
+      navItems.length > 0 &&
+      !navItems.some((item) => item.id === activeView)
+    ) {
+      setActiveView(navItems[0]!.id);
+    }
+  }, [activeView, navItems]);
 
   const loadData = async () => {
     setLoading(true);
@@ -236,7 +258,7 @@ function CashierContent() {
           </div>
           <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
             <SidebarMenu className="gap-1">
-              {CAFE_CASHIER_NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const Icon = NAV_ICONS[item.icon];
                 return (
                   <SidebarMenuItem key={item.id}>

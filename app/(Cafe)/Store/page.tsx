@@ -68,12 +68,15 @@ import StoreItems from "../../StoreItems/page";
 import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import {
   effectiveTenantScopeForHotelTerminal,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
 import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import { HOTEL_STORE_FINANCE_VIEWS, tenantHasModule } from "@/lib/subscriptionModules";
+import { useTenantModules } from "@/hooks/useTenantModules";
 import type { LucideIcon } from "lucide-react";
 
 function StoreWorkspaceIntro({
@@ -163,6 +166,7 @@ export function StoreComponent({
 }: {
   hotelInventory?: boolean;
 }) {
+  useTenantRouteGuard({ role: "Store" });
   const [fetching, setFetching] = useState(false);
   const [requestStatusSeed, setRequestStatusSeed] = useState(0);
   const [pendingLocalStockRows, setPendingLocalStockRows] = useState<
@@ -429,7 +433,27 @@ export function StoreComponent({
 
   const activeIntro = storeWorkspaceIntro[activeView];
 
-  const storeNavTop = hotelInventory ? HOTEL_STORE_NAV_TOP : CAFE_STORE_NAV_TOP;
+  const tenantModules = useTenantModules();
+  const hotelHasFinance = tenantHasModule(
+    tenantModules,
+    "Financial Management",
+  );
+
+  const storeNavTop = useMemo(() => {
+    const base = hotelInventory ? HOTEL_STORE_NAV_TOP : CAFE_STORE_NAV_TOP;
+    if (!hotelInventory || hotelHasFinance) return base;
+    return base.filter((n) => !HOTEL_STORE_FINANCE_VIEWS.has(n.id));
+  }, [hotelInventory, hotelHasFinance]);
+
+  useEffect(() => {
+    if (
+      hotelInventory &&
+      !hotelHasFinance &&
+      HOTEL_STORE_FINANCE_VIEWS.has(activeView)
+    ) {
+      setActiveView("Register");
+    }
+  }, [activeView, hotelHasFinance, hotelInventory]);
 
   const panels =
         activeView === "Register" ? (
@@ -445,7 +469,7 @@ export function StoreComponent({
               hotelStockApprovals={hotelInventory}
               tenantScope={inventoryTenantKey}
               embedded
-              showPaymentSummary={hotelInventory}
+              showPaymentSummary={hotelInventory && hotelHasFinance}
               onHotelStockRequestCreated={
                 hotelInventory ? handleHotelStockRequestCreated : undefined
               }
@@ -585,7 +609,7 @@ export function StoreComponent({
                   </SidebarMenuItem>
                 ))}
 
-                {hotelInventory ? (
+                {hotelInventory && hotelHasFinance ? (
                 <Collapsible
                   defaultOpen={REQUEST_STATUS_VIEWS.includes(activeView)}
                   className="group/collapsible"
@@ -629,7 +653,7 @@ export function StoreComponent({
                 </Collapsible>
                 ) : null}
 
-                {hotelInventory ? (
+                {hotelInventory && hotelHasFinance ? (
                 <Collapsible
                   defaultOpen={PAYMENT_VAT_VIEWS.includes(activeView)}
                   className="group/collapsible"

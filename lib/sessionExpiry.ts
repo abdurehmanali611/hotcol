@@ -1,4 +1,6 @@
 import { toast } from "sonner";
+import { clearTenantSubscriptionStorage } from "./tenantModules";
+import { clearTenantAccessModeStorage } from "./tenantAccessMode";
 
 /** Matches `app/page.tsx` (login is the home route). */
 const LOGIN_PATH = "/";
@@ -15,6 +17,9 @@ const AUTH_KEYS = [
   "logo_url",
   "user_name",
   "business_type",
+  "tenant_modules",
+  "tenant_setup_fee_etb",
+  "tenant_quarterly_fee_etb",
 ] as const;
 
 export function clearAuthStorage(): void {
@@ -22,6 +27,8 @@ export function clearAuthStorage(): void {
   for (const k of AUTH_KEYS) {
     localStorage.removeItem(k);
   }
+  clearTenantSubscriptionStorage();
+  clearTenantAccessModeStorage();
 }
 
 /** One toast + redirect; safe to call from multiple overlapping failures (deduped). */

@@ -42,6 +42,7 @@ import {
   type CostControllerProfileRow,
 } from "@/lib/actions";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import {
   Card,
@@ -158,6 +159,7 @@ function normalizeItemNameForValueKey(name: string): string {
 }
 
 function CostControlInner() {
+  useTenantRouteGuard({ role: "CostControl" });
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const propertyRequestStatus = usePropertyRequestStatusData(tenantScope);

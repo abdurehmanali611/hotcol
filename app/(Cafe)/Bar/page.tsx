@@ -25,8 +25,10 @@ import {
   User,
 } from "lucide-react";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 
 function BaristaContent() {
+  useTenantRouteGuard({ role: "Barista" });
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),

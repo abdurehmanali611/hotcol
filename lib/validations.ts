@@ -5,6 +5,16 @@ import {
   SIGNUP_REQUIRED_MODULES_CAFE,
   SIGNUP_REQUIRED_MODULES_LODGING,
 } from "@/constants";
+import {
+  calculateSignupPricing,
+  isModuleComingSoon,
+  isModuleDisabledAtSignup,
+  normalizeSignupModules,
+} from "@/lib/subscriptionModules";
+import {
+  SIGNUP_PAYMENT_CHANNELS,
+  signupPaymentRequired,
+} from "@/lib/signupPayment";
 
 export const login = z.object({
   UserName: z.string().trim().min(2, "Username must be at least 2 characters long"),
@@ -17,6 +27,20 @@ const signUpBusinessTypeEnum = z.enum(BUSINESS_TYPES, {
 const signUpModuleEnum = z.enum(MODULE_OPTIONS, {
   message: "Please Select the modules you want to use",
 });
+
+const signUpPaymentChannelEnum = z.enum(SIGNUP_PAYMENT_CHANNELS, {
+  message: "Select Telebirr or Commercial Bank of Ethiopia",
+});
+
+export const tenantPaymentSchema = z.object({
+  paymentChannel: signUpPaymentChannelEnum,
+  paymentTransactionRef: z
+    .string()
+    .trim()
+    .min(4, "Enter the transaction number or ID from your receipt"),
+});
+
+export type TenantPaymentFormValues = z.infer<typeof tenantPaymentSchema>;
 
 export const SignUpSchema = z
   .object({
@@ -43,6 +67,10 @@ export const SignUpSchema = z
     modules: z
       .array(signUpModuleEnum)
       .min(1, "Please select at least one module"),
+    setupFeeETB: z.number().min(0).optional(),
+    quarterlyFeeETB: z.number().min(0).optional(),
+    paymentChannel: signUpPaymentChannelEnum.optional(),
+    paymentTransactionRef: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const selected = new Set(data.modules);
@@ -66,6 +94,52 @@ export const SignUpSchema = z
             path: ["modules"],
           });
         }
+      }
+    }
+
+    for (const mod of data.modules) {
+      if (isModuleComingSoon(mod)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${mod}" is not available yet`,
+          path: ["modules"],
+        });
+      }
+      if (
+        isModuleDisabledAtSignup(mod, data.type) &&
+        !SIGNUP_REQUIRED_MODULES_CAFE.includes(mod as (typeof SIGNUP_REQUIRED_MODULES_CAFE)[number]) &&
+        !SIGNUP_REQUIRED_MODULES_LODGING.includes(mod as (typeof SIGNUP_REQUIRED_MODULES_LODGING)[number])
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${mod}" cannot be selected for this business type`,
+          path: ["modules"],
+        });
+      }
+    }
+
+    const modules = normalizeSignupModules(data.type, data.modules);
+    const { setupFeeETB } = calculateSignupPricing(data.type, modules);
+    if (signupPaymentRequired(setupFeeETB)) {
+      if (!data.paymentChannel) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select how you paid the setup fee (Telebirr or CBE)",
+          path: ["paymentChannel"],
+        });
+      }
+      const ref = (data.paymentTransactionRef ?? "").trim();
+      if (ref.length < 4) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            data.paymentChannel === "Telebirr"
+              ? "Enter your Telebirr transaction number"
+              : data.paymentChannel === "Commercial Bank of Ethiopia"
+                ? "Enter your CBE transaction ID"
+                : "Enter your payment transaction reference",
+          path: ["paymentTransactionRef"],
+        });
       }
     }
   });

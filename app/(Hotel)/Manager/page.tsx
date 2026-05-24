@@ -42,7 +42,15 @@ import {
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
 import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
+import { filterManagerTabId } from "@/lib/subscriptionModules";
+import { useTenantModules } from "@/hooks/useTenantModules";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
+import {
+  SubscriptionAlertBanner,
+  SubscriptionNotificationCenter,
+} from "@/components/subscription/SubscriptionNotificationCenter";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import {
   LayoutDashboard,
   LogOut,
@@ -200,6 +208,7 @@ function normalizeItemNameForValueKey(name: string): string {
 }
 
 function ManagerContent() {
+  useTenantRouteGuard();
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
@@ -316,9 +325,13 @@ function ManagerContent() {
     }
   }, [tenantScope, loadData]);
 
+  const tenantModules = useTenantModules();
+
   const sidebarItems = useMemo(
     () =>
-      MANAGER_SIDEBAR_ITEMS.map((item) => {
+      MANAGER_SIDEBAR_ITEMS.filter((item) =>
+        filterManagerTabId(item.id, tenantModules),
+      ).map((item) => {
         const Icon = sidebarIconMap[item.icon];
         return {
           id: item.id as TabId,
@@ -326,8 +339,17 @@ function ManagerContent() {
           icon: <Icon className="h-4 w-4" aria-hidden />,
         };
       }),
-    [],
+    [tenantModules],
   );
+
+  useEffect(() => {
+    if (
+      sidebarItems.length > 0 &&
+      !sidebarItems.some((item) => item.id === activeTab)
+    ) {
+      setActiveTab(sidebarItems[0]!.id);
+    }
+  }, [activeTab, sidebarItems]);
 
   const scopedPurchases = useMemo(
     () =>
@@ -1191,6 +1213,8 @@ function ManagerContent() {
                 {sidebarItems.find((i) => i.id === activeTab)?.label}
               </p>
             </div>
+            <SubscriptionNotificationCenter />
+            <TenantFeedbackCenter />
             <InventoryNotificationCenter
               audience="hotel-manager"
               items={items}
@@ -1215,6 +1239,7 @@ function ManagerContent() {
 
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
             <div className="mx-auto max-w-6xl space-y-8 pb-10">
+              <SubscriptionAlertBanner />
               <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-6 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-8">
                 <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}

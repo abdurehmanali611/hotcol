@@ -31,6 +31,7 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import StoreItems from "@/app/StoreItems/page";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
@@ -313,6 +314,7 @@ function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
 }
 
 function FinanceInner() {
+  useTenantRouteGuard({ role: "Finance" });
   const searchParams = useSearchParams();
   const { displayName, tenantScope } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),

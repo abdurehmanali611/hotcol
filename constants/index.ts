@@ -47,10 +47,9 @@ export const SIGNUP_REQUIRED_MODULES_CAFE = [
   "Cafe and Restaurant",
 ] as const satisfies readonly ModuleOption[];
 
-/** Hotel, resort, and pension must enable room operations. */
+/** Hotel, resort, and pension — credentials only until Room Management launches. */
 export const SIGNUP_REQUIRED_MODULES_LODGING = [
   SIGNUP_REQUIRED_MODULE_COMMON,
-  "Room Management",
 ] as const satisfies readonly ModuleOption[];
 
 /** Admin dashboard sidebar: `icon` is keyed in the Admin page for Lucide icons. */

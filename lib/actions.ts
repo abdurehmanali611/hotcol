@@ -15,6 +15,15 @@ import {
   writeListCache,
 } from "./graphqlListCache";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { persistTenantSubscription, readTenantSubscriptionFromStorage } from "./tenantModules";
+import {
+  persistTenantAccessMode,
+  type TenantPaymentKind,
+} from "./tenantAccessMode";
+import {
+  parseModulesJson,
+  roleAllowedForModules,
+} from "./subscriptionModules";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
 import { UseFormReturn } from "react-hook-form";
@@ -584,6 +593,10 @@ export async function handleCredential(
           $tinNumber: String
           $businessType: String
           $modules: String
+          $setupFeeETB: Int
+          $quarterlyFeeETB: Int
+          $paymentChannel: String
+          $paymentTransactionRef: String
         ) {
           CreateAdmin(
             UserName: $UserName
@@ -594,6 +607,10 @@ export async function handleCredential(
             tinNumber: $tinNumber
             businessType: $businessType
             modules: $modules
+            setupFeeETB: $setupFeeETB
+            quarterlyFeeETB: $quarterlyFeeETB
+            paymentChannel: $paymentChannel
+            paymentTransactionRef: $paymentTransactionRef
           ) {
             id
             HotelName
@@ -601,13 +618,22 @@ export async function handleCredential(
             UserName
             LogoUrl
             Role
+            setupFeeETB
+            quarterlyFeeETB
+            paymentChannel
+            paymentTransactionRef
           }
         }
       `,
       variables: {
         UserName: values.UserName,
         Password: values.Password,
-        Role: values.type === "Hotel" ? "Manager" : "Admin",
+        Role:
+          values.type === "Hotel" ||
+          values.type === "Resort" ||
+          values.type === "Pension"
+            ? "Manager"
+            : "Admin",
         HotelName: values.HotelName,
         LogoUrl: values.LogoUrl,
         tinNumber: tinRaw,
@@ -615,6 +641,10 @@ export async function handleCredential(
         modules: JSON.stringify(
           Array.isArray(values.modules) ? values.modules : [],
         ),
+        setupFeeETB: Number(values.setupFeeETB) || 0,
+        quarterlyFeeETB: Number(values.quarterlyFeeETB) || 0,
+        paymentChannel: values.paymentChannel ?? null,
+        paymentTransactionRef: values.paymentTransactionRef ?? null,
       },
     };
 
@@ -676,6 +706,8 @@ export async function LoginAction(
       mutation Login($UserName: String!, $Password: String!) {
         Login(UserName: $UserName, Password: $Password) {
           token
+          accessMode
+          paymentKind
           user {
             id
             UserName
@@ -684,6 +716,18 @@ export async function LoginAction(
             tinNumber
             LogoUrl
             businessType
+            modules
+            setupFeeETB
+            quarterlyFeeETB
+            setupFeeApproved
+            isIllustrationTenant
+            billingHold
+            billingStartedAt
+            freeTrialEndsAt
+            createdAt
+            subscriptionPaidUntil
+            subscriptionPaymentApproved
+            paidQuartersCount
           }
         }
       }
@@ -698,7 +742,14 @@ export async function LoginAction(
       throw new Error(response.data.errors[0]?.message || "Login failed");
     }
 
-    const { token, user } = response.data.data.Login;
+    const { token, user, accessMode, paymentKind } = response.data.data.Login;
+    const modules = parseModulesJson(user.modules);
+
+    if (!roleAllowedForModules(user.Role, modules)) {
+      throw new Error(
+        "Your account role is not included in this property's subscribed modules. Contact your administrator.",
+      );
+    }
 
     if (typeof window !== "undefined") {
       const tin =
@@ -719,6 +770,37 @@ export async function LoginAction(
           ? String(user.businessType).trim()
           : "",
       );
+      persistTenantSubscription({
+        modules,
+        setupFeeETB: Number(user.setupFeeETB) || 0,
+        quarterlyFeeETB: Number(user.quarterlyFeeETB) || 0,
+        setupFeeApproved: Boolean(user.setupFeeApproved),
+        isIllustrationTenant: Boolean(user.isIllustrationTenant),
+        billingHold: Boolean(user.billingHold),
+        billingStartedAt: user.billingStartedAt ?? null,
+        freeTrialEndsAt: user.freeTrialEndsAt ?? null,
+        createdAt: user.createdAt ?? null,
+        subscriptionPaidUntil: user.subscriptionPaidUntil ?? null,
+        subscriptionPaymentApproved: Boolean(user.subscriptionPaymentApproved),
+        paidQuartersCount: Number(user.paidQuartersCount) || 0,
+      });
+
+      if (accessMode === "payment_portal") {
+        persistTenantAccessMode(
+          "payment_portal",
+          (paymentKind === "setup" ? "setup" : "quarterly") as TenantPaymentKind,
+        );
+      } else {
+        persistTenantAccessMode("full", null);
+      }
+    }
+
+    if (accessMode === "payment_portal") {
+      toast.message(
+        "Complete payment verification to unlock your property dashboard.",
+      );
+      router.push("/PaymentVerification");
+      return;
     }
 
     toast.success(`Welcome back, ${user.UserName}!`);
@@ -816,6 +898,147 @@ export function logoutAction() {
   if (typeof window !== "undefined") {
     localStorage.clear();
     window.location.href = "/";
+  }
+}
+
+export async function submitTenantPaymentAction(input: {
+  paymentKind: "setup" | "quarterly";
+  paymentChannel: string;
+  transactionRef: string;
+}): Promise<void> {
+  const MUTATION = `
+    mutation SubmitTenantPayment(
+      $paymentKind: String!
+      $paymentChannel: String!
+      $transactionRef: String!
+    ) {
+      SubmitTenantPayment(
+        paymentKind: $paymentKind
+        paymentChannel: $paymentChannel
+        transactionRef: $transactionRef
+      ) {
+        id
+        status
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: MUTATION,
+    variables: input,
+  });
+
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0]?.message || "Submission failed");
+  }
+
+  if (typeof window !== "undefined") {
+    const sub = readTenantSubscriptionFromStorage();
+    persistTenantSubscription({
+      ...sub,
+      subscriptionPaymentApproved:
+        input.paymentKind === "setup" ? sub.subscriptionPaymentApproved : false,
+    });
+  }
+}
+
+export type TenantFeedbackMessageRow = {
+  id: number;
+  threadId: number;
+  senderSide: "tenant" | "apex";
+  tenantUserId: number | null;
+  tenantUserName: string | null;
+  tenantRole: string | null;
+  apexMemberId: number | null;
+  apexDisplayName: string | null;
+  body: string;
+  imageUrl: string | null;
+  readByTenant: boolean;
+  readByApex: boolean;
+  createdAt: string;
+};
+
+export type TenantFeedbackInbox = {
+  threadId: number;
+  unreadFromApex: number;
+  messages: TenantFeedbackMessageRow[];
+};
+
+export async function fetchTenantFeedbackInbox(
+  limit = 80,
+): Promise<TenantFeedbackInbox> {
+  const QUERY = `
+    query TenantFeedbackInbox($limit: Int) {
+      tenantFeedbackInbox(limit: $limit) {
+        threadId
+        unreadFromApex
+        messages {
+          id
+          threadId
+          senderSide
+          tenantUserId
+          tenantUserName
+          tenantRole
+          apexMemberId
+          apexDisplayName
+          body
+          imageUrl
+          readByTenant
+          readByApex
+          createdAt
+        }
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: QUERY,
+    variables: { limit },
+  });
+
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0]?.message || "Could not load feedback");
+  }
+
+  return response.data.data.tenantFeedbackInbox;
+}
+
+export async function sendTenantFeedbackMessage(
+  body: string,
+  imageUrl?: string | null,
+): Promise<void> {
+  const MUTATION = `
+    mutation SendTenantFeedbackMessage($body: String, $imageUrl: String) {
+      sendTenantFeedbackMessage(body: $body, imageUrl: $imageUrl) {
+        id
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: MUTATION,
+    variables: {
+      body: body.trim() || null,
+      imageUrl: imageUrl?.trim() || null,
+    },
+  });
+
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0]?.message || "Could not send message");
+  }
+}
+
+export async function markTenantFeedbackRead(): Promise<void> {
+  const MUTATION = `
+    mutation MarkTenantFeedbackRead {
+      markTenantFeedbackRead
+    }
+  `;
+
+  const response = await api.post(API_URL, { query: MUTATION });
+
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0]?.message || "Could not mark read");
   }
 }
 

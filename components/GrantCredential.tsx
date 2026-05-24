@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { createCredentialSchema } from "@/lib/validations";
+import type { ModuleOption } from "@/constants";
+import { canAccessTenantModule } from "@/lib/tenantAccess";
 import { UserPlus, ShieldCheck, Hotel } from "lucide-react";
 
 interface GrantCredentialProps {
@@ -37,13 +39,40 @@ export default function GrantCredential({
     if (d) setDisplayName(d);
   }, []);
 
+  const cafeRoles: { value: string; label: string; module?: ModuleOption }[] = [
+    { value: "Kitchen", label: "Kitchen (Chef)", module: "Cafe and Restaurant" },
+    { value: "Barista", label: "Bar (Barista)", module: "Cafe and Restaurant" },
+    { value: "Cashier", label: "Cash (Cashier)", module: "Cafe and Restaurant" },
+    { value: "Store", label: "Store Keeper", module: "Inventory" },
+  ];
+
+  const hotelRoles: { value: string; label: string; module?: ModuleOption }[] = [
+    { value: "CostControl", label: "Cost control", module: "Financial Management" },
+    { value: "Finance", label: "Finance", module: "Financial Management" },
+    { value: "Store", label: "Hotel store", module: "Inventory" },
+    {
+      value: "HotelCashier",
+      label: "Hotel cashier (corporate credit)",
+      module: "Credit Management",
+    },
+  ];
+
+  const roleOptions = (variant === "hotel" ? hotelRoles : cafeRoles).filter(
+    (r) => !r.module || canAccessTenantModule(r.module),
+  );
+
+  const defaultRole = (roleOptions[0]?.value ??
+    (variant === "hotel" ? "Store" : "Kitchen")) as z.infer<
+    typeof createCredentialSchema
+  >["Role"];
+
   const form = useForm<z.infer<typeof createCredentialSchema>>({
     resolver: zodResolver(createCredentialSchema),
     defaultValues: {
       UserName: "",
       Password: "",
       confirmPassword: "",
-      Role: variant === "hotel" ? "Store" : "Kitchen",
+      Role: defaultRole,
       HotelName: hotelName,
       LogoUrl: logoUrl || "",
     },
@@ -104,29 +133,11 @@ export default function GrantCredential({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {variant === "hotel" ? (
-                            <>
-                              <SelectItem value="CostControl">
-                                Cost control
-                              </SelectItem>
-                              <SelectItem value="Finance">Finance</SelectItem>
-                              <SelectItem value="Store">Hotel store</SelectItem>
-                              <SelectItem value="HotelCashier">
-                                Hotel cashier (corporate credit)
-                              </SelectItem>
-                            </>
-                          ) : (
-                            <>
-                              <SelectItem value="Kitchen">
-                                Kitchen (Chef)
-                              </SelectItem>
-                              <SelectItem value="Barista">
-                                Bar (Barista)
-                              </SelectItem>
-                              <SelectItem value="Cashier">Cash (Cashier)</SelectItem>
-                              <SelectItem value="Store">Store Keeper</SelectItem>
-                            </>
-                          )}
+                          {roleOptions.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

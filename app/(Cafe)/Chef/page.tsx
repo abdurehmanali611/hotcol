@@ -24,8 +24,10 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 
 function ChefContent() {
+  useTenantRouteGuard({ role: "Kitchen" });
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),

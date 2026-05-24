@@ -49,6 +49,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
+import { filterAdminTabId } from "@/lib/subscriptionModules";
+import { useTenantModules } from "@/hooks/useTenantModules";
 import {
   Sidebar,
   SidebarContent,
@@ -66,6 +68,12 @@ import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCr
 import AdminInventory from "@/components/AdminInventory";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
+import {
+  SubscriptionAlertBanner,
+  SubscriptionNotificationCenter,
+} from "@/components/subscription/SubscriptionNotificationCenter";
+import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
@@ -79,6 +87,7 @@ const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
 };
 
 function AdminDashboardContent() {
+  useTenantRouteGuard();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
@@ -236,7 +245,11 @@ function AdminDashboardContent() {
     Receipt,
   };
 
-  const sidebarItems = ADMIN_SIDEBAR_ITEMS.map((item) => {
+  const tenantModules = useTenantModules();
+
+  const sidebarItems = ADMIN_SIDEBAR_ITEMS.filter((item) =>
+    filterAdminTabId(item.id, tenantModules),
+  ).map((item) => {
     const Icon = sidebarIconMap[item.icon];
     return {
       id: item.id,
@@ -244,6 +257,15 @@ function AdminDashboardContent() {
       icon: <Icon className="h-4 w-4" aria-hidden />,
     };
   });
+
+  useEffect(() => {
+    if (
+      sidebarItems.length > 0 &&
+      !sidebarItems.some((item) => item.id === activeTab)
+    ) {
+      setActiveTab(sidebarItems[0]!.id);
+    }
+  }, [activeTab, sidebarItems]);
 
   const handleLogout = () => {
     router.push("/");
@@ -460,6 +482,8 @@ function AdminDashboardContent() {
               </h1>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
+              <SubscriptionNotificationCenter />
+              <TenantFeedbackCenter />
               <InventoryNotificationCenter
                 audience="cafe-admin"
                 items={inventoryAlerts}
@@ -485,6 +509,7 @@ function AdminDashboardContent() {
 
           <main className="flex-1 p-3 md:p-6 lg:p-10">
             <div className="mx-auto max-w-6xl">
+              <SubscriptionAlertBanner />
               <div className="mb-4 md:mb-8">
                 <h2 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}
