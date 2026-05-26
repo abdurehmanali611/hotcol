@@ -44,52 +44,58 @@ const UpdateWaiterForm = ({ waiter, onSuccess }: updateWaiterFormProps) => {
 
   return (
     <Form {...form}>
-      <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="flex items-center gap-5">
+      <form
+        className="flex w-full min-w-0 flex-col gap-4 sm:gap-5"
+        onSubmit={form.handleSubmit(onSubmit)}
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
           <CustomFormField
             name="name"
             control={form.control}
             fieldType={formFieldTypes.INPUT}
             label="Name: "
-            inputClassName="h-fit p-2 w-56"
+            inputClassName="h-fit w-full p-2 sm:w-56"
           />
           <CustomFormField
             name="sex"
             control={form.control}
             fieldType={formFieldTypes.RADIO_BUTTON}
             label="Sex: "
-            inputClassName="h-fit p-2 w-56"
+            inputClassName="h-fit w-full p-2 sm:w-56"
             listdisplay={["Male", "Female"]}
           />
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
           <CustomFormField
             name="age"
             control={form.control}
             fieldType={formFieldTypes.INPUT}
             label="Age: "
-            inputClassName="h-fit p-2 w-56"
+            inputClassName="h-fit w-full p-2 sm:w-56"
             type="number"
           />
           <CustomFormField
             name="experience"
             control={form.control}
             fieldType={formFieldTypes.INPUT}
-            label="Experience: : "
-            inputClassName="h-fit p-2 w-56"
+            label="Experience: "
+            inputClassName="h-fit w-full p-2 sm:w-56"
             type="number"
           />
         </div>
-        <div className="flex justify-center w-full">
-          <CustomFormField
-            name="phoneNumber"
-            control={form.control}
-            fieldType={formFieldTypes.PHONE_INPUT}
-            label="Phone Number: "
-            inputClassName="h-fit p-2 w-56"
-          />
-        </div>
-        <Button type="submit" className="cursor-pointer bg-green-500">{loading ? "Updating..." : "Update"}</Button>
+        <CustomFormField
+          name="phoneNumber"
+          control={form.control}
+          fieldType={formFieldTypes.PHONE_INPUT}
+          label="Phone Number: "
+          inputClassName="h-fit w-full p-2 sm:max-w-sm"
+        />
+        <Button
+          type="submit"
+          className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
+        >
+          {loading ? "Updating..." : "Update waiter"}
+        </Button>
       </form>
     </Form>
   );

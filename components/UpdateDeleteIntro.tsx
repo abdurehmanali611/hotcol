@@ -23,6 +23,7 @@ import {
 import UpdateScreen from "./UpdateScreen";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 
 export default function UpdateDeleteIntro({
   items,
@@ -132,7 +133,7 @@ export default function UpdateDeleteIntro({
       </Tabs>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className={`${responsiveFormDialogClassName} md:max-w-2xl`}>
           <DialogHeader>
             <DialogTitle>Update Menu Item</DialogTitle>
             <DialogDescription>Modify details for {editingItem?.name}</DialogDescription>

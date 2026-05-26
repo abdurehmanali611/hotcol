@@ -41,33 +41,46 @@ const UpdateTableForm = ({ Table, onSuccess }: UpdateTableFormProp) => {
   }
   return (
     <Form {...form}>
-        <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(onSubmit)}>
-            <CustomFormField 
+      <form
+        className="flex w-full min-w-0 flex-col gap-4 sm:gap-5"
+        onSubmit={form.handleSubmit(onSubmit)}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <CustomFormField
             name="tableNo"
             control={form.control}
             fieldType={formFieldTypes.INPUT}
             label="Table Number: "
             type="number"
-            />
-            <CustomFormField 
+            inputClassName="h-fit w-full p-2"
+          />
+          <CustomFormField
             name="capacity"
             control={form.control}
             fieldType={formFieldTypes.INPUT}
             label="Capacity: "
             type="number"
-            />
-            <CustomFormField
-            name="orderCaption"
-            control={form.control}
-            fieldType={formFieldTypes.INPUT}
-            label="Order caption (optional)"
-            placeholder="e.g. Takeaway, Delivery"
-            />
-            <p className="text-xs text-muted-foreground">
-              Applied to new orders placed from this table number.
-            </p>
-            <Button type="submit" className="cursor-pointer bg-green-500">{loading ? "Updating..." : "Update"}</Button>
-        </form>
+            inputClassName="h-fit w-full p-2"
+          />
+        </div>
+        <CustomFormField
+          name="orderCaption"
+          control={form.control}
+          fieldType={formFieldTypes.INPUT}
+          label="Order caption (optional)"
+          placeholder="e.g. Takeaway, Delivery"
+          inputClassName="h-fit w-full p-2"
+        />
+        <p className="text-pretty text-xs text-muted-foreground">
+          Applied to new orders placed from this table number.
+        </p>
+        <Button
+          type="submit"
+          className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
+        >
+          {loading ? "Updating..." : "Update table"}
+        </Button>
+      </form>
     </Form>
   )
 }

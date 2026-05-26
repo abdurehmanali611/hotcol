@@ -30,6 +30,7 @@ import AdminIncomeRankings from "@/components/AdminIncomeRankings";
 import { useState } from "react";
 import { prepareWaiterExportData, prepareTableExportData, exportToExcel } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 
 export default function WaiterAndTable({
   waiters,
@@ -89,30 +90,30 @@ export default function WaiterAndTable({
                 <UserPlus className="h-4 w-4" /> Add Waiter
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[min(90dvh,640px)] overflow-y-auto">
+            <DialogContent className={responsiveFormDialogClassName}>
               <DialogHeader>
                 <DialogTitle>Add Waiter</DialogTitle>
-                <DialogDescription>Enter the waiter details.</DialogDescription>
+                <DialogDescription className="text-pretty">
+                  Enter the waiter details.
+                </DialogDescription>
               </DialogHeader>
               <Form {...waiterForm}>
                 <form
-                  className="flex flex-col gap-5"
-                  onSubmit={waiterForm.handleSubmit((values) =>
-                    {
-                      onAddWaiter(values)
-                      waiterForm.reset()
-                      setWaiterOpen(false)
-                    }
-                  )}
+                  className="flex w-full min-w-0 flex-col gap-4 sm:gap-5"
+                  onSubmit={waiterForm.handleSubmit((values) => {
+                    onAddWaiter(values);
+                    waiterForm.reset();
+                    setWaiterOpen(false);
+                  })}
                 >
-                  <div className="flex items-center gap-12">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
                     <CustomFormField
                       name="name"
                       control={waiterForm.control}
                       fieldType={formFieldTypes.INPUT}
                       label="Name: "
                       placeholder="Enter waiter name"
-                      inputClassName="h-fit p-2 w-56"
+                      inputClassName="h-fit w-full p-2 sm:w-56"
                     />
                     <CustomFormField
                       name="sex"
@@ -121,41 +122,42 @@ export default function WaiterAndTable({
                       label="Sex: "
                       placeholder="select waiter Gender"
                       listdisplay={["Male", "Female"]}
-                      inputClassName="h-fit p-2 w-56"
+                      inputClassName="h-fit w-full p-2 sm:w-56"
                     />
                   </div>
-                  <div className="flex items-center gap-12">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
                     <CustomFormField
                       name="age"
                       control={waiterForm.control}
                       fieldType={formFieldTypes.INPUT}
                       label="Age: "
                       placeholder="Enter waiter age"
-                      inputClassName="h-fit p-2 w-56"
+                      inputClassName="h-fit w-full p-2 sm:w-56"
                       type="number"
                     />
                     <CustomFormField
                       name="experience"
                       control={waiterForm.control}
                       fieldType={formFieldTypes.INPUT}
-                      label="Expereince: "
-                      placeholder="select waiter year of exp"
-                      inputClassName="h-fit p-2 w-42"
+                      label="Experience: "
+                      placeholder="Years of experience"
+                      inputClassName="h-fit w-full p-2 sm:w-56"
                       type="number"
                     />
                   </div>
-                  <div className="flex justify-center">
-                    <CustomFormField
-                      name="phoneNumber"
-                      control={waiterForm.control}
-                      fieldType={formFieldTypes.PHONE_INPUT}
-                      label="Phone Number: "
-                      placeholder="select waiter phone number"
-                      inputClassName="h-fit p-2 w-72"
-                    />
-                  </div>
-                  <Button type="submit" className="cursor-pointer bg-green-500 self-center">
-                    Register
+                  <CustomFormField
+                    name="phoneNumber"
+                    control={waiterForm.control}
+                    fieldType={formFieldTypes.PHONE_INPUT}
+                    label="Phone Number: "
+                    placeholder="Phone number"
+                    inputClassName="h-fit w-full p-2 sm:max-w-sm"
+                  />
+                  <Button
+                    type="submit"
+                    className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
+                  >
+                    Register waiter
                   </Button>
                 </form>
               </Form>
@@ -171,53 +173,60 @@ export default function WaiterAndTable({
                 <SquarePlus className="h-4 w-4" /> Add Table
               </Button>
             </DialogTrigger>
-            <DialogContent className="flex max-h-[min(90dvh,640px)] w-full flex-col gap-6 overflow-y-auto sm:max-w-md">
+            <DialogContent className={responsiveFormDialogClassName}>
               <DialogHeader>
-                <DialogTitle className="text-center">Add Table</DialogTitle>
-                <DialogDescription className="text-center">Enter the table details.</DialogDescription>
+                <DialogTitle>Add Table</DialogTitle>
+                <DialogDescription className="text-pretty">
+                  Enter the table details.
+                </DialogDescription>
               </DialogHeader>
               <Form {...tableForm}>
                 <form
-                  className="flex flex-col gap-5 items-center"
-                  onSubmit={tableForm.handleSubmit((values) =>
-                    {
-                      onAddTable(values)
-                      tableForm.reset()
-                      setTableOpen(false)
-                    }
-                  )}
+                  className="flex w-full min-w-0 flex-col gap-4 sm:gap-5"
+                  onSubmit={tableForm.handleSubmit((values) => {
+                    onAddTable(values);
+                    tableForm.reset();
+                    setTableOpen(false);
+                  })}
                 >
-                  <CustomFormField 
-                  name="tableNo"
-                  control={tableForm.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Table Number"
-                  placeholder="Enter the table number"
-                  inputClassName="h-fit p-2 w-42"
-                  type="number"
-                  />
-                  <CustomFormField 
-                   name="capacity"
-                   control={tableForm.control}
-                   fieldType={formFieldTypes.INPUT}
-                   label="Capacity"
-                   placeholder="Enter the table capacity"
-                   inputClassName="h-fit p-2 w-42"
-                   type="number" 
-                  />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <CustomFormField
+                      name="tableNo"
+                      control={tableForm.control}
+                      fieldType={formFieldTypes.INPUT}
+                      label="Table Number"
+                      placeholder="Table number"
+                      inputClassName="h-fit w-full p-2"
+                      type="number"
+                    />
+                    <CustomFormField
+                      name="capacity"
+                      control={tableForm.control}
+                      fieldType={formFieldTypes.INPUT}
+                      label="Capacity"
+                      placeholder="Seats"
+                      inputClassName="h-fit w-full p-2"
+                      type="number"
+                    />
+                  </div>
                   <CustomFormField
                     name="orderCaption"
                     control={tableForm.control}
                     fieldType={formFieldTypes.INPUT}
                     label="Order caption (optional)"
                     placeholder="e.g. Takeaway, Delivery"
-                    inputClassName="h-fit p-2 w-full max-w-sm"
+                    inputClassName="h-fit w-full p-2"
                   />
-                  <p className="text-xs text-muted-foreground text-center max-w-sm">
+                  <p className="text-pretty text-xs text-muted-foreground">
                     When staff order from this table, this label is stored on the
                     order (e.g. takeaway or delivery).
                   </p>
-                  <Button type="submit" className="cursor-pointer bg-green-500 w-full">Register</Button>
+                  <Button
+                    type="submit"
+                    className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
+                  >
+                    Register table
+                  </Button>
                 </form>
               </Form>
             </DialogContent>

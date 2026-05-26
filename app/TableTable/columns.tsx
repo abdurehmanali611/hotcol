@@ -10,10 +10,15 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  responsiveAlertDialogClassName,
+  responsiveFormDialogClassName,
+} from "@/lib/responsiveDialog";
 import { deleteTable, Table } from "@/lib/actions";
 import {
   Dialog,
@@ -120,11 +125,14 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
                 <Edit />
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-fit">
+            <DialogContent className={responsiveFormDialogClassName}>
               <DialogHeader>
                 <DialogTitle>Update Table</DialogTitle>
-                <DialogDescription>
-                  Enter Table Details to be updated
+                <DialogDescription className="text-pretty">
+                  Update capacity and caption for{" "}
+                  {String(row.original.orderCaption ?? "").trim() ||
+                    `Table ${row.original.tableNo}`}
+                  .
                 </DialogDescription>
               </DialogHeader>
               <UpdateTableForm
@@ -142,23 +150,28 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
                 <Trash className="text-red-500" />
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className={responsiveAlertDialogClassName}>
               <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Delete {String(row.original.orderCaption ?? "").trim() || `Table ${row.original.tableNo}`}
+                <AlertDialogTitle className="text-pretty">
+                  Delete{" "}
+                  {String(row.original.orderCaption ?? "").trim() ||
+                    `Table ${row.original.tableNo}`}
+                  ?
                 </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete{" "}
-                  {String(row.original.orderCaption ?? "").trim() || `Table ${row.original.tableNo}`} ?
-                  This Action can&apos;t be undone
+                <AlertDialogDescription className="text-pretty">
+                  This removes the table from your floor layout. This cannot be
+                  undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <div className="flex items-center gap-5 justify-end">
-                <AlertDialogCancel className="cursor-pointer" disabled={deleting}>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  className="w-full cursor-pointer sm:w-auto"
+                  disabled={deleting}
+                >
                   Cancel
                 </AlertDialogCancel>
                 <AlertDialogAction
-                  className="cursor-pointer bg-red-500"
+                  className="w-full cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
                   disabled={deleting}
                   onClick={(e) => {
                     e.preventDefault();
@@ -179,10 +192,10 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
                       Deleting…
                     </>
                   ) : (
-                    "Delete"
+                    "Delete table"
                   )}
                 </AlertDialogAction>
-              </div>
+              </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>

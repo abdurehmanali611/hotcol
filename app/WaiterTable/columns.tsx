@@ -19,10 +19,15 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  responsiveAlertDialogClassName,
+  responsiveFormDialogClassName,
+} from "@/lib/responsiveDialog";
 import { deleteWaiter, Waiter } from "@/lib/actions";
 import UpdateWaiterForm from "@/components/UpdateWaiterForm";
 import React from "react";
@@ -144,10 +149,12 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
                 <Edit />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className={responsiveFormDialogClassName}>
               <DialogHeader>
                 <DialogTitle>Update Waiter</DialogTitle>
-                <DialogDescription>Update the Waiter Details</DialogDescription>
+                <DialogDescription className="text-pretty">
+                  Update staff details for {row.original.name}.
+                </DialogDescription>
               </DialogHeader>
               <UpdateWaiterForm
                 waiter={row.original}
@@ -164,22 +171,25 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
                 <Trash className="text-red-500" />
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className={responsiveAlertDialogClassName}>
               <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Delete Waiter {row.original.name}
+                <AlertDialogTitle className="text-pretty">
+                  Delete {row.original.name}?
                 </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete waiter {row.original.name} ?
-                  This Action can&apos;t be undone
+                <AlertDialogDescription className="text-pretty">
+                  This removes the waiter from your staff list. This cannot be
+                  undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <div className="flex items-center gap-5 justify-end">
-                <AlertDialogCancel className="cursor-pointer" disabled={deleting}>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  className="w-full cursor-pointer sm:w-auto"
+                  disabled={deleting}
+                >
                   Cancel
                 </AlertDialogCancel>
                 <AlertDialogAction
-                  className="cursor-pointer bg-red-500"
+                  className="w-full cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
                   disabled={deleting}
                   onClick={(e) => {
                     e.preventDefault();
@@ -200,10 +210,10 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
                       Deleting…
                     </>
                   ) : (
-                    "Delete"
+                    "Delete waiter"
                   )}
                 </AlertDialogAction>
-              </div>
+              </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
