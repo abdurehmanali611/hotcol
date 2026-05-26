@@ -62,6 +62,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { patchPurchaseRequestStatus } from "@/lib/hotelRowPatches";
+import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import {
   Sidebar,
   SidebarContent,
@@ -411,13 +412,17 @@ function FinanceInner() {
       sum + (Number(r.estimatedUnitPrice) || 0) * (Number(r.quantity) || 0),
     0,
   );
+  const activeInventoryRows = useMemo(
+    () => filterInventoryListRegistrations(inventoryRows),
+    [inventoryRows],
+  );
   const financeInventoryTotalEtb = useMemo(
     () =>
-      inventoryRows.reduce(
+      activeInventoryRows.reduce(
         (sum, r) => sum + (Number(r.amount) || 0) * (Number(r.unitPrice) || 0),
         0,
       ),
-    [inventoryRows],
+    [activeInventoryRows],
   );
 
   const pendingColumns = useMemo(

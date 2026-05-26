@@ -148,6 +148,7 @@ export function rankWaitersByRevenueAndTables(
 export type TableRankRow = {
   id: number;
   tableNo: number;
+  tableLabel: string;
   revenue: number;
   completions: number;
   composite: number;

@@ -137,7 +137,9 @@ export function isLiveOrderEditable(order: Order, hotelName: string): boolean {
 }
 
 /** Kitchen vs bar routing label from order type. */
-export function orderStationLabel(order: Order): "Kitchen" | "Bar" {
+export function orderStationLabel(order: {
+  type?: string | null;
+}): "Kitchen" | "Bar" {
   const t = String(order.type || "").trim().toLowerCase();
   return t === "bar" ? "Bar" : "Kitchen";
 }

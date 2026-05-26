@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { toast } from "sonner";
 import {
   cancelLiveOrder,
@@ -23,7 +22,6 @@ import {
 import {
   buildEditTableSelectOptions,
   formatCafeTableDisplay,
-  formatCafeTableLabel,
   groupEditableOrdersByTable,
   isLiveOrderEditable,
   normalizeOrderTableNo,

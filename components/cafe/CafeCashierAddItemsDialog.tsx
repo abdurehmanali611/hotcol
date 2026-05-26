@@ -246,9 +246,7 @@ export function CafeCashierAddItemsDialog({
                 ) : (
                   filteredMenu.map((item) => {
                     const inCart = cartQtyById.get(item.id) ?? 0;
-                    const station = orderStationLabel({
-                      type: item.type,
-                    } as Item);
+                    const station = orderStationLabel(item);
 
                     return (
                       <button

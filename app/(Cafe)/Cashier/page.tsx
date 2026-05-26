@@ -356,17 +356,19 @@ function CashierContent() {
         </SidebarInset>
       </div>
 
-      <OrderDetailsModal
-        item={selectedItem}
-        isOpen={showOrderModal}
-        onClose={() => {
-          setShowOrderModal(false);
-          setSelectedItem(null);
-        }}
-        hotelName={tenantScope}
-        openOrders={orders}
-        onSubmit={handleOrderSubmit}
-      />
+      {selectedItem ? (
+        <OrderDetailsModal
+          item={selectedItem}
+          isOpen={showOrderModal}
+          onClose={() => {
+            setShowOrderModal(false);
+            setSelectedItem(null);
+          }}
+          hotelName={tenantScope}
+          openOrders={orders}
+          onSubmit={handleOrderSubmit}
+        />
+      ) : null}
     </SidebarProvider>
   );
 }

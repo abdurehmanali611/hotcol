@@ -1,28 +1,12 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
+import type { TableRankRow, WaiterRankRow } from "@/lib/incomeAggregation";
 
-export type RankedWaiterRow = {
-  id: number;
-  rank: number;
-  name: string;
-  revenue: number;
-  uniqueTables: number;
-  completions: number;
-  composite: number;
-};
+export type RankedWaiterRow = WaiterRankRow;
+export type RankedTableRow = TableRankRow;
 
-export type RankedTableRow = {
-  id: number;
-  rank: number;
-  tableNo: number;
-  tableLabel: string;
-  revenue: number;
-  completions: number;
-  composite: number;
-};
-
-export const waiterIncomeColumns: ColumnDef<RankedWaiterRow>[] = [
+export const waiterIncomeColumns: ColumnDef<WaiterRankRow>[] = [
   {
     accessorKey: "rank",
     header: "Rank",
@@ -75,7 +59,7 @@ export const waiterIncomeColumns: ColumnDef<RankedWaiterRow>[] = [
   },
 ];
 
-export const tableIncomeColumns: ColumnDef<RankedTableRow>[] = [
+export const tableIncomeColumns: ColumnDef<TableRankRow>[] = [
   {
     accessorKey: "rank",
     header: "Rank",
