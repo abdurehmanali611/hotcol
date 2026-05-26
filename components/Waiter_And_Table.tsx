@@ -73,12 +73,12 @@ export default function WaiterAndTable({
       />
     <Tabs defaultValue="waiters" className="w-full min-w-0">
       <div className="mb-4 flex w-full min-w-0 flex-col gap-3 sm:mb-6 lg:flex-row lg:items-center lg:justify-between">
-        <TabsList className="grid w-full grid-cols-2 lg:w-auto">
-          <TabsTrigger value="waiters" className="gap-2">
-            <Users className="h-4 w-4" /> Waiters
+        <TabsList className="grid h-10 w-full grid-cols-2 lg:h-9 lg:w-auto">
+          <TabsTrigger value="waiters" className="gap-1.5 px-2 text-xs sm:gap-2 sm:text-sm">
+            <Users className="hidden h-4 w-4 sm:inline" /> Waiters
           </TabsTrigger>
-          <TabsTrigger value="tables" className="gap-2">
-            <Grid2X2 className="h-4 w-4" /> Tables
+          <TabsTrigger value="tables" className="gap-1.5 px-2 text-xs sm:gap-2 sm:text-sm">
+            <Grid2X2 className="hidden h-4 w-4 sm:inline" /> Tables
           </TabsTrigger>
         </TabsList>
 
@@ -89,7 +89,7 @@ export default function WaiterAndTable({
                 <UserPlus className="h-4 w-4" /> Add Waiter
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[min(90dvh,640px)] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Waiter</DialogTitle>
                 <DialogDescription>Enter the waiter details.</DialogDescription>
@@ -171,7 +171,7 @@ export default function WaiterAndTable({
                 <SquarePlus className="h-4 w-4" /> Add Table
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-fit flex flex-col gap-8">
+            <DialogContent className="flex max-h-[min(90dvh,640px)] w-full flex-col gap-6 overflow-y-auto sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-center">Add Table</DialogTitle>
                 <DialogDescription className="text-center">Enter the table details.</DialogDescription>
@@ -226,11 +226,11 @@ export default function WaiterAndTable({
       </div>
 
       <TabsContent value="waiters" className="w-full min-w-0">
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <CardTitle>Staff Management</CardTitle>
+        <Card className="min-w-0 overflow-hidden border-border/50">
+          <CardHeader className="px-3 py-4 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">Staff Management</CardTitle>
                 <CardDescription>
                   Manage your front-of-house service team.
                 </CardDescription>
@@ -251,18 +251,18 @@ export default function WaiterAndTable({
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="min-w-0 px-4 sm:px-6">
+          <CardContent className="min-w-0 px-2 pb-4 pt-0 sm:px-6 sm:pb-6">
             <WaiterTable waiter={hotelWaiters} hotelName={hotelName}/>
           </CardContent>
         </Card>
       </TabsContent>
 
       <TabsContent value="tables" className="w-full min-w-0">
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <CardTitle>Table Layout</CardTitle>
+        <Card className="min-w-0 overflow-hidden border-border/50">
+          <CardHeader className="px-3 py-4 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">Table Layout</CardTitle>
                 <CardDescription>
                   Configure floor capacity and table numbers.
                 </CardDescription>
@@ -283,7 +283,7 @@ export default function WaiterAndTable({
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="min-w-0 px-4 sm:px-6">
+          <CardContent className="min-w-0 px-2 pb-4 pt-0 sm:px-6 sm:pb-6">
             <TableTable Table={hotelTables} hotelName={hotelName}/>
           </CardContent>
         </Card>

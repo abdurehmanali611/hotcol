@@ -327,6 +327,7 @@ function AdminDashboardContent() {
         );
       case "create-item":
         return (
+          <div className="p-3 sm:p-5 md:p-6">
           <ItemCreationForm
             hotelName={tenantScope}
             onSubmit={async (data) => {
@@ -335,9 +336,11 @@ function AdminDashboardContent() {
             }}
             onImageUpload={uploadImage}
           />
+          </div>
         );
       case "update-item":
         return (
+          <div className="p-3 sm:p-5 md:p-6">
           <UpdateDeleteIntro
             items={items}
             hotelName={tenantScope}
@@ -352,9 +355,11 @@ function AdminDashboardContent() {
             }}
             onImageUpload={uploadImage}
           />
+          </div>
         );
       case "grant-credential":
         return (
+          <div className="p-3 sm:p-5 md:p-6">
           <GrantCredential
             hotelName={tenantScope}
             logoUrl={logoUrl}
@@ -363,10 +368,11 @@ function AdminDashboardContent() {
               loadData(true);
             }}
           />
+          </div>
         );
       case "waiter-table":
         return (
-          <div className="p-2 sm:p-4 md:p-5">
+          <div className="p-2 sm:p-4 md:p-5 min-w-0">
           <WaiterAndTable
             waiters={waiters}
             tables={tables}
@@ -384,6 +390,7 @@ function AdminDashboardContent() {
         );
       case "update-credential":
         return (
+          <div className="p-3 sm:p-5 md:p-6 min-w-0 overflow-x-hidden">
           <UpdateCredential
             credentials={credentials}
             hotelName={tenantScope}
@@ -397,18 +404,19 @@ function AdminDashboardContent() {
               loadData(true);
             }}
           />
+          </div>
         );
       case "inventory":
         return (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
+          <div className="space-y-3 p-3 sm:space-y-4 sm:p-5 md:p-6">
+            <div className="rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
               <AdminInventory hotelName={tenantScope} />
             </div>
           </div>
         );
       case "item-receipts":
         return (
-          <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
+          <div className="rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
             <StoreItemReceiptPrinting
               items={inventoryAlerts}
               propertyName={displayName || tenantScope}
@@ -420,7 +428,7 @@ function AdminDashboardContent() {
         );
       case "credit-registrations":
         return (
-          <div className="rounded-2xl border border-border/40 bg-card/30 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
+          <div className="min-w-0 overflow-x-hidden rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
             <CafeAdminCorporateCredit
               tenantScope={tenantScope}
               propertyName={displayName || tenantScope}
@@ -476,14 +484,14 @@ function AdminDashboardContent() {
         </Sidebar>
 
         <SidebarInset className="flex min-h-svh flex-col overflow-x-hidden">
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1.5 border-b bg-background px-2 sm:gap-2 sm:px-3 md:h-16 md:px-6">
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur-sm supports-backdrop-filter:bg-background/80 sm:gap-2 sm:px-3 md:h-16 md:px-6">
             <SidebarTrigger className="shrink-0" />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
+              <h1 className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs md:text-sm">
                 {headerLabel}
               </h1>
             </div>
-            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <div className="flex shrink-0 items-center gap-0 sm:gap-0.5 md:gap-1">
               <SubscriptionNotificationCenter />
               <TenantFeedbackCenter />
               <InventoryNotificationCenter
@@ -509,17 +517,17 @@ function AdminDashboardContent() {
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-x-hidden p-2 sm:p-4 md:p-6 lg:p-8">
-            <div className="mx-auto w-full min-w-0 max-w-6xl">
+          <main className="min-h-0 flex-1 overflow-x-hidden p-2 pb-4 sm:p-4 md:p-6 lg:p-8">
+            <div className="mx-auto w-full min-w-0 max-w-6xl space-y-3 sm:space-y-4">
               <SubscriptionAlertBanner />
-              <div className="mb-3 md:mb-6">
-                <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
+              <div className="flex min-w-0 items-center gap-2 px-0.5">
+                <h2 className="min-w-0 truncate text-base font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}
                 </h2>
               </div>
 
-              <Card className="min-w-0 overflow-hidden border-none shadow-xl bg-card">
-                <CardContent className="min-w-0 p-0 sm:p-0">
+              <Card className="min-w-0 overflow-hidden border border-border/40 bg-card shadow-sm sm:border-none sm:shadow-xl">
+                <CardContent className="min-w-0 p-0">
                   {renderContent()}
                 </CardContent>
               </Card>

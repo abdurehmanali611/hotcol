@@ -405,17 +405,17 @@ export default function Reports({
   });
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 p-2 text-foreground sm:space-y-6 sm:p-4 md:p-6">
-      <Card className="border shadow-sm bg-card">
-        <CardHeader>
-          <CardTitle className="text-lg font-bold tracking-tight sm:text-2xl">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-3 p-2 text-foreground sm:space-y-6 sm:p-4 md:p-6">
+      <Card className="border border-border/50 bg-card shadow-sm">
+        <CardHeader className="px-3 pb-2 pt-4 sm:px-6">
+          <CardTitle className="text-base font-bold tracking-tight sm:text-2xl">
             Financial Reports
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-pretty text-xs sm:text-sm">
             Generate and export sales data for {displayName}.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
+        <CardContent className="flex flex-col gap-3 px-3 pb-4 sm:flex-row sm:flex-wrap sm:gap-4 sm:px-6 sm:pb-6">
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -500,16 +500,16 @@ export default function Reports({
               },
             ].map((stat: any, i) => (
               <Card key={i} className="bg-card">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex justify-between items-start">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:text-xs">
                       {stat.label}
                     </p>
                     {stat.icon && (
                       <stat.icon className={cn("h-4 w-4", stat.color)} />
                     )}
                   </div>
-                  <p className={cn("text-2xl font-bold mt-2", stat.color)}>
+                  <p className={cn("mt-1.5 text-xl font-bold tabular-nums sm:mt-2 sm:text-2xl", stat.color)}>
                     {stat.isUnit === false
                       ? stat.value
                       : `${stat.value.toLocaleString()} ETB`}
@@ -521,13 +521,13 @@ export default function Reports({
 
           {/* Payment Method Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-blue-950/10 border-blue-900 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 mb-2">
+            <Card className="border-blue-900 bg-blue-950/10 shadow-sm">
+              <CardContent className="p-4 sm:p-6">
+                <div className="mb-2 flex items-center gap-2">
                   <Wallet className="h-4 w-4 text-blue-500" />
-                  <h3 className="font-semibold">Cash Payments</h3>
+                  <h3 className="text-sm font-semibold sm:text-base">Cash Payments</h3>
                 </div>
-                <p className="text-3xl font-bold">
+                <p className="text-2xl font-bold tabular-nums sm:text-3xl">
                   {reportData.cashPayments.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -539,13 +539,13 @@ export default function Reports({
                 />
               </CardContent>
             </Card>
-            <Card className="bg-green-950/10 border-green-900 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 mb-2">
+            <Card className="border-green-900 bg-green-950/10 shadow-sm">
+              <CardContent className="p-4 sm:p-6">
+                <div className="mb-2 flex items-center gap-2">
                   <History className="h-4 w-4 text-green-500" />
-                  <h3 className="font-semibold">Bank Payments</h3>
+                  <h3 className="text-sm font-semibold sm:text-base">Bank Payments</h3>
                 </div>
-                <p className="text-3xl font-bold">
+                <p className="text-2xl font-bold tabular-nums sm:text-3xl">
                   {reportData.bankPayments.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -557,13 +557,13 @@ export default function Reports({
                 />
               </CardContent>
             </Card>
-            <Card className="bg-purple-950/10 border-purple-900 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 mb-2">
+            <Card className="border-purple-900 bg-purple-950/10 shadow-sm">
+              <CardContent className="p-4 sm:p-6">
+                <div className="mb-2 flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-purple-500" />
-                  <h3 className="font-semibold">Credit Payments</h3>
+                  <h3 className="text-sm font-semibold sm:text-base">Credit Payments</h3>
                 </div>
-                <p className="text-3xl font-bold">
+                <p className="text-2xl font-bold tabular-nums sm:text-3xl">
                   {reportData.creditPayments.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">

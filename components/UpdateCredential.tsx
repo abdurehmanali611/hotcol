@@ -96,14 +96,14 @@ export default function UpdateCredential({
   );
 
   return (
-    <Tabs defaultValue="staff" className="max-w-4xl mx-auto">
-      <TabsList className="mb-6">
-        <TabsTrigger value="staff" className="gap-2">
-          <Users className="h-4 w-4" /> Staff Accounts
+    <Tabs defaultValue="staff" className="mx-auto w-full min-w-0 max-w-4xl">
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-2 sm:mb-6 sm:inline-flex sm:w-auto">
+        <TabsTrigger value="staff" className="gap-1 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+          <Users className="hidden h-4 w-4 sm:inline" /> Staff
         </TabsTrigger>
-        <TabsTrigger value="admin" className="gap-2">
-          <ShieldAlert className="h-4 w-4" />{" "}
-          {variant === "hotel" ? "Manager password" : "Admin Security"}
+        <TabsTrigger value="admin" className="gap-1 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+          <ShieldAlert className="hidden h-4 w-4 sm:inline" />{" "}
+          {variant === "hotel" ? "Manager" : "Admin"}
         </TabsTrigger>
       </TabsList>
 

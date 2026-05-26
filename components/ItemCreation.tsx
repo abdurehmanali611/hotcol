@@ -60,18 +60,18 @@ export default function ItemCreationForm({
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <Card className="border-none shadow-none bg-transparent">
-        <CardHeader className="px-0">
+    <div className="mx-auto w-full min-w-0 max-w-3xl">
+      <Card className="border-none bg-transparent shadow-none">
+        <CardHeader className="px-0 pb-3">
           <div className="flex items-center gap-2">
-            <PlusCircle className="h-5 w-5 text-primary" />
-            <CardTitle>Create New Menu Item</CardTitle>
+            <PlusCircle className="h-5 w-5 shrink-0 text-primary" />
+            <CardTitle className="text-base sm:text-lg">Create New Menu Item</CardTitle>
           </div>
-          <CardDescription>
-            Add a new dish or Beverage to your digital menu.
+          <CardDescription className="text-pretty text-xs sm:text-sm">
+            Add a new dish or beverage to your digital menu.
           </CardDescription>
         </CardHeader>
-        <CardContent className="w-fit">
+        <CardContent className="w-full min-w-0 px-0">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
@@ -81,14 +81,14 @@ export default function ItemCreationForm({
                 <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <Package className="h-4 w-4" /> Item Details
                 </h3>
-                <div className="flex items-center gap-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
                   <CustomFormField
                     control={form.control}
                     name="name"
                     fieldType={formFieldTypes.INPUT}
                     label="Item Name"
                     placeholder="e.g., Avocado Toast"
-                    inputClassName="h-fit p-2 w-56"
+                    inputClassName="h-fit w-full p-2 sm:w-56"
                   />
                   <CustomFormField
                     control={form.control}
@@ -101,10 +101,10 @@ export default function ItemCreationForm({
                       { id: 2, name: "Beverage" },
                       { id: 3, name: "Others" },
                     ]}
-                    inputClassName="px-5 h-fit"
+                    inputClassName="h-fit w-full px-5 sm:w-auto"
                   />
                 </div>
-                <div className="flex items-center gap-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
                   <CustomFormField
                     control={form.control}
                     name="type"
@@ -125,7 +125,7 @@ export default function ItemCreationForm({
                       { id: 11, name: "Chickens and Lasagnas" },
                       { id: 12, name: "Others" },
                     ]}
-                    inputClassName="px-5 h-fit"
+                    inputClassName="h-fit w-full px-5 sm:w-auto"
                   />
                   <CustomFormField
                     control={form.control}
@@ -133,7 +133,7 @@ export default function ItemCreationForm({
                     fieldType={formFieldTypes.INPUT}
                     type="number"
                     label="Price (ETB)"
-                    inputClassName="h-fit p-2 w-56"
+                    inputClassName="h-fit w-full p-2 sm:w-56"
                   />
                 </div>
                 <CustomFormField
@@ -150,7 +150,7 @@ export default function ItemCreationForm({
               </div>
               <PendingButton
                 type="submit"
-                className="w-full h-12 text-lg shadow-xl"
+                className="h-11 w-full text-base shadow-md sm:h-12 sm:text-lg"
                 pending={isSubmitting}
               >
                 Create Menu Item

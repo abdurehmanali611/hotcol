@@ -293,39 +293,29 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
                     key={level.id}
                     className={`group relative overflow-hidden transition-all duration-300 hover:shadow-md border-l-4 ${getLevelColor(level.level).split(' ')[1]}`}
                   >
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <AlertDialog>
+                    <div className="absolute top-2 right-2 hidden gap-1 rounded-lg bg-background/90 p-0.5 shadow-sm backdrop-blur-sm transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 hover:bg-background"
+                        type="button"
                         onClick={() => handleEdit(level)}
+                        aria-label={`Edit ${level.level} tier`}
                       >
                         <Edit className="h-3.5 w-3.5" />
                       </Button>
-                      <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            type="button"
+                            aria-label={`Delete ${level.level} tier`}
+                          >
                             <Trash className="h-3.5 w-3.5" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete {level.level} Tier?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will remove the credit requirements for this level. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <div className="flex justify-end gap-3 pt-4">
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                              onClick={() => handleDelete(level.id, level.level)}
-                            >
-                              Confirm Delete
-                            </AlertDialogAction>
-                          </div>
-                        </AlertDialogContent>
-                      </AlertDialog>
                     </div>
 
                     <CardContent className="pt-8">
@@ -352,7 +342,49 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
                           </span>
                         </div>
                       </div>
+
+                      <div className="mt-4 flex gap-2 border-t pt-3 md:hidden">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 flex-1 gap-1.5"
+                          onClick={() => handleEdit(level)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="h-9 flex-1 gap-1.5"
+                          >
+                            <Trash className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                      </div>
                     </CardContent>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete {level.level} Tier?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove the credit requirements for this level. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <div className="flex justify-end gap-3 pt-4">
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                              onClick={() => handleDelete(level.id, level.level)}
+                            >
+                              Confirm Delete
+                            </AlertDialogAction>
+                          </div>
+                        </AlertDialogContent>
+                      </AlertDialog>
                   </Card>
                 ))}
               </div>

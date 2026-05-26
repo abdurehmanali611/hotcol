@@ -43,17 +43,17 @@ export default function UpdateDeleteIntro({
   };
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="food">
-        <TabsList className="grid w-full max-w-100 grid-cols-3">
-          <TabsTrigger value="Food" className="gap-2">
-            <Utensils className="h-4 w-4" /> Food
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <Tabs defaultValue="food" className="min-w-0">
+        <TabsList className="grid h-10 w-full grid-cols-3 sm:max-w-md">
+          <TabsTrigger value="Food" className="gap-1 px-1 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+            <Utensils className="hidden h-4 w-4 sm:inline" /> Food
           </TabsTrigger>
-          <TabsTrigger value="beverage" className="gap-2">
-            <GlassWater className="h-4 w-4" /> Beverages
+          <TabsTrigger value="beverage" className="gap-1 px-1 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+            <GlassWater className="hidden h-4 w-4 sm:inline" /> Drinks
           </TabsTrigger>
-          <TabsTrigger value="Others" className="gap-2">
-            <Disc className="h-4 w-4" /> Others
+          <TabsTrigger value="Others" className="gap-1 px-1 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+            <Disc className="hidden h-4 w-4 sm:inline" /> Other
           </TabsTrigger>
         </TabsList>
         {["Food", "Beverage", "Others"].map((cat) => (
@@ -64,21 +64,64 @@ export default function UpdateDeleteIntro({
                   <CardContent className="p-0">
                     <div className="relative aspect-video">
                       <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button size="icon" variant="secondary" className="h-8 w-8 shadow-md" onClick={() => setEditingItem(item)}>
+                      <div className="absolute top-2 right-2 hidden gap-1 rounded-lg bg-background/90 p-0.5 shadow-md backdrop-blur-sm transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100">
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="h-8 w-8"
+                          onClick={() => setEditingItem(item)}
+                          aria-label={`Edit ${item.name}`}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="destructive" className="h-8 w-8 shadow-md" onClick={() => setDeletingItem(item)}>
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="h-8 w-8"
+                          onClick={() => setDeletingItem(item)}
+                          aria-label={`Delete ${item.name}`}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="p-4 flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-sm">{item.name}</p>
-                        <p className="text-primary font-semibold text-sm">{item.price.toFixed(2)} ETB</p>
+                    <div className="p-3 sm:p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-sm">{item.name}</p>
+                          <p className="text-sm font-semibold text-primary">
+                            {item.price.toFixed(2)} ETB
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 capitalize text-[10px]"
+                        >
+                          {item.type}
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="capitalize text-[10px]">{item.type}</Badge>
+                      <div className="mt-3 flex gap-2 md:hidden">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 flex-1 gap-1.5"
+                          onClick={() => setEditingItem(item)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-9 flex-1 gap-1.5"
+                          onClick={() => setDeletingItem(item)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

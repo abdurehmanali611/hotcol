@@ -89,12 +89,12 @@ export default function GrantCredential({
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-4">
+    <div className="mx-auto w-full min-w-0 max-w-2xl py-2 sm:py-4">
       <Card className="border-none shadow-none bg-transparent">
         <CardHeader className="px-0">
           <div className="flex items-center gap-2 mb-2">
             <UserPlus className="text-primary h-5 w-5" />
-            <CardTitle className="text-xl">Staff Access Management</CardTitle>
+            <CardTitle className="text-base sm:text-xl">Staff Access Management</CardTitle>
           </div>
           <CardDescription>
             {variant === "hotel"

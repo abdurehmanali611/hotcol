@@ -281,10 +281,13 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                     <AlertDialogTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        size="sm"
+                        className="h-9 gap-1.5 text-zinc-400 hover:bg-red-500/10 hover:text-red-400 md:h-8 md:w-8 md:px-0"
                       >
                         <Trash size={16} />
+                        <span className="text-xs font-medium md:sr-only">
+                          Reset
+                        </span>
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-white">

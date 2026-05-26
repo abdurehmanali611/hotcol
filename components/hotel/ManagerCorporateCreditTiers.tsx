@@ -344,27 +344,86 @@ export function ManagerCorporateCreditTiers({
                     key={r.id}
                     className={`group relative overflow-hidden transition-all duration-300 hover:shadow-md border-l-4 ${getLevelColor(r.name).split(" ")[1]}`}
                   >
-                    <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <AlertDialog>
+                    <div className="absolute right-2 top-2 hidden gap-1 rounded-lg bg-background/90 p-0.5 shadow-sm backdrop-blur-sm transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 hover:bg-background"
                         type="button"
                         onClick={() => handleEdit(r)}
+                        aria-label={`Edit ${r.name} tier`}
                       >
                         <Edit className="h-3.5 w-3.5" />
                       </Button>
-                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive hover:bg-destructive/10"
                             type="button"
+                            aria-label={`Delete ${r.name} tier`}
                           >
                             <Trash className="h-3.5 w-3.5" />
                           </Button>
                         </AlertDialogTrigger>
+                    </div>
+                    <CardContent className="pt-8">
+                      <div
+                        className={`mb-4 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold ${getLevelColor(r.name)}`}
+                      >
+                        {r.name.toUpperCase()}
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Coins className="h-4 w-4" />
+                            Requirement
+                          </div>
+                          <span className="text-lg font-bold">
+                            {Number(r.creditCeiling).toLocaleString()}{" "}
+                            <small className="text-[10px] text-muted-foreground">
+                              ETB
+                            </small>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="h-4 w-4" />
+                            Cycle
+                          </div>
+                          <span className="font-medium">
+                            {formatCreditCycle(r.timeInterval, r.timeFrame)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-2 border-t pt-3 md:hidden">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 flex-1 gap-1.5"
+                          onClick={() => handleEdit(r)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="h-9 flex-1 gap-1.5"
+                          >
+                            <Trash className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                      </div>
+                    </CardContent>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
@@ -406,40 +465,6 @@ export function ManagerCorporateCreditTiers({
                           </div>
                         </AlertDialogContent>
                       </AlertDialog>
-                    </div>
-
-                    <CardContent className="pt-8">
-                      <div
-                        className={`mb-4 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold ${getLevelColor(r.name)}`}
-                      >
-                        {r.name.toUpperCase()}
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Coins className="h-4 w-4" />
-                            Requirement
-                          </div>
-                          <span className="text-lg font-bold">
-                            {Number(r.creditCeiling).toLocaleString()}{" "}
-                            <small className="text-[10px] text-muted-foreground">
-                              ETB
-                            </small>
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            Cycle
-                          </div>
-                          <span className="font-medium">
-                            {formatCreditCycle(r.timeInterval, r.timeFrame)}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
                   </Card>
                 ))}
               </div>

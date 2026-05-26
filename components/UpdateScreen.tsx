@@ -12,6 +12,7 @@ import { ImageIcon, RefreshCw, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
 import { updateItem } from "@/lib/actions";
+import { HoverOrTouchOverlay } from "@/components/ui/hover-or-touch-overlay";
 
 export default function UpdateScreen({
   item,
@@ -92,15 +93,15 @@ export default function UpdateScreen({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">        
-        <div className="flex flex-col gap-5 items-center">
-          <div className="flex items-center gap-5">
+        <div className="flex w-full min-w-0 flex-col items-stretch gap-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
             <CustomFormField
               control={form.control}
               name="name"
               fieldType={formFieldTypes.INPUT}
               label="Item Name"
               placeholder="e.g. Grilled Chicken"
-              inputClassName="h-fit p-2 w-56"
+              inputClassName="h-fit w-full p-2 sm:w-56"
             />
             <CustomFormField
               control={form.control}
@@ -109,10 +110,10 @@ export default function UpdateScreen({
               label="Price (ETB)"
               type="number"
               placeholder="0.00"
-              inputClassName="h-fit p-2 w-56"
+              inputClassName="h-fit w-full p-2 sm:w-56"
             />
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
             <CustomFormField
               control={form.control}
               name="category"
@@ -124,7 +125,7 @@ export default function UpdateScreen({
                 { id: 3, name: "Others" },
               ]}
               placeholder="Select category"
-              inputClassName="h-fit p-2 w-56"
+              inputClassName="h-fit w-full p-2 sm:w-56"
             />
             <CustomFormField
               control={form.control}
@@ -146,63 +147,74 @@ export default function UpdateScreen({
                 { id: 12, name: "Others" },
               ]}
               placeholder="Select type"
-              inputClassName="h-fit p-2 w-56"
+              inputClassName="h-fit w-full p-2 sm:w-56"
             />
           </div>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Item Image</label>
-              <div className="relative w-42 h-42 rounded-lg flex items-center justify-center overflow-hidden group mt-2">
-                {imagePreview ? (
-                  <>
-                    <Image
-                      src={imagePreview}
-                      alt="Preview"
-                      fill
-                      className="object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="cursor-pointer"
-                        onClick={() =>
-                          document.getElementById("image-upload")?.click()
-                        }
-                      >
-                        Change Image
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center p-6">
-                    <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="cursor-pointer"
-                        onClick={() =>
-                          document.getElementById("image-upload")?.click()
-                        }
-                      >
-                        Upload Image
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <input
-                  id="image-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Item Image</label>
+            {imagePreview ? (
+              <HoverOrTouchOverlay
+                mediaClassName="mx-auto mt-1 aspect-square w-full max-w-[10.5rem] overflow-hidden rounded-lg border bg-muted"
+                overlay={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="cursor-pointer"
+                    onClick={() =>
+                      document.getElementById("image-upload")?.click()
+                    }
+                  >
+                    Change Image
+                  </Button>
+                }
+                mobileAction={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full max-w-[10.5rem] gap-1.5"
+                    onClick={() =>
+                      document.getElementById("image-upload")?.click()
+                    }
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    Change Image
+                  </Button>
+                }
+              >
+                <Image
+                  src={imagePreview}
+                  alt="Preview"
+                  fill
+                  className="object-cover"
                 />
+              </HoverOrTouchOverlay>
+            ) : (
+              <div className="mx-auto mt-1 flex aspect-square w-full max-w-[10.5rem] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 p-4 text-center">
+                <ImageIcon className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-9 w-full gap-1.5"
+                  onClick={() =>
+                    document.getElementById("image-upload")?.click()
+                  }
+                >
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  Upload Image
+                </Button>
               </div>
-            </div>
+            )}
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageUpload}
+            />
           </div>
         </div>
 

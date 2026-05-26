@@ -176,9 +176,9 @@ function DataTableInner<TData extends { id?: number }, TValue>(
   return (
     <div className={cn("space-y-4", className)}>
       {!hideToolbar ? (
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         {searchColumn ? (
-        <div className="relative w-full max-w-xs">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
@@ -192,7 +192,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto h-9 gap-2">
+            <Button variant="outline" size="sm" className="h-9 w-full gap-2 sm:ml-auto sm:w-auto">
               <Settings2 className="h-4 w-4" />
               Columns
             </Button>
@@ -269,15 +269,15 @@ function DataTableInner<TData extends { id?: number }, TValue>(
         </Table>
       </div>
 
-      <div className="flex items-center justify-between px-2">
-        <p className="text-xs text-muted-foreground">
+      <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:px-2">
+        <p className="text-center text-xs text-muted-foreground sm:text-left">
           Showing{" "}
           <span className="font-medium text-foreground">
             {table.getFilteredRowModel().rows.length}
           </span>{" "}
           records
         </p>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-center gap-2 sm:justify-end">
           <Button
             variant="outline"
             size="icon"
