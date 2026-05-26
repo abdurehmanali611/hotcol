@@ -224,7 +224,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="h-10 text-[11px] font-bold uppercase tracking-wider"
+                    className="h-9 px-2 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap"
                   >
                     {header.isPlaceholder
                       ? null
@@ -246,7 +246,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
                   className="hover:bg-muted/30 transition-colors data-[state=selected]:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-2.5">
+                    <TableCell key={cell.id} className="px-2 py-2 align-middle">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

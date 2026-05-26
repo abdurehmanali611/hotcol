@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,8 +10,13 @@ import {
   Waiter,
   Table,
   OrderCreationData,
+  Order,
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import {
+  buildTableSelectOptions,
+  occupiedTableNumbersFromOrders,
+} from "@/lib/cafeTableOrder";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import {
@@ -32,13 +36,23 @@ const orderSchema = z.object({
   orderAmount: z.number().min(1),
 });
 
+interface OrderDetailsModalProps {
+  item: { name: string; price: number; imageUrl: string; category: string; type: string };
+  isOpen: boolean;
+  onClose: () => void;
+  hotelName: string;
+  openOrders?: Order[];
+  onSubmit: (data: OrderCreationData) => Promise<unknown>;
+}
+
 export default function OrderDetailsModal({
   item,
   isOpen,
   onClose,
   hotelName,
+  openOrders = [],
   onSubmit,
-}: any) {
+}: OrderDetailsModalProps) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
     waiters: [] as Waiter[],
@@ -66,6 +80,16 @@ export default function OrderDetailsModal({
       })();
     }
   }, [isOpen]);
+
+  const occupiedTables = useMemo(
+    () => occupiedTableNumbersFromOrders(openOrders, hotelName),
+    [openOrders, hotelName],
+  );
+
+  const tableSelectOptions = useMemo(
+    () => buildTableSelectOptions(data.tables, occupiedTables),
+    [data.tables, occupiedTables],
+  );
 
   const onValidSubmit = async (values: z.infer<typeof orderSchema>) => {
     setLoading(true);
@@ -124,11 +148,7 @@ export default function OrderDetailsModal({
                   fieldType={formFieldTypes.SELECT}
                   label="Table"
                   placeholder="Select"
-                  listdisplay={data.tables.map((table) => ({
-                    id: table.id,
-                    name: `Table ${table.tableNo}`,
-                    realValue: table.tableNo,
-                  }))}
+                  listdisplay={tableSelectOptions}
                   isNumeric={true}
                 />
                 <CustomFormField

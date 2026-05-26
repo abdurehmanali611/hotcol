@@ -284,10 +284,10 @@ export function StoreComponent({
     if (!hotelInventory) return;
     await loadCoordinator.run(async (isStale) => {
       try {
-        const tenantEff = effectiveTenantScopeForHotelTerminal(tenantScope, {
+        effectiveTenantScopeForHotelTerminal(tenantScope, {
           requireHotelTerminal: hotelInventory,
         });
-        const prData = await fetchPurchaseRequests();
+        await fetchPurchaseRequests();
         if (isStale()) return;
         setRequestStatusSeed((n) => n + 1);
       } catch {

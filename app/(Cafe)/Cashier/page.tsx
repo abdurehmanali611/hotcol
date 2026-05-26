@@ -14,6 +14,7 @@ import {
   Building2,
   LogOut,
   Receipt,
+  ClipboardEdit,
 } from "lucide-react";
 import {
   Item,
@@ -30,6 +31,7 @@ import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Button } from "@/components/ui/button";
 import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCorporateCreditPanel";
 import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
+import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import {
   CAFE_CASHIER_NAV_ITEMS,
@@ -38,6 +40,7 @@ import {
 import { filterCafeCashierNavId } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { LiveDateTimeClock } from "@/components/LiveDateTimeClock";
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +63,7 @@ const NAV_ICONS: Record<
   Wallet,
   Building2,
   Receipt,
+  ClipboardEdit,
 };
 
 function CashierContent() {
@@ -225,6 +229,13 @@ function CashierContent() {
         onHandlePayment={handlePayment}
         onRefresh={loadData}
       />
+    ) : activeView === "order-update" ? (
+      <CafeCashierOrderUpdatePanel
+        orders={orders}
+        items={items}
+        hotelName={tenantScope}
+        onRefresh={loadData}
+      />
     ) : activeView === "credit" ? (
       <CafeCashierCorporateCreditPanel />
     ) : activeView === "cashout" ? (
@@ -290,31 +301,31 @@ function CashierContent() {
         </Sidebar>
 
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
-            <SidebarTrigger />
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-2 sm:gap-3 sm:px-3 md:h-16 md:px-6">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+              <SidebarTrigger className="shrink-0" />
+              <h1 className="whitespace-nowrap text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs md:text-sm">
                 {displayLabel}
               </h1>
-              <p className="truncate text-[13px] font-semibold leading-tight text-foreground">
-                {sectionMeta?.label ?? "Cashier"}
-              </p>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => loadData()}
-              disabled={loading}
-              className={loading ? "animate-spin" : ""}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Avatar className="h-8 w-8 border shadow-sm">
-              <AvatarImage src={logoUrl} alt={displayLabel} />
-              <AvatarFallback>
-                <Store className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
+            <LiveDateTimeClock className="min-w-0 flex-1" />
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => loadData()}
+                disabled={loading}
+                className={`h-8 w-8 shrink-0 sm:h-9 sm:w-9${loading ? " animate-spin" : ""}`}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Avatar className="h-8 w-8 border shadow-sm sm:h-9 sm:w-9">
+                <AvatarImage src={logoUrl} alt={displayLabel} />
+                <AvatarFallback>
+                  <Store className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </header>
           <div
             className={
@@ -332,7 +343,9 @@ function CashierContent() {
               className={
                 activeView === "order"
                   ? "min-h-full"
-                  : "rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4"
+                  : activeView === "order-update"
+                    ? "flex min-h-0 flex-1 flex-col"
+                    : "rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4"
               }
             >
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -351,6 +364,7 @@ function CashierContent() {
           setSelectedItem(null);
         }}
         hotelName={tenantScope}
+        openOrders={orders}
         onSubmit={handleOrderSubmit}
       />
     </SidebarProvider>

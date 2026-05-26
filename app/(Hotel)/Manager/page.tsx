@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import GrantCredential from "@/components/GrantCredential";
 import UpdateCredential from "@/components/UpdateCredential";
@@ -93,16 +93,14 @@ import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 import { buildPurchaseRequestDashboardColumns } from "@/lib/dataTableColumns/purchaseRequests";
-import { buildPurchaseRequestReportColumns } from "@/lib/dataTableColumns/purchaseRequests";
 import { buildStockMovementDashboardColumns } from "@/lib/dataTableColumns/stockMovement";
 import { buildItemStatusColumns } from "@/lib/dataTableColumns/itemStatus";
 import {
   buildKitchenBarDailyColumns,
   buildKitchenBarRollupColumns,
 } from "@/lib/dataTableColumns/kitchenBar";
+import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
 import StoreItems from "@/app/StoreItems/page";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
@@ -350,6 +348,11 @@ function ManagerContent() {
       setActiveTab(sidebarItems[0]!.id);
     }
   }, [activeTab, sidebarItems]);
+
+  const activeInventoryRows = useMemo(
+    () => filterInventoryListRegistrations(items),
+    [items],
+  );
 
   const scopedPurchases = useMemo(
     () =>
@@ -615,10 +618,6 @@ function ManagerContent() {
     [items],
   );
   const itemStatusColumns = useMemo(() => buildItemStatusColumns(), []);
-  const purchaseReportColumns = useMemo(
-    () => buildPurchaseRequestReportColumns(),
-    [],
-  );
   const managerRollupColumns = useMemo(
     () =>
       buildKitchenBarRollupColumns({
@@ -659,7 +658,9 @@ function ManagerContent() {
               <Card className="border-primary/15 bg-linear-to-br from-card to-primary/5 shadow-md overflow-hidden">
                 <CardHeader className="pb-2 pt-4">
                   <CardDescription>{HOTEL_INVENTORY_COPY.inventoryItems}</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums tracking-tight">{items.length}</CardTitle>
+                  <CardTitle className="text-3xl tabular-nums tracking-tight">
+                    {activeInventoryRows.length}
+                  </CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-violet-500/20 bg-linear-to-br from-card to-violet-500/5 shadow-md overflow-hidden">
@@ -840,7 +841,7 @@ function ManagerContent() {
         return (
           <div className="p-4 md:p-6">
             <StoreItems
-              items={items}
+              items={activeInventoryRows}
               hotelStockApprovals
               tenantScope={tenantScope}
               embedded
@@ -1135,7 +1136,7 @@ function ManagerContent() {
               <HotelInventoryPaymentCategoryPanel
                 mode={mode as PaymentCategoryMode}
                 tenantLabel={displayName || headerLabel}
-                inventoryItems={items}
+                inventoryItems={activeInventoryRows}
               />
             </div>
           );
@@ -1205,13 +1206,10 @@ function ManagerContent() {
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
           <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
             <SidebarTrigger />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {headerLabel}
               </h1>
-              <p className="text-sm md:text-base font-semibold text-foreground truncate">
-                {sidebarItems.find((i) => i.id === activeTab)?.label}
-              </p>
             </div>
             <SubscriptionNotificationCenter />
             <TenantFeedbackCenter />
@@ -1246,7 +1244,7 @@ function ManagerContent() {
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
                   {activeTab === "menu-create-item" || activeTab === "menu-update-item"
-                    ? "Same POS menu as cafe admin: dishes and drinks with image, price, and category; also used in hotel cashier corporate deals."
+                    ? "POS menu for café service and corporate credit: add dishes and drinks for cashier, orders, and company deals."
                     : activeTab === "corporate-credit-tiers"
                       ? "Cashiers attach these tiers to companies. Credit limits and periods are managed centrally from this terminal."
                       : "Unified manager cockpit for approvals, stock visibility, station daily counts, and creditor usage oversight."}

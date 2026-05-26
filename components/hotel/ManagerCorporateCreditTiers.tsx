@@ -21,8 +21,6 @@ import {
   HOTEL_CORPORATE_CREDIT_TIER_LEVELS,
   HOTEL_CORPORATE_CREDIT_TIER_SORT_ORDER,
   hotelCorporateCreditTierFormSchema,
-  type CafeCreditLevel,
-  type HotelCorporateCreditTierLevelName,
 } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";

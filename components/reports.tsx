@@ -15,6 +15,10 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   CreditCard,
+  Utensils,
+  Coffee,
+  Package,
+  Layers,
 } from "lucide-react";
 import {
   PieChart,
@@ -53,7 +57,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
@@ -73,6 +76,148 @@ const COLORS = [
   "#a855f7",
   "#14b8a6",
 ];
+
+type CategoryQty = { name: string; quantity: number };
+type PaymentAccent = "cash" | "bank" | "credit";
+
+const PAYMENT_ACCENT: Record<
+  PaymentAccent,
+  {
+    panel: string;
+    pill: string;
+    iconWrap: string;
+    bar: string;
+  }
+> = {
+  cash: {
+    panel: "border-blue-500/10 bg-blue-500/[0.03]",
+    pill: "bg-muted/40 text-muted-foreground",
+    iconWrap: "bg-muted/50 text-muted-foreground",
+    bar: "bg-blue-500/35",
+  },
+  bank: {
+    panel: "border-emerald-500/10 bg-emerald-500/[0.03]",
+    pill: "bg-muted/40 text-muted-foreground",
+    iconWrap: "bg-muted/50 text-muted-foreground",
+    bar: "bg-emerald-500/35",
+  },
+  credit: {
+    panel: "border-purple-500/10 bg-purple-500/[0.03]",
+    pill: "bg-muted/40 text-muted-foreground",
+    iconWrap: "bg-muted/50 text-muted-foreground",
+    bar: "bg-purple-500/35",
+  },
+};
+
+function categoryIcon(name: string) {
+  const key = name.trim().toLowerCase();
+  if (key.includes("food")) return Utensils;
+  if (key.includes("beverage") || key.includes("drink")) return Coffee;
+  if (key.includes("other")) return Package;
+  return Layers;
+}
+
+function paymentChannel(order: {
+  credit?: boolean | null;
+  withBank?: boolean | null;
+}): "cash" | "bank" | "credit" {
+  if (order.credit === true) return "credit";
+  if (order.withBank === true) return "bank";
+  return "cash";
+}
+
+function aggregateCategoryQuantities(orders: any[]): CategoryQty[] {
+  const map: Record<string, number> = {};
+  for (const order of orders) {
+    const cat = String(order.category ?? "").trim() || "Uncategorized";
+    map[cat] = (map[cat] || 0) + (Number(order.orderAmount) || 0);
+  }
+  return Object.entries(map)
+    .sort(([, a], [, b]) => b - a)
+    .map(([name, quantity]) => ({ name, quantity }));
+}
+
+function CategorySoldBreakdown({
+  items,
+  accent,
+}: {
+  items: CategoryQty[];
+  accent: PaymentAccent;
+}) {
+  const theme = PAYMENT_ACCENT[accent];
+
+  if (items.length === 0) {
+    return (
+      <div
+        className={cn(
+          "mt-5 rounded-xl border border-dashed p-4 text-center",
+          theme.panel,
+        )}
+      >
+        <p className="text-xs text-muted-foreground">
+          No category sales in this channel yet.
+        </p>
+      </div>
+    );
+  }
+
+  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+  const maxQty = Math.max(...items.map((item) => item.quantity), 1);
+
+  return (
+    <div className={cn("mt-5 rounded-lg border p-3", theme.panel)}>
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Items by category
+        </p>
+        <span
+          className={cn(
+            "rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums",
+            theme.pill,
+          )}
+        >
+          {totalUnits.toLocaleString()} sold
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {items.map((item) => {
+          const Icon = categoryIcon(item.name);
+          const widthPct = Math.max(6, (item.quantity / maxQty) * 100);
+
+          return (
+            <div key={item.name} className="px-0.5 py-1">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                      theme.iconWrap,
+                    )}
+                  >
+                    <Icon className="h-3 w-3 opacity-70" aria-hidden />
+                  </span>
+                  <span className="truncate text-sm font-medium capitalize text-foreground/90">
+                    {item.name}
+                  </span>
+                </div>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                  {item.quantity.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-muted/40">
+                <div
+                  className={cn("h-full rounded-full", theme.bar)}
+                  style={{ width: `${widthPct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -210,6 +355,30 @@ export default function Reports({
     };
   }, [filteredOrders]);
 
+  const paymentCategoryBreakdown = useMemo(() => {
+    const sold = filteredOrders.filter(
+      (o) =>
+        String(o.payment ?? "").toLowerCase() === "paid" &&
+        String(o.status ?? "").toLowerCase() === "completed",
+    );
+
+    const byChannel = {
+      cash: [] as any[],
+      bank: [] as any[],
+      credit: [] as any[],
+    };
+
+    for (const order of sold) {
+      byChannel[paymentChannel(order)].push(order);
+    }
+
+    return {
+      cash: aggregateCategoryQuantities(byChannel.cash),
+      bank: aggregateCategoryQuantities(byChannel.bank),
+      credit: aggregateCategoryQuantities(byChannel.credit),
+    };
+  }, [filteredOrders]);
+
   const getCompletedOrders = () =>
     filteredOrders.filter(
       (o) =>
@@ -236,10 +405,10 @@ export default function Reports({
   });
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6 text-foreground">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 p-2 text-foreground sm:space-y-6 sm:p-4 md:p-6">
       <Card className="border shadow-sm bg-card">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold tracking-tight">
+          <CardTitle className="text-lg font-bold tracking-tight sm:text-2xl">
             Financial Reports
           </CardTitle>
           <CardDescription>
@@ -364,6 +533,10 @@ export default function Reports({
                 <p className="text-sm text-muted-foreground mt-1">
                   {reportData.cashPayments.count} orders
                 </p>
+                <CategorySoldBreakdown
+                  items={paymentCategoryBreakdown.cash}
+                  accent="cash"
+                />
               </CardContent>
             </Card>
             <Card className="bg-green-950/10 border-green-900 shadow-sm">
@@ -378,6 +551,10 @@ export default function Reports({
                 <p className="text-sm text-muted-foreground mt-1">
                   {reportData.bankPayments.count} orders
                 </p>
+                <CategorySoldBreakdown
+                  items={paymentCategoryBreakdown.bank}
+                  accent="bank"
+                />
               </CardContent>
             </Card>
             <Card className="bg-purple-950/10 border-purple-900 shadow-sm">
@@ -392,6 +569,10 @@ export default function Reports({
                 <p className="text-sm text-muted-foreground mt-1">
                   {reportData.creditPayments.count} orders
                 </p>
+                <CategorySoldBreakdown
+                  items={paymentCategoryBreakdown.credit}
+                  accent="credit"
+                />
               </CardContent>
             </Card>
           </div>
@@ -406,10 +587,16 @@ export default function Reports({
               </CardHeader>
               <CardContent className="h-112.5">
                 <Tabs defaultValue="category" className="h-full">
-                  <TabsList className="grid w-full grid-cols-3 mb-4">
-                    <TabsTrigger value="category">Category</TabsTrigger>
-                    <TabsTrigger value="type">Type</TabsTrigger>
-                    <TabsTrigger value="item">Item Name</TabsTrigger>
+                  <TabsList className="mb-4 grid h-auto w-full grid-cols-3">
+                    <TabsTrigger value="category" className="px-1 text-[11px] sm:text-sm">
+                      Category
+                    </TabsTrigger>
+                    <TabsTrigger value="type" className="px-1 text-[11px] sm:text-sm">
+                      Type
+                    </TabsTrigger>
+                    <TabsTrigger value="item" className="px-1 text-[11px] sm:text-sm">
+                      Item
+                    </TabsTrigger>
                   </TabsList>
 
                   {["category", "type", "titles"].map((key) => (

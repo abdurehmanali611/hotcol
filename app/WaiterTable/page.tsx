@@ -33,7 +33,7 @@ export default function WaiterTable({
   }, [refetchData])
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="w-full min-w-0 py-4">
       <DataTableClientWrapper data={data ?? []} refresh={refetchData}/>
     </div>
   )

@@ -61,18 +61,19 @@ export default function WaiterAndTable({
     defaultValues: {
       tableNo: 1,
       capacity: 0,
+      orderCaption: "",
     },
   });
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full min-w-0 space-y-4 overflow-x-hidden sm:space-y-6">
       <AdminIncomeRankings
         waiters={waiters}
         tables={tables}
         hotelName={hotelName}
       />
-    <Tabs defaultValue="waiters" className="w-full">
-      <div className="flex justify-between items-center mb-6 px-4">
-        <TabsList>
+    <Tabs defaultValue="waiters" className="w-full min-w-0">
+      <div className="mb-4 flex w-full min-w-0 flex-col gap-3 sm:mb-6 lg:flex-row lg:items-center lg:justify-between">
+        <TabsList className="grid w-full grid-cols-2 lg:w-auto">
           <TabsTrigger value="waiters" className="gap-2">
             <Users className="h-4 w-4" /> Waiters
           </TabsTrigger>
@@ -81,10 +82,10 @@ export default function WaiterAndTable({
           </TabsTrigger>
         </TabsList>
 
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
           <Dialog open={waiterOpen} onOpenChange={setWaiterOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-2 cursor-pointer">
+              <Button size="sm" className="w-full gap-2 cursor-pointer sm:w-auto">
                 <UserPlus className="h-4 w-4" /> Add Waiter
               </Button>
             </DialogTrigger>
@@ -165,7 +166,7 @@ export default function WaiterAndTable({
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-2 cursor-pointer"
+                className="w-full gap-2 cursor-pointer sm:w-auto"
               >
                 <SquarePlus className="h-4 w-4" /> Add Table
               </Button>
@@ -204,6 +205,18 @@ export default function WaiterAndTable({
                    inputClassName="h-fit p-2 w-42"
                    type="number" 
                   />
+                  <CustomFormField
+                    name="orderCaption"
+                    control={tableForm.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Order caption (optional)"
+                    placeholder="e.g. Takeaway, Delivery"
+                    inputClassName="h-fit p-2 w-full max-w-sm"
+                  />
+                  <p className="text-xs text-muted-foreground text-center max-w-sm">
+                    When staff order from this table, this label is stored on the
+                    order (e.g. takeaway or delivery).
+                  </p>
                   <Button type="submit" className="cursor-pointer bg-green-500 w-full">Register</Button>
                 </form>
               </Form>
@@ -212,8 +225,8 @@ export default function WaiterAndTable({
         </div>
       </div>
 
-      <TabsContent value="waiters">
-        <Card className="mx-4">
+      <TabsContent value="waiters" className="w-full min-w-0">
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
@@ -238,14 +251,14 @@ export default function WaiterAndTable({
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0 px-4 sm:px-6">
             <WaiterTable waiter={hotelWaiters} hotelName={hotelName}/>
           </CardContent>
         </Card>
       </TabsContent>
 
-      <TabsContent value="tables">
-        <Card className="mx-4">
+      <TabsContent value="tables" className="w-full min-w-0">
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
@@ -270,7 +283,7 @@ export default function WaiterAndTable({
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0 px-4 sm:px-6">
             <TableTable Table={hotelTables} hotelName={hotelName}/>
           </CardContent>
         </Card>

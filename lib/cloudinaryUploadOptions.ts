@@ -1,5 +1,16 @@
 import type { CloudinaryUploadWidgetOptions } from "next-cloudinary";
 
+/** Unsigned upload preset from `.env.local` (`NEXT_PUBLIC_CLOUDINARY_PRESET_NAME`). */
+export const CLOUDINARY_UPLOAD_PRESET =
+  process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME ?? "";
+
+export function isCloudinaryUploadConfigured(): boolean {
+  return Boolean(
+    CLOUDINARY_UPLOAD_PRESET &&
+      process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  );
+}
+
 /** Cloudinary widget: local file, URL, or camera only — one asset per upload. */
 export const ITEM_REGISTRATION_IMAGE_UPLOAD_OPTIONS: CloudinaryUploadWidgetOptions =
   {

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,8 +13,13 @@ import {
   Item,
   Waiter,
   Table,
+  Order,
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import {
+  buildTableSelectOptions,
+  occupiedTableNumbersFromOrders,
+} from "@/lib/cafeTableOrder";
 import { batchOrderSchema } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
@@ -34,6 +39,7 @@ interface BatchOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   hotelName: string;
+  openOrders?: Order[];
   onSubmitSuccess: () => void;
 }
 
@@ -42,6 +48,7 @@ export default function BatchOrderModal({
   isOpen,
   onClose,
   hotelName,
+  openOrders = [],
   onSubmitSuccess,
 }: BatchOrderModalProps) {
   const [loading, setLoading] = useState(false);
@@ -159,6 +166,16 @@ export default function BatchOrderModal({
     0,
   );
 
+  const occupiedTables = useMemo(
+    () => occupiedTableNumbersFromOrders(openOrders, hotelName),
+    [openOrders, hotelName],
+  );
+
+  const tableSelectOptions = useMemo(
+    () => buildTableSelectOptions(tables, occupiedTables),
+    [tables, occupiedTables],
+  );
+
   const onSubmit = async (values: z.infer<typeof batchOrderSchema>) => {
     if (selectedItems.length === 0) {
       toast.error("No items selected");
@@ -235,11 +252,7 @@ export default function BatchOrderModal({
                 placeholder="Select Table"
                 isNumeric={true}
                 inputClassName="h-fit p-2 w-56"
-                listdisplay={tables.map((t) => ({
-                  id: t.id,
-                  name: `Table ${t.tableNo}`,
-                  realValue: t.tableNo,
-                }))}
+                listdisplay={tableSelectOptions}
               />
               <CustomFormField
                 control={form.control}

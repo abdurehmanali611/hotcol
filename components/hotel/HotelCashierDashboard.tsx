@@ -58,7 +58,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -68,7 +67,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DataTable } from "@/app/StoreItems/data-table";
@@ -635,9 +633,6 @@ export function HotelCashierDashboard({
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {displayName || "Property"}
               </h1>
-              <p className="truncate text-[13px] font-semibold leading-tight text-foreground">
-                {sectionMeta?.label ?? "Hotel cashier"}
-              </p>
             </div>
             <Button
               variant="ghost"

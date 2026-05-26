@@ -21,7 +21,8 @@ const UpdateTableForm = ({ Table, onSuccess }: UpdateTableFormProp) => {
     defaultValues: {
         id: Table.id,
         tableNo: Table.tableNo,
-        capacity: Table.capacity
+        capacity: Table.capacity,
+        orderCaption: Table.orderCaption ?? "",
     }
   })
   const onSubmit = async (data: z.infer<typeof updateTableSchema>) => {
@@ -55,6 +56,16 @@ const UpdateTableForm = ({ Table, onSuccess }: UpdateTableFormProp) => {
             label="Capacity: "
             type="number"
             />
+            <CustomFormField
+            name="orderCaption"
+            control={form.control}
+            fieldType={formFieldTypes.INPUT}
+            label="Order caption (optional)"
+            placeholder="e.g. Takeaway, Delivery"
+            />
+            <p className="text-xs text-muted-foreground">
+              Applied to new orders placed from this table number.
+            </p>
             <Button type="submit" className="cursor-pointer bg-green-500">{loading ? "Updating..." : "Update"}</Button>
         </form>
     </Form>

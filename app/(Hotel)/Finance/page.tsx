@@ -16,9 +16,7 @@ import { useSearchParams } from "next/navigation";
 import {
   approvePurchaseRequestFinanceApi,
   approvePurchaseRequestsFinanceBatchApi,
-  approveStockOutRequestFinanceApi,
   fetchItemRegistrations,
-  fetchItemStatus,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   rejectPurchaseRequestFinanceApi,
@@ -26,7 +24,6 @@ import {
   logoutAction,
   notifyApiFailure,
   type ItemRegistration,
-  type ItemStatus,
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
@@ -325,7 +322,6 @@ function FinanceInner() {
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [stockRows, setStockRows] = useState<StockOutRequestRow[]>([]);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
-  const [inactiveRows, setInactiveRows] = useState<ItemStatus[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
   const [selectedFinanceIds, setSelectedFinanceIds] = useState<number[]>([]);
   const pendingTableRef = useRef<DataTableRef>(null);
@@ -339,10 +335,9 @@ function FinanceInner() {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
         try {
-          const [all, regs, stat, stocks] = await Promise.all([
+          const [all, regs, stocks] = await Promise.all([
             fetchPurchaseRequests(),
             fetchItemRegistrations(),
-            fetchItemStatus(),
             fetchStockOutRequests(),
           ]);
           if (isStale()) return;
@@ -356,14 +351,6 @@ function FinanceInner() {
                   rowHotelMatchesTenantScope(it.HotelName, t),
                 )
               : regList,
-          );
-          const statList = stat as ItemStatus[];
-          setInactiveRows(
-            t
-              ? statList.filter((it) =>
-                  rowHotelMatchesTenantScope(it.HotelName, t),
-                )
-              : statList,
           );
         } catch (e: unknown) {
           if (!isStale()) notifyApiFailure(e, "Failed to load finance data");
@@ -559,13 +546,10 @@ function FinanceInner() {
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20">
           <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-6">
             <SidebarTrigger />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {displayName || "Property"}
               </h1>
-              <p className="text-sm md:text-base font-semibold text-foreground truncate">
-                Finance
-              </p>
             </div>
             <InventoryNotificationCenter
               audience="hotel-finance"
@@ -909,7 +893,7 @@ function FinanceInner() {
                 </CardHeader>
               </Card>
               <StoreItems
-                items={inventoryRows}
+                items={activeInventoryRows}
                 hotelStockApprovals
                 tenantScope={tenantScope}
                 embedded
@@ -964,7 +948,7 @@ function FinanceInner() {
             <HotelInventoryPaymentCategoryPanel
               mode={paymentModeFromSection(financeSection)!}
               tenantLabel={displayName || "Property"}
-              inventoryItems={inventoryRows}
+              inventoryItems={activeInventoryRows}
             />
           </section>
         )}

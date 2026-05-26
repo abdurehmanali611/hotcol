@@ -80,6 +80,13 @@ export const CAFE_CASHIER_NAV_ITEMS = [
     description: "Collect cash or bank payments for open orders.",
   },
   {
+    id: "order-update",
+    label: "Order update",
+    icon: "ClipboardEdit",
+    description:
+      "Correct table, waiter, or quantity on orders already sent to kitchen or bar.",
+  },
+  {
     id: "cashout",
     label: "Cashout",
     icon: "Receipt",
@@ -102,7 +109,7 @@ export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
 /** Manager (hotel) dashboard — stock & credential operations; expand later. */
 export const MANAGER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { id: "menu-create-item", label: "Add menu item", icon: "PlusCircle" },
+  { id: "menu-create-item", label: "Add items", icon: "PlusCircle" },
   { id: "menu-update-item", label: "Menu items", icon: "Edit" },
   { id: "cc-profiles", label: "Cost control IDs", icon: "UserCheck" },
   { id: "reports-inventory", label: "Inventory items (list)", icon: "Package" },

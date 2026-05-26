@@ -825,13 +825,6 @@ export function prepareNotificationsForDisplay(
   return sortNotifications([...workflow, ...byKey.values()]);
 }
 
-/** @deprecated Use prepareNotificationsForDisplay */
-export function dedupeNotificationsByItem(
-  notifications: InventoryNotification[],
-): InventoryNotification[] {
-  return prepareNotificationsForDisplay(notifications);
-}
-
 export function audienceLabel(audience: InventoryNotificationAudience): string {
   switch (audience) {
     case "cafe-admin":

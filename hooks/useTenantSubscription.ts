@@ -27,6 +27,7 @@ function getServerSnapshot() {
 export function useTenantSubscriptionState() {
   const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   return useMemo(() => {
+    void raw;
     const sub = readTenantSubscriptionFromStorage();
     const status = computeSubscriptionPeriodStatus(sub);
     const notifications = buildSubscriptionNotifications(sub);

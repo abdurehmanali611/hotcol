@@ -76,6 +76,7 @@ export interface Order {
   credit?: boolean | null;
   credittorName?: string | null;
   creditAmount?: number | null;
+  serviceCaption?: string | null;
   createdAt: Date;
 }
 
@@ -129,6 +130,7 @@ export interface Table {
   tableNo: number;
   HotelName: string;
   capacity: number;
+  orderCaption?: string | null;
   price: number[];
   payment: string[];
   incomeAt?: string[];
@@ -186,6 +188,15 @@ export interface CreateTableData {
   tableNo: number;
   HotelName: string;
   capacity: number;
+  orderCaption?: string | null;
+}
+
+export interface UpdateLiveOrderData {
+  id: number;
+  tableNo?: number;
+  waiterName?: string;
+  orderAmount?: number;
+  title?: string;
 }
 
 export interface UpdateTableData extends CreateTableData {
@@ -557,7 +568,7 @@ export function notifyApiFailure(error: unknown, fallback = "Request failed"): v
     }
     if (!error.response && error.message === "Network Error") {
       toast.error(
-        "Network error — check your internet connection or try another network.",
+        "Could not reach the API server. For local dev, run BackEnd on port 4000 and set NEXT_PUBLIC_GRAPHQL_URL=http://localhost:4000.",
       );
       return;
     }
@@ -875,7 +886,7 @@ export async function LoginAction(
       error.message?.includes("Network Error")
     ) {
       errorMessage =
-        "Connection timeout. Please check your internet connection and try again.";
+        "Could not reach the API server. Check that the backend is running and NEXT_PUBLIC_GRAPHQL_URL is correct.";
     } else if (error.message?.includes("User.Password")) {
       errorMessage = "The password you entered is incorrect. Please try again.";
     } else if (error.message?.includes("Invalid credentials")) {
@@ -1558,6 +1569,7 @@ export async function fetchTables(): Promise<Table[]> {
           tableNo
           HotelName
           capacity
+          orderCaption
           price
           payment
           incomeAt
@@ -1581,12 +1593,23 @@ export async function fetchTables(): Promise<Table[]> {
 export async function createTable(tableData: CreateTableData) {
   try {
     const mutation = `
-      mutation CreateTable($tableNo: Int!, $HotelName: String!, $capacity: Int!) {
-        CreateTable(tableNo: $tableNo, HotelName: $HotelName, capacity: $capacity) {
+      mutation CreateTable(
+        $tableNo: Int!
+        $HotelName: String!
+        $capacity: Int!
+        $orderCaption: String
+      ) {
+        CreateTable(
+          tableNo: $tableNo
+          HotelName: $HotelName
+          capacity: $capacity
+          orderCaption: $orderCaption
+        ) {
           id
           tableNo
           HotelName
           capacity
+          orderCaption
           createdAt
         }
       }
@@ -1614,11 +1637,22 @@ export async function createTable(tableData: CreateTableData) {
 export async function updateTable(tableData: UpdateTableData) {
   try {
     const mutation = `
-      mutation UpdateTable($id: Int!, $tableNo: Int!, $capacity: Int!) {
-        UpdateTable(id: $id, tableNo: $tableNo, capacity: $capacity) {
+      mutation UpdateTable(
+        $id: Int!
+        $tableNo: Int!
+        $capacity: Int!
+        $orderCaption: String
+      ) {
+        UpdateTable(
+          id: $id
+          tableNo: $tableNo
+          capacity: $capacity
+          orderCaption: $orderCaption
+        ) {
           id
           tableNo
           capacity
+          orderCaption
           HotelName
           createdAt
         }
@@ -1694,6 +1728,7 @@ export async function fetchOrders(): Promise<Order[]> {
           credit
           credittorName
           creditAmount
+          serviceCaption
           createdAt
         }
       }
@@ -1709,6 +1744,56 @@ export async function fetchOrders(): Promise<Order[]> {
 
     return response.data.data.orders || [];
   });
+}
+
+export async function updateLiveOrder(data: UpdateLiveOrderData) {
+  try {
+    const mutation = `
+      mutation UpdateLiveOrder(
+        $id: Int!
+        $tableNo: Int
+        $waiterName: String
+        $orderAmount: Int
+        $title: String
+      ) {
+        UpdateLiveOrder(
+          id: $id
+          tableNo: $tableNo
+          waiterName: $waiterName
+          orderAmount: $orderAmount
+          title: $title
+        ) {
+          id
+          title
+          tableNo
+          waiterName
+          orderAmount
+          status
+          payment
+          serviceCaption
+          createdAt
+        }
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: data,
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to update order",
+      );
+    }
+
+    toast.success("Order updated");
+    invalidateGraphqlListCache("cafe:orders");
+    return response.data.data.UpdateLiveOrder;
+  } catch (error: any) {
+    toast.error(error?.message || "Failed to update order");
+    throw error;
+  }
 }
 
 export async function createOrder(orderData: OrderCreationData) {
@@ -1790,7 +1875,7 @@ export async function createOrder(orderData: OrderCreationData) {
     if (error.code === "ECONNABORTED") {
       toast.error("Connection timeout. Please try again.");
     } else if (!error.response) {
-      toast.error("Network error. Please check your connection.");
+      toast.error("Could not reach the API server. Check that the backend is running.");
     } else if (error.message) {
       toast.error(error.message);
     } else {
@@ -1846,6 +1931,7 @@ export async function createBatchOrders(orderDataArray: any[]) {
     }
 
     toast.success(`${orders.length} orders sent to kitchen!`);
+    invalidateGraphqlListCache("cafe:orders");
     return response.data.data.BatchOrderCreation;
   } catch (error: any) {
     const message = error.response?.data?.errors?.[0]?.message || error.message;
@@ -1877,9 +1963,50 @@ export async function updateOrderStatus(id: number, status: string) {
     }
 
     toast.success("Status updated successfully");
+    invalidateGraphqlListCache("cafe:orders");
     return response.data.data.UpdateStatus;
   } catch (error: any) {
-    toast.error("Failed to update status");
+    const message =
+      error?.response?.data?.errors?.[0]?.message ||
+      error?.message ||
+      "Failed to update status";
+    toast.error(message);
+    throw error;
+  }
+}
+
+/** Marks a live café order line as cancelled (cashier order-update remove). */
+export async function cancelLiveOrder(id: number) {
+  try {
+    const mutation = `
+      mutation UpdateStatus($id: Int!, $status: String) {
+        UpdateStatus(id: $id, status: $status) {
+          id
+          status
+        }
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id, status: "Cancelled" },
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to remove item",
+      );
+    }
+
+    toast.success("Item removed from table order");
+    invalidateGraphqlListCache("cafe:orders");
+    return response.data.data.UpdateStatus;
+  } catch (error: any) {
+    const message =
+      error?.response?.data?.errors?.[0]?.message ||
+      error?.message ||
+      "Failed to remove item";
+    toast.error(message);
     throw error;
   }
 }

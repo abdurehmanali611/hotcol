@@ -152,14 +152,14 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
   switch (props.fieldType) {
     case formFieldTypes.INPUT:
       return (
-        <div className="flex gap-3 items-center">
-          {props.icon && <props.icon />}
-          <FormControl>
-            <div
-              className={clsx("flex flex-col gap-2", {
-                "w-full": props.type === "name",
-              })}
-            >
+        <div className="flex w-full min-w-0 items-center gap-3">
+          {props.icon ? (
+            <span className="shrink-0 [&_svg]:size-5">
+              <props.icon />
+            </span>
+          ) : null}
+          <FormControl className="w-full min-w-0">
+            <div className="flex w-full min-w-0 flex-col gap-2">
               <Input
                 placeholder={props.placeholder}
                 type={props.type}
@@ -180,8 +180,10 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                   props.add
                     ? localValue
                     : props.type === "number"
-                      ? field.value || 0
-                      : field.value
+                      ? field.value === undefined || field.value === null
+                        ? ""
+                        : field.value
+                      : (field.value ?? "")
                 }
                 onKeyDown={(e) => {
                   if (
@@ -198,10 +200,14 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                     setLocalValue("");
                   }
                 }}
-                className={clsx(props.inputClassName, {
-                  "h-12 px-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200":
-                    !props.inputClassName && !props.add,
-                })}
+                className={clsx(
+                  "w-full min-w-0",
+                  props.inputClassName,
+                  {
+                    "h-12 px-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200":
+                      !props.inputClassName && !props.add,
+                  },
+                )}
                 disabled={props.disabled}
                 required={props.required}
                 readOnly={props.readOnly}
@@ -393,7 +399,13 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
     case formFieldTypes.SELECT:
       return (
         <Select
-          value={field.value !== undefined ? field.value.toString() : ""}
+          value={
+            field.value !== undefined &&
+            field.value !== null &&
+            field.value !== ""
+              ? String(field.value)
+              : undefined
+          }
           onValueChange={(value) => {
             if (props.isNumeric) {
               const numValue = value ? parseInt(value, 10) : undefined;
@@ -407,16 +419,17 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
         >
           <SelectTrigger
             className={clsx(
+              "cursor-pointer",
               {
-                "w-full p-3 cursor-pointer": props.isDoctorList,
-                "w-full min-w-48 cursor-pointer": !props.isDoctorList,
+                "w-full p-3": props.isDoctorList,
+                "w-full min-w-0": !props.isDoctorList,
               },
-              props.inputClassName,
+              props.inputClassName ?? "h-11 w-full min-w-0",
             )}
           >
             <SelectValue
               placeholder={props.placeholder ?? "Select…"}
-              className="text-sm sm:text-base"
+              className="text-base leading-normal"
             />
           </SelectTrigger>
           <SelectContent>
@@ -653,11 +666,15 @@ const CustomFormField = (props: customProps) => {
       name={name}
       render={({ field }) => (
         <FormItem
-          className={clsx(props.formItemClassName, {
-            "flex flex-col items-center gap-3":
-              props.fieldType === formFieldTypes.IMAGE_UPLOADER,
-            "flex flex-col gap-3": !props.formItemClassName,
-          })}
+          className={clsx(
+            {
+              "flex flex-col items-center gap-3":
+                props.fieldType === formFieldTypes.IMAGE_UPLOADER,
+              "flex w-full min-w-0 flex-col gap-2":
+                props.fieldType !== formFieldTypes.IMAGE_UPLOADER,
+            },
+            props.formItemClassName,
+          )}
         >
           {label && (
             <FormLabel

@@ -2,6 +2,7 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, Edit, Loader2, Trash } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -71,8 +72,12 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
   },
   {
     accessorKey: "sex",
-    header: "Gender",
-    cell: ({ row }) => <div className="ml-3">{row.original.sex}</div>,
+    header: "Sex",
+    cell: ({ row }) => {
+      const raw = String(row.original.sex ?? "").trim().toUpperCase();
+      const short = raw.startsWith("F") ? "F" : raw.startsWith("M") ? "M" : raw;
+      return <div className="ml-3">{short || "-"}</div>;
+    },
   },
   {
     accessorKey: "experience",
@@ -81,12 +86,18 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
   },
   {
     accessorKey: "phoneNumber",
-    header: "Phone Number",
-    cell: ({ row }) => <div className="ml-3">{row.original.phoneNumber}</div>,
+    header: "Phone",
+    cell: ({ row }) => (
+      <div className="ml-1">
+        <Badge variant="outline" className="px-2 py-0.5 text-[11px] font-medium">
+          {row.original.phoneNumber}
+        </Badge>
+      </div>
+    ),
   },
   {
     id: "tablesServedCount",
-    header: "Tables Served",
+    header: "Served",
     cell: ({ row }) => {
       const waiter = row.original;
       const uniqueTables = new Set(
@@ -97,7 +108,7 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
   },
   {
     id: "completedOrders",
-    header: "Completed Orders",
+    header: "Paid",
     cell: ({ row }) => {
       const waiter = row.original;
       const completedOrders = Array.isArray(waiter.payment)

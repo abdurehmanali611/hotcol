@@ -278,7 +278,25 @@ export const createTableSchema = z.object({
     .number()
     .min(0, "Capacity must be at least 1")
     .max(20, "Capacity is too high"),
+  orderCaption: z
+    .string()
+    .max(80, "Caption is too long")
+    .optional()
+    .transform((s) => {
+      const t = (s ?? "").trim();
+      return t || undefined;
+    }),
 });
+
+export const updateLiveOrderSchema = z.object({
+  id: z.number().min(1),
+  tableNo: z.number().min(0),
+  waiterName: z.string().min(1),
+  orderAmount: z.number().int().min(1),
+  title: z.string().min(1),
+});
+
+export type UpdateLiveOrderFormValues = z.infer<typeof updateLiveOrderSchema>;
 
 export const updateTableSchema = createTableSchema.extend({
   id: z.number().min(1, "Table ID is required"),

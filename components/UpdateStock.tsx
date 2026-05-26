@@ -36,7 +36,6 @@ const UpdateStock = ({
   isOpen,
   onOpenChange,
   item,
-  hotelInventory = false,
   onUpdateSuccess,
 }: UpdateStockProps) => {
   const [loading, setLoading] = useState(false);

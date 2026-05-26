@@ -18,5 +18,8 @@ function getServerSnapshot() {
 
 export function useTenantModules() {
   const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return useMemo(() => readTenantModulesFromStorage(), [raw]);
+  return useMemo(() => {
+    void raw;
+    return readTenantModulesFromStorage();
+  }, [raw]);
 }

@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 "use client";
 
-import { Item } from "@/lib/actions";
+import { Item, type Order } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { Card, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 interface OrderProps {
   items: Item[];
   hotelName: string;
+  openOrders?: Order[];
   onItemSelect: (item: Item) => void;
   onGoToPayment: () => void;
   onBatchOrderSuccess?: () => void;
@@ -47,6 +48,7 @@ type MenuCategory = "all" | "food" | "beverage" | "others";
 export default function OrderComponent({
   items,
   hotelName,
+  openOrders = [],
   onItemSelect,
   onGoToPayment,
   onBatchOrderSuccess,
@@ -405,6 +407,7 @@ export default function OrderComponent({
         isOpen={showBatchModal}
         onClose={() => setShowBatchModal(false)}
         hotelName={hotelName}
+        openOrders={openOrders}
         onSubmitSuccess={handleBatchOrderSuccess}
       />
     </div>

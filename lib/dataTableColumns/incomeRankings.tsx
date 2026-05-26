@@ -16,6 +16,7 @@ export type RankedTableRow = {
   id: number;
   rank: number;
   tableNo: number;
+  tableLabel: string;
   revenue: number;
   completions: number;
   composite: number;
@@ -83,9 +84,9 @@ export const tableIncomeColumns: ColumnDef<RankedTableRow>[] = [
     ),
   },
   {
-    accessorKey: "tableNo",
+    accessorKey: "tableLabel",
     header: "Table",
-    cell: ({ row }) => `#${row.original.tableNo}`,
+    cell: ({ row }) => row.original.tableLabel,
   },
   {
     id: "revenue",

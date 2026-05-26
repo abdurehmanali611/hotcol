@@ -4,7 +4,6 @@ import {
   formatSubscriptionDate,
   parseSubscriptionDate,
   SUBSCRIPTION_GRACE_DAYS,
-  SUBSCRIPTION_WARNING_DAYS,
   type SubscriptionBillingSnapshot,
   type SubscriptionPeriodStatus,
 } from "@/lib/subscriptionQuarter";

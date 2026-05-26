@@ -13,11 +13,6 @@ import {
   TrendingUp,
   Truck,
 } from "lucide-react";
-import type {
-  ItemRegistration,
-  PurchaseRequestRow,
-  StockOutRequestRow,
-} from "@/lib/actions";
 import {
   audienceLabel,
   buildInventoryNotifications,

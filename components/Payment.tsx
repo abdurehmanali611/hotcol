@@ -39,7 +39,13 @@ import {
   Filter,
   Calendar,
   Clock1,
+  ChevronDown,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -52,13 +58,7 @@ import { Icon } from "@iconify/react";
 import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { formatCafeTableDisplay } from "@/lib/cafeTableOrder";
 
 interface PaymentProps {
   orders: Order[];
@@ -647,48 +647,76 @@ export default function PaymentComponent({
           {filteredGroupedOrders.map(([tableNo, tableOrders]) => {
             const allCompleted = areAllOrdersCompleted(tableOrders);
             const tableTotal = calculateTableTotal(tableOrders);
+            const pendingOrders = tableOrders.filter(
+              (o) => o.status !== "Completed",
+            );
+            const completedOrders = tableOrders.filter(
+              (o) => o.status === "Completed",
+            );
+            const serviceCaption = String(
+              tableOrders.find((o) => o.serviceCaption)?.serviceCaption ?? "",
+            ).trim();
+            const tableDisplay = formatCafeTableDisplay(
+              Number(tableNo),
+              serviceCaption,
+            );
 
             return (
-              <Card
+              <Collapsible
                 key={tableNo}
-                className="overflow-hidden border-l-4 border-l-primary hover:shadow-md transition-shadow"
+                defaultOpen={false}
+                className="group/table"
               >
-                <CardHeader className="bg-muted/30 pb-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className="text-base px-3 py-1 font-mono"
-                        >
-                          Table {tableNo}
-                        </Badge>
-                        {allCompleted && (
-                          <Badge className="bg-green-100 text-green-800 text-sm px-2 py-1">
-                            Ready
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {tableOrders[0]?.waiterName || "Self-Service"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="text-sm px-3 py-1">
-                        {tableOrders.length}{" "}
-                        {tableOrders.length === 1 ? "order" : "orders"}
-                      </Badge>
-                      <span className="font-bold text-lg">
-                        {tableTotal.toFixed(2)} ETB
-                      </span>
-                    </div>
-                  </div>
-                </CardHeader>
+                <Card className="overflow-hidden border-l-4 border-l-primary hover:shadow-md transition-shadow">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full cursor-pointer rounded-none px-0 py-0 hover:bg-muted/40"
+                    >
+                      <CardHeader className="w-full bg-muted/30 pb-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="text-base px-3 py-1 font-mono"
+                              >
+                                {tableDisplay}
+                              </Badge>
+                              {allCompleted && (
+                                <Badge className="bg-green-100 text-green-800 text-sm px-2 py-1">
+                                  Ready
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-muted-foreground">
+                                {tableOrders[0]?.waiterName || "Self-Service"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge
+                              variant="secondary"
+                              className="text-sm px-3 py-1"
+                            >
+                              {tableOrders.length}{" "}
+                              {tableOrders.length === 1 ? "order" : "orders"}
+                            </Badge>
+                            <span className="font-bold text-lg">
+                              {tableTotal.toFixed(2)} ETB
+                            </span>
+                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/table:rotate-180" />
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Button>
+                  </CollapsibleTrigger>
 
-                <CardContent className="p-6">
+                  <CollapsibleContent>
+                    <CardContent className="p-6">
                   {allCompleted && (
                     <div className="mb-6 p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -701,7 +729,7 @@ export default function PaymentComponent({
                           </div>
                           <p className="text-green-700 text-sm">
                             You can pay all {tableOrders.length} orders for
-                            Table {tableNo} at once to save time.
+                            {` ${tableDisplay}`} at once to save time.
                           </p>
                         </div>
                         <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -752,7 +780,7 @@ export default function PaymentComponent({
                                 </AlertDialogTitle>
                                 <AlertDialogDescription className="text-base">
                                   You are about to pay all {tableOrders.length}{" "}
-                                  orders for Table {tableNo}
+                                  orders for {tableDisplay}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
 
@@ -768,9 +796,7 @@ export default function PaymentComponent({
                                   </div>
                                   <div className="text-sm text-muted-foreground">
                                     This will mark all completed orders for
-                                    {Number(tableNo) > 0
-                                      ? ` Table ${tableNo}`
-                                      : " Delivery"}{" "}
+                                    {` ${tableDisplay}`}{" "}
                                     as paid.
                                   </div>
                                 </div>
@@ -943,7 +969,7 @@ export default function PaymentComponent({
                     </div>
 
                     <div className="space-y-4">
-                      {tableOrders.map((order: Order) => (
+                      {pendingOrders.map((order: Order) => (
                         <div
                           key={order.id}
                           className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border rounded-lg p-4"
@@ -1205,10 +1231,276 @@ export default function PaymentComponent({
                           </div>
                         </div>
                       ))}
+
+                      {completedOrders.length > 0 ? (
+                        <Collapsible
+                          defaultOpen={pendingOrders.length === 0}
+                          className="group/completed border rounded-lg"
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="w-full flex items-center justify-between px-4 py-3 h-auto rounded-lg hover:bg-muted/50"
+                            >
+                              <span className="font-semibold text-sm">
+                                Completed orders ({completedOrders.length})
+                              </span>
+                              <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-data-[state=open]/completed:rotate-180" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-4 px-4 pb-4">
+                            {completedOrders.map((order: Order) => (
+                              <div
+                                key={order.id}
+                                className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border rounded-lg p-4"
+                              >
+                                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden shrink-0">
+                                  <Image
+                                    src={
+                                      order.imageUrl || "/placeholder-food.jpg"
+                                    }
+                                    alt={order.title}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(max-width: 640px) 80px, 96px"
+                                  />
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                    <div className="flex-1">
+                                      <h3 className="font-bold text-lg">
+                                        {order.title}
+                                      </h3>
+                                      <div className="flex flex-wrap items-center gap-3 mt-2">
+                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                          {order.status || "Completed"}
+                                        </Badge>
+                                        {order.serviceCaption ? (
+                                          <Badge variant="outline">
+                                            {order.serviceCaption}
+                                          </Badge>
+                                        ) : null}
+                                        <span className="text-sm text-muted-foreground">
+                                          Qty:{" "}
+                                          <span className="font-bold">
+                                            {order.orderAmount}
+                                          </span>
+                                        </span>
+                                        <span className="text-sm text-muted-foreground">
+                                          Unit:{" "}
+                                          <span className="font-bold">
+                                            {order.price.toFixed(2)} ETB
+                                          </span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xl font-bold text-primary">
+                                        {(
+                                          order.price * order.orderAmount
+                                        ).toFixed(2)}{" "}
+                                        ETB
+                                      </div>
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        Order ID: {order.id}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="shrink-0 self-end sm:self-center">
+                                  <AlertDialog
+                                    open={
+                                      dialogOpen && selectedOrderId === order.id
+                                    }
+                                    onOpenChange={handleDialogClose}
+                                  >
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        className="w-full sm:w-auto gap-2 min-w-30"
+                                        disabled={
+                                          processingPayment === order.id
+                                        }
+                                        onClick={() =>
+                                          openPaymentDialog(order.id)
+                                        }
+                                      >
+                                        {processingPayment === order.id ? (
+                                          <span className="animate-spin">⟳</span>
+                                        ) : (
+                                          <>
+                                            <Wallet className="h-4 w-4" /> Pay
+                                            Now
+                                          </>
+                                        )}
+                                      </Button>
+                                    </AlertDialogTrigger>
+
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          Pay Order #{order.id}
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          {order.title} -{" "}
+                                          {(
+                                            order.price * order.orderAmount
+                                          ).toFixed(2)}{" "}
+                                          ETB
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+
+                                      <div className="space-y-4 py-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                          <Button
+                                            size="lg"
+                                            className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
+                                            onClick={() =>
+                                              handlePaymentMethod(
+                                                order.id,
+                                                order,
+                                                false,
+                                              )
+                                            }
+                                            disabled={
+                                              processingPayment ===
+                                              selectedOrderId
+                                            }
+                                            variant="outline"
+                                          >
+                                            <Icon
+                                              icon="streamline-ultimate-color:cash-briefcase"
+                                              className="text-3xl"
+                                            />
+                                            <h2 className="font-semibold">
+                                              Cash
+                                            </h2>
+                                          </Button>
+                                          <Button
+                                            size="lg"
+                                            className="cursor-pointer flex flex-col items-center gap-2 h-auto py-6"
+                                            onClick={() =>
+                                              handlePaymentMethod(
+                                                order.id,
+                                                order,
+                                                true,
+                                              )
+                                            }
+                                            disabled={
+                                              processingPayment ===
+                                              selectedOrderId
+                                            }
+                                            variant="outline"
+                                          >
+                                            <Icon
+                                              icon="streamline-kameleon-color:bank-duo"
+                                              className="text-3xl"
+                                            />
+                                            <h2 className="font-semibold">
+                                              Bank
+                                            </h2>
+                                          </Button>
+                                        </div>
+
+                                        <div className="border-t pt-4">
+                                          <Button
+                                            size="lg"
+                                            onClick={() =>
+                                              setSingleCreditActive(
+                                                !singleCreditActive,
+                                              )
+                                            }
+                                            className="cursor-pointer w-full flex flex-col items-center gap-2 h-auto py-6 mb-4"
+                                            variant="outline"
+                                            disabled={
+                                              processingPayment === order.id ||
+                                              authorizedCreditCompanies.length ===
+                                                0
+                                            }
+                                          >
+                                            <Icon
+                                              icon="noto:credit-card"
+                                              className="text-4xl mb-2"
+                                            />
+                                            <h2 className="font-bold text-lg">
+                                              Corporate credit
+                                            </h2>
+                                          </Button>
+
+                                          {singleCreditActive && (
+                                            <div className="space-y-4 mt-4">
+                                              <CorporateCreditPaymentFields
+                                                companies={
+                                                  authorizedCreditCompanies
+                                                }
+                                                parties={creditParties}
+                                                companyId={creditCompanyId}
+                                                onCompanyIdChange={
+                                                  setCreditCompanyId
+                                                }
+                                                staffName={creditStaffName}
+                                                onStaffNameChange={
+                                                  setCreditStaffName
+                                                }
+                                                staffPhone={creditStaffPhone}
+                                                onStaffPhoneChange={
+                                                  setCreditStaffPhone
+                                                }
+                                                amountETB={calculateSingleOrderTotal(
+                                                  order,
+                                                )}
+                                                ordersForDealCheck={[order]}
+                                              />
+                                              <Button
+                                                disabled={
+                                                  !isCorporateCreditFormReady(
+                                                    creditCompanyId,
+                                                    creditStaffName,
+                                                    creditStaffPhone,
+                                                  ) ||
+                                                  processingPayment === order.id
+                                                }
+                                                onClick={() =>
+                                                  handleSingleCreditPayment(
+                                                    order.id,
+                                                    order,
+                                                  )
+                                                }
+                                                className="w-full bg-green-600 hover:bg-green-700"
+                                              >
+                                                Pay with corporate credit
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex justify-end">
+                                        <Button
+                                          variant="outline"
+                                          onClick={() =>
+                                            handleDialogClose(false)
+                                          }
+                                        >
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </div>
+                            ))}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ) : null}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
             );
           })}
         </div>

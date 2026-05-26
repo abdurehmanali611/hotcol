@@ -101,7 +101,7 @@ export function useStoreRequestStatusData({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- remote list sync on mount / refresh signal
+     
   }, [load, refreshSignal]);
 
   useEffect(() => {

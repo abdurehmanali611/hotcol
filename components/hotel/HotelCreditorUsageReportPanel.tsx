@@ -16,7 +16,7 @@ import {
   usageLines,
 } from "@/lib/dataTableColumns/creditorUsage";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";

@@ -31,7 +31,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import type { Table as TableModel, Waiter } from "@/lib/actions";
 import {
   aggregateTableIncomeInRange,
@@ -42,6 +41,7 @@ import {
   type IncomePeriod,
 } from "@/lib/incomeAggregation";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { formatCafeTableDisplay } from "@/lib/cafeTableOrder";
 
 type Props = {
   waiters: Waiter[];
@@ -113,6 +113,7 @@ export default function AdminIncomeRankings({
       return {
         id: t.id,
         tableNo: t.tableNo,
+        tableLabel: formatCafeTableDisplay(t.tableNo, t.orderCaption),
         revenue: agg.revenue,
         completions: agg.completions,
       };
@@ -130,7 +131,7 @@ export default function AdminIncomeRankings({
           : "all time";
 
   return (
-    <Card className="mx-4 mb-6 border border-emerald-500/20 bg-emerald-950/10">
+    <Card className="mb-4 border border-emerald-500/20 bg-emerald-950/10 sm:mb-6">
       <CardHeader className="pb-2">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
@@ -143,14 +144,14 @@ export default function AdminIncomeRankings({
               (distinct tables for waiters, completed payments for tables).
             </CardDescription>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="space-y-1.5">
+          <div className="flex w-full max-w-sm flex-col gap-3 sm:w-[200px]">
+            <div className="space-y-1.5 min-w-0">
               <Label className="text-xs text-muted-foreground">Period</Label>
               <Select
                 value={period}
                 onValueChange={(v) => setPeriod(v as IncomePeriod)}
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,7 +163,7 @@ export default function AdminIncomeRankings({
               </Select>
             </div>
             {period !== "all" && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label className="text-xs text-muted-foreground">
                   Reference date
                 </Label>
@@ -171,12 +172,10 @@ export default function AdminIncomeRankings({
                     <Button
                       type="button"
                       variant="outline"
-                      className={cn(
-                        "h-9 w-full min-w-[200px] justify-start text-left font-normal sm:w-[240px]",
-                      )}
+                      className="h-9 w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                      {format(anchorDate, "PPP")}
+                      <span className="truncate">{format(anchorDate, "PPP")}</span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -213,9 +212,13 @@ export default function AdminIncomeRankings({
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="waiters">
-          <TabsList className="mb-4">
-            <TabsTrigger value="waiters">Waiters</TabsTrigger>
-            <TabsTrigger value="tables">Tables</TabsTrigger>
+          <TabsList className="mb-4 grid h-auto w-full grid-cols-2">
+            <TabsTrigger value="waiters" className="text-xs sm:text-sm">
+              Waiters
+            </TabsTrigger>
+            <TabsTrigger value="tables" className="text-xs sm:text-sm">
+              Tables
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="waiters">
             <DataTable

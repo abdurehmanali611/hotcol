@@ -95,14 +95,7 @@ import {
   normalizeKitchenBarStationKey,
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
-import {
-  formatMovementType,
-  formatPurchaseRejectorLine,
-  formatPurchaseStatus,
-  formatQtyWithUnit,
-  formatStockMovementRejectorLine,
-  formatStockOutRequestStatus,
-} from "@/lib/hotelDisplayLabels";
+import { formatMovementType } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -113,15 +106,9 @@ import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
-import {
-  HotelRegistrationApprovalsBlock,
-  HotelStockWorkflowQueue,
-} from "@/components/hotel/HotelWorkflowApprovalQueues";
+import { HotelRegistrationApprovalsBlock } from "@/components/hotel/HotelWorkflowApprovalQueues";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
-import {
-  HotelRequestStatusSidebarGroup,
-  isRequestStatusSection,
-} from "@/components/hotel/HotelRequestStatusSidebarGroup";
+import { HotelRequestStatusSidebarGroup } from "@/components/hotel/HotelRequestStatusSidebarGroup";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
 import { usePropertyRequestStatusData } from "@/components/hotel/usePropertyRequestStatusData";
@@ -132,6 +119,7 @@ import {
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
+import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
@@ -215,6 +203,10 @@ function CostControlInner() {
   );
   const [editingId, setEditingId] = useState<number | null>(null);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
+  const activeInventoryRows = useMemo(
+    () => filterInventoryListRegistrations(inventoryRows),
+    [inventoryRows],
+  );
   const [statusRows, setStatusRows] = useState<ItemStatus[]>([]);
   type CostSection =
     | "purchases"
@@ -244,13 +236,13 @@ function CostControlInner() {
   const [batchCcProfileId, setBatchCcProfileId] = useState<string>("");
 
   const inventoryItemOptions = useMemo(() => {
-    return inventoryRows
+    return activeInventoryRows
       .filter((r) => Number(r.amount) > 0)
       .map((r) => ({
         name: r.name,
         measuredBy: r.measuredBy,
       }));
-  }, [inventoryRows]);
+  }, [activeInventoryRows]);
 
   const dailyUnitOptions = useMemo(() => {
     const current = String(beginForm.measuredBy || "").trim();
@@ -355,13 +347,13 @@ function CostControlInner() {
 
   const unitPriceByItemName = useMemo(() => {
     const byName = new Map<string, number>();
-    for (const row of inventoryRows) {
+    for (const row of activeInventoryRows) {
       const key = normalizeItemNameForValueKey(row.name);
       if (!key) continue;
       if (!byName.has(key)) byName.set(key, Number(row.unitPrice) || 0);
     }
     return byName;
-  }, [inventoryRows]);
+  }, [activeInventoryRows]);
 
   /** Sum over visible daily rows: unit price × sealed movement (implied); first row in a series has no sealed movement yet. */
   const selectedDayTotalCountedEtb = useMemo(() => {
@@ -1219,7 +1211,7 @@ function CostControlInner() {
               </CardHeader>
               <CardContent className="pt-0 pb-6 px-3 sm:px-6">
                 <StoreItems
-                  items={inventoryRows}
+                  items={activeInventoryRows}
                   hotelStockApprovals
                   tenantScope={tenantScope}
                   embedded
@@ -1613,7 +1605,7 @@ function CostControlInner() {
               <HotelInventoryPaymentCategoryPanel
                 mode={paymentModeFromSection(activeSection)!}
                 tenantLabel={displayName || "Property"}
-                inventoryItems={inventoryRows}
+                inventoryItems={activeInventoryRows}
               />
             </div>
           )}

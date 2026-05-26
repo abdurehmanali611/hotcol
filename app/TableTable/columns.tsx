@@ -57,10 +57,15 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Table Number
+          Table
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
+    },
+    cell: ({ row }) => {
+      const caption = String(row.original.orderCaption ?? "").trim();
+      const tableNo = row.original.tableNo;
+      return <div className="ml-3 font-medium">{caption || `Table ${tableNo}`}</div>;
     },
   },
   {
@@ -140,10 +145,11 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  Delete Table {row.original.tableNo}
+                  Delete {String(row.original.orderCaption ?? "").trim() || `Table ${row.original.tableNo}`}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete Table {row.original.tableNo} ?
+                  Are you sure you want to delete{" "}
+                  {String(row.original.orderCaption ?? "").trim() || `Table ${row.original.tableNo}`} ?
                   This Action can&apos;t be undone
                 </AlertDialogDescription>
               </AlertDialogHeader>

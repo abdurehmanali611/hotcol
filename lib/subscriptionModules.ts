@@ -192,9 +192,15 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "credit-registrations": "Credit Management",
 };
 
+/** Manager tab visible when the tenant has any of these modules. */
+export const MANAGER_TAB_ANY_MODULES: Partial<
+  Record<string, readonly ModuleOption[]>
+> = {
+  "menu-create-item": ["Credit Management", "Cafe and Restaurant"],
+  "menu-update-item": ["Credit Management", "Cafe and Restaurant"],
+};
+
 export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
-  "menu-create-item": "Cafe and Restaurant",
-  "menu-update-item": "Cafe and Restaurant",
   "grant-credential": "Credentials(Common)",
   "update-credential": "Credentials(Common)",
   "reports-inventory": "Inventory",
@@ -233,10 +239,14 @@ export const HOTEL_STORE_FINANCE_VIEWS = new Set([
 ]);
 
 export const CAFE_CASHIER_NAV_MODULES: Partial<
-  Record<"order" | "payment" | "cashout" | "credit", ModuleOption>
+  Record<
+    "order" | "payment" | "order-update" | "cashout" | "credit",
+    ModuleOption
+  >
 > = {
   order: "Cafe and Restaurant",
   payment: "Cafe and Restaurant",
+  "order-update": "Cafe and Restaurant",
   cashout: "Cafe and Restaurant",
   credit: "Credit Management",
 };
@@ -268,10 +278,20 @@ export function filterAdminTabId(
   return tenantHasModule(modules, required);
 }
 
+export function tenantHasAnyModule(
+  modules: readonly ModuleOption[],
+  requiredAny: readonly ModuleOption[],
+): boolean {
+  if (modules.length === 0) return true;
+  return requiredAny.some((m) => modules.includes(m));
+}
+
 export function filterManagerTabId(
   tabId: string,
   modules: readonly ModuleOption[],
 ): boolean {
+  const anyOf = MANAGER_TAB_ANY_MODULES[tabId];
+  if (anyOf) return tenantHasAnyModule(modules, anyOf);
   const required = MANAGER_TAB_MODULES[tabId];
   if (!required) return true;
   return tenantHasModule(modules, required);

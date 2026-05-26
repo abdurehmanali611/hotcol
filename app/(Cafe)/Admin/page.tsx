@@ -366,6 +366,7 @@ function AdminDashboardContent() {
         );
       case "waiter-table":
         return (
+          <div className="p-2 sm:p-4 md:p-5">
           <WaiterAndTable
             waiters={waiters}
             tables={tables}
@@ -379,6 +380,7 @@ function AdminDashboardContent() {
               loadData(true);
             }}
           />
+          </div>
         );
       case "update-credential":
         return (
@@ -473,15 +475,15 @@ function AdminDashboardContent() {
           </SidebarContent>
         </Sidebar>
 
-        <SidebarInset className="flex flex-col">
-          <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 md:gap-4 border-b bg-background px-3 md:px-6">
-            <SidebarTrigger />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">
+        <SidebarInset className="flex min-h-svh flex-col overflow-x-hidden">
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1.5 border-b bg-background px-2 sm:gap-2 sm:px-3 md:h-16 md:px-6">
+            <SidebarTrigger className="shrink-0" />
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {headerLabel}
               </h1>
             </div>
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
               <SubscriptionNotificationCenter />
               <TenantFeedbackCenter />
               <InventoryNotificationCenter
@@ -492,13 +494,13 @@ function AdminDashboardContent() {
               <Button
                 variant="ghost"
                 size="icon"
+                className={`h-8 w-8 shrink-0${refreshing ? " animate-spin" : ""}`}
                 onClick={() => loadData(true)}
                 disabled={refreshing}
-                className={refreshing ? "animate-spin" : ""}
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              <Avatar className="h-8 w-8 md:h-9 md:w-9 border shadow-sm">
+              <Avatar className="h-8 w-8 shrink-0 border shadow-sm md:h-9 md:w-9">
                 <AvatarImage src={logoUrl} alt={headerLabel} />
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                   {headerLabel.substring(0, 2).toUpperCase()}
@@ -507,20 +509,19 @@ function AdminDashboardContent() {
             </div>
           </header>
 
-          <main className="flex-1 p-3 md:p-6 lg:p-10">
-            <div className="mx-auto max-w-6xl">
+          <main className="min-h-0 flex-1 overflow-x-hidden p-2 sm:p-4 md:p-6 lg:p-8">
+            <div className="mx-auto w-full min-w-0 max-w-6xl">
               <SubscriptionAlertBanner />
-              <div className="mb-4 md:mb-8">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
+              <div className="mb-3 md:mb-6">
+                <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}
                 </h2>
-                <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                  Manage your hotel operations and system configurations.
-                </p>
               </div>
 
-              <Card className="border-none shadow-xl bg-card">
-                <CardContent className="p-0">{renderContent()}</CardContent>
+              <Card className="min-w-0 overflow-hidden border-none shadow-xl bg-card">
+                <CardContent className="min-w-0 p-0 sm:p-0">
+                  {renderContent()}
+                </CardContent>
               </Card>
             </div>
           </main>

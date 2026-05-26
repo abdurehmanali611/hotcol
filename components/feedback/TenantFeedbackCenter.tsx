@@ -24,7 +24,9 @@ import {
 } from "@/lib/actions";
 import {
   cloudinarySecureUrlFromResult,
+  CLOUDINARY_UPLOAD_PRESET,
   FEEDBACK_IMAGE_UPLOAD_OPTIONS,
+  isCloudinaryUploadConfigured,
 } from "@/lib/cloudinaryUploadOptions";
 import { cn } from "@/lib/utils";
 
@@ -283,25 +285,45 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
           />
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <CldUploadButton
-                options={FEEDBACK_IMAGE_UPLOAD_OPTIONS}
-                onUpload={() => setUploadingImage(true)}
-                onSuccess={handleImageUpload}
-                onError={() => {
-                  setUploadingImage(false);
-                  toast.error("Image upload failed. Please try again.");
-                }}
-                className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
-                  (sending || uploadingImage) && "pointer-events-none opacity-50",
-                )}
-              >
-                {uploadingImage ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
+              {isCloudinaryUploadConfigured() ? (
+                <CldUploadButton
+                  uploadPreset={CLOUDINARY_UPLOAD_PRESET}
+                  options={FEEDBACK_IMAGE_UPLOAD_OPTIONS}
+                  onUpload={() => setUploadingImage(true)}
+                  onSuccess={handleImageUpload}
+                  onError={() => {
+                    setUploadingImage(false);
+                    toast.error("Image upload failed. Please try again.");
+                  }}
+                  className={cn(
+                    "inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
+                    (sending || uploadingImage) &&
+                      "pointer-events-none opacity-50",
+                  )}
+                >
+                  {uploadingImage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImagePlus className="h-4 w-4" />
+                  )}
+                </CldUploadButton>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={sending || uploadingImage}
+                  title="Image upload not configured"
+                  onClick={() =>
+                    toast.error(
+                      "Image upload is not configured. Add NEXT_PUBLIC_CLOUDINARY_PRESET_NAME and NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME to .env.local.",
+                    )
+                  }
+                >
                   <ImagePlus className="h-4 w-4" />
-                )}
-              </CldUploadButton>
+                </Button>
+              )}
               <p className="text-[11px] text-muted-foreground hidden sm:block">
                 Enter to send · Shift+Enter for new line
               </p>

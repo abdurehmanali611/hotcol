@@ -21,6 +21,15 @@ export function isItemRegAuthorized(status?: string | null): boolean {
   return !s || s === "AUTHORIZED";
 }
 
+/** Active stock lines for inventory tables (matches Store terminal / backend Store filter). */
+export function filterInventoryListRegistrations<
+  T extends { approvalStatus?: string | null },
+>(rows: readonly T[]): T[] {
+  return rows.filter(
+    (r) => isItemRegAuthorized(r.approvalStatus) && !isItemRegVoid(r.approvalStatus),
+  );
+}
+
 export function isItemRegVoid(status?: string | null): boolean {
   return status === "VOID";
 }

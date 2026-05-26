@@ -1,59 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hotcol User (tenant app)
 
-## Getting Started
+Next.js frontend with a GraphQL API in `BackEnd/`. Database schema and migrations live in `BackEnd/prisma/`.
 
-First, run the development server:
+## Development
 
 ```bash
+# Frontend (port 3000)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# API (from BackEnd/)
+cd BackEnd && npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set `DATABASE_URL` in `BackEnd/.env`. Prisma 7 uses `BackEnd/prisma.config.ts` for CLI and a MariaDB driver adapter at runtime (`BackEnd/lib/prismaClient.js`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
----
-
-## Backend JSON field behaviour
-
-The `payment`, `price` and `tablesServed` columns for **waiters** and **tables**
-are stored as JSON. Older versions of the code initialised these fields with
-`{}` (an empty object), which caused updates to clear the content and the
-frontend always read `[]`.
-
-- New resolver implementations now default to `[]` when creating records.
-- Update mutations append new entries to the existing array instead of
-  overwriting it.
-
-If you already have records in your database, run the helper script from the
-`BackEnd` directory:
+## Validate before deploy
 
 ```bash
-cd BackEnd
-node normalizeJson.js
+npm run validate
 ```
 
-This will convert any `{}` values to `[]` so future updates work correctly.
+Runs ESLint, Next.js production build, and `prisma generate` in BackEnd.
+
+## Backend
+
+| Command | Description |
+|---------|-------------|
+| `npm run build --prefix BackEnd` | Generate Prisma client |
+| `npm run db:push --prefix BackEnd` | Push schema (dev only) |
+| `npm run db:studio --prefix BackEnd` | Prisma Studio |
+
+Apex dashboard API and UI live in separate repos (`hotcol`, `GraphQl-BackEnd`).

@@ -182,6 +182,7 @@ export default function CashoutForm({
     defaultValues: emptyFormValues(tenantScope),
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- live cashout totals from react-hook-form
   const items = form.watch("items");
   const prices = form.watch("prices");
   const measuredBy = form.watch("measuredBy");

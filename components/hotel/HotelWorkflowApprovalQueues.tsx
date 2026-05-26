@@ -17,7 +17,6 @@ import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import { isStockPendingCC, isStockPendingFinance, isStockPendingManager } from "@/lib/hotelApproval";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { notifyApiFailure } from "@/lib/actions";
