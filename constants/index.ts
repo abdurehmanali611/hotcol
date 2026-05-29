@@ -80,6 +80,13 @@ export const CAFE_CASHIER_NAV_ITEMS = [
     description: "Collect cash or bank payments for open orders.",
   },
   {
+    id: "payment-type",
+    label: "Payment type",
+    icon: "ArrowLeftRight",
+    description:
+      "Correct cash or bank on orders already paid today. Select lines and apply the right channel.",
+  },
+  {
     id: "order-update",
     label: "Order update",
     icon: "ClipboardEdit",

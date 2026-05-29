@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,23 +8,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ShoppingCart,
   Store,
-  RefreshCw,
   Loader2,
   Wallet,
   Building2,
   LogOut,
   Receipt,
   ClipboardEdit,
+  ArrowLeftRight,
 } from "lucide-react";
 import {
   Item,
   Order,
   createOrder,
   fetchItems,
-  fetchOrders,
+  fetchLiveCafeOrders,
+  CAFE_LIVE_ORDERS_POLL_MS,
   logoutAction,
   updateOrderPayment,
 } from "@/lib/actions";
+import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import OrderComponent from "@/components/Order";
 import PaymentComponent from "@/components/Payment";
 import OrderDetailsModal from "@/components/orderDetailsModal";
@@ -32,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCorporateCreditPanel";
 import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
+import { CafeCashierPaymentTypePanel } from "@/components/cafe/CafeCashierPaymentTypePanel";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import {
   CAFE_CASHIER_NAV_ITEMS,
@@ -40,7 +43,9 @@ import {
 import { filterCafeCashierNavId } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { LiveDateTimeClock } from "@/components/LiveDateTimeClock";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import {
   Sidebar,
   SidebarContent,
@@ -64,6 +69,7 @@ const NAV_ICONS: Record<
   Building2,
   Receipt,
   ClipboardEdit,
+  ArrowLeftRight,
 };
 
 function CashierContent() {
@@ -79,8 +85,10 @@ function CashierContent() {
   const [items, setItems] = useState<Item[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const loadCoordinator = useLoadCoordinator();
 
   const tenantModules = useTenantModules();
   const navItems = useMemo(
@@ -105,27 +113,59 @@ function CashierContent() {
     }
   }, [activeView, navItems]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [itemsData, ordersData] = await Promise.all([
-        fetchItems(),
-        fetchOrders(),
-      ]);
-      setItems(itemsData);
-      setOrders(ordersData);
-    } catch {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadData = useCallback(
+    async (options?: { refresh?: boolean; silent?: boolean }) => {
+      const isRefresh = options?.refresh ?? false;
+      const silent = options?.silent ?? false;
+      await loadCoordinator.run(async (isStale) => {
+        if (!silent) {
+          if (isRefresh) setRefreshing(true);
+          else setLoading(true);
+        }
+        try {
+          const [itemsData, ordersData] = await Promise.all([
+            fetchItems(),
+            fetchLiveCafeOrders(),
+          ]);
+          if (isStale()) return;
+          setItems(itemsData);
+          setOrders(ordersData);
+        } catch {
+          if (!isStale() && !silent) toast.error("Failed to load data");
+        } finally {
+          if (!isStale() && !silent) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      });
+    },
+    [loadCoordinator],
+  );
 
   useEffect(() => {
     if (tenantScope) {
       void loadData();
     }
-  }, [tenantScope]);
+  }, [tenantScope, loadData]);
+
+  useEffect(() => {
+    if (!tenantScope) return;
+    const refresh = () => void loadData({ refresh: true, silent: true });
+    const interval = setInterval(refresh, CAFE_LIVE_ORDERS_POLL_MS);
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const unsubSync = subscribeCafeOrdersChanged(refresh);
+    window.addEventListener("focus", refreshOnVisible);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => {
+      clearInterval(interval);
+      unsubSync();
+      window.removeEventListener("focus", refreshOnVisible);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
+  }, [tenantScope, loadData]);
 
   const handleItemSelect = (item: Item) => {
     setSelectedItem(item);
@@ -134,7 +174,7 @@ function CashierContent() {
 
   const handleBatchOrderSuccess = async () => {
     try {
-      await loadData();
+      await loadData({ refresh: true });
       toast.success("Batch order created successfully!");
     } catch {}
   };
@@ -163,7 +203,7 @@ function CashierContent() {
     try {
       const result = await createOrder(orderData);
       toast.success("Order created successfully!");
-      await loadData();
+      await loadData({ refresh: true });
       setShowOrderModal(false);
       setSelectedItem(null);
       return result;
@@ -180,7 +220,7 @@ function CashierContent() {
   ) => {
     try {
       await updateOrderPayment(id, "Paid", bank);
-      await loadData();
+      await loadData({ refresh: true });
       toast.success(
         `Payment processed successfully via ${bank ? "Bank" : "Cash"}`,
       );
@@ -218,6 +258,7 @@ function CashierContent() {
       <OrderComponent
         items={items}
         hotelName={tenantScope}
+        openOrders={orders}
         onItemSelect={handleItemSelect}
         onGoToPayment={() => setActiveView("payment")}
         onBatchOrderSuccess={handleBatchOrderSuccess}
@@ -227,14 +268,20 @@ function CashierContent() {
         orders={orders}
         hotelName={tenantScope}
         onHandlePayment={handlePayment}
-        onRefresh={loadData}
+        onRefresh={() => loadData({ refresh: true })}
+      />
+    ) : activeView === "payment-type" ? (
+      <CafeCashierPaymentTypePanel
+        orders={orders}
+        hotelName={tenantScope}
+        onRefresh={() => loadData({ refresh: true })}
       />
     ) : activeView === "order-update" ? (
       <CafeCashierOrderUpdatePanel
         orders={orders}
         items={items}
         hotelName={tenantScope}
-        onRefresh={loadData}
+        onRefresh={() => loadData({ refresh: true })}
       />
     ) : activeView === "credit" ? (
       <CafeCashierCorporateCreditPanel />
@@ -310,15 +357,11 @@ function CashierContent() {
             </div>
             <LiveDateTimeClock className="min-w-0 flex-1" />
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => loadData()}
+              <RefreshIconButton
+                busy={refreshing}
                 disabled={loading}
-                className={`h-8 w-8 shrink-0 sm:h-9 sm:w-9${loading ? " animate-spin" : ""}`}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+                onClick={() => void loadData({ refresh: true })}
+              />
               <Avatar className="h-8 w-8 border shadow-sm sm:h-9 sm:w-9">
                 <AvatarImage src={logoUrl} alt={displayLabel} />
                 <AvatarFallback>
@@ -343,7 +386,7 @@ function CashierContent() {
               className={
                 activeView === "order"
                   ? "min-h-full"
-                  : activeView === "order-update"
+                  :                 activeView === "order-update" || activeView === "payment-type"
                     ? "flex min-h-0 flex-1 flex-col"
                     : "rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4"
               }

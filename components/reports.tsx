@@ -60,7 +60,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
-import { Cashout, fetchCashout } from "@/lib/actions";
+import { Cashout, fetchCashout, fetchTables, type Table } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import Cashouts from "@/app/CashoutTable/page";
 
@@ -260,7 +260,9 @@ export default function Reports({
   const [reportData, setReportData] = useState<any>(null);
   const [cashouts, setCashouts] = useState<Cashout[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
+  const [cafeTables, setCafeTables] = useState<
+    Pick<Table, "tableNo" | "orderCaption">[]
+  >([]);
 
   useEffect(() => {
     const d = localStorage.getItem("hotel_display_name")?.trim();
@@ -271,8 +273,16 @@ export default function Reports({
     const loadCashouts = async () => {
       try {
         if (hotelName) {
-          const fetchData = await fetchCashout(hotelName);
+          const [fetchData, tables] = await Promise.all([
+            fetchCashout(hotelName),
+            fetchTables(),
+          ]);
           setCashouts(fetchData);
+          setCafeTables(
+            tables.filter((t) =>
+              rowHotelMatchesTenantScope(t.HotelName, hotelName),
+            ),
+          );
         }
       } catch (error) {
         console.error("Failed to fetch cashouts:", error);
@@ -281,21 +291,48 @@ export default function Reports({
     loadCashouts();
   }, [hotelName]);
 
+  const reportFilteredOrders = useMemo(() => {
+    if (!reportData) return [];
+    return orders.filter((order: any) => {
+      if (!rowHotelMatchesTenantScope(order.HotelName, hotelName)) {
+        return false;
+      }
+      const orderDate = new Date(order.createdAt);
+      return reportType === "Daily"
+        ? orderDate.toDateString() === date.toDateString()
+        : orderDate.getMonth() === date.getMonth() &&
+            orderDate.getFullYear() === date.getFullYear();
+    });
+  }, [orders, reportData, date, reportType, hotelName]);
+
+  const livePaymentTotals = useMemo(() => {
+    const paid = reportFilteredOrders.filter(
+      (o: any) => String(o.payment ?? "").trim().toLowerCase() === "paid",
+    );
+    const sumOrders = (list: any[]) =>
+      list.reduce(
+        (total, order) =>
+          total +
+          (Number(order.price) || 0) * (Number(order.orderAmount) || 0),
+        0,
+      );
+    const cashOrders = paid.filter((o: any) => o.withBank === false);
+    const bankOrders = paid.filter((o: any) => o.withBank === true);
+    const creditOrders = paid.filter(
+      (o: any) => o.credit === true && o.withBank === null,
+    );
+    return {
+      cash: { count: cashOrders.length, amount: sumOrders(cashOrders) },
+      bank: { count: bankOrders.length, amount: sumOrders(bankOrders) },
+      credit: { count: creditOrders.length, amount: sumOrders(creditOrders) },
+    };
+  }, [reportFilteredOrders]);
+
   const handleGenerate = async () => {
     setLoading(true);
     try {
       const data = await onGenerateReport({ date, type: reportType });
       setReportData(data);
-      const filtered = orders.filter((order: any) => {
-        if (!rowHotelMatchesTenantScope(order.HotelName, hotelName))
-          return false;
-        const orderDate = new Date(order.createdAt);
-        return reportType === "Daily"
-          ? orderDate.toDateString() === date.toDateString()
-          : orderDate.getMonth() === date.getMonth() &&
-              orderDate.getFullYear() === date.getFullYear();
-      });
-      setFilteredOrders(filtered);
     } catch (error) {
       console.error("Failed to generate report:", error);
     } finally {
@@ -304,8 +341,8 @@ export default function Reports({
   };
 
   const analyticsData = useMemo(() => {
-    const completed = filteredOrders.filter(
-      (o) =>
+    const completed = reportFilteredOrders.filter(
+      (o: any) =>
         o.payment?.toLowerCase() === "paid" &&
         o.status?.toLowerCase() === "completed",
     );
@@ -314,7 +351,7 @@ export default function Reports({
     const typeMap: Record<string, { val: number; amt: number }> = {};
     const itemMap: Record<string, { val: number; amt: number }> = {};
 
-    completed.forEach((order) => {
+    completed.forEach((order: any) => {
       const orderQty = Number(order.orderAmount) || 0;
       const sales = (Number(order.price) || 0) * orderQty;
 
@@ -353,11 +390,11 @@ export default function Reports({
         .sort((a, b) => b.sales - a.sales)
         .slice(0, 10),
     };
-  }, [filteredOrders]);
+  }, [reportFilteredOrders]);
 
   const paymentCategoryBreakdown = useMemo(() => {
-    const sold = filteredOrders.filter(
-      (o) =>
+    const sold = reportFilteredOrders.filter(
+      (o: any) =>
         String(o.payment ?? "").toLowerCase() === "paid" &&
         String(o.status ?? "").toLowerCase() === "completed",
     );
@@ -377,19 +414,19 @@ export default function Reports({
       bank: aggregateCategoryQuantities(byChannel.bank),
       credit: aggregateCategoryQuantities(byChannel.credit),
     };
-  }, [filteredOrders]);
+  }, [reportFilteredOrders]);
 
   const getCompletedOrders = () =>
-    filteredOrders.filter(
-      (o) =>
+    reportFilteredOrders.filter(
+      (o: any) =>
         o.payment?.toLowerCase() === "paid" &&
         o.status?.toLowerCase() === "completed",
     );
   const getCancelledOrders = () =>
-    filteredOrders.filter((o) => o.status?.toLowerCase() === "cancelled");
+    reportFilteredOrders.filter((o: any) => o.status?.toLowerCase() === "cancelled");
   const getExpiredOrders = () =>
-    filteredOrders.filter(
-      (o) =>
+    reportFilteredOrders.filter(
+      (o: any) =>
         new Date(o.createdAt).toDateString() !== new Date().toDateString() &&
         (!o.status || o.status?.toLowerCase() === "pending") &&
         o.payment?.toLowerCase() !== "paid",
@@ -443,7 +480,6 @@ export default function Reports({
             onValueChange={(v: any) => {
               setReportType(v);
               setReportData(null);
-              setFilteredOrders([]);
             }}
           >
             <SelectTrigger className="w-full sm:w-45">
@@ -528,10 +564,10 @@ export default function Reports({
                   <h3 className="text-sm font-semibold sm:text-base">Cash Payments</h3>
                 </div>
                 <p className="text-2xl font-bold tabular-nums sm:text-3xl">
-                  {reportData.cashPayments.amount.toLocaleString()} ETB
+                  {livePaymentTotals.cash.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {reportData.cashPayments.count} orders
+                  {livePaymentTotals.cash.count} orders
                 </p>
                 <CategorySoldBreakdown
                   items={paymentCategoryBreakdown.cash}
@@ -546,10 +582,10 @@ export default function Reports({
                   <h3 className="text-sm font-semibold sm:text-base">Bank Payments</h3>
                 </div>
                 <p className="text-2xl font-bold tabular-nums sm:text-3xl">
-                  {reportData.bankPayments.amount.toLocaleString()} ETB
+                  {livePaymentTotals.bank.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {reportData.bankPayments.count} orders
+                  {livePaymentTotals.bank.count} orders
                 </p>
                 <CategorySoldBreakdown
                   items={paymentCategoryBreakdown.bank}
@@ -564,10 +600,10 @@ export default function Reports({
                   <h3 className="text-sm font-semibold sm:text-base">Credit Payments</h3>
                 </div>
                 <p className="text-2xl font-bold tabular-nums sm:text-3xl">
-                  {reportData.creditPayments.amount.toLocaleString()} ETB
+                  {livePaymentTotals.credit.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {reportData.creditPayments.count} orders
+                  {livePaymentTotals.credit.count} orders
                 </p>
                 <CategorySoldBreakdown
                   items={paymentCategoryBreakdown.credit}
@@ -711,21 +747,30 @@ export default function Reports({
                 </TabsList>
                 <div className="p-4 md:p-6">
                   <TabsContent value="completed" className="mt-0">
-                    <CompletedOrders orders={getCompletedOrders()} />
+                    <CompletedOrders
+                      orders={getCompletedOrders()}
+                      tables={cafeTables}
+                    />
                   </TabsContent>
                   <TabsContent value="cancelled" className="mt-0">
-                    <CancelledOrders orders={getCancelledOrders()} />
+                    <CancelledOrders
+                      orders={getCancelledOrders()}
+                      tables={cafeTables}
+                    />
                   </TabsContent>
                   <TabsContent value="cashout" className="mt-0">
                     <Cashouts cashout={filteredCashouts} />
                   </TabsContent>
                   <TabsContent value="Expired" className="mt-0 space-y-4">
-                    <ExpiredOrdersTable orders={getExpiredOrders()} />
+                    <ExpiredOrdersTable
+                      orders={getExpiredOrders()}
+                      tables={cafeTables}
+                    />
                     <div className="flex justify-end p-4 bg-muted/50 rounded-lg border">
                       <h3 className="text-lg font-bold">
                         Total Expired:{" "}
                         {getExpiredOrders()
-                          .reduce((t, o) => t + o.price * o.orderAmount, 0)
+                          .reduce((t: number, o: any) => t + o.price * o.orderAmount, 0)
                           .toLocaleString()}{" "}
                         ETB
                       </h3>

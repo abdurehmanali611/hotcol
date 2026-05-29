@@ -21,7 +21,7 @@ import {
 } from "@/lib/validations";
 import {
   buildEditTableSelectOptions,
-  formatCafeTableDisplay,
+  formatCafeTableDisplayFromRegistry,
   groupEditableOrdersByTable,
   isLiveOrderEditable,
   normalizeOrderTableNo,
@@ -29,6 +29,7 @@ import {
   orderStationLabel,
   orderToLiveEditFormValues,
   sumOrderLinesETB,
+  tableCaptionForNo,
 } from "@/lib/cafeTableOrder";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { CafeCashierAddItemsDialog } from "@/components/cafe/CafeCashierAddItemsDialog";
@@ -165,10 +166,17 @@ export function CafeCashierOrderUpdatePanel({
     const q = searchQuery.trim().toLowerCase();
     if (!q) return editableOrders;
     return editableOrders.filter((order) => {
+      const tableNo = normalizeOrderTableNo(order);
+      const tableLabel = formatCafeTableDisplayFromRegistry(
+        tableNo,
+        tables,
+        order.serviceCaption,
+      );
       const haystack = [
         order.title,
         order.waiterName,
-        String(order.tableNo),
+        String(tableNo),
+        tableLabel,
         order.serviceCaption,
         orderStationLabel(order),
         order.status,
@@ -178,7 +186,7 @@ export function CafeCashierOrderUpdatePanel({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [editableOrders, searchQuery]);
+  }, [editableOrders, searchQuery, tables]);
 
   const tableGroups = useMemo(
     () => groupEditableOrdersByTable(filteredOrders),
@@ -278,15 +286,25 @@ export function CafeCashierOrderUpdatePanel({
   };
 
   const onSubmit = async (values: UpdateLiveOrderFormValues) => {
+    if (!selectedOrder) return;
     setSaving(true);
     try {
-      await updateLiveOrder({
-        id: values.id,
-        tableNo: values.tableNo,
-        waiterName: values.waiterName,
-        orderAmount: values.orderAmount,
-        title: values.title,
-      });
+      const prevQty = Math.max(1, Number(selectedOrder.orderAmount) || 1);
+      await updateLiveOrder(
+        {
+          id: values.id,
+          tableNo: values.tableNo,
+          waiterName: values.waiterName,
+          orderAmount: values.orderAmount,
+          title: values.title,
+        },
+        {
+          successMessage:
+            values.orderAmount !== prevQty
+              ? "Order updated — kitchen/bar will see the new quantity"
+              : "Order updated successfully",
+        },
+      );
       await onRefresh();
     } catch {
       /* toast in action */
@@ -422,13 +440,10 @@ export function CafeCashierOrderUpdatePanel({
                 tableGroups.map(({ tableNo, orders: tableOrders }) => {
                   const waiterName =
                     tableOrders[0]?.waiterName || "Self-Service";
-                  const serviceCaption = String(
-                    tableOrders.find((o) => o.serviceCaption)?.serviceCaption ??
-                      "",
-                  ).trim();
-                  const tableDisplay = formatCafeTableDisplay(
+                  const tableDisplay = formatCafeTableDisplayFromRegistry(
                     tableNo,
-                    serviceCaption,
+                    tables,
+                    tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
                   );
                   const tableTotal = sumOrderLinesETB(tableOrders);
                   const pendingCount = tableOrders.filter(
@@ -636,8 +651,9 @@ export function CafeCashierOrderUpdatePanel({
               {selectedOrder ? (
                 <p className="truncate text-xs text-muted-foreground">
                   {selectedOrder.title} ·{" "}
-                  {formatCafeTableDisplay(
+                  {formatCafeTableDisplayFromRegistry(
                     normalizeOrderTableNo(selectedOrder),
+                    tables,
                     selectedOrder.serviceCaption,
                   )}
                 </p>
@@ -700,8 +716,9 @@ export function CafeCashierOrderUpdatePanel({
                                 {selectedOrder.title}
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                {formatCafeTableDisplay(
+                                {formatCafeTableDisplayFromRegistry(
                                   normalizeOrderTableNo(selectedOrder),
+                                  tables,
                                   selectedOrder.serviceCaption,
                                 )}{" "}
                                 · {selectedOrder.waiterName}
@@ -848,8 +865,9 @@ export function CafeCashierOrderUpdatePanel({
                             Target table
                           </p>
                           <p className="mt-1 text-2xl font-bold tabular-nums">
-                            {formatCafeTableDisplay(
+                            {formatCafeTableDisplayFromRegistry(
                               addContext.tableNo,
+                              tables,
                               selectedOrder?.serviceCaption,
                             )}
                           </p>
@@ -906,12 +924,10 @@ export function CafeCashierOrderUpdatePanel({
           items={items}
           hotelName={hotelName}
           tableNo={addItemsTarget.tableNo}
-          tableCaption={
-            editableOrders.find(
-              (o) => normalizeOrderTableNo(o) === addItemsTarget.tableNo,
-            )?.serviceCaption
-          }
+          tableCaption={tableCaptionForNo(tables, addItemsTarget.tableNo)}
+          tables={tables}
           waiterName={addItemsTarget.waiterName}
+          existingOrders={editableOrders}
           isOpen
           onClose={() => setAddItemsTarget(null)}
           onSuccess={onRefresh}

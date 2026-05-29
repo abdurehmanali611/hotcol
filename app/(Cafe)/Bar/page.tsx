@@ -1,16 +1,24 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast, Toaster } from "sonner";
 
 import {
   Order,
-  fetchOrders,
+  fetchLiveCafeOrders,
+  fetchTables,
   updateOrderStatus,
   filterBaristaOrders,
+  CAFE_LIVE_ORDERS_POLL_MS,
+  type Table,
 } from "@/lib/actions";
+import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
+import { normalizeOrderTableNo } from "@/lib/cafeTableOrder";
+import {
+  effectiveTenantScopeForHotelTerminal,
+  rowHotelMatchesTenantScope,
+} from "@/lib/tenantRowMatch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,8 +32,11 @@ import {
   Hash,
   User,
 } from "lucide-react";
+import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { CafeTableLabel } from "@/components/cafe/CafeTableLabel";
 
 function BaristaContent() {
   useTenantRouteGuard({ role: "Barista" });
@@ -37,57 +48,95 @@ function BaristaContent() {
   const logoUrl = searchParams.get("logo") || "";
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [cafeTables, setCafeTables] = useState<
+    Pick<Table, "tableNo" | "orderCaption">[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const loadCoordinator = useLoadCoordinator();
+  const propertyScope = effectiveTenantScopeForHotelTerminal(tenantScope);
 
-  const loadOrders = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const allOrders = await fetchOrders();
-      const filteredOrders = filterBaristaOrders(allOrders, tenantScope);
-      setOrders(filteredOrders);
-    } catch {
-      toast.error("Failed to load orders");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadOrders = useCallback(
+    async (mode: "initial" | "refresh" | "silent" = "initial") => {
+      await loadCoordinator.run(async (isStale) => {
+        if (mode === "initial") setLoading(true);
+        else if (mode === "refresh") setRefreshing(true);
+        try {
+          const [allOrders, allTables] = await Promise.all([
+            fetchLiveCafeOrders(),
+            fetchTables(),
+          ]);
+          if (isStale()) return;
+          const scope = effectiveTenantScopeForHotelTerminal(tenantScope);
+          setCafeTables(
+            allTables.filter((t) =>
+              rowHotelMatchesTenantScope(t.HotelName, scope),
+            ),
+          );
+          setOrders(filterBaristaOrders(allOrders, scope));
+        } catch {
+          if (!isStale() && mode !== "silent") {
+            toast.error("Failed to load orders");
+          }
+        } finally {
+          if (!isStale()) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      });
+    },
+    [tenantScope, loadCoordinator],
+  );
 
   useEffect(() => {
-    loadOrders();
-    const interval = setInterval(() => loadOrders(true), 30000);
-    return () => clearInterval(interval);
-  }, [tenantScope]);
+    void loadOrders("initial");
+    const interval = setInterval(
+      () => void loadOrders("silent"),
+      CAFE_LIVE_ORDERS_POLL_MS,
+    );
+    const refresh = () => void loadOrders("silent");
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const unsubSync = subscribeCafeOrdersChanged(refresh);
+    window.addEventListener("focus", refreshOnVisible);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => {
+      clearInterval(interval);
+      unsubSync();
+      window.removeEventListener("focus", refreshOnVisible);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
+  }, [propertyScope, loadOrders]);
 
   const handleStatusUpdate = async (
     id: number,
     status: "Completed" | "Cancelled",
   ) => {
     setUpdatingId(id);
-    const promise = updateOrderStatus(id, status);
-
-    toast.promise(promise, {
-      loading: `Marking order as ${status.toLowerCase()}...`,
-      success: () => {
-        loadOrders(true);
-        return `Order #${id} ${status.toLowerCase()}!`;
-      },
-      error: "Failed to update order status.",
-    });
-
     try {
-      await promise;
+      await updateOrderStatus(id, status);
+      toast.success(`Order #${id} marked as ${status.toLowerCase()}`);
+      await loadOrders("silent");
     } catch {
+      toast.error("Failed to update order status");
     } finally {
       setUpdatingId(null);
     }
   };
 
   const pendingOrders = orders.filter(
-    (order) =>
-      order.status === null ||
-      (order.status === "Pending" &&
-        new Date(order.createdAt).toDateString() === new Date().toDateString()),
+    (order) => {
+      const status = String(order.status ?? "").toLowerCase();
+      if (status === "cancelled") return false;
+      return (
+        order.status === null ||
+        (order.status === "Pending" &&
+          isSameCafeBusinessDay(order.createdAt))
+      );
+    },
   );
 
   pendingOrders.sort((a, b) => a.id - b.id);
@@ -154,12 +203,16 @@ function BaristaContent() {
               {pendingOrders.length} Pending
             </Badge>
             <Button
-              onClick={() => loadOrders()}
+              onClick={() => void loadOrders("refresh")}
               variant="outline"
               size="sm"
+              disabled={loading || refreshing || updatingId != null}
               className="gap-2"
             >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              <RefreshCw
+                size={14}
+                className={refreshing ? "animate-spin" : ""}
+              />
               Refresh
             </Button>
           </div>
@@ -188,12 +241,11 @@ function BaristaContent() {
                 className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow flex flex-col gap-8"
               >
                 <div className="flex items-center gap-5">
-                  <Badge
-                    variant="outline"
-                    className="text-base px-3 py-1 font-mono"
-                  >
-                    Table {order.tableNo}
-                  </Badge>
+                  <CafeTableLabel
+                    tableNo={normalizeOrderTableNo(order)}
+                    tables={cafeTables}
+                    serviceCaption={order.serviceCaption}
+                  />
                   <h3 className="text-lg flex items-center gap-2">
                     <User className="w-5 h-5"/>
                     {order.waiterName}

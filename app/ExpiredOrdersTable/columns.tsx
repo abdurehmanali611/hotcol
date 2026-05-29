@@ -3,6 +3,8 @@
 import { Avatar } from "@/components/ui/avatar";
 import { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
+import type { Table } from "@/lib/actions";
+import { cafeOrderTableColumn } from "@/lib/dataTableColumns/cafeOrderTable";
 
 export type Order = {
   id: number;
@@ -21,10 +23,14 @@ export type Order = {
   credit?: boolean | null;
   credittorName?: string | null;
   creditAmount?: number | null;
+  serviceCaption?: string | null;
   createdAt: Date;
 };
 
-export const columns: ColumnDef<Order>[] = [
+export function buildExpiredOrderColumns(
+  tables: Pick<Table, "tableNo" | "orderCaption">[],
+): ColumnDef<Order>[] {
+  return [
   {
     id: "RollNo",
     header: "No.",
@@ -50,10 +56,7 @@ export const columns: ColumnDef<Order>[] = [
     header: "Item Name",
     cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
   },
-  {
-    accessorKey: "tableNo",
-    header: "Table",
-  },
+  cafeOrderTableColumn<Order>(tables),
   {
     accessorKey: "waiterName",
     header: "Waiter",
@@ -84,4 +87,5 @@ export const columns: ColumnDef<Order>[] = [
       return <div className="text-muted-foreground">{date.toLocaleDateString()}</div>;
     },
   },
-];
+  ];
+}

@@ -15,8 +15,10 @@ import {
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import {
   buildTableSelectOptions,
+  CAFE_TABLE_UNSELECTED,
   occupiedTableNumbersFromOrders,
 } from "@/lib/cafeTableOrder";
+import { orderDetailsSchema } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import {
@@ -30,9 +32,7 @@ import CustomFormField, { formFieldTypes } from "./customFormField";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
 
-const orderSchema = z.object({
-  tableNo: z.number().min(1, "Required"),
-  waiterName: z.string().min(1, "Required"),
+const orderSchema = orderDetailsSchema.extend({
   orderAmount: z.number().min(1),
 });
 
@@ -61,7 +61,11 @@ export default function OrderDetailsModal({
 
   const form = useForm<z.infer<typeof orderSchema>>({
     resolver: zodResolver(orderSchema),
-    defaultValues: { tableNo: 0, waiterName: "", orderAmount: 1 },
+    defaultValues: {
+      tableNo: CAFE_TABLE_UNSELECTED,
+      waiterName: "",
+      orderAmount: 1,
+    },
   });
 
   useEffect(() => {
@@ -76,7 +80,11 @@ export default function OrderDetailsModal({
             rowHotelMatchesTenantScope(x.HotelName, hotelName),
           ),
         });
-        form.reset({ tableNo: 0, waiterName: "", orderAmount: 1 });
+        form.reset({
+          tableNo: CAFE_TABLE_UNSELECTED,
+          waiterName: "",
+          orderAmount: 1,
+        });
       })();
     }
   }, [isOpen]);

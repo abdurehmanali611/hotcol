@@ -61,6 +61,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { patchPurchaseRequestStatus } from "@/lib/hotelRowPatches";
 import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import {
@@ -83,7 +84,6 @@ import {
   Inbox,
   Loader2,
   LogOut,
-  RefreshCw,
   Wallet,
   XCircle,
   LayoutGrid,
@@ -563,16 +563,11 @@ function FinanceInner() {
               stockMovements={stockRows}
               hotelLodging
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => load(true)}
-              disabled={refreshing}
-              className={refreshing ? "animate-spin" : ""}
-              aria-label="Refresh"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            <RefreshIconButton
+              busy={refreshing}
+              disabled={loading}
+              onClick={() => void load(true)}
+            />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>

@@ -183,7 +183,7 @@ export default function Suppliers({
         <DataTableClientWrapper
           data={filteredItems}
           readOnly
-          showStoreRowActions={false}
+          showStoreMovementActions={false}
           aggregateInventory={false}
         />
       </div>

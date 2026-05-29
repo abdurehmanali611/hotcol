@@ -58,14 +58,24 @@ export default function StoreItems({
   );
   const tableRef = useRef<DataTableRef>(null);
   const [batchSelected, setBatchSelected] = useState<ItemRegistration[]>([]);
-  const [isStoreTerminalUser] = useState(
+  const [userRole] = useState(
     () =>
-      typeof window !== "undefined" &&
-      localStorage.getItem("user_role") === "Store",
+      (typeof window !== "undefined" &&
+        localStorage.getItem("user_role")) ||
+      "",
   );
+  const isStoreTerminalUser = userRole === "Store";
+  const isManagerUser = userRole === "Manager";
 
-  /** Row actions (edit, delete, movements, batch) are for Store credentials only. */
-  const showStoreRowActions = !readOnly && isStoreTerminalUser;
+  /** Stock out, wastage, return, and batch selection — hotel/café store terminal only. */
+  const showStoreMovementActions = !readOnly && isStoreTerminalUser;
+  /** Edit/delete master inventory lines — hotel manager only (not store staff). */
+  const showManagerEditDelete =
+    !readOnly && hotelStockApprovals && isManagerUser;
+  /** Café store (non-hotel) keeps edit/delete on the store terminal. */
+  const showStoreEditDelete =
+    !readOnly && isStoreTerminalUser && !hotelStockApprovals;
+  const allowEditDelete = showManagerEditDelete || showStoreEditDelete;
 
   const scopeRows = useCallback(
     (rows: ItemRegistration[]) => {
@@ -101,7 +111,7 @@ export default function StoreItems({
   }, [items, scopeRows]);
 
   const handleEdit = (item: ItemRegistration) => {
-    if (readOnly || !showStoreRowActions) return;
+    if (readOnly || !allowEditDelete) return;
     setSelectedItem(item);
     setIsEditOpen(true);
   };
@@ -215,7 +225,7 @@ export default function StoreItems({
       )}
 
       <div className={tableShell}>
-        {hotelStockApprovals && showStoreRowActions && (
+        {hotelStockApprovals && showStoreMovementActions && (
           <InventoryBatchMovementBar
             selected={batchSelected}
             tableRef={tableRef}
@@ -230,19 +240,20 @@ export default function StoreItems({
           refresh={refresh}
           hotelStockApprovals={hotelStockApprovals}
           readOnly={readOnly}
-          showStoreRowActions={showStoreRowActions}
+          allowEditDelete={allowEditDelete}
+          showStoreMovementActions={showStoreMovementActions}
           aggregateInventory={aggregateInventory}
           onHotelStockRequestCreated={onHotelStockRequestCreated}
-          enableRowSelection={hotelStockApprovals && showStoreRowActions}
+          enableRowSelection={hotelStockApprovals && showStoreMovementActions}
           onRowSelectionChange={
-            hotelStockApprovals && showStoreRowActions
+            hotelStockApprovals && showStoreMovementActions
               ? (rows) => setBatchSelected(expandSelection(rows))
               : undefined
           }
         />
       </div>
 
-      {!readOnly && showStoreRowActions && (
+      {allowEditDelete && (
         <UpdateStock
           isOpen={isEditOpen}
           onOpenChange={setIsEditOpen}

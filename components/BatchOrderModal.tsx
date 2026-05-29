@@ -18,6 +18,8 @@ import {
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import {
   buildTableSelectOptions,
+  CAFE_TABLE_UNSELECTED,
+  isValidSelectedCafeTableNo,
   occupiedTableNumbersFromOrders,
 } from "@/lib/cafeTableOrder";
 import { batchOrderSchema } from "@/lib/validations";
@@ -60,7 +62,7 @@ export default function BatchOrderModal({
     resolver: zodResolver(batchOrderSchema),
     defaultValues: {
       singleWaiterName: "",
-      singleTableNo: 0,
+      singleTableNo: CAFE_TABLE_UNSELECTED,
       HotelName: hotelName,
       items: [],
       assignmentType: "single",
@@ -114,7 +116,7 @@ export default function BatchOrderModal({
 
       form.reset({
         singleWaiterName: "",
-        singleTableNo: 0,
+        singleTableNo: CAFE_TABLE_UNSELECTED,
         HotelName: hotelName,
         items: formItems,
         assignmentType: "single",
@@ -182,8 +184,14 @@ export default function BatchOrderModal({
       return;
     }
 
-    if (!values.singleTableNo || values.singleTableNo === 0) {
-      toast.error("Please select a table number");
+    if (!isValidSelectedCafeTableNo(values.singleTableNo)) {
+      toast.error("Please select a table");
+      return;
+    }
+
+    const tableNo = Math.floor(Number(values.singleTableNo));
+    if (occupiedTables.has(tableNo)) {
+      toast.error("That table is already in use");
       return;
     }
 
@@ -201,7 +209,7 @@ export default function BatchOrderModal({
         category: si.category,
         type: si.type,
         orderAmount: si.orderAmount,
-        tableNo: values.singleTableNo,
+        tableNo: values.singleTableNo!,
         waiterName: values.singleWaiterName,
         HotelName: hotelName,
       }));

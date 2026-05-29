@@ -62,6 +62,7 @@ export function graphqlMessageIndicatesSessionExpiry(raw: string): boolean {
   const m = String(raw || "").trim().toLowerCase();
   if (m === "not authenticated" || m === "not authenticated.") return true;
   if (m === "unauthorized") return true;
+  if (m === "jwt expired") return true;
   if (m.includes("jwt expired")) return true;
   if (m.includes("jwt malformed")) return true;
   if (m.includes("invalid token")) return true;

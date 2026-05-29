@@ -37,6 +37,7 @@ export type ReceiptLine = {
   notes?: string | null;
   paymentLabel?: string | null;
   movementLabel?: string | null;
+  purchaseWithVat?: boolean | null;
 };
 
 export type ReceiptBundle = {
@@ -148,6 +149,7 @@ function registrationBundles(
       category: item.category,
       imageUrl: item.imageUrl,
       paymentLabel,
+      purchaseWithVat: item.purchaseWithVat,
     }));
     const kind: ReceiptKind = "registration";
     return {

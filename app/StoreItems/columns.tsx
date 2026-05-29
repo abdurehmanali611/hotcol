@@ -863,8 +863,8 @@ export const columns = (
   opts?: {
     hotelStockApprovals?: boolean;
     readOnly?: boolean;
-    /** When false, hide row actions (non–Store roles). */
-    showStoreRowActions?: boolean;
+    allowEditDelete?: boolean;
+    showStoreMovementActions?: boolean;
     onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
   },
 ): ColumnDef<items>[] => {
@@ -1037,7 +1037,9 @@ export const columns = (
   },
   ];
 
-  if (!opts?.readOnly && opts?.showStoreRowActions) {
+  const allowEditDelete = !!opts?.allowEditDelete;
+  const showStoreMovementActions = !!opts?.showStoreMovementActions;
+  if (!opts?.readOnly && (allowEditDelete || showStoreMovementActions)) {
     defs.push({
     id: "actions",
     header: () => (
@@ -1054,62 +1056,68 @@ export const columns = (
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-67 p-2">
-             <DropdownMenuGroup className="space-y-1">
-                <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground px-2">Management</DropdownMenuLabel>
-                <DropdownMenuItem asChild>
-                  <Button
-                    variant="ghost"
-                    className="w-64 justify-start h-9 text-sm font-normal"
-                    onClick={() => {
-                      setOpenDrop(false);
-                      onEdit?.(actionLine);
-                    }}
-                  >
-                    Edit Details
-                    {isAggregatedInventoryRow(row.original)
-                      ? " (primary batch)"
-                      : ""}
-                  </Button>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
-                  <DeleteButton
-                    itemName={actionLine.name}
-                    itemId={actionLine.id}
-                    onDelete={() => setOpenDrop(false)}
-                    refresh={refresh}
-                  />
-                </DropdownMenuItem>
-             </DropdownMenuGroup>
-             <DropdownMenuSeparator className="my-2" />
-             <DropdownMenuGroup className="space-y-1">
-                <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground px-2">Inventory Movements</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
-                  <StockOut
-                    data={actionLine}
-                    refresh={refresh}
-                    hotelStockApprovals={opts?.hotelStockApprovals}
-                    onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
-                  />
-                </DropdownMenuItem>
-                <div className="grid grid-cols-2 gap-8.5 mt-1">
-                   <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
-                    <Wastage
-                      data={actionLine}
-                      refresh={refresh}
-                      hotelStockApprovals={opts?.hotelStockApprovals}
-                      onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
-                    />
+             {allowEditDelete ? (
+               <DropdownMenuGroup className="space-y-1">
+                  <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground px-2">Management</DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <Button
+                      variant="ghost"
+                      className="w-64 justify-start h-9 text-sm font-normal"
+                      onClick={() => {
+                        setOpenDrop(false);
+                        onEdit?.(actionLine);
+                      }}
+                    >
+                      Edit Details
+                      {isAggregatedInventoryRow(row.original)
+                        ? " (primary batch)"
+                        : ""}
+                    </Button>
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
-                    <Returned
+                    <DeleteButton
+                      itemName={actionLine.name}
+                      itemId={actionLine.id}
+                      onDelete={() => setOpenDrop(false)}
+                      refresh={refresh}
+                    />
+                  </DropdownMenuItem>
+               </DropdownMenuGroup>
+             ) : null}
+             {allowEditDelete && showStoreMovementActions ? (
+               <DropdownMenuSeparator className="my-2" />
+             ) : null}
+             {showStoreMovementActions ? (
+               <DropdownMenuGroup className="space-y-1">
+                  <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground px-2">Inventory Movements</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
+                    <StockOut
                       data={actionLine}
                       refresh={refresh}
                       hotelStockApprovals={opts?.hotelStockApprovals}
                       onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
                     />
                   </DropdownMenuItem>
-                </div>
-             </DropdownMenuGroup>
+                  <div className="grid grid-cols-2 gap-8.5 mt-1">
+                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
+                      <Wastage
+                        data={actionLine}
+                        refresh={refresh}
+                        hotelStockApprovals={opts?.hotelStockApprovals}
+                        onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
+                      />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
+                      <Returned
+                        data={actionLine}
+                        refresh={refresh}
+                        hotelStockApprovals={opts?.hotelStockApprovals}
+                        onHotelStockRequestCreated={opts?.onHotelStockRequestCreated}
+                      />
+                    </DropdownMenuItem>
+                  </div>
+               </DropdownMenuGroup>
+             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       );

@@ -240,12 +240,18 @@ export const HOTEL_STORE_FINANCE_VIEWS = new Set([
 
 export const CAFE_CASHIER_NAV_MODULES: Partial<
   Record<
-    "order" | "payment" | "order-update" | "cashout" | "credit",
+    | "order"
+    | "payment"
+    | "payment-type"
+    | "order-update"
+    | "cashout"
+    | "credit",
     ModuleOption
   >
 > = {
   order: "Cafe and Restaurant",
   payment: "Cafe and Restaurant",
+  "payment-type": "Cafe and Restaurant",
   "order-update": "Cafe and Restaurant",
   cashout: "Cafe and Restaurant",
   credit: "Credit Management",

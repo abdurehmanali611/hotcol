@@ -84,7 +84,6 @@ import {
   MinusCircle,
   Package,
   Receipt,
-  RefreshCw,
   Send,
   ShoppingCart,
   Table2,
@@ -137,6 +136,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 
 function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -782,16 +782,11 @@ function CostControlInner() {
               stockMovements={stocks}
               hotelLodging
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => load(true, false)}
+            <RefreshIconButton
+              busy={refreshing}
               disabled={loading}
-              aria-busy={loading || refreshing}
-              className={loading || refreshing ? "animate-spin" : ""}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+              onClick={() => void load(true, false)}
+            />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>
@@ -1204,7 +1199,7 @@ function CostControlInner() {
                   <div className="space-y-1 min-w-0">
                     <CardTitle className="text-lg sm:text-xl">Active inventory</CardTitle>
                     <CardDescription>
-                      Filter by arrival date, edit lines, and approve stock movements — aligned with hotel store inventory.
+                      Filter by arrival date and review stock movements — inventory line edits are on the Manager terminal.
                     </CardDescription>
                   </div>
                 </div>

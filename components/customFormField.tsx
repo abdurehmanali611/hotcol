@@ -402,7 +402,8 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
           value={
             field.value !== undefined &&
             field.value !== null &&
-            field.value !== ""
+            field.value !== "" &&
+            !(props.isNumeric && Number(field.value) === -1)
               ? String(field.value)
               : undefined
           }

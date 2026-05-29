@@ -72,7 +72,8 @@ const UpdateTableForm = ({ Table, onSuccess }: UpdateTableFormProp) => {
           inputClassName="h-fit w-full p-2"
         />
         <p className="text-pretty text-xs text-muted-foreground">
-          Applied to new orders placed from this table number.
+          Optional label for this table number (e.g. Delivery, Takeaway). Any
+          table number can have a caption.
         </p>
         <Button
           type="submit"

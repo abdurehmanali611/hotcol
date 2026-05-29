@@ -14,11 +14,18 @@ import {
 } from "lucide-react";
 import {
   createBatchOrders,
+  updateLiveOrder,
   type Item,
+  type Order,
   type OrderCreationData,
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
-import { formatCafeTableDisplay, orderStationLabel } from "@/lib/cafeTableOrder";
+import {
+  findOpenOrderLineForTableItem,
+  formatCafeTableDisplayFromRegistry,
+  normalizeOrderTableNo,
+  orderStationLabel,
+} from "@/lib/cafeTableOrder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +48,10 @@ interface Props {
   hotelName: string;
   tableNo: number;
   tableCaption?: string | null;
+  tables?: Pick<import("@/lib/actions").Table, "tableNo" | "orderCaption">[];
   waiterName: string;
+  /** Today's open lines on this table — used to bump qty on existing tickets. */
+  existingOrders?: Order[];
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
@@ -61,7 +71,9 @@ export function CafeCashierAddItemsDialog({
   hotelName,
   tableNo,
   tableCaption,
+  tables = [],
   waiterName,
+  existingOrders = [],
   isOpen,
   onClose,
   onSuccess,
@@ -147,20 +159,59 @@ export function CafeCashierAddItemsDialog({
     }
     setSubmitting(true);
     try {
-      const payload: OrderCreationData[] = cart.map((line) => ({
-        title: line.name,
-        price: line.price,
-        imageUrl: line.imageUrl || "",
-        category: line.category,
-        type: line.type,
-        orderAmount: line.orderAmount,
-        tableNo,
-        waiterName,
-        HotelName: hotelName,
-        status: "Pending",
-        payment: "Unpaid",
-      }));
-      await createBatchOrders(payload);
+      const tableKey = normalizeOrderTableNo({ tableNo });
+      const toCreate: OrderCreationData[] = [];
+      let mergedCount = 0;
+
+      for (const line of cart) {
+        const existing = findOpenOrderLineForTableItem(
+          existingOrders,
+          hotelName,
+          tableKey,
+          line.name,
+        );
+        if (existing) {
+          const nextQty =
+            Math.max(1, Number(existing.orderAmount) || 1) + line.orderAmount;
+          await updateLiveOrder(
+            {
+              id: existing.id,
+              tableNo: tableKey,
+              waiterName: existing.waiterName,
+              orderAmount: nextQty,
+              title: existing.title,
+            },
+            { silent: true },
+          );
+          mergedCount += 1;
+        } else {
+          toCreate.push({
+            title: line.name,
+            price: line.price,
+            imageUrl: line.imageUrl || "",
+            category: line.category,
+            type: line.type,
+            orderAmount: line.orderAmount,
+            tableNo: tableKey,
+            waiterName,
+            HotelName: hotelName,
+            status: "Pending",
+            payment: "Unpaid",
+          });
+        }
+      }
+
+      if (toCreate.length > 0) {
+        await createBatchOrders(toCreate);
+      }
+
+      if (mergedCount > 0 && toCreate.length === 0) {
+        toast.success(
+          mergedCount === 1
+            ? "Existing ticket updated — kitchen/bar will see the new quantity"
+            : `${mergedCount} existing tickets updated`,
+        );
+      }
       setCart([]);
       setSearch("");
       await onSuccess();
@@ -187,12 +238,18 @@ export function CafeCashierAddItemsDialog({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
               <DialogTitle className="text-xl">
-                Add items · {formatCafeTableDisplay(tableNo, tableCaption)}
+                Add items ·{" "}
+                {formatCafeTableDisplayFromRegistry(
+                  tableNo,
+                  tables,
+                  tableCaption,
+                )}
               </DialogTitle>
               <DialogDescription>
                 Waiter{" "}
                 <span className="font-medium text-foreground">{waiterName}</span>
-                . Each item becomes a new kitchen/bar ticket.
+                . Items already on this table update the same ticket; new items
+                create a kitchen/bar ticket.
               </DialogDescription>
             </div>
             <Badge variant="secondary" className="gap-1.5 px-3 py-1">

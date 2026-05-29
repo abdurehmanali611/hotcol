@@ -29,7 +29,6 @@ import {
   PackagePlus,
   Printer,
   Receipt,
-  RefreshCw,
   Send,
   ShoppingCart,
   StoreIcon,
@@ -42,6 +41,7 @@ import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInve
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { toast } from "sonner";
 import {
   Sidebar,
@@ -748,15 +748,10 @@ export function StoreComponent({
                 }
                 hotelLodging={hotelInventory}
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => loadData()}
-                disabled={fetching}
-                className={fetching ? "animate-spin" : ""}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+              <RefreshIconButton
+                busy={fetching}
+                onClick={() => void loadData()}
+              />
               <Avatar className="h-8 w-8 border shadow-sm">
                 <AvatarImage src={logoUrl || ""} alt={displayLabel} />
                 <AvatarFallback>{displayLabel.slice(0, 2).toUpperCase()}</AvatarFallback>

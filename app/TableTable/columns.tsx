@@ -20,6 +20,7 @@ import {
   responsiveFormDialogClassName,
 } from "@/lib/responsiveDialog";
 import { deleteTable, Table } from "@/lib/actions";
+import { formatCafeTableDisplay } from "@/lib/cafeTableOrder";
 import {
   Dialog,
   DialogHeader,
@@ -70,7 +71,11 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
     cell: ({ row }) => {
       const caption = String(row.original.orderCaption ?? "").trim();
       const tableNo = row.original.tableNo;
-      return <div className="ml-3 font-medium">{caption || `Table ${tableNo}`}</div>;
+      return (
+        <div className="ml-3 font-medium">
+          {formatCafeTableDisplay(tableNo, caption)}
+        </div>
+      );
     },
   },
   {
@@ -130,8 +135,10 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
                 <DialogTitle>Update Table</DialogTitle>
                 <DialogDescription className="text-pretty">
                   Update capacity and caption for{" "}
-                  {String(row.original.orderCaption ?? "").trim() ||
-                    `Table ${row.original.tableNo}`}
+                  {formatCafeTableDisplay(
+                    row.original.tableNo,
+                    row.original.orderCaption,
+                  )}
                   .
                 </DialogDescription>
               </DialogHeader>
@@ -154,8 +161,10 @@ export const columns = (refresh: () => void): ColumnDef<Table>[] => [
               <AlertDialogHeader>
                 <AlertDialogTitle className="text-pretty">
                   Delete{" "}
-                  {String(row.original.orderCaption ?? "").trim() ||
-                    `Table ${row.original.tableNo}`}
+                  {formatCafeTableDisplay(
+                    row.original.tableNo,
+                    row.original.orderCaption,
+                  )}
                   ?
                 </AlertDialogTitle>
                 <AlertDialogDescription className="text-pretty">

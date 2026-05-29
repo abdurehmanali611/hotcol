@@ -15,6 +15,7 @@ import {
   SIGNUP_PAYMENT_CHANNELS,
   signupPaymentRequired,
 } from "@/lib/signupPayment";
+import { isValidSelectedCafeTableNo } from "@/lib/cafeTableOrder";
 
 export const login = z.object({
   UserName: z.string().trim().min(2, "Username must be at least 2 characters long"),
@@ -308,6 +309,13 @@ export const deleteTableSchema = z.object({
 
 // ==================== ORDER MANAGEMENT ====================
 
+/** Cashier table pick — any registered table number; optional caption (Delivery, Takeaway, etc.) is display-only. */
+export const selectedCafeTableNoSchema = z
+  .number({ message: "Please select a table" })
+  .refine(isValidSelectedCafeTableNo, {
+    message: "Please select a table",
+  });
+
 export const orderSchema = z.object({
   id: z.number(),
   title: z.string().min(1, "Title is required"),
@@ -317,7 +325,7 @@ export const orderSchema = z.object({
   type: z.string().min(1, "Type is required"),
   HotelName: z.string().min(1, "Hotel name is required"),
   price: z.number().min(0, "Price must be positive"),
-  tableNo: z.number().min(1, "Table number is required"),
+  tableNo: z.number().min(0, "Table number is required"),
   waiterName: z.string().optional(),
   status: z.string().nullable(),
   payment: z.string(),
@@ -327,7 +335,7 @@ export const orderSchema = z.object({
 export const createOrderSchema = z.object({
   title: z.string().min(1, "Title is required"),
   imageUrl: z.string().url("Valid image URL is required"),
-  tableNo: z.number().min(1, "Table number is required"),
+  tableNo: selectedCafeTableNoSchema,
   waiterName: z.string().min(1, "Waiter name is required"),
   type: z.string().min(1, "Type is required"),
   orderAmount: z.number().min(1, "Order amount must be at least 1"),
@@ -580,17 +588,30 @@ export const batchOrderItemSchema = z.object({
   category: z.string().min(1, "Category is required"),
   type: z.string().min(1, "Type is required"),
   orderAmount: z.number().min(1, "Order amount must be at least 1"),
-  tableNo: z.number().min(1, "Table number is required").optional(),
+  tableNo: selectedCafeTableNoSchema.optional(),
   waiterName: z.string().min(1, "Waiter name is required").optional(),
 });
 
-export const batchOrderSchema = z.object({
-  items: z.array(batchOrderItemSchema).min(1, "At least one item is required"),
-  HotelName: z.string().min(1, "Hotel name is required"),
-  assignmentType: z.enum(["single", "multiple"]),
-  singleWaiterName: z.string().optional(),
-  singleTableNo: z.number().optional(),
-});
+export const batchOrderSchema = z
+  .object({
+    items: z.array(batchOrderItemSchema).min(1, "At least one item is required"),
+    HotelName: z.string().min(1, "Hotel name is required"),
+    assignmentType: z.enum(["single", "multiple"]),
+    singleWaiterName: z.string().optional(),
+    singleTableNo: z.number().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.assignmentType === "single" &&
+      !isValidSelectedCafeTableNo(data.singleTableNo)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please select a table",
+        path: ["singleTableNo"],
+      });
+    }
+  });
 
 export const updateWaiterPaymentSchema = z.object({
   id: z.number().min(1, "Waiter ID is required"),
@@ -622,7 +643,7 @@ export const reportFilterSchema = z.object({
 // ==================== FORM VALIDATIONS ====================
 
 export const orderDetailsSchema = z.object({
-  tableNo: z.number().min(1, "Please select a table"),
+  tableNo: selectedCafeTableNoSchema,
   waiterName: z.string().min(1, "Please select a waiter"),
   orderAmount: z.number().min(1, "Order amount must be at least 1"),
 });

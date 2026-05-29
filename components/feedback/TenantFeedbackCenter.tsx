@@ -1,8 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CldUploadButton } from "next-cloudinary";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { ImagePlus, Loader2, MessageCircle, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,12 +28,14 @@ import {
   type TenantFeedbackMessageRow,
 } from "@/lib/actions";
 import {
-  cloudinarySecureUrlFromResult,
-  CLOUDINARY_UPLOAD_PRESET,
-  FEEDBACK_IMAGE_UPLOAD_OPTIONS,
   isCloudinaryUploadConfigured,
+  uploadImageFileToCloudinary,
 } from "@/lib/cloudinaryUploadOptions";
 import { cn } from "@/lib/utils";
+
+const FEEDBACK_IMAGE_ACCEPT =
+  "image/png,image/jpeg,image/jpg,image/webp,image/jfif";
+const FEEDBACK_MAX_IMAGES = 5;
 
 function formatMessageTime(iso: string) {
   try {
@@ -101,12 +108,15 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
+  const [pendingImageUrls, setPendingImageUrls] = useState<string[]>([]);
   const [unread, setUnread] = useState(0);
   const [messages, setMessages] = useState<TenantFeedbackMessageRow[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickingFileRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     const el = listRef.current;
@@ -160,17 +170,26 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
   }, [open, loadInbox]);
 
   const canSend =
-    Boolean(draft.trim() || pendingImageUrl) && !sending && !uploadingImage;
+    Boolean(draft.trim() || pendingImageUrls.length) &&
+    !sending &&
+    !uploadingImage;
+  const atImageLimit = pendingImageUrls.length >= FEEDBACK_MAX_IMAGES;
 
   const handleSend = async () => {
     const text = draft.trim();
-    const image = pendingImageUrl?.trim() || null;
-    if ((!text && !image) || sending || uploadingImage) return;
+    const images = pendingImageUrls.map((url) => url.trim()).filter(Boolean);
+    if ((!text && images.length === 0) || sending || uploadingImage) return;
     setSending(true);
     try {
-      await sendTenantFeedbackMessage(text, image);
+      if (images.length === 0) {
+        await sendTenantFeedbackMessage(text);
+      } else {
+        for (let i = 0; i < images.length; i++) {
+          await sendTenantFeedbackMessage(i === 0 ? text : "", images[i]);
+        }
+      }
       setDraft("");
-      setPendingImageUrl(null);
+      setPendingImageUrls([]);
       await loadInbox({ silent: true, markRead: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not send message");
@@ -179,18 +198,87 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
     }
   };
 
-  const handleImageUpload = (result: unknown) => {
-    setUploadingImage(false);
-    const url = cloudinarySecureUrlFromResult(result);
-    if (url) {
-      setPendingImageUrl(url);
-    } else {
-      toast.error("Image upload did not complete. Please try again.");
+  const handleSheetOpenChange = (next: boolean) => {
+    if (!next && (uploadingImage || pickingFileRef.current)) {
+      return;
+    }
+    setOpen(next);
+  };
+
+  const handlePickImage = () => {
+    if (sending || uploadingImage || atImageLimit) return;
+    pickingFileRef.current = true;
+    const onWindowFocus = () => {
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+      }, 0);
+    };
+    window.addEventListener("focus", onWindowFocus, { once: true });
+    fileInputRef.current?.click();
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImageUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleImageFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    pickingFileRef.current = false;
+    if (files.length === 0) return;
+
+    const slotsLeft = FEEDBACK_MAX_IMAGES - pendingImageUrls.length;
+    if (slotsLeft <= 0) {
+      toast.error(`You can attach up to ${FEEDBACK_MAX_IMAGES} images at a time.`);
+      return;
+    }
+
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      toast.error("Please choose image files (PNG, JPEG, or WebP).");
+      return;
+    }
+    if (imageFiles.length < files.length) {
+      toast.error("Some files were skipped because they are not images.");
+    }
+
+    const toUpload = imageFiles.slice(0, slotsLeft);
+    if (imageFiles.length > slotsLeft) {
+      toast.info(
+        `Only ${slotsLeft} more image${slotsLeft === 1 ? "" : "s"} added (max ${FEEDBACK_MAX_IMAGES}).`,
+      );
+    }
+
+    setUploadingImage(true);
+    const uploaded: string[] = [];
+    try {
+      for (let i = 0; i < toUpload.length; i++) {
+        setUploadProgress(`Uploading ${i + 1}/${toUpload.length}…`);
+        const url = await uploadImageFileToCloudinary(toUpload[i], {
+          folder: "hotcol-feedback",
+        });
+        uploaded.push(url);
+      }
+      setPendingImageUrls((prev) =>
+        [...prev, ...uploaded].slice(0, FEEDBACK_MAX_IMAGES),
+      );
+    } catch (err) {
+      if (uploaded.length > 0) {
+        setPendingImageUrls((prev) =>
+          [...prev, ...uploaded].slice(0, FEEDBACK_MAX_IMAGES),
+        );
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Image upload failed. Try again.",
+      );
+    } finally {
+      setUploadingImage(false);
+      setUploadProgress(null);
     }
   };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleSheetOpenChange}>
       <SheetTrigger asChild>
         <Button
           type="button"
@@ -220,7 +308,8 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
           </SheetTitle>
           <SheetDescription className="text-pretty">
             Message the Apex support team about billing, setup, bugs, or feature
-            requests. Attach screenshots when helpful. Replies appear here.
+            requests. Attach up to {FEEDBACK_MAX_IMAGES} screenshots when helpful.
+            Replies appear here.
           </SheetDescription>
         </SheetHeader>
 
@@ -246,27 +335,31 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
         </div>
 
         <div className="border-t bg-background p-4 space-y-3">
-          {pendingImageUrl ? (
-            <div className="relative inline-block">
-              <Image
-                src={pendingImageUrl}
-                alt="Attachment preview"
-                width={120}
-                height={90}
-                className="h-20 w-auto rounded-lg border object-cover"
-                unoptimized
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                className="absolute -right-2 -top-2 h-6 w-6 rounded-full shadow-sm"
-                aria-label="Remove image"
-                disabled={sending}
-                onClick={() => setPendingImageUrl(null)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+          {pendingImageUrls.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {pendingImageUrls.map((url, index) => (
+                <div key={`${url}-${index}`} className="relative inline-block">
+                  <Image
+                    src={url}
+                    alt={`Attachment preview ${index + 1}`}
+                    width={120}
+                    height={90}
+                    className="h-20 w-20 rounded-lg border object-cover"
+                    unoptimized
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute -right-2 -top-2 h-6 w-6 rounded-full shadow-sm"
+                    aria-label={`Remove image ${index + 1}`}
+                    disabled={sending || uploadingImage}
+                    onClick={() => removePendingImage(index)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
             </div>
           ) : null}
           <Textarea
@@ -285,47 +378,51 @@ export function TenantFeedbackCenter({ className }: { className?: string }) {
           />
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              {isCloudinaryUploadConfigured() ? (
-                <CldUploadButton
-                  uploadPreset={CLOUDINARY_UPLOAD_PRESET}
-                  options={FEEDBACK_IMAGE_UPLOAD_OPTIONS}
-                  onUpload={() => setUploadingImage(true)}
-                  onSuccess={handleImageUpload}
-                  onError={() => {
-                    setUploadingImage(false);
-                    toast.error("Image upload failed. Please try again.");
-                  }}
-                  className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
-                    (sending || uploadingImage) &&
-                      "pointer-events-none opacity-50",
-                  )}
-                >
-                  {uploadingImage ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ImagePlus className="h-4 w-4" />
-                  )}
-                </CldUploadButton>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={sending || uploadingImage}
-                  title="Image upload not configured"
-                  onClick={() =>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={FEEDBACK_IMAGE_ACCEPT}
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden
+                onChange={(e) => void handleImageFileChange(e)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={sending || uploadingImage || atImageLimit}
+                aria-label="Attach images"
+                title={
+                  !isCloudinaryUploadConfigured()
+                    ? "Image upload not configured"
+                    : atImageLimit
+                      ? `Maximum ${FEEDBACK_MAX_IMAGES} images`
+                      : `Attach images (up to ${FEEDBACK_MAX_IMAGES})`
+                }
+                onClick={() => {
+                  if (!isCloudinaryUploadConfigured()) {
                     toast.error(
                       "Image upload is not configured. Add NEXT_PUBLIC_CLOUDINARY_PRESET_NAME and NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME to .env.local.",
-                    )
+                    );
+                    return;
                   }
-                >
+                  handlePickImage();
+                }}
+              >
+                {uploadingImage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
                   <ImagePlus className="h-4 w-4" />
-                </Button>
-              )}
+                )}
+              </Button>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
-                Enter to send · Shift+Enter for new line
+                {uploadProgress ??
+                  (atImageLimit
+                    ? `${FEEDBACK_MAX_IMAGES}/${FEEDBACK_MAX_IMAGES} images · Enter to send`
+                    : `Up to ${FEEDBACK_MAX_IMAGES} images · Enter to send · Shift+Enter for new line`)}
               </p>
             </div>
             <Button

@@ -15,7 +15,8 @@ import {
   fetchCredentials,
   fetchWaiters,
   fetchTables,
-  fetchOrders,
+  fetchLiveCafeOrders,
+  CAFE_LIVE_ORDERS_POLL_MS,
   createItem,
   deleteItem,
   createCredential,
@@ -32,6 +33,7 @@ import {
   fetchItemRegistrations,
   type ItemRegistration,
 } from "@/lib/actions";
+import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import {
   FileText,
@@ -74,7 +76,10 @@ import {
   SubscriptionNotificationCenter,
 } from "@/components/subscription/SubscriptionNotificationCenter";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
+import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
 
@@ -118,6 +123,7 @@ function AdminDashboardContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const loadedRef = useRef(new Set<AdminDatasetKey>());
+  const loadCoordinator = useLoadCoordinator();
 
   const applyDataset = useCallback((key: AdminDatasetKey, value: unknown) => {
     loadedRef.current.add(key);
@@ -152,7 +158,7 @@ function AdminDashboardContent() {
         () => Promise<unknown>
       > = {
         items: fetchItems,
-        orders: fetchOrders,
+        orders: fetchLiveCafeOrders,
         waiters: fetchWaiters,
         tables: fetchTables,
         credentials: fetchCredentials,
@@ -184,37 +190,76 @@ function AdminDashboardContent() {
 
   const loadData = useCallback(
     async (isRefresh = false) => {
-      if (isRefresh) {
-        setRefreshing(true);
-        loadedRef.current.clear();
-      } else {
-        setLoading(true);
-      }
-
-      try {
-        const keys: AdminDatasetKey[] = isRefresh
-          ? ["items", "orders", "waiters", "tables", "credentials"]
-          : ["orders"];
-        await ensureAdminData(keys, { refresh: isRefresh });
-        try {
-          const regs = await fetchItemRegistrations();
-          setInventoryAlerts(
-            (regs as ItemRegistration[]).filter((r) =>
-              rowHotelMatchesTenantScope(r.HotelName, tenantScope),
-            ),
-          );
-        } catch {
-          /* alerts are optional */
+      await loadCoordinator.run(async (isStale) => {
+        if (isRefresh) {
+          setRefreshing(true);
+          loadedRef.current.clear();
+        } else {
+          setLoading(true);
         }
-      } catch {
-        toast.error("An unexpected error occurred while loading data.");
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
+
+        try {
+          const keys: AdminDatasetKey[] = isRefresh
+            ? ["items", "orders", "waiters", "tables", "credentials"]
+            : ["orders"];
+          await ensureAdminData(keys, { refresh: isRefresh });
+          if (isStale()) return;
+          try {
+            const regs = await fetchItemRegistrations();
+            if (isStale()) return;
+            setInventoryAlerts(
+              (regs as ItemRegistration[]).filter((r) =>
+                rowHotelMatchesTenantScope(r.HotelName, tenantScope),
+              ),
+            );
+          } catch {
+            /* alerts are optional */
+          }
+        } catch {
+          if (!isStale()) {
+            toast.error("An unexpected error occurred while loading data.");
+          }
+        } finally {
+          if (!isStale()) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      });
     },
-    [ensureAdminData, tenantScope],
+    [ensureAdminData, tenantScope, loadCoordinator],
   );
+
+  const refreshOrdersLive = useCallback(async () => {
+    if (!tenantScope) return;
+    await loadCoordinator.run(async (isStale) => {
+      try {
+        const ordersData = await fetchLiveCafeOrders();
+        if (isStale()) return;
+        applyDataset("orders", ordersData);
+      } catch {
+        /* silent background refresh */
+      }
+    });
+  }, [tenantScope, applyDataset, loadCoordinator]);
+
+  useEffect(() => {
+    if (!tenantScope) return;
+    const refresh = () => void refreshOrdersLive();
+    const interval = setInterval(refresh, CAFE_LIVE_ORDERS_POLL_MS);
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const unsubSync = subscribeCafeOrdersChanged(refresh);
+    window.addEventListener("focus", refreshOnVisible);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => {
+      clearInterval(interval);
+      unsubSync();
+      window.removeEventListener("focus", refreshOnVisible);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
+  }, [tenantScope, refreshOrdersLive]);
 
   useEffect(() => {
     if (!tenantScope || loading) return;
@@ -499,15 +544,11 @@ function AdminDashboardContent() {
                 items={inventoryAlerts}
                 hotelLodging={false}
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`h-8 w-8 shrink-0${refreshing ? " animate-spin" : ""}`}
-                onClick={() => loadData(true)}
-                disabled={refreshing}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+              <RefreshIconButton
+                busy={refreshing}
+                disabled={loading}
+                onClick={() => void loadData(true)}
+              />
               <Avatar className="h-8 w-8 shrink-0 border shadow-sm md:h-9 md:w-9">
                 <AvatarImage src={logoUrl} alt={headerLabel} />
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
@@ -520,6 +561,12 @@ function AdminDashboardContent() {
           <main className="min-h-0 flex-1 overflow-x-hidden p-2 pb-4 sm:p-4 md:p-6 lg:p-8">
             <div className="mx-auto w-full min-w-0 max-w-6xl space-y-3 sm:space-y-4">
               <SubscriptionAlertBanner />
+              {!loading ? (
+                <CafeAdminDailyRevenueCards
+                  orders={orders}
+                  hotelName={tenantScope}
+                />
+              ) : null}
               <div className="flex min-w-0 items-center gap-2 px-0.5">
                 <h2 className="min-w-0 truncate text-base font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}

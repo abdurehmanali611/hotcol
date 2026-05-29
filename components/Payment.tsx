@@ -58,7 +58,8 @@ import { Icon } from "@iconify/react";
 import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
-import { formatCafeTableDisplay } from "@/lib/cafeTableOrder";
+import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
+import { formatCafeTableDisplayFromRegistry } from "@/lib/cafeTableOrder";
 
 interface PaymentProps {
   orders: Order[];
@@ -100,6 +101,9 @@ export default function PaymentComponent({
   const [singleCreditActive, setSingleCreditActive] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [cafeTables, setCafeTables] = useState<
+    Awaited<ReturnType<typeof fetchTables>>
+  >([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterType, setFilterType] = useState<"all" | "ready" | "pending">(
     "all",
@@ -112,7 +116,7 @@ export default function PaymentComponent({
       (item) =>
         item.status?.toLowerCase() !== "cancelled" &&
         (item.credit === false || item.credit === null) &&
-        new Date(item.createdAt).toDateString() === new Date().toDateString(),
+        isSameCafeBusinessDay(item.createdAt),
     );
     payRequire.sort((a, b) => a.id - b.id);
     setUnpaidOrders(payRequire);
@@ -132,9 +136,17 @@ export default function PaymentComponent({
     const load = async () => {
       try {
         setIsLoading(true);
-        const data = await fetchHotelCreditCompanies();
+        const [companies, tables] = await Promise.all([
+          fetchHotelCreditCompanies(),
+          fetchTables(),
+        ]);
         if (cancelled) return;
-        setCreditCompanies(Array.isArray(data) ? data : []);
+        setCreditCompanies(Array.isArray(companies) ? companies : []);
+        setCafeTables(
+          tables.filter((t) =>
+            rowHotelMatchesTenantScope(t.HotelName, hotelName),
+          ),
+        );
       } catch (error: unknown) {
         if (!cancelled) {
           toast.error(
@@ -199,9 +211,17 @@ export default function PaymentComponent({
 
   // Filter grouped orders based on search and filter type
   const filteredGroupedOrders = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return Object.entries(groupedOrders).filter(([tableNo, tableOrders]) => {
+      const tableLabel = formatCafeTableDisplayFromRegistry(
+        Number(tableNo),
+        cafeTables,
+        tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
+      ).toLowerCase();
       const matchesSearch =
-        searchQuery === "" || tableNo.toString().includes(searchQuery);
+        q === "" ||
+        tableNo.toString().includes(q) ||
+        tableLabel.includes(q);
 
       const allCompleted = tableOrders.every(
         (order) => order.status === "Completed",
@@ -215,7 +235,7 @@ export default function PaymentComponent({
 
       return matchesSearch;
     });
-  }, [groupedOrders, searchQuery, filterType]);
+  }, [groupedOrders, searchQuery, filterType, cafeTables]);
 
   // Handle cash or bank payment for single order
   const handlePaymentMethod = async (
@@ -601,7 +621,7 @@ export default function PaymentComponent({
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-blue-600" />
             <span className="text-blue-800 text-sm">
-              Searching for: <strong>Table No: {searchQuery} </strong>
+              Searching for: <strong>{searchQuery}</strong>
             </span>
           </div>
           <Badge variant="outline" className="bg-white">
@@ -653,12 +673,10 @@ export default function PaymentComponent({
             const completedOrders = tableOrders.filter(
               (o) => o.status === "Completed",
             );
-            const serviceCaption = String(
-              tableOrders.find((o) => o.serviceCaption)?.serviceCaption ?? "",
-            ).trim();
-            const tableDisplay = formatCafeTableDisplay(
+            const tableDisplay = formatCafeTableDisplayFromRegistry(
               Number(tableNo),
-              serviceCaption,
+              cafeTables,
+              tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
             );
 
             return (
@@ -1277,11 +1295,13 @@ export default function PaymentComponent({
                                         <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
                                           {order.status || "Completed"}
                                         </Badge>
-                                        {order.serviceCaption ? (
-                                          <Badge variant="outline">
-                                            {order.serviceCaption}
-                                          </Badge>
-                                        ) : null}
+                            <Badge variant="outline">
+                              {formatCafeTableDisplayFromRegistry(
+                                order.tableNo,
+                                cafeTables,
+                                order.serviceCaption,
+                              )}
+                            </Badge>
                                         <span className="text-sm text-muted-foreground">
                                           Qty:{" "}
                                           <span className="font-bold">

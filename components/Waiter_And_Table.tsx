@@ -218,8 +218,9 @@ export default function WaiterAndTable({
                     inputClassName="h-fit w-full p-2"
                   />
                   <p className="text-pretty text-xs text-muted-foreground">
-                    When staff order from this table, this label is stored on the
-                    order (e.g. takeaway or delivery).
+                    Optional label shown to staff when ordering (e.g. Delivery,
+                    Takeaway). Use any table number — the caption does not change
+                    the number stored on orders.
                   </p>
                   <Button
                     type="submit"

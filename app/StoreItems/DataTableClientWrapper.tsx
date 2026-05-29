@@ -16,8 +16,10 @@ interface WrapperProps {
   refresh?: () => void;
   hotelStockApprovals?: boolean;
   readOnly?: boolean;
-  /** Edit / delete / stock-out / wastage / return — Store role only (set by parent). */
-  showStoreRowActions?: boolean;
+  /** Edit or delete master inventory lines (manager on hotel; store on café). */
+  allowEditDelete?: boolean;
+  /** Stock-out, wastage, return — store terminal only (set by parent). */
+  showStoreMovementActions?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
   enableRowSelection?: boolean;
   aggregateInventory?: boolean;
@@ -34,7 +36,8 @@ export const DataTableClientWrapper = forwardRef<
     refresh,
     hotelStockApprovals,
     readOnly,
-    showStoreRowActions,
+    allowEditDelete,
+    showStoreMovementActions,
     onHotelStockRequestCreated,
     enableRowSelection,
     aggregateInventory,
@@ -53,7 +56,8 @@ export const DataTableClientWrapper = forwardRef<
       columns(onEdit, refresh, {
         hotelStockApprovals,
         readOnly,
-        showStoreRowActions,
+        allowEditDelete,
+        showStoreMovementActions,
         onHotelStockRequestCreated,
       }),
     [
@@ -61,7 +65,8 @@ export const DataTableClientWrapper = forwardRef<
       refresh,
       hotelStockApprovals,
       readOnly,
-      showStoreRowActions,
+      allowEditDelete,
+      showStoreMovementActions,
       onHotelStockRequestCreated,
     ],
   );

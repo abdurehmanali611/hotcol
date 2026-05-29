@@ -2,6 +2,8 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
+import type { Table } from "@/lib/actions";
+import { cafeOrderTableColumn } from "@/lib/dataTableColumns/cafeOrderTable";
 
 export type Order = {
   id: number;
@@ -23,7 +25,10 @@ export type Order = {
   createdAt: Date;
 };
 
-export const columns: ColumnDef<Order>[] = [
+export function buildCompletedOrderColumns(
+  tables: Pick<Table, "tableNo" | "orderCaption">[],
+): ColumnDef<Order>[] {
+  return [
   {
     id: "RollNo",
     header: "#",
@@ -54,15 +59,7 @@ export const columns: ColumnDef<Order>[] = [
       <span className="font-medium text-sm">{row.original.title}</span>
     ),
   },
-  {
-    accessorKey: "tableNo",
-    header: "Table",
-    cell: ({ row }) => (
-      <span className="text-sm font-medium text-muted-foreground">
-        T-{row.original.tableNo}
-      </span>
-    ),
-  },
+  cafeOrderTableColumn<Order>(tables),
   {
     accessorKey: "waiterName",
     header: "Waiter",
@@ -130,4 +127,5 @@ export const columns: ColumnDef<Order>[] = [
       }
     },
   },
-];
+  ];
+}

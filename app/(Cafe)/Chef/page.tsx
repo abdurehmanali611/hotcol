@@ -1,15 +1,23 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast, Toaster } from "sonner";
 import {
   Order,
-  fetchOrders,
+  fetchLiveCafeOrders,
+  fetchTables,
   updateOrderStatus,
   filterChefOrders,
+  CAFE_LIVE_ORDERS_POLL_MS,
+  type Table,
 } from "@/lib/actions";
+import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
+import { normalizeOrderTableNo } from "@/lib/cafeTableOrder";
+import {
+  effectiveTenantScopeForHotelTerminal,
+  rowHotelMatchesTenantScope,
+} from "@/lib/tenantRowMatch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,8 +31,11 @@ import {
   User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { CafeTableLabel } from "@/components/cafe/CafeTableLabel";
 
 function ChefContent() {
   useTenantRouteGuard({ role: "Kitchen" });
@@ -36,27 +47,68 @@ function ChefContent() {
   const logoUrl = searchParams.get("logo") || "";
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [cafeTables, setCafeTables] = useState<
+    Pick<Table, "tableNo" | "orderCaption">[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const loadCoordinator = useLoadCoordinator();
+  const propertyScope = effectiveTenantScopeForHotelTerminal(tenantScope);
 
-  const loadOrders = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const allOrders = await fetchOrders();
-      const filteredOrders = filterChefOrders(allOrders, tenantScope);
-      setOrders(filteredOrders);
-    } catch {
-      toast.error("Failed to fetch orders");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadOrders = useCallback(
+    async (mode: "initial" | "refresh" | "silent" = "initial") => {
+      await loadCoordinator.run(async (isStale) => {
+        if (mode === "initial") setLoading(true);
+        else if (mode === "refresh") setRefreshing(true);
+        try {
+          const [allOrders, allTables] = await Promise.all([
+            fetchLiveCafeOrders(),
+            fetchTables(),
+          ]);
+          if (isStale()) return;
+          const scope = effectiveTenantScopeForHotelTerminal(tenantScope);
+          setCafeTables(
+            allTables.filter((t) =>
+              rowHotelMatchesTenantScope(t.HotelName, scope),
+            ),
+          );
+          setOrders(filterChefOrders(allOrders, scope));
+        } catch {
+          if (!isStale() && mode !== "silent") {
+            toast.error("Failed to fetch orders");
+          }
+        } finally {
+          if (!isStale()) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      });
+    },
+    [tenantScope, loadCoordinator],
+  );
 
   useEffect(() => {
-    loadOrders();
-    const interval = setInterval(() => loadOrders(true), 45000);
-    return () => clearInterval(interval);
-  }, [tenantScope]);
+    void loadOrders("initial");
+    const interval = setInterval(
+      () => void loadOrders("silent"),
+      CAFE_LIVE_ORDERS_POLL_MS,
+    );
+    const refresh = () => void loadOrders("silent");
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const unsubSync = subscribeCafeOrdersChanged(refresh);
+    window.addEventListener("focus", refreshOnVisible);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => {
+      clearInterval(interval);
+      unsubSync();
+      window.removeEventListener("focus", refreshOnVisible);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
+  }, [propertyScope, loadOrders]);
 
   const handleStatusUpdate = async (
     id: number,
@@ -66,7 +118,7 @@ function ChefContent() {
     try {
       await updateOrderStatus(id, status);
       toast.success(`Order #${id} marked as ${status.toLowerCase()}`);
-      await loadOrders(true);
+      await loadOrders("silent");
     } catch {
       toast.error("Failed to update order");
     } finally {
@@ -75,10 +127,15 @@ function ChefContent() {
   };
 
   const pendingOrders = orders.filter(
-    (order) =>
-      order.status === null ||
-      (order.status === "Pending" &&
-        new Date(order.createdAt).toDateString() === new Date().toDateString()),
+    (order) => {
+      const status = String(order.status ?? "").toLowerCase();
+      if (status === "cancelled") return false;
+      return (
+        order.status === null ||
+        (order.status === "Pending" &&
+          isSameCafeBusinessDay(order.createdAt))
+      );
+    },
   );
 
   pendingOrders.sort((a, b) => a.id - b.id);
@@ -145,12 +202,16 @@ function ChefContent() {
           </div>
 
           <Button
-            onClick={() => loadOrders()}
+            onClick={() => void loadOrders("refresh")}
             variant="outline"
             size="sm"
+            disabled={loading || refreshing || updatingId != null}
             className="gap-2 shadow-sm"
           >
-            <RefreshCw size={14} className={updatingId ? "animate-spin" : ""} />
+            <RefreshCw
+              size={14}
+              className={refreshing ? "animate-spin" : ""}
+            />
             Refresh
           </Button>
         </div>
@@ -178,12 +239,11 @@ function ChefContent() {
                 className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow flex flex-col gap-8"
               >
                 <div className="flex items-center gap-5">
-                  <Badge
-                    variant="outline"
-                    className="text-base px-3 py-1 font-mono"
-                  >
-                    Table {order.tableNo}
-                  </Badge>
+                  <CafeTableLabel
+                    tableNo={normalizeOrderTableNo(order)}
+                    tables={cafeTables}
+                    serviceCaption={order.serviceCaption}
+                  />
                   <h3 className="text-lg flex items-center gap-2">
                     <User className="w-5 h-5"/>
                     {order.waiterName}

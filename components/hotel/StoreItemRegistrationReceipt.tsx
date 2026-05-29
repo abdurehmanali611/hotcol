@@ -8,6 +8,7 @@ import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
+  summarizeReceiptFinancials,
 } from "@/lib/hotelInventoryPayment";
 import { formatVoucherRange } from "@/lib/voucherFormat";
 import type { ReceiptBundle } from "@/lib/receiptGrouping";
@@ -77,6 +78,7 @@ function legacyBundleFromItem(item: ItemRegistration): ReceiptBundle {
         category: item.category,
         imageUrl: item.imageUrl,
         paymentLabel,
+        purchaseWithVat: item.purchaseWithVat,
       },
     ],
     storeActorName: item.statusBy ?? null,
@@ -110,6 +112,15 @@ export function StoreItemRegistrationReceipt({
   const property = (propertyName || "Property").trim() || "Property";
   const tin = (propertyTin || "").trim();
   const totalPaidLabel = resolvedBundle.paymentLabel || "-";
+  const isGoodsReceiving = resolvedBundle.kind === "registration";
+  const financials = isGoodsReceiving
+    ? summarizeReceiptFinancials(lines)
+    : null;
+  const formatEtb = (n: number) =>
+    n.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   return (
     <div className="bg-white text-zinc-900 max-w-[210mm] mx-auto font-sans print:text-black">
@@ -297,12 +308,36 @@ export function StoreItemRegistrationReceipt({
               </p>
             )}
             <Separator className="bg-zinc-200" />
-            <div className="flex justify-between font-bold text-base">
-              <span>Receipt total</span>
-              <span className="tabular-nums text-emerald-800">
-                ETB {resolvedBundle.totalETB.toLocaleString()}
-              </span>
-            </div>
+            {isGoodsReceiving && financials ? (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-600">Subtotal</span>
+                  <span className="font-medium tabular-nums">
+                    ETB {formatEtb(financials.subtotalETB)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-600">VAT (15%)</span>
+                  <span className="font-medium tabular-nums">
+                    ETB {formatEtb(financials.vatETB)}
+                  </span>
+                </div>
+                <Separator className="bg-zinc-200" />
+                <div className="flex justify-between font-bold text-base">
+                  <span>Grand total</span>
+                  <span className="tabular-nums text-emerald-800">
+                    ETB {formatEtb(financials.grandTotalETB)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between font-bold text-base">
+                <span>Receipt total</span>
+                <span className="tabular-nums text-emerald-800">
+                  ETB {resolvedBundle.totalETB.toLocaleString()}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-zinc-600">
               <span>Payment status</span>
               <span>{totalPaidLabel}</span>

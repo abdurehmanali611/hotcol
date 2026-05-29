@@ -28,11 +28,39 @@ export function computeInventoryPaidAmountETB(
   unitPrice: number,
   purchaseWithVat?: unknown,
 ): number {
-  const qty = Number(amount) || 0;
-  const price = Number(unitPrice) || 0;
-  const subtotal = qty * price;
+  const subtotal = computeLineSubtotalETB(amount, unitPrice);
   if (!isVatEnabled(purchaseWithVat)) return subtotal;
   return subtotal + computeInventoryVatETB(subtotal, purchaseWithVat);
+}
+
+export function computeLineSubtotalETB(
+  amount: number,
+  unitPrice: number,
+): number {
+  const qty = Number(amount) || 0;
+  const price = Number(unitPrice) || 0;
+  return qty * price;
+}
+
+export function summarizeReceiptFinancials(
+  lines: {
+    quantity: number;
+    unitPrice?: number | null;
+    purchaseWithVat?: unknown;
+  }[],
+): { subtotalETB: number; vatETB: number; grandTotalETB: number } {
+  let subtotalETB = 0;
+  let vatETB = 0;
+  for (const line of lines) {
+    const sub = computeLineSubtotalETB(line.quantity, line.unitPrice ?? 0);
+    subtotalETB += sub;
+    vatETB += computeInventoryVatETB(sub, line.purchaseWithVat);
+  }
+  return {
+    subtotalETB,
+    vatETB,
+    grandTotalETB: subtotalETB + vatETB,
+  };
 }
 
 /** Canonical inventory total: subtotal + VAT(15% when enabled). */

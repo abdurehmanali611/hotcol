@@ -51,6 +51,8 @@ import {
   SubscriptionNotificationCenter,
 } from "@/components/subscription/SubscriptionNotificationCenter";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import {
   LayoutDashboard,
   LogOut,
@@ -217,6 +219,7 @@ function ManagerContent() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const loadCoordinator = useLoadCoordinator();
   const [credentials, setCredentials] = useState<any[]>([]);
   const [items, setItems] = useState<ItemRegistration[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
@@ -263,58 +266,63 @@ function ManagerContent() {
   const loadData = useCallback(
     async (isRefresh = false) => {
       if (!tenantScope) return;
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-      try {
-        const [
-          creds,
-          regs,
-          stat,
-          pr,
-          so,
-          kb,
-          ccp,
-          rawMenu,
-        ] = await Promise.all([
-          fetchCredentials(),
-          fetchItemRegistrations(),
-          fetchItemStatus(),
-          fetchPurchaseRequests(),
-          fetchStockOutRequests(),
-          fetchKitchenBarBeginnings(),
-          fetchCostControllerProfiles(),
-          fetchItems(),
-        ]);
-        setCredentials(creds);
-        setItems(
-          (regs as ItemRegistration[]).filter((r) =>
-            rowHotelMatchesTenantScope(r.HotelName, tenantScope),
-          ),
-        );
-        setStatuses(
-          (stat as any[]).filter((r) =>
-            rowHotelMatchesTenantScope(r.HotelName, tenantScope),
-          ),
-        );
-        setPurchases(pr);
-        setStockReqs(so);
-        setBeginnings(kb);
-        setCcProfiles(ccp);
-        setMenuItems(
-          Array.isArray(rawMenu)
-            ? (rawMenu as Item[]).filter((i) =>
-                rowHotelMatchesTenantScope(i.HotelName, tenantScope),
-              )
-            : [],
-        );
-      } catch (e: unknown) {
-        notifyApiFailure(e, "Could not load dashboard data");
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
+      await loadCoordinator.run(async (isStale) => {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+        try {
+          const [
+            creds,
+            regs,
+            stat,
+            pr,
+            so,
+            kb,
+            ccp,
+            rawMenu,
+          ] = await Promise.all([
+            fetchCredentials(),
+            fetchItemRegistrations(),
+            fetchItemStatus(),
+            fetchPurchaseRequests(),
+            fetchStockOutRequests(),
+            fetchKitchenBarBeginnings(),
+            fetchCostControllerProfiles(),
+            fetchItems(),
+          ]);
+          if (isStale()) return;
+          setCredentials(creds);
+          setItems(
+            (regs as ItemRegistration[]).filter((r) =>
+              rowHotelMatchesTenantScope(r.HotelName, tenantScope),
+            ),
+          );
+          setStatuses(
+            (stat as any[]).filter((r) =>
+              rowHotelMatchesTenantScope(r.HotelName, tenantScope),
+            ),
+          );
+          setPurchases(pr);
+          setStockReqs(so);
+          setBeginnings(kb);
+          setCcProfiles(ccp);
+          setMenuItems(
+            Array.isArray(rawMenu)
+              ? (rawMenu as Item[]).filter((i) =>
+                  rowHotelMatchesTenantScope(i.HotelName, tenantScope),
+                )
+              : [],
+          );
+        } catch (e: unknown) {
+          if (!isStale()) notifyApiFailure(e, "Could not load dashboard data");
+        } finally {
+          if (!isStale()) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      });
     },
-    [tenantScope],
+    [tenantScope, loadCoordinator],
   );
 
   useEffect(() => {
@@ -845,7 +853,6 @@ function ManagerContent() {
               hotelStockApprovals
               tenantScope={tenantScope}
               embedded
-              readOnly
               showPaymentSummary
               aggregateInventory
             />
@@ -1220,15 +1227,11 @@ function ManagerContent() {
               stockMovements={stockReqs as StockOutRequestRow[]}
               hotelLodging
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => loadData(true)}
-              disabled={refreshing}
-              className={refreshing ? "animate-spin" : ""}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            <RefreshIconButton
+              busy={refreshing}
+              disabled={loading}
+              onClick={() => void loadData(true)}
+            />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={headerLabel} />
               <AvatarFallback>{headerLabel.slice(0, 2).toUpperCase()}</AvatarFallback>

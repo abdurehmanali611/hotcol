@@ -14,6 +14,7 @@ import {
   readListCache,
   writeListCache,
 } from "./graphqlListCache";
+import { bumpCafeOrdersFeed } from "./cafeOrdersSync";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { persistTenantSubscription, readTenantSubscriptionFromStorage } from "./tenantModules";
 import {
@@ -1627,6 +1628,7 @@ export async function createTable(tableData: CreateTableData) {
     }
 
     toast.success("Table created successfully");
+    invalidateGraphqlListCache("cafe:tables");
     return response.data.data.CreateTable;
   } catch (error: any) {
     toast.error("Failed to create table");
@@ -1671,6 +1673,7 @@ export async function updateTable(tableData: UpdateTableData) {
     }
 
     toast.success("Table updated successfully");
+    invalidateGraphqlListCache("cafe:tables");
     return response.data.data.UpdateTable;
   } catch (error: any) {
     toast.error("Failed to update table");
@@ -1700,6 +1703,7 @@ export async function deleteTable(id: number) {
     }
 
     toast.success("Table deleted successfully");
+    invalidateGraphqlListCache("cafe:tables");
     return response.data.data.DeleteTable;
   } catch (error: any) {
     toast.error("Failed to delete table");
@@ -1707,7 +1711,19 @@ export async function deleteTable(id: number) {
   }
 }
 
-export async function fetchOrders(): Promise<Order[]> {
+/** Kitchen/bar/cashier — drop cached orders and ping other open terminals. */
+function refreshCafeOrdersFeed() {
+  invalidateGraphqlListCache("cafe:orders");
+  bumpCafeOrdersFeed();
+}
+
+/** Kitchen / bar terminals — poll often and skip list cache for live queue updates. */
+export const CAFE_LIVE_ORDERS_POLL_MS = 8_000;
+
+export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[]> {
+  if (options?.fresh) {
+    invalidateGraphqlListCache("cafe:orders");
+  }
   return dedupeHotelListRead("cafe:orders", async () => {
     const query = `
       query {
@@ -1746,7 +1762,14 @@ export async function fetchOrders(): Promise<Order[]> {
   });
 }
 
-export async function updateLiveOrder(data: UpdateLiveOrderData) {
+export async function fetchLiveCafeOrders(): Promise<Order[]> {
+  return fetchOrders({ fresh: true });
+}
+
+export async function updateLiveOrder(
+  data: UpdateLiveOrderData,
+  options?: { silent?: boolean; successMessage?: string },
+) {
   try {
     const mutation = `
       mutation UpdateLiveOrder(
@@ -1787,90 +1810,102 @@ export async function updateLiveOrder(data: UpdateLiveOrderData) {
       );
     }
 
-    toast.success("Order updated");
-    invalidateGraphqlListCache("cafe:orders");
+    if (!options?.silent) {
+      toast.success(options?.successMessage ?? "Order updated successfully");
+    }
+    refreshCafeOrdersFeed();
     return response.data.data.UpdateLiveOrder;
   } catch (error: any) {
-    toast.error(error?.message || "Failed to update order");
+    const message =
+      error?.response?.data?.errors?.[0]?.message ||
+      error?.message ||
+      "Failed to update order";
+    if (!options?.silent) {
+      toast.error(message);
+    }
     throw error;
   }
 }
 
+async function postOrderCreation(orderData: OrderCreationData) {
+  const mutation = `
+    mutation OrderCreation(
+      $title: String!
+      $imageUrl: String!
+      $tableNo: Int!
+      $waiterName: String!
+      $orderAmount: Int!
+      $HotelName: String!
+      $category: String!
+      $type: String!
+      $price: Float!
+      $status: String
+      $payment: String
+    ) {
+      OrderCreation(
+        title: $title
+        imageUrl: $imageUrl
+        tableNo: $tableNo
+        waiterName: $waiterName
+        orderAmount: $orderAmount
+        HotelName: $HotelName
+        category: $category
+        type: $type
+        price: $price
+        status: $status
+        payment: $payment
+      ) {
+        id
+        title
+        imageUrl
+        tableNo
+        orderAmount
+        category
+        type
+        HotelName
+        price
+        waiterName
+        status
+        payment
+        createdAt
+      }
+    }
+  `;
+
+  const transformedData = {
+    title: orderData.title || "",
+    imageUrl: orderData.imageUrl || "",
+    tableNo: Math.floor(Number(orderData.tableNo)),
+    waiterName: orderData.waiterName || "",
+    orderAmount: Math.floor(Number(orderData.orderAmount)),
+    HotelName: orderData.HotelName || "",
+    category: orderData.category || "",
+    type: orderData.type || "",
+    price: Number(orderData.price),
+    status: orderData.status || "Pending",
+    payment: orderData.payment || "Unpaid",
+  };
+
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: transformedData,
+  });
+
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to create order",
+    );
+  }
+
+  return response.data.data.OrderCreation;
+}
+
 export async function createOrder(orderData: OrderCreationData) {
   try {
-    const mutation = `
-      mutation OrderCreation(
-        $title: String!
-        $imageUrl: String!
-        $tableNo: Int!
-        $waiterName: String!
-        $orderAmount: Int!
-        $HotelName: String!
-        $category: String!
-        $type: String!
-        $price: Float!
-        $status: String
-        $payment: String
-      ) {
-        OrderCreation(
-          title: $title
-          imageUrl: $imageUrl
-          tableNo: $tableNo
-          waiterName: $waiterName
-          orderAmount: $orderAmount
-          HotelName: $HotelName
-          category: $category
-          type: $type
-          price: $price
-          status: $status
-          payment: $payment
-        ) {
-          id
-          title
-          imageUrl
-          tableNo
-          orderAmount
-          category
-          type
-          HotelName
-          price
-          waiterName
-          status
-          payment
-          createdAt
-        }
-      }
-    `;
-
-    const transformedData = {
-      title: orderData.title || "",
-      imageUrl: orderData.imageUrl || "",
-      tableNo: Number(orderData.tableNo),
-      waiterName: orderData.waiterName || "",
-      orderAmount: Number(orderData.orderAmount),
-      HotelName: orderData.HotelName || "",
-      category: orderData.category || "",
-      type: orderData.type || "",
-      price: Number(orderData.price),
-      status: orderData.status || "Pending",
-      payment: orderData.payment || "Unpaid",
-    };
-
-    const response = await api.post(API_URL, {
-      query: mutation,
-      variables: transformedData,
-    });
-
-    if (response.data.errors) {
-      const errorMessage =
-        response.data.errors[0]?.message || "Failed to create order";
-      toast.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
+    const result = await postOrderCreation(orderData);
     toast.success("Order sent successfully");
-    invalidateGraphqlListCache("cafe:orders");
-    return response.data.data.OrderCreation;
+    refreshCafeOrdersFeed();
+    return result;
   } catch (error: any) {
     if (error.code === "ECONNABORTED") {
       toast.error("Connection timeout. Please try again.");
@@ -1888,51 +1923,28 @@ export async function createOrder(orderData: OrderCreationData) {
 
 export async function createBatchOrders(orderDataArray: any[]) {
   try {
-    const mutation = `
-      mutation BatchOrderCreation($orders: [OrderInput!]!) {
-        BatchOrderCreation(orders: $orders) {
-          id
-          title
-          tableNo
-          orderAmount
-          price
-          waiterName
-          status
-          payment
-          HotelName
-          category
-          type
-          imageUrl
-        }
-      }
-    `;
-
-    const orders = orderDataArray.map((o) => ({
-      title: String(o.title),
-      imageUrl: String(o.imageUrl || ""),
-      tableNo: Math.floor(Number(o.tableNo)),
-      orderAmount: Math.floor(Number(o.orderAmount)), // Backend requires Int
-      HotelName: String(o.HotelName),
-      category: String(o.category),
-      type: String(o.type),
-      price: parseFloat(Number(o.price).toFixed(2)), // Backend requires Float
-      waiterName: String(o.waiterName),
-      status: "Pending",
-      payment: "Unpaid",
-    }));
-
-    const response = await api.post(API_URL, {
-      query: mutation,
-      variables: { orders },
-    });
-
-    if (response.data.errors) {
-      throw new Error(response.data.errors[0].message);
+    const results = [];
+    for (const o of orderDataArray) {
+      results.push(
+        await postOrderCreation({
+          title: String(o.title),
+          imageUrl: String(o.imageUrl || ""),
+          tableNo: Math.floor(Number(o.tableNo)),
+          orderAmount: Math.floor(Number(o.orderAmount)),
+          HotelName: String(o.HotelName),
+          category: String(o.category),
+          type: String(o.type),
+          price: parseFloat(Number(o.price).toFixed(2)),
+          waiterName: String(o.waiterName),
+          status: "Pending",
+          payment: "Unpaid",
+        }),
+      );
     }
 
-    toast.success(`${orders.length} orders sent to kitchen!`);
-    invalidateGraphqlListCache("cafe:orders");
-    return response.data.data.BatchOrderCreation;
+    toast.success(`${results.length} orders sent to kitchen!`);
+    refreshCafeOrdersFeed();
+    return results;
   } catch (error: any) {
     const message = error.response?.data?.errors?.[0]?.message || error.message;
     toast.error(message);
@@ -1963,7 +1975,7 @@ export async function updateOrderStatus(id: number, status: string) {
     }
 
     toast.success("Status updated successfully");
-    invalidateGraphqlListCache("cafe:orders");
+    refreshCafeOrdersFeed();
     return response.data.data.UpdateStatus;
   } catch (error: any) {
     const message =
@@ -1999,7 +2011,7 @@ export async function cancelLiveOrder(id: number) {
     }
 
     toast.success("Item removed from table order");
-    invalidateGraphqlListCache("cafe:orders");
+    refreshCafeOrdersFeed();
     return response.data.data.UpdateStatus;
   } catch (error: any) {
     const message =
@@ -2015,6 +2027,7 @@ export async function updateOrderPayment(
   id: number,
   payment: string,
   withBank: boolean,
+  options?: { silent?: boolean },
 ) {
   try {
     const mutation = `
@@ -2027,6 +2040,7 @@ export async function updateOrderPayment(
           title
           orderAmount
           price
+          withBank
         }
       }
     `;
@@ -2042,11 +2056,16 @@ export async function updateOrderPayment(
       );
     }
 
-    toast.success("Payment updated successfully");
+    refreshCafeOrdersFeed();
+    if (!options?.silent) {
+      toast.success("Payment updated successfully");
+    }
     return response.data.data.UpdatePayment;
   } catch (error: any) {
     console.error("Payment update error:", error);
-    toast.error("Failed to update payment");
+    if (!options?.silent) {
+      toast.error("Failed to update payment");
+    }
     throw error;
   }
 }

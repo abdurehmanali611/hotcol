@@ -29,6 +29,41 @@ export const FEEDBACK_IMAGE_UPLOAD_OPTIONS: CloudinaryUploadWidgetOptions = {
   folder: "hotcol-feedback",
 };
 
+const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
+
+/** Direct upload (e.g. feedback sheet) — avoids the Cloudinary modal inside Radix dialogs. */
+export async function uploadImageFileToCloudinary(
+  file: File,
+  opts?: { folder?: string },
+): Promise<string> {
+  if (!isCloudinaryUploadConfigured()) {
+    throw new Error("Image upload is not configured.");
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  if (opts?.folder) {
+    formData.append("folder", opts.folder);
+  }
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: "POST", body: formData },
+  );
+
+  const data = (await response.json()) as {
+    secure_url?: string;
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !data.secure_url) {
+    throw new Error(data.error?.message || "Image upload failed.");
+  }
+
+  return data.secure_url;
+}
+
 export function cloudinarySecureUrlFromResult(result: unknown): string | null {
   if (
     typeof result === "object" &&
