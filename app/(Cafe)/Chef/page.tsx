@@ -9,6 +9,7 @@ import {
   fetchTables,
   updateOrderStatus,
   filterChefOrders,
+  logoutAction,
   CAFE_LIVE_ORDERS_POLL_MS,
   type Table,
 } from "@/lib/actions";
@@ -29,6 +30,7 @@ import {
   Utensils,
   Hash,
   User,
+  LogOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
@@ -116,11 +118,17 @@ function ChefContent() {
   ) => {
     setUpdatingId(id);
     try {
-      await updateOrderStatus(id, status);
-      toast.success(`Order #${id} marked as ${status.toLowerCase()}`);
+      await updateOrderStatus(id, status, { silent: true });
+      toast.success(
+        status === "Cancelled"
+          ? `Order #${id} cancelled`
+          : `Order #${id} ready for pickup`,
+      );
       await loadOrders("silent");
-    } catch {
-      toast.error("Failed to update order");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to update order",
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -201,19 +209,31 @@ function ChefContent() {
             </div>
           </div>
 
-          <Button
-            onClick={() => void loadOrders("refresh")}
-            variant="outline"
-            size="sm"
-            disabled={loading || refreshing || updatingId != null}
-            className="gap-2 shadow-sm"
-          >
-            <RefreshCw
-              size={14}
-              className={refreshing ? "animate-spin" : ""}
-            />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => void loadOrders("refresh")}
+              variant="outline"
+              size="sm"
+              disabled={loading || refreshing || updatingId != null}
+              className="gap-2 shadow-sm"
+            >
+              <RefreshCw
+                size={14}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              Refresh
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => logoutAction()}
+              className="gap-2 shadow-sm"
+            >
+              <LogOut size={14} />
+              Sign out
+            </Button>
+          </div>
         </div>
       </header>
 

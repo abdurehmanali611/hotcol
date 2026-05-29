@@ -208,7 +208,7 @@ function normalizeItemNameForValueKey(name: string): string {
 }
 
 function ManagerContent() {
-  useTenantRouteGuard();
+  useTenantRouteGuard({ role: "Manager" });
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),

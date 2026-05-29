@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
 import {
+  clearAuthStorage,
   graphqlErrorsIndicateSessionExpiry,
   isSessionExpiredError,
   scheduleSessionExpiredRedirect,
@@ -15,6 +16,7 @@ import {
   writeListCache,
 } from "./graphqlListCache";
 import { bumpCafeOrdersFeed } from "./cafeOrdersSync";
+import { isBarStationOrder, isKitchenStationOrder } from "./cafeOrderStation";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { persistTenantSubscription, readTenantSubscriptionFromStorage } from "./tenantModules";
 import {
@@ -886,8 +888,7 @@ export async function LoginAction(
       error.message?.includes("Connection Timeout") ||
       error.message?.includes("Network Error")
     ) {
-      errorMessage =
-        "Could not reach the API server. Check that the backend is running and NEXT_PUBLIC_GRAPHQL_URL is correct.";
+      errorMessage = `Could not reach the API at ${API_URL}. Stop and restart "npm run dev" after env changes. If using a local API, run "cd BackEnd && npm run dev" on port 4000.`;
     } else if (error.message?.includes("User.Password")) {
       errorMessage = "The password you entered is incorrect. Please try again.";
     } else if (error.message?.includes("Invalid credentials")) {
@@ -908,7 +909,7 @@ export async function LoginAction(
 
 export function logoutAction() {
   if (typeof window !== "undefined") {
-    localStorage.clear();
+    clearAuthStorage();
     window.location.href = "/";
   }
 }
@@ -1952,7 +1953,11 @@ export async function createBatchOrders(orderDataArray: any[]) {
   }
 }
 
-export async function updateOrderStatus(id: number, status: string) {
+export async function updateOrderStatus(
+  id: number,
+  status: string,
+  options?: { silent?: boolean },
+) {
   try {
     const mutation = `
       mutation UpdateStatus($id: Int!, $status: String) {
@@ -1974,7 +1979,9 @@ export async function updateOrderStatus(id: number, status: string) {
       );
     }
 
-    toast.success("Status updated successfully");
+    if (!options?.silent) {
+      toast.success("Status updated successfully");
+    }
     refreshCafeOrdersFeed();
     return response.data.data.UpdateStatus;
   } catch (error: any) {
@@ -1982,8 +1989,10 @@ export async function updateOrderStatus(id: number, status: string) {
       error?.response?.data?.errors?.[0]?.message ||
       error?.message ||
       "Failed to update status";
-    toast.error(message);
-    throw error;
+    if (!options?.silent) {
+      toast.error(message);
+    }
+    throw new Error(message);
   }
 }
 
@@ -2581,8 +2590,7 @@ export function filterBaristaOrders(
   return orders.filter((order) => {
     const isSameHotel = rowHotelMatchesTenantScope(order.HotelName, hotelName);
     const isPending = order.status === null || order.status === "Pending";
-    const isBeverage = order.category?.toLowerCase() === "beverage";
-    return isSameHotel && isPending && isBeverage;
+    return isSameHotel && isPending && isBarStationOrder(order);
   });
 }
 
@@ -2590,10 +2598,7 @@ export function filterChefOrders(orders: Order[], hotelName: string): Order[] {
   return orders.filter((order) => {
     const isSameHotel = rowHotelMatchesTenantScope(order.HotelName, hotelName);
     const isPending = order.status === null || order.status === "Pending";
-    const isFood =
-      order.category?.toLowerCase() === "food" ||
-      order.category?.toLowerCase() === "others";
-    return isSameHotel && isPending && isFood;
+    return isSameHotel && isPending && isKitchenStationOrder(order);
   });
 }
 

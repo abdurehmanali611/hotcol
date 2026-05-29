@@ -10,6 +10,7 @@ import {
   fetchTables,
   updateOrderStatus,
   filterBaristaOrders,
+  logoutAction,
   CAFE_LIVE_ORDERS_POLL_MS,
   type Table,
 } from "@/lib/actions";
@@ -31,6 +32,7 @@ import {
   CheckCircle,
   Hash,
   User,
+  LogOut,
 } from "lucide-react";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
@@ -117,11 +119,17 @@ function BaristaContent() {
   ) => {
     setUpdatingId(id);
     try {
-      await updateOrderStatus(id, status);
-      toast.success(`Order #${id} marked as ${status.toLowerCase()}`);
+      await updateOrderStatus(id, status, { silent: true });
+      toast.success(
+        status === "Cancelled"
+          ? `Order #${id} cancelled`
+          : `Order #${id} ready for pickup`,
+      );
       await loadOrders("silent");
-    } catch {
-      toast.error("Failed to update order status");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to update order",
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -214,6 +222,16 @@ function BaristaContent() {
                 className={refreshing ? "animate-spin" : ""}
               />
               Refresh
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => logoutAction()}
+              className="gap-2"
+            >
+              <LogOut size={14} />
+              Sign out
             </Button>
           </div>
         </div>

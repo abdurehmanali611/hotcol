@@ -9,6 +9,8 @@ import {
   canAccessTerminalRole,
   canUseTenantSystem,
   getSubscriptionPeriodStatus,
+  hasAuthToken,
+  loggedInRoleMatchesTerminal,
   moduleBlockMessage,
   subscriptionBlockMessage,
 } from "@/lib/tenantAccess";
@@ -23,6 +25,11 @@ export function useTenantRouteGuard(options?: {
   const router = useRouter();
 
   useEffect(() => {
+    if (!hasAuthToken()) {
+      router.replace("/");
+      return;
+    }
+
     if (isPaymentPortalMode()) {
       router.replace("/PaymentVerification");
       return;
@@ -39,9 +46,16 @@ export function useTenantRouteGuard(options?: {
       router.replace("/");
       return;
     }
-    if (options?.role && !canAccessTerminalRole(options.role)) {
-      toast.error("This terminal is not included in your property subscription.");
-      router.replace("/");
+    if (options?.role) {
+      if (!canAccessTerminalRole(options.role)) {
+        toast.error("This terminal is not included in your property subscription.");
+        router.replace("/");
+        return;
+      }
+      if (!loggedInRoleMatchesTerminal(options.role)) {
+        toast.error("You do not have access to this terminal.");
+        router.replace("/");
+      }
     }
   }, [options?.requiredModule, options?.role, router]);
 }

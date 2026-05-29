@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, LogOut } from "lucide-react";
@@ -22,6 +22,8 @@ import type { TenantPaymentFormValues } from "@/lib/validations";
 function PaymentVerificationContent() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [allowed, setAllowed] = useState(false);
+  const [propertyLabel, setPropertyLabel] = useState("Your property");
   const paymentKind = readTenantPaymentKind() ?? "quarterly";
   const sub = readTenantSubscriptionFromStorage();
   const status = computeSubscriptionPeriodStatus(sub);
@@ -41,6 +43,22 @@ function PaymentVerificationContent() {
     }
     return null;
   }, [status, sub.setupFeeApproved]);
+
+  useEffect(() => {
+    if (readTenantAccessMode() !== "payment_portal") {
+      router.replace("/");
+      return;
+    }
+    const role = localStorage.getItem("user_role");
+    if (role !== "Admin" && role !== "Manager") {
+      router.replace("/");
+      return;
+    }
+    setPropertyLabel(
+      localStorage.getItem("hotel_display_name")?.trim() || "Your property",
+    );
+    setAllowed(true);
+  }, [router]);
 
   const handleSubmit = async (values: TenantPaymentFormValues) => {
     setSubmitting(true);
@@ -62,18 +80,12 @@ function PaymentVerificationContent() {
     }
   };
 
-  if (readTenantAccessMode() !== "payment_portal") {
-    router.replace("/");
-    return null;
-  }
-
-  const role =
-    typeof window !== "undefined"
-      ? localStorage.getItem("user_role")
-      : null;
-  if (role !== "Admin" && role !== "Manager") {
-    router.replace("/");
-    return null;
+  if (!allowed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
@@ -92,9 +104,7 @@ function PaymentVerificationContent() {
             Payment verification
           </CardTitle>
           <CardDescription className="text-pretty">
-            {localStorage.getItem("hotel_display_name") ||
-              "Your property"}{" "}
-            — complete payment verification to unlock the system.
+            {propertyLabel} — complete payment verification to unlock the system.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -48,6 +48,24 @@ export function canAccessTerminalRole(role: string): boolean {
   return tenantHasModule(readTenantModulesFromStorage(), required);
 }
 
+export function readLoggedInRole(): string | null {
+  if (typeof window === "undefined") return null;
+  const role = localStorage.getItem("user_role")?.trim();
+  return role || null;
+}
+
+export function hasAuthToken(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(localStorage.getItem("auth_token")?.trim());
+}
+
+/** True when the signed-in staff role matches the terminal (e.g. Cashier on /Cashier). */
+export function loggedInRoleMatchesTerminal(terminalRole: string): boolean {
+  const logged = readLoggedInRole();
+  if (!logged) return false;
+  return logged === terminalRole;
+}
+
 export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): string {
   if (status === "on_hold") {
     return "Billing has not started for this property yet (Apex hold). Quarters begin when hold is released.";

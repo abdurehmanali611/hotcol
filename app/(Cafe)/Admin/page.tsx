@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, useEffect, useCallback, Suspense, useRef } from "react"; // Added Suspense
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Toaster, toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import GrantCredential from "@/components/GrantCredential";
@@ -31,6 +31,7 @@ import {
   exportToExcel,
   fetchCashout,
   fetchItemRegistrations,
+  logoutAction,
   type ItemRegistration,
 } from "@/lib/actions";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
@@ -92,9 +93,8 @@ const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
 };
 
 function AdminDashboardContent() {
-  useTenantRouteGuard();
+  useTenantRouteGuard({ role: "Admin" });
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchParams.get("hotel"),
   );
@@ -313,7 +313,7 @@ function AdminDashboardContent() {
   }, [activeTab, sidebarItems]);
 
   const handleLogout = () => {
-    router.push("/");
+    logoutAction();
   };
 
   const renderContent = () => {

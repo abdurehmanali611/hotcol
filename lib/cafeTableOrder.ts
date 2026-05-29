@@ -205,12 +205,14 @@ export function isLiveOrderEditable(order: Order, hotelName: string): boolean {
   return status === "pending" || status === "completed";
 }
 
-/** Kitchen vs bar routing label from order type. */
+import { isBarStationOrder } from "./cafeOrderStation";
+
+/** Kitchen vs bar routing label from order category/type. */
 export function orderStationLabel(order: {
   type?: string | null;
+  category?: string | null;
 }): "Kitchen" | "Bar" {
-  const t = String(order.type || "").trim().toLowerCase();
-  return t === "bar" ? "Bar" : "Kitchen";
+  return isBarStationOrder(order) ? "Bar" : "Kitchen";
 }
 
 export function sumOrderLinesETB(orders: Order[]): number {
