@@ -7,6 +7,7 @@ import {
 } from "@/constants";
 import {
   calculateSignupPricing,
+  isBusinessTypeComingSoon,
   isModuleComingSoon,
   isModuleDisabledAtSignup,
   normalizeSignupModules,
@@ -74,6 +75,15 @@ export const SignUpSchema = z
     paymentTransactionRef: z.string().optional(),
   })
   .superRefine((data, ctx) => {
+    if (isBusinessTypeComingSoon(data.type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${data.type} registration is coming soon. Choose Café and Restaurant or Hotel.`,
+        path: ["type"],
+      });
+      return;
+    }
+
     const selected = new Set(data.modules);
 
     if (data.type === "Cafe and Restaurant") {

@@ -14,6 +14,12 @@ export const BUSINESS_TYPES = [
 
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
+/** Shown on signup but not selectable until product is ready. */
+export const SIGNUP_COMING_SOON_BUSINESS_TYPES = [
+  "Resort",
+  "Pension",
+] as const satisfies readonly BusinessType[];
+
 export const LODGING_BUSINESS_TYPES = ["Hotel", "Resort", "Pension"] as const;
 
 export type LodgingBusinessType = (typeof LODGING_BUSINESS_TYPES)[number];

@@ -1,5 +1,6 @@
 "use client";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
+import { SignupBusinessTypeSelector } from "@/components/signup/SignupBusinessTypeSelector";
 import {
   SignupModuleSelector,
   SignupPricingSummary,
@@ -11,6 +12,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -18,18 +20,18 @@ import { Form, FormField, FormItem, FormLabel, FormMessage } from "@/components/
 import { Separator } from "@/components/ui/separator";
 import { handleCredential, uploadImage } from "@/lib/actions";
 import { SignUpSchema } from "@/lib/validations";
+import { SIGNUP_REQUIRED_MODULES_CAFE, type BusinessType } from "@/constants";
+import { fetchSignupPricingPreview } from "@/lib/api/pricing";
+import { useSignupPricing } from "@/lib/hooks/useSignupPricing";
 import {
-  BUSINESS_TYPES,
-  SIGNUP_REQUIRED_MODULES_CAFE,
-  type BusinessType,
-} from "@/constants";
-import {
-  calculateSignupPricing,
   getDefaultSignupModules,
+  isBusinessTypeComingSoon,
   normalizeSignupModules,
 } from "@/lib/subscriptionModules";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { LogIn } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -91,6 +93,10 @@ export default function SignUp() {
   });
 
   useEffect(() => {
+    if (isBusinessTypeComingSoon(businessType)) {
+      form.setValue("type", "Cafe and Restaurant");
+      return;
+    }
     const normalized = normalizeSignupModules(
       businessType,
       getDefaultSignupModules(businessType),
@@ -98,14 +104,9 @@ export default function SignUp() {
     form.setValue("modules", normalized);
   }, [businessType, form]);
 
-  const pricing = useMemo(
-    () =>
-      calculateSignupPricing(
-        businessType,
-        selectedModules ?? getDefaultSignupModules(businessType),
-      ),
-    [businessType, selectedModules],
-  );
+  const modulesForPricing =
+    selectedModules ?? getDefaultSignupModules(businessType);
+  const pricing = useSignupPricing(businessType, modulesForPricing);
 
   if (pendingApproval) {
     return (
@@ -126,12 +127,12 @@ export default function SignUp() {
         backgroundSize: "cover",
       }}
     >
-      <Card className="w-full max-w-3xl border-primary/15 bg-card/95 shadow-2xl backdrop-blur-sm">
+      <Card className="mx-auto w-full max-w-2xl border-primary/15 bg-card/95 shadow-2xl backdrop-blur-sm">
         <CardHeader className="space-y-2 border-b border-border/60 pb-6">
           <CardTitle className="text-2xl tracking-tight">Create an account</CardTitle>
           <CardDescription className="max-w-xl text-pretty leading-relaxed">
-            Register your café or hotel, choose modules, pay the setup fee to Apex
-            Solution, and start using HotCol.
+            Register your café or hotel, choose modules, and pay the setup fee to
+            Apex Solution. Resort and pension sign-up are coming soon.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -141,7 +142,7 @@ export default function SignUp() {
               onSubmit={form.handleSubmit(async (values) => {
                 try {
                   const modules = normalizeSignupModules(values.type, values.modules);
-                  const fees = calculateSignupPricing(values.type, modules);
+                  const fees = await fetchSignupPricingPreview(values.type, modules);
                   await handleCredential(
                     {
                       ...values,
@@ -205,13 +206,19 @@ export default function SignUp() {
                     inputClassName="h-11 w-full"
                   />
                 </div>
-                <CustomFormField
-                  name="type"
+                <FormField
                   control={form.control}
-                  fieldType={formFieldTypes.RADIO_BUTTON}
-                  label="Business type"
-                  listdisplay={[...BUSINESS_TYPES]}
-                  inputClassName="flex flex-row flex-wrap gap-4 items-center h-auto min-h-0 py-1"
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Business type</FormLabel>
+                      <SignupBusinessTypeSelector
+                        value={field.value as BusinessType}
+                        onChange={field.onChange}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </SignupSection>
 
@@ -268,10 +275,12 @@ export default function SignUp() {
                 />
               </SignupSection>
 
-              <SignupPaymentSection
-                control={form.control}
-                setupFeeETB={pricing.setupFeeETB}
-              />
+              {!pricing.loading ? (
+                <SignupPaymentSection
+                  control={form.control}
+                  setupFeeETB={pricing.setupFeeETB}
+                />
+              ) : null}
 
               <Separator />
 
@@ -289,22 +298,50 @@ export default function SignUp() {
                 />
               </SignupSection>
 
-              {pricing.setupFeeETB > 0 ? <SignupApprovalNotice /> : null}
+              {!pricing.loading && pricing.setupFeeETB > 0 ? (
+                <SignupApprovalNotice />
+              ) : null}
 
               <Button
                 type="submit"
                 className="h-12 cursor-pointer bg-green-600 text-base font-semibold shadow-md hover:bg-green-700"
-                disabled={isLoading}
+                disabled={isLoading || pricing.loading}
               >
                 {isLoading
                   ? "Creating account…"
-                  : pricing.setupFeeETB > 0
-                    ? `Submit registration · ${pricing.setupFeeETB.toLocaleString("en-ET")} ETB setup`
-                    : "Submit registration"}
+                  : pricing.loading
+                    ? "Loading pricing…"
+                    : pricing.setupFeeETB > 0
+                      ? `Submit registration · ${pricing.setupFeeETB.toLocaleString("en-ET")} ETB setup`
+                      : "Submit registration"}
               </Button>
             </form>
           </Form>
         </CardContent>
+        <CardFooter className="flex flex-col border-t border-border/60 bg-muted/30 p-0">
+          <div className="flex w-full flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-2.5">
+                <LogIn className="h-5 w-5 text-primary" aria-hidden />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-semibold tracking-tight">
+                  Already have an account?
+                </p>
+                <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
+                  Sign in with the username and password you registered.
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              variant="outline"
+              className="h-11 shrink-0 border-primary/25 font-semibold hover:bg-primary/5 sm:min-w-40"
+            >
+              <Link href="/">Back to sign in</Link>
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );

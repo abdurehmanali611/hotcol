@@ -9,6 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "./ui/card";
 import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
@@ -16,6 +17,7 @@ import { Button } from "./ui/button";
 import { useState } from "react";
 import { LoginAction } from "@/lib/actions";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -38,13 +40,14 @@ const Login = () => {
   };
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-xl font-serif font-semibold">
-          Login
+    <Card className="mx-auto w-full max-w-sm border-primary/10 bg-card/95 shadow-2xl backdrop-blur-sm sm:max-w-104">
+      <CardHeader className="space-y-2 text-center">
+        <CardTitle className="text-2xl font-semibold tracking-tight">
+          Welcome back
         </CardTitle>
-        <CardDescription className="text-lg font-serif">
-          Authenticate YourSelf
+        <CardDescription className="text-base leading-relaxed text-pretty">
+          Sign in with your staff username and password to open your HotCol
+          dashboard.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -57,44 +60,52 @@ const Login = () => {
               name="UserName"
               control={form.control}
               fieldType={formFieldTypes.INPUT}
-              label="Username:"
+              label="Username"
               placeholder="Enter your username"
-              inputClassName="h-fit p-2 w-60"
+              inputClassName="h-11 w-full"
             />
             <CustomFormField
               name="Password"
               control={form.control}
               fieldType={formFieldTypes.INPUT}
-              label="Password:"
+              label="Password"
               placeholder="Enter your password"
-              inputClassName="h-fit p-2 w-60"
+              inputClassName="h-11 w-full"
               type="password"
             />
             {error && (
-              <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
                 {error}
               </div>
             )}
             <Button
               type="submit"
-              className="cursor-pointer bg-green-500 hover:bg-green-600"
+              className="h-11 cursor-pointer bg-green-600 font-semibold hover:bg-green-700"
               disabled={loading}
             >
               {loading ? (
-                <span className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Loading...
+                <span className="flex items-center justify-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Signing in…
                 </span>
               ) : (
-                "Login"
+                "Sign in"
               )}
             </Button>
           </form>
         </Form>
       </CardContent>
-      {/* <CardFooter className="flex justify-center">
-        <Link href="/SignUp" className="font-serif text-lg text-blue-400 underline cursor-pointer">Create an account</Link>
-      </CardFooter> */}
+      <CardFooter className="justify-center border-t border-border/60 px-6 py-4">
+        <p className="text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/SignUp"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            Sign up
+          </Link>
+        </p>
+      </CardFooter>
     </Card>
   );
 };

@@ -1,10 +1,23 @@
 import {
   MODULE_OPTIONS,
+  SIGNUP_COMING_SOON_BUSINESS_TYPES,
   SIGNUP_REQUIRED_MODULE_COMMON,
   type BusinessType,
   type ModuleOption,
   isLodgingBusinessType,
 } from "@/constants";
+
+export const BUSINESS_TYPE_SIGNUP_DESCRIPTIONS: Record<BusinessType, string> = {
+  "Cafe and Restaurant":
+    "Orders, kitchen, bar, tables, cashier, and daily café operations.",
+  Hotel: "Lodging with inventory, credit, and optional financial modules.",
+  Resort: "Resort operations — registration opening soon.",
+  Pension: "Guest house and pension workflows — registration opening soon.",
+};
+
+export function isBusinessTypeComingSoon(type: BusinessType): boolean {
+  return (SIGNUP_COMING_SOON_BUSINESS_TYPES as readonly string[]).includes(type);
+}
 
 /** Not selectable at signup yet. */
 export const SIGNUP_COMING_SOON_MODULES = [
@@ -116,6 +129,11 @@ export function normalizeSignupModules(
   return MODULE_OPTIONS.filter((m) => allowed.has(m));
 }
 
+/**
+ * Default signup pricing matrix (café / hotel tiers).
+ * Used as fallback and to detect when the Apex catalog differs from baseline.
+ * Live signup reads the catalog via signupPricingPreview when available.
+ */
 export function calculateSignupPricing(
   businessType: BusinessType,
   modules: readonly ModuleOption[],

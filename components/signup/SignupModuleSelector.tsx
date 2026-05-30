@@ -9,13 +9,13 @@ import {
   type ModuleOption,
 } from "@/constants";
 import {
-  calculateSignupPricing,
   formatETB,
   getSignupDisabledReason,
   isModuleDisabledAtSignup,
   isModuleRequiredAtSignup,
   MODULE_DESCRIPTIONS,
 } from "@/lib/subscriptionModules";
+import { useSignupPricing } from "@/lib/hooks/useSignupPricing";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 
@@ -102,13 +102,17 @@ export function SignupPricingSummary({
   businessType: BusinessType;
   modules: ModuleOption[];
 }) {
-  const pricing = calculateSignupPricing(businessType, modules);
+  const pricing = useSignupPricing(businessType, modules);
   const isLodging =
     businessType === "Hotel" ||
     businessType === "Resort" ||
     businessType === "Pension";
 
-  if (pricing.setupFeeETB === 0 && pricing.quarterlyFeeETB === 0) {
+  if (
+    !pricing.loading &&
+    pricing.setupFeeETB === 0 &&
+    pricing.quarterlyFeeETB === 0
+  ) {
     return (
       <div className="rounded-xl border border-dashed border-border/80 bg-muted/30 p-4 text-sm text-muted-foreground">
         Select optional modules above to see setup and quarterly pricing for your
@@ -130,8 +134,11 @@ export function SignupPricingSummary({
               {isLodging ? "Hotel subscription estimate" : "Café subscription estimate"}
             </p>
             <p className="text-xs text-muted-foreground text-pretty">
-              One-time setup plus quarterly billing. Saved with your registration for
-              HotCol monitoring.
+              {pricing.loading
+                ? "Loading current setup and quarterly fees…"
+                : pricing.differsFromDefault
+                  ? "Current rates from Apex (setup and quarterly). These amounts are saved with your registration."
+                  : "One-time setup plus quarterly billing. Saved with your registration for HotCol monitoring."}
             </p>
           </div>
         </div>
@@ -141,7 +148,7 @@ export function SignupPricingSummary({
               Setup fee
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">
-              {formatETB(pricing.setupFeeETB)}
+              {pricing.loading ? "…" : formatETB(pricing.setupFeeETB)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">One-time onboarding</p>
           </div>
@@ -150,7 +157,7 @@ export function SignupPricingSummary({
               Quarterly fee
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">
-              {formatETB(pricing.quarterlyFeeETB)}
+              {pricing.loading ? "…" : formatETB(pricing.quarterlyFeeETB)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">Every 3 months</p>
           </div>
