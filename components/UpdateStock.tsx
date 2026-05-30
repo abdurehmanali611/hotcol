@@ -40,6 +40,7 @@ const UpdateStock = ({
 }: UpdateStockProps) => {
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const lastSeededItemIdRef = useRef<number | null>(null);
 
   type ItemRegForm = z.infer<typeof ItemRegistrationSchema>;
   const form = useForm<ItemRegForm>({
@@ -64,33 +65,41 @@ const UpdateStock = ({
   });
 
   useEffect(() => {
-    if (item) {
-      form.reset({
-        name: item.name,
-        imageUrl: item.imageUrl,
-        category: item.category as
-          | "Food"
-          | "Beverage"
-          | "House Keeping"
-          | "Maintainance"
-          | "Office Supplies"
-          | "Others",
-        amount: item.amount,
-        measuredBy: item.measuredBy,
-        unitPrice: item.unitPrice,
-        registrationDate: new Date(item.registrationDate),
-        expireDate: new Date(item.expireDate),
-        supplierName: item.supplierName,
-        supplierPhone: item.supplierPhone,
-        Address: item.Address,
-        purchaseWithVat: isVatEnabled(item.purchaseWithVat),
-        supplierTinNumber: (item.supplierTinNumber || "").trim(),
-        paidAmount: item.paidAmount,
-        HotelName: item.HotelName,
-      });
-      setPreviewUrl(item.imageUrl);
+    if (!isOpen) {
+      lastSeededItemIdRef.current = null;
     }
-  }, [item, form]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !item) return;
+    if (lastSeededItemIdRef.current === item.id) return;
+    lastSeededItemIdRef.current = item.id;
+
+    form.reset({
+      name: item.name,
+      imageUrl: item.imageUrl,
+      category: item.category as
+        | "Food"
+        | "Beverage"
+        | "House Keeping"
+        | "Maintainance"
+        | "Office Supplies"
+        | "Others",
+      amount: item.amount,
+      measuredBy: item.measuredBy,
+      unitPrice: item.unitPrice,
+      registrationDate: new Date(item.registrationDate),
+      expireDate: new Date(item.expireDate),
+      supplierName: item.supplierName,
+      supplierPhone: item.supplierPhone,
+      Address: item.Address,
+      purchaseWithVat: isVatEnabled(item.purchaseWithVat),
+      supplierTinNumber: (item.supplierTinNumber || "").trim(),
+      paidAmount: item.paidAmount,
+      HotelName: item.HotelName,
+    });
+    setPreviewUrl(item.imageUrl);
+  }, [item, isOpen, form]);
 
   const watchedAmount = form.watch("amount");
   const watchedUnitPrice = form.watch("unitPrice");

@@ -37,6 +37,7 @@ import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { CafeTableLabel } from "@/components/cafe/CafeTableLabel";
 
 function ChefContent() {
@@ -93,24 +94,14 @@ function ChefContent() {
 
   useEffect(() => {
     void loadOrders("initial");
-    const interval = setInterval(
-      () => void loadOrders("silent"),
-      CAFE_LIVE_ORDERS_POLL_MS,
-    );
     const refresh = () => void loadOrders("silent");
-    const refreshOnVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
     const unsubSync = subscribeCafeOrdersChanged(refresh);
-    window.addEventListener("focus", refreshOnVisible);
-    document.addEventListener("visibilitychange", refreshOnVisible);
     return () => {
-      clearInterval(interval);
       unsubSync();
-      window.removeEventListener("focus", refreshOnVisible);
-      document.removeEventListener("visibilitychange", refreshOnVisible);
     };
   }, [propertyScope, loadOrders]);
+
+  useVisibleInterval(() => void loadOrders("silent"), CAFE_LIVE_ORDERS_POLL_MS);
 
   const handleStatusUpdate = async (
     id: number,

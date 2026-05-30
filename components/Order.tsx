@@ -137,6 +137,15 @@ export default function OrderComponent({
     0,
   );
 
+  const batchModalItems = useMemo(
+    () =>
+      selectedItems.map((item) => ({
+        ...item,
+        orderAmount: itemQuantities[item.id] || 1,
+      })),
+    [selectedItems, itemQuantities],
+  );
+
   const handleBatchOrderSuccess = () => {
     setSelectedItems([]);
     setItemQuantities({});
@@ -400,10 +409,7 @@ export default function OrderComponent({
       ) : null}
 
       <BatchOrderModal
-        items={selectedItems.map((item) => ({
-          ...item,
-          orderAmount: itemQuantities[item.id] || 1,
-        }))}
+        items={batchModalItems}
         isOpen={showBatchModal}
         onClose={() => setShowBatchModal(false)}
         hotelName={hotelName}

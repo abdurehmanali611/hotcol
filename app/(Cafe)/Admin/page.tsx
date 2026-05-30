@@ -78,6 +78,7 @@ import {
 } from "@/components/subscription/SubscriptionNotificationCenter";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
@@ -246,20 +247,18 @@ function AdminDashboardContent() {
   useEffect(() => {
     if (!tenantScope) return;
     const refresh = () => void refreshOrdersLive();
-    const interval = setInterval(refresh, CAFE_LIVE_ORDERS_POLL_MS);
-    const refreshOnVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
     const unsubSync = subscribeCafeOrdersChanged(refresh);
-    window.addEventListener("focus", refreshOnVisible);
-    document.addEventListener("visibilitychange", refreshOnVisible);
     return () => {
-      clearInterval(interval);
       unsubSync();
-      window.removeEventListener("focus", refreshOnVisible);
-      document.removeEventListener("visibilitychange", refreshOnVisible);
     };
   }, [tenantScope, refreshOrdersLive]);
+
+  useVisibleInterval(
+    () => {
+      if (tenantScope) void refreshOrdersLive();
+    },
+    tenantScope ? CAFE_LIVE_ORDERS_POLL_MS : null,
+  );
 
   useEffect(() => {
     if (!tenantScope || loading) return;

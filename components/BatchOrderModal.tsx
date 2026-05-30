@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -57,6 +57,7 @@ export default function BatchOrderModal({
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedItems, setSelectedItems] = useState(initialItems);
+  const wasOpenRef = useRef(false);
 
   const form = useForm<z.infer<typeof batchOrderSchema>>({
     resolver: zodResolver(batchOrderSchema),
@@ -69,7 +70,13 @@ export default function BatchOrderModal({
     },
   });
 
+  /** Reset and load data only when the modal opens — not on every parent re-render (order poll). */
   useEffect(() => {
+    const justOpened = isOpen && !wasOpenRef.current;
+    wasOpenRef.current = isOpen;
+
+    if (!justOpened) return;
+
     setSelectedItems(initialItems);
     const formItems = initialItems.map((item) => ({
       itemId: item.id,
@@ -80,48 +87,32 @@ export default function BatchOrderModal({
       type: item.type,
       orderAmount: item.orderAmount,
     }));
-    form.setValue("items", formItems);
-    form.setValue("HotelName", hotelName);
-    form.setValue("assignmentType", "single");
-  }, [initialItems, hotelName, form]);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchWaiters()
-        .then((res) =>
-          res.filter((w) =>
-            rowHotelMatchesTenantScope(w.HotelName, hotelName),
-          ),
-        )
-        .then(setWaiters)
-        .catch(() => toast.error("Failed to load waiters"));
-      fetchTables()
-        .then((res) =>
-          res.filter((t) =>
-            rowHotelMatchesTenantScope(t.HotelName, hotelName),
-          ),
-        )
-        .then(setTables)
-        .catch(() => toast.error("Failed to load tables"));
+    form.reset({
+      singleWaiterName: "",
+      singleTableNo: CAFE_TABLE_UNSELECTED,
+      HotelName: hotelName,
+      items: formItems,
+      assignmentType: "single",
+    });
+    form.clearErrors();
 
-      const formItems = initialItems.map((item) => ({
-        itemId: item.id,
-        itemName: item.name,
-        imageUrl: item.imageUrl,
-        price: item.price,
-        category: item.category,
-        type: item.type,
-        orderAmount: item.orderAmount,
-      }));
-
-      form.reset({
-        singleWaiterName: "",
-        singleTableNo: CAFE_TABLE_UNSELECTED,
-        HotelName: hotelName,
-        items: formItems,
-        assignmentType: "single",
-      });
-    }
+    fetchWaiters()
+      .then((res) =>
+        res.filter((w) =>
+          rowHotelMatchesTenantScope(w.HotelName, hotelName),
+        ),
+      )
+      .then(setWaiters)
+      .catch(() => toast.error("Failed to load waiters"));
+    fetchTables()
+      .then((res) =>
+        res.filter((t) =>
+          rowHotelMatchesTenantScope(t.HotelName, hotelName),
+        ),
+      )
+      .then(setTables)
+      .catch(() => toast.error("Failed to load tables"));
   }, [isOpen, hotelName, form, initialItems]);
 
   const updateQuantity = (id: number, delta: number) => {

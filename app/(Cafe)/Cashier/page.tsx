@@ -44,6 +44,7 @@ import { filterCafeCashierNavId } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { LiveDateTimeClock } from "@/components/LiveDateTimeClock";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import {
@@ -152,20 +153,18 @@ function CashierContent() {
   useEffect(() => {
     if (!tenantScope) return;
     const refresh = () => void loadData({ refresh: true, silent: true });
-    const interval = setInterval(refresh, CAFE_LIVE_ORDERS_POLL_MS);
-    const refreshOnVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
     const unsubSync = subscribeCafeOrdersChanged(refresh);
-    window.addEventListener("focus", refreshOnVisible);
-    document.addEventListener("visibilitychange", refreshOnVisible);
     return () => {
-      clearInterval(interval);
       unsubSync();
-      window.removeEventListener("focus", refreshOnVisible);
-      document.removeEventListener("visibilitychange", refreshOnVisible);
     };
   }, [tenantScope, loadData]);
+
+  useVisibleInterval(
+    () => {
+      if (tenantScope) void loadData({ refresh: true, silent: true });
+    },
+    tenantScope ? CAFE_LIVE_ORDERS_POLL_MS : null,
+  );
 
   const handleItemSelect = (item: Item) => {
     setSelectedItem(item);
