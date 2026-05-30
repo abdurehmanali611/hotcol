@@ -95,7 +95,7 @@ const Login = () => {
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="justify-center border-t border-border/60 px-6 py-4">
+      {/* <CardFooter className="justify-center border-t border-border/60 px-6 py-4">
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
           <Link
@@ -105,7 +105,7 @@ const Login = () => {
             Sign up
           </Link>
         </p>
-      </CardFooter>
+      </CardFooter> */}
     </Card>
   );
 };
