@@ -189,9 +189,6 @@ export function StoreItemRegistrationReceipt({
 
       {isMulti ? (
         <div className="px-8 py-6 print:px-6 space-y-3">
-          <p className="text-sm font-mono font-medium text-zinc-800">
-            {receiptMetaLabel(resolvedBundle)}
-          </p>
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
@@ -253,9 +250,6 @@ export function StoreItemRegistrationReceipt({
                   {primary.unitPrice != null
                     ? ` at ETB ${primary.unitPrice.toLocaleString()} / ${primary.measuredBy}`
                     : ""}
-                </p>
-                <p className="text-xs font-mono text-zinc-500">
-                  {receiptMetaLabel(resolvedBundle)}
                 </p>
                 {primary.paymentLabel || primary.movementLabel ? (
                   <Badge
