@@ -32,6 +32,8 @@ export function formatMovementType(code: string): string {
 
 export function formatPurchaseStatus(status: string): string {
   switch (status) {
+    case "PENDING_STORE":
+      return "Awaiting your review";
     case "PENDING_CC":
       return "Awaiting cost control check";
     case "PENDING_FINANCE":
@@ -57,6 +59,8 @@ export function formatPurchaseStatus(status: string): string {
 
 export function formatStockOutRequestStatus(status: string): string {
   switch (status) {
+    case "PENDING_STORE":
+      return "Awaiting your review";
     case "PENDING":
     case "PENDING_CC":
       return "Awaiting cost control check";
@@ -75,6 +79,8 @@ export function formatStockOutRequestStatus(status: string): string {
 
 export function formatItemRegistrationStatus(status: string): string {
   switch (status) {
+    case "PENDING_STORE":
+      return "Awaiting your review";
     case "PENDING_CC":
       return "Awaiting cost control check";
     case "PENDING_FINANCE":

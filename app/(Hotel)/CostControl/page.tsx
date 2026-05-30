@@ -12,9 +12,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
-  approvePurchaseRequestCCApi,
   approvePurchaseRequestsCCBatchApi,
-  checkStockOutRequestCCApi,
   approveStockOutRequestsBatchApi,
   createKitchenBarBeginningApi,
   deleteKitchenBarBeginningApi,
@@ -26,9 +24,7 @@ import {
   fetchKitchenBarBeginnings,
   fetchKitchenBarRollupSnapshots,
   syncKitchenBarRollupApi,
-  rejectPurchaseRequestCCApi,
   rejectPurchaseRequestsCCBatchApi,
-  rejectStockOutRequestApi,
   rejectStockOutRequestsBatchApi,
   updateKitchenBarBeginningApi,
   logoutAction,
@@ -55,6 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { useRejectionReasonDialog } from "@/hooks/useRejectionReasonDialog";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import {
   patchPurchaseRequestStatus,
@@ -94,8 +91,10 @@ import {
   normalizeKitchenBarStationKey,
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
-import { formatMovementType } from "@/lib/hotelDisplayLabels";
-import { Badge } from "@/components/ui/badge";
+import {
+  CostControlPurchaseVoucherGroups,
+  CostControlStockVoucherGroups,
+} from "@/components/hotel/CostControlGroupedQueues";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   HotelFormFieldStack,
@@ -110,6 +109,7 @@ import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInven
 import { HotelRequestStatusSidebarGroup } from "@/components/hotel/HotelRequestStatusSidebarGroup";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
+import { ItemRegistrationStatusPanel } from "@/components/hotel/ItemRegistrationStatusPanel";
 import { usePropertyRequestStatusData } from "@/components/hotel/usePropertyRequestStatusData";
 import {
   isPaymentCategorySection,
@@ -187,7 +187,6 @@ function CostControlInner() {
   useEffect(() => {
     rollupRangeRef.current = { from: rollupFromYmd, to: rollupToYmd };
   }, [rollupFromYmd, rollupToYmd]);
-  const [ccPick, setCcPick] = useState<Record<number, string>>({});
   const [beginForm, setBeginForm] = useState({
     station: "KITCHEN",
     itemName: "",
@@ -215,6 +214,7 @@ function CostControlInner() {
     | "stock"
     | "purchase-request-status"
     | "stock-movement-status"
+    | "item-registration-status"
     | "beginnings"
     | "payment-credit"
     | "payment-paid"
@@ -234,6 +234,8 @@ function CostControlInner() {
   const [selectedPrBatchIds, setSelectedPrBatchIds] = useState<number[]>([]);
   const [selectedSoBatchIds, setSelectedSoBatchIds] = useState<number[]>([]);
   const [batchCcProfileId, setBatchCcProfileId] = useState<string>("");
+  const { requestRejectionReason, RejectionReasonDialog } =
+    useRejectionReasonDialog();
 
   const inventoryItemOptions = useMemo(() => {
     return activeInventoryRows
@@ -664,6 +666,12 @@ function CostControlInner() {
         "Stock out, wastage, and return requests with approval status for this property.",
       Icon: Package,
     },
+    "item-registration-status": {
+      title: "Item registration status",
+      description:
+        "All item registrations for this property with workflow approval status.",
+      Icon: ClipboardList,
+    },
     "payment-credit": {
       title: "Credit receiving vouchers",
       description: HOTEL_INVENTORY_COPY.paymentAndTax,
@@ -705,6 +713,8 @@ function CostControlInner() {
   };
 
   return (
+    <>
+      {RejectionReasonDialog}
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
         <Sidebar
@@ -948,9 +958,9 @@ function CostControlInner() {
                                 checked === true ? pendingPr.map((x) => x.id) : [],
                               )
                             }
-                            aria-label="Select all purchase requests"
+                            aria-label="Select all vouchers and purchase items"
                           />
-                          <span>Select all</span>
+                          <span>Select all vouchers &amp; items</span>
                         </label>
                         <PendingButton
                           className="shadow-sm"
@@ -1001,6 +1011,12 @@ function CostControlInner() {
                           onClick={() => {
                             void runCcAction("batch-pr-r", async () => {
                               try {
+                                const reason = await requestRejectionReason({
+                                  title: "Reject purchase requests",
+                                  description:
+                                    "Provide a reason for the store team. It applies to all selected lines.",
+                                });
+                                if (!reason) return;
                                 const batchActor =
                                   profiles
                                     .find((p) => p.id === Number(batchCcProfileId))
@@ -1008,7 +1024,7 @@ function CostControlInner() {
                                 const results =
                                   await rejectPurchaseRequestsCCBatchApi(
                                     selectedPrBatchIds,
-                                    undefined,
+                                    reason,
                                     batchActor,
                                   );
                                 for (const res of results) {
@@ -1038,147 +1054,53 @@ function CostControlInner() {
                     </CardContent>
                   </Card>
                 ) : null}
-                {pendingPr.map((r) => (
-                  <Card
-                    key={r.id}
-                    className="border-border/80 shadow-md bg-card/95 backdrop-blur-sm overflow-hidden ring-1 ring-black/3 dark:ring-white/6"
-                  >
-                    <div className="h-0.5 bg-linear-to-r from-primary/50 to-transparent" />
-                    <CardHeader className="py-4">
-                      <div className="flex items-start gap-3">
-                        <Checkbox
-                          checked={selectedPrBatchIds.includes(r.id)}
-                          onCheckedChange={(checked) => {
-                            setSelectedPrBatchIds((prev) =>
-                              checked === true
-                                ? [...new Set([...prev, r.id])]
-                                : prev.filter((x) => x !== r.id),
-                            );
-                          }}
-                          className="mt-1 shrink-0"
-                          aria-label={`Select purchase ${r.itemName}`}
-                        />
-                        <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <CardTitle className="text-base sm:text-lg leading-snug">
-                          {r.itemName}{" "}
-                          <span className="text-muted-foreground font-normal">
-                            × {r.quantity} {r.measuredBy}
-                          </span>
-                        </CardTitle>
-                        <Badge variant="outline" className="shrink-0">
-                          From store
-                        </Badge>
-                      </div>
-                      <CardDescription className="space-y-1">
-                        <span>
-                          Requested by <strong>{r.storeUserName}</strong>
-                        </span>
-                        <span className="block">
-                          Est. {r.estimatedUnitPrice} ETB / unit · Notes:{" "}
-                          {r.notes || "—"}
-                        </span>
-                      </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end pb-5">
-                      <div className="flex-1 w-full space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Who is approving? (your registered name)
-                        </Label>
-                        <Select
-                          value={ccPick[r.id] ?? ""}
-                          onValueChange={(v) =>
-                            setCcPick((m) => ({ ...m, [r.id]: v }))
-                          }
-                        >
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select your name" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {profiles.map((p) => (
-                              <SelectItem key={p.id} value={String(p.id)}>
-                                {p.displayName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <PendingButton
-                          className="shadow-sm"
-                          pending={isCcPending(`pr-a-${r.id}`)}
-                          onClick={() => {
-                            const pid = Number(ccPick[r.id]);
-                            if (!pid) {
-                              toast.error("Select your cost controller identity");
-                              return;
-                            }
-                            void runCcAction(`pr-a-${r.id}`, async () => {
-                              try {
-                                const result = await approvePurchaseRequestCCApi(
-                                  r.id,
-                                  pid,
-                                );
-                                setPurchases((prev) =>
-                                  patchPurchaseRequestStatus(
-                                    prev,
-                                    r.id,
-                                    result.status,
-                                  ),
-                                );
-                                void refreshPurchaseQueues();
-                              } catch (e: unknown) {
-                                notifyApiFailure(e, "Could not approve purchase request");
-                              }
-                            });
-                          }}
-                        >
-                          Check → finance
-                        </PendingButton>
-                        <PendingButton
-                          variant="outline"
-                          className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                          pending={isCcPending(`pr-r-${r.id}`)}
-                          onClick={() => {
-                            void runCcAction(`pr-r-${r.id}`, async () => {
-                              try {
-                                const result = await rejectPurchaseRequestCCApi(
-                                  r.id,
-                                  "Rejected by cost control",
-                                );
-                                const pid = Number(ccPick[r.id]);
-                                const actor =
-                                  profiles.find((p) => p.id === pid)?.displayName?.trim() ??
-                                  "";
-                                setPurchases((prev) =>
-                                  patchPurchaseRequestStatus(
-                                    prev,
-                                    r.id,
-                                    result.status,
-                                    {
-                                      ...result,
-                                      ccActorName:
-                                        result.ccActorName?.trim() ||
-                                        actor ||
-                                        undefined,
-                                    },
-                                  ),
-                                );
-                                void refreshPurchaseQueues();
-                              } catch (e: unknown) {
-                                notifyApiFailure(e, "Could not reject purchase request");
-                              }
-                            });
-                          }}
-                        >
-                          Reject
-                        </PendingButton>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                <CostControlPurchaseVoucherGroups
+                  purchases={purchases}
+                  selectedIds={selectedPrBatchIds}
+                  setSelectedIds={setSelectedPrBatchIds}
+                  isCcPending={isCcPending}
+                  runCcAction={runCcAction}
+                  requestRejectionReason={requestRejectionReason}
+                  batchCcProfileId={batchCcProfileId}
+                  onCheckVoucher={async (rows, profileId) => {
+                    const results = await approvePurchaseRequestsCCBatchApi(
+                      rows.map((r) => r.id),
+                      profileId,
+                    );
+                    for (const res of results) {
+                      setPurchases((prev) =>
+                        patchPurchaseRequestStatus(
+                          prev,
+                          res.id,
+                          res.status,
+                        ),
+                      );
+                    }
+                    void refreshPurchaseQueues();
+                  }}
+                  onRejectVoucher={async (rows, reason) => {
+                    const batchActor =
+                      profiles
+                        .find((p) => p.id === Number(batchCcProfileId))
+                        ?.displayName?.trim() ?? "";
+                    const results = await rejectPurchaseRequestsCCBatchApi(
+                      rows.map((r) => r.id),
+                      reason,
+                      batchActor,
+                    );
+                    for (const res of results) {
+                      setPurchases((prev) =>
+                        patchPurchaseRequestStatus(
+                          prev,
+                          res.id,
+                          res.status,
+                          res,
+                        ),
+                      );
+                    }
+                    void refreshPurchaseQueues();
+                  }}
+                />
               </div>
             )}
           </div>
@@ -1298,9 +1220,9 @@ function CostControlInner() {
                                 checked === true ? pendingSo.map((x) => x.id) : [],
                               )
                             }
-                            aria-label="Select all stock movements"
+                            aria-label="Select all vouchers and stock items"
                           />
-                          <span>Select all</span>
+                          <span>Select all vouchers &amp; items</span>
                         </label>
                         <PendingButton
                           className="shadow-sm"
@@ -1351,14 +1273,22 @@ function CostControlInner() {
                           onClick={() => {
                             void runCcAction("batch-so-r", async () => {
                               try {
-                                const results =
-                                  await rejectStockOutRequestsBatchApi(
-                                    selectedSoBatchIds,
-                                  );
+                                const reason = await requestRejectionReason({
+                                  title: "Reject stock movements",
+                                  description:
+                                    "Provide a reason for the store team. It applies to all selected lines.",
+                                });
+                                if (!reason) return;
                                 const batchActor =
                                   profiles
                                     .find((p) => p.id === Number(batchCcProfileId))
                                     ?.displayName?.trim() ?? "";
+                                const results =
+                                  await rejectStockOutRequestsBatchApi(
+                                    selectedSoBatchIds,
+                                    reason,
+                                    batchActor,
+                                  );
                                 for (const res of results) {
                                   setStocks((prev) =>
                                     patchStockOutRequestStatus(
@@ -1392,150 +1322,57 @@ function CostControlInner() {
                     </CardContent>
                   </Card>
                 ) : null}
-                {pendingSo.map((r) => (
-                <Card
-                  key={r.id}
-                  className="border-border/80 shadow-md bg-card/95 backdrop-blur-sm overflow-hidden ring-1 ring-black/3 dark:ring-white/6"
-                >
-                  <div className="h-0.5 bg-linear-to-r from-amber-500/50 to-transparent" />
-                  <CardHeader className="py-4">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={selectedSoBatchIds.includes(r.id)}
-                        onCheckedChange={(checked) => {
-                          setSelectedSoBatchIds((prev) =>
-                            checked === true
-                              ? [...new Set([...prev, r.id])]
-                              : prev.filter((x) => x !== r.id),
-                          );
-                        }}
-                        className="mt-1 shrink-0"
-                        aria-label={`Select movement ${r.itemName || r.id}`}
-                      />
-                      <div className="min-w-0 flex-1 space-y-1">
-                    <CardTitle className="text-base sm:text-lg leading-snug">
-                      <span className="block text-foreground">
-                        {r.itemName?.trim()
-                          ? r.itemName
-                          : `Item #${r.itemRegistrationId}`}
-                      </span>
-                      <span className="block text-sm font-normal text-muted-foreground mt-1">
-                        {formatMovementType(r.movementType)}
-                      </span>
-                    </CardTitle>
-                    <CardDescription className="space-y-1">
-                      <span className="block">
-                        Inventory row{" "}
-                        <strong className="text-foreground tabular-nums">
-                          #{r.itemRegistrationId}
-                        </strong>{" "}
-                        — quantity <strong>{r.amount}</strong>
-                      </span>
-                      <span className="block">
-                        Detail: {r.stakeHolderOrReason} · Requested by{" "}
-                        <strong>{r.requestedByUserName}</strong>
-                      </span>
-                    </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end pb-5">
-                    <div className="flex-1 w-full space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">
-                        Who is approving? (your registered name)
-                      </Label>
-                      <Select
-                        value={ccPick[-r.id] ?? ""}
-                        onValueChange={(v) =>
-                          setCcPick((m) => ({ ...m, [-r.id]: v }))
-                        }
-                      >
-                        <SelectTrigger className="bg-background">
-                          <SelectValue placeholder="Select your name" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {profiles.map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              {p.displayName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <PendingButton
-                        className="shadow-sm"
-                        pending={isCcPending(`so-a-${r.id}`)}
-                        onClick={() => {
-                          const pid = Number(ccPick[-r.id]);
-                          if (!pid) {
-                            toast.error("Select your cost controller identity");
-                            return;
-                          }
-                          void runCcAction(`so-a-${r.id}`, async () => {
-                            try {
-                              const result = await checkStockOutRequestCCApi(
-                                r.id,
-                                pid,
-                              );
-                              setStocks((prev) =>
-                                patchStockOutRequestStatus(
-                                  prev,
-                                  r.id,
-                                  result.status,
-                                ),
-                              );
-                              void refreshStockQueues();
-                            } catch (e: unknown) {
-                              notifyApiFailure(e, "Could not approve stock movement");
-                            }
-                          });
-                        }}
-                      >
-                        Check → finance
-                      </PendingButton>
-                      <PendingButton
-                        variant="outline"
-                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                        pending={isCcPending(`so-r-${r.id}`)}
-                        onClick={() => {
-                          void runCcAction(`so-r-${r.id}`, async () => {
-                            try {
-                              const result = await rejectStockOutRequestApi(
-                                r.id,
-                                "Rejected by cost control",
-                              );
-                              const pid = Number(ccPick[-r.id]);
-                              const actor =
-                                profiles.find((p) => p.id === pid)?.displayName?.trim() ??
-                                "";
-                              setStocks((prev) =>
-                                patchStockOutRequestStatus(
-                                  prev,
-                                  r.id,
-                                  result.status,
-                                  {
-                                    ...result,
-                                    ccActorName:
-                                      result.ccActorName?.trim() ||
-                                      actor ||
-                                      undefined,
-                                  },
-                                ),
-                              );
-                              void refreshStockQueues();
-                            } catch (e: unknown) {
-                              notifyApiFailure(e, "Could not reject stock movement");
-                            }
-                          });
-                        }}
-                      >
-                        Reject
-                      </PendingButton>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                <CostControlStockVoucherGroups
+                  stocks={stocks}
+                  selectedIds={selectedSoBatchIds}
+                  setSelectedIds={setSelectedSoBatchIds}
+                  isCcPending={isCcPending}
+                  runCcAction={runCcAction}
+                  requestRejectionReason={requestRejectionReason}
+                  batchCcProfileId={batchCcProfileId}
+                  onCheckVoucher={async (rows, profileId) => {
+                    const results = await approveStockOutRequestsBatchApi(
+                      rows.map((r) => r.id),
+                      profileId,
+                    );
+                    for (const res of results) {
+                      setStocks((prev) =>
+                        patchStockOutRequestStatus(
+                          prev,
+                          res.id,
+                          res.status,
+                        ),
+                      );
+                    }
+                    void refreshStockQueues();
+                  }}
+                  onRejectVoucher={async (rows, reason) => {
+                    const batchActor =
+                      profiles
+                        .find((p) => p.id === Number(batchCcProfileId))
+                        ?.displayName?.trim() ?? "";
+                    const results = await rejectStockOutRequestsBatchApi(
+                      rows.map((r) => r.id),
+                      reason,
+                      batchActor,
+                    );
+                    for (const res of results) {
+                      setStocks((prev) =>
+                        patchStockOutRequestStatus(
+                          prev,
+                          res.id,
+                          res.status,
+                          {
+                            ...res,
+                            ccActorName:
+                              res.ccActorName?.trim() || batchActor || undefined,
+                          },
+                        ),
+                      );
+                    }
+                    void refreshStockQueues();
+                  }}
+                />
               </div>
             )}
           </div>
@@ -1553,6 +1390,8 @@ function CostControlInner() {
                   showStoreUser
                   unitPriceRole="CostControl"
                   onRefresh={() => void load(true, false)}
+                  propertyName={displayName || "Property"}
+                  logoUrl={logoUrl}
                   description={`${propertyRequestStatus.purchases.length} purchase requests for this property.`}
                 />
               )}
@@ -1569,7 +1408,29 @@ function CostControlInner() {
                 <StockMovementStatusPanel
                   rows={propertyRequestStatus.stocks}
                   showRequestedBy
+                  propertyName={displayName || "Property"}
+                  logoUrl={logoUrl}
+                  linkedInventory={inventoryRows}
                   description={`${propertyRequestStatus.stocks.length} movement requests for this property.`}
+                />
+              )}
+            </div>
+          )}
+
+          {activeSection === "item-registration-status" && (
+            <div className="space-y-6">
+              {propertyRequestStatus.initialLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="h-9 w-9 animate-spin text-primary" />
+                </div>
+              ) : (
+                <ItemRegistrationStatusPanel
+                  rows={propertyRequestStatus.registrations}
+                  purchaseRequests={propertyRequestStatus.purchases}
+                  showRegisteredBy
+                  propertyName={displayName || "Property"}
+                  logoUrl={logoUrl}
+                  description={`${propertyRequestStatus.registrations.length} item registrations for this property.`}
                 />
               )}
             </div>
@@ -2038,6 +1899,7 @@ function CostControlInner() {
         </SidebarInset>
       </div>
     </SidebarProvider>
+    </>
   );
 }
 

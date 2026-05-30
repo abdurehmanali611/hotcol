@@ -14,6 +14,7 @@ export const PAYMENT_CATEGORY_NAV: {
 export const REQUEST_STATUS_NAV = [
   { id: "purchase-request-status", label: "Purchase requests" },
   { id: "stock-movement-status", label: "Stock movements" },
+  { id: "item-registration-status", label: "Item registrations" },
 ] as const;
 
 export type RequestStatusNavId = (typeof REQUEST_STATUS_NAV)[number]["id"];

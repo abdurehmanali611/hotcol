@@ -369,6 +369,8 @@ export interface createItemRegistration {
   Address: string;
   paidAmount: number;
   HotelName: string;
+  /** When set, reuses this voucher instead of allocating a new one. */
+  voucherNumber?: number | null;
 }
 
 export interface UpdateItemRegistration extends createItemRegistration {

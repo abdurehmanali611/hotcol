@@ -15,7 +15,22 @@ import type {
 
 // ==================== Item REGISTRATION ====================
 
-export async function CreateItemRegistration(values: createItemRegistration) {
+function toGraphqlDateTime(value: Date | string | undefined): string {
+  const t = new Date(value ?? "");
+  if (Number.isNaN(t.getTime())) return new Date().toISOString();
+  return t.toISOString();
+}
+
+function graphqlLooksLikeMissingBatchField(message: string): boolean {
+  return /Unknown field|Cannot query field|Unknown argument|Unknown type/i.test(
+    message,
+  );
+}
+
+export async function CreateItemRegistration(
+  values: createItemRegistration,
+  options?: { suppressSuccessToast?: boolean },
+) {
   try {
     const mutation = `
       mutation ItemRegistration(
@@ -33,7 +48,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
         $purchaseWithVat: Boolean,
         $supplierTinNumber: String,
         $paidAmount: Float!,
-        $HotelName: String!
+        $HotelName: String!,
+        $voucherNumber: Int
       ) {
         ItemRegistration(
           name: $name, 
@@ -50,7 +66,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           purchaseWithVat: $purchaseWithVat,
           supplierTinNumber: $supplierTinNumber,
           paidAmount: $paidAmount,
-          HotelName: $HotelName
+          HotelName: $HotelName,
+          voucherNumber: $voucherNumber
         ) {
           id
           name
@@ -90,8 +107,8 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       amount: values.amount || 0,
       measuredBy: values.measuredBy || "",
       unitPrice: values.unitPrice || 0,
-      registrationDate: values.registrationDate || new Date(),
-      expireDate: values.expireDate || new Date(),
+      registrationDate: toGraphqlDateTime(values.registrationDate),
+      expireDate: toGraphqlDateTime(values.expireDate),
       supplierName: values.supplierName || "",
       supplierPhone: values.supplierPhone || "",
       Address: values.Address || "",
@@ -99,6 +116,10 @@ export async function CreateItemRegistration(values: createItemRegistration) {
       supplierTinNumber: (values.supplierTinNumber || "").trim() || null,
       paidAmount: values.paidAmount || 0,
       HotelName: resolveCanonicalTenantKey(values.HotelName),
+      voucherNumber:
+        values.voucherNumber != null && Number(values.voucherNumber) > 0
+          ? Math.floor(Number(values.voucherNumber))
+          : null,
     };
 
     const response = await api.post(
@@ -118,15 +139,18 @@ export async function CreateItemRegistration(values: createItemRegistration) {
     if (response.data.errors) {
       const errorMessage =
         response.data.errors[0]?.message || "Failed to create item";
-
-      toast.error(errorMessage);
+      if (!options?.suppressSuccessToast) {
+        toast.error(errorMessage);
+      }
       throw new Error(errorMessage);
     }
 
     const created = response.data.data?.ItemRegistration;
     if (!created) {
       const errorMessage = "Item registration was not saved by the server";
-      toast.error(errorMessage);
+      if (!options?.suppressSuccessToast) {
+        toast.error(errorMessage);
+      }
       throw new Error(errorMessage);
     }
 
@@ -176,6 +200,226 @@ export async function CreateItemRegistration(values: createItemRegistration) {
   } catch (error: any) {
     throw error;
   }
+}
+
+async function sequentialItemRegistrationsWithSharedVoucher(
+  lines: ItemRegistrationLineInput[],
+  hotelName: string,
+): Promise<
+  {
+    id: number;
+    approvalStatus?: string;
+    voucherNumber?: number | null;
+    voucherDisplay?: string | null;
+  }[]
+> {
+  const canonical = resolveCanonicalTenantKey(hotelName);
+
+  async function createOne(
+    line: ItemRegistrationLineInput,
+    sharedVoucher?: number | null,
+  ) {
+    return CreateItemRegistration(
+      {
+        ...line,
+        HotelName: canonical,
+        supplierTinNumber: line.supplierTinNumber,
+        voucherNumber: sharedVoucher,
+      },
+      { suppressSuccessToast: true },
+    );
+  }
+
+  try {
+    const first = await createOne(lines[0]);
+    const sharedVoucher = first.voucherNumber;
+    const results = [first];
+    for (let i = 1; i < lines.length; i++) {
+      results.push(await createOne(lines[i], sharedVoucher));
+    }
+    return results;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err ?? "");
+    if (!graphqlLooksLikeMissingBatchField(msg)) throw err;
+    const results = [];
+    for (const line of lines) {
+      results.push(await createOne(line));
+    }
+    return results;
+  }
+}
+
+function mapLinesToBatchVariables(lines: ItemRegistrationLineInput[]) {
+  return lines.map((line) => ({
+    name: line.name || "",
+    imageUrl: line.imageUrl || "",
+    category: line.category || "",
+    amount: line.amount || 0,
+    measuredBy: line.measuredBy || "",
+    unitPrice: line.unitPrice || 0,
+    registrationDate: toGraphqlDateTime(line.registrationDate),
+    expireDate: toGraphqlDateTime(line.expireDate),
+    supplierName: line.supplierName || "",
+    supplierPhone: line.supplierPhone || "",
+    Address: line.Address || "",
+    purchaseWithVat: line.purchaseWithVat !== false,
+    supplierTinNumber: (line.supplierTinNumber || "").trim() || null,
+    paidAmount: line.paidAmount || 0,
+    purchaseRequestId: line.purchaseRequestId ?? null,
+  }));
+}
+
+export type ItemRegistrationLineInput = {
+  name: string;
+  imageUrl: string;
+  category: string;
+  amount: number;
+  measuredBy: string;
+  unitPrice: number;
+  registrationDate: Date;
+  expireDate: Date;
+  supplierName: string;
+  supplierPhone: string;
+  Address: string;
+  purchaseWithVat?: boolean;
+  supplierTinNumber?: string;
+  paidAmount: number;
+  purchaseRequestId?: number | null;
+};
+
+/** Multiple item lines registered together share one voucher number. */
+export async function createItemRegistrationsBatchApi(
+  lines: ItemRegistrationLineInput[],
+  hotelName: string,
+) {
+  if (!lines.length) throw new Error("At least one line is required");
+  if (lines.length === 1) {
+    const line = lines[0];
+    const one = await CreateItemRegistration({
+      ...line,
+      HotelName: hotelName,
+      supplierTinNumber: line.supplierTinNumber,
+    });
+    return [one];
+  }
+
+  const mutation = `
+    mutation CreateItemRegistrationsBatch($lines: [ItemRegistrationLineInput!]!) {
+      createItemRegistrationsBatch(lines: $lines) {
+        id
+        name
+        approvalStatus
+        voucherNumber
+        voucherDisplay
+      }
+    }
+  `;
+
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+  if (!token) {
+    toast.error("You are not logged in. Please Login again.");
+    throw new Error("No authenticated token found");
+  }
+
+  const variables = { lines: mapLinesToBatchVariables(lines) };
+
+  let created:
+    | {
+        id: number;
+        approvalStatus?: string;
+        voucherNumber?: number | null;
+        voucherDisplay?: string | null;
+      }[]
+    | null = null;
+
+  try {
+    const response = await api.post(
+      API_URL,
+      { query: mutation, variables },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (response.data.errors?.length) {
+      const errorMessage =
+        response.data.errors[0]?.message || "Failed to register items";
+      if (graphqlLooksLikeMissingBatchField(errorMessage)) {
+        created = await sequentialItemRegistrationsWithSharedVoucher(
+          lines,
+          hotelName,
+        );
+      } else {
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+    } else {
+      created = response.data.data?.createItemRegistrationsBatch;
+      if (!created?.length) {
+        throw new Error("Item registrations were not saved by the server");
+      }
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err ?? "");
+    if (graphqlLooksLikeMissingBatchField(msg)) {
+      created = await sequentialItemRegistrationsWithSharedVoucher(
+        lines,
+        hotelName,
+      );
+    } else {
+      throw err;
+    }
+  }
+
+  if (!created?.length) {
+    throw new Error("Item registrations were not saved by the server");
+  }
+
+  const businessType =
+    typeof window !== "undefined"
+      ? localStorage.getItem("business_type")?.trim() || ""
+      : "";
+  const isLodgingStore =
+    businessType === "Hotel" ||
+    businessType === "Resort" ||
+    businessType === "Pension";
+
+  if (!isLodgingStore) {
+    try {
+      const pityCashList = await fetchPityCash();
+      const currentPityCash = findRowByTenantScope(pityCashList, hotelName);
+      if (currentPityCash) {
+        let runningBalance = currentPityCash.amount;
+        for (const line of lines) {
+          const totalCalc = computeInventoryPaidAmountETB(
+            line.amount,
+            line.unitPrice,
+            line.purchaseWithVat,
+          );
+          runningBalance -= totalCalc;
+        }
+        try {
+          await UpdatePityDeduction(currentPityCash.id, runningBalance);
+        } catch {
+          toast.warning(
+            "Items registered but failed to update petty cash balance",
+          );
+        }
+      }
+    } catch {
+      toast.error("Failed to fetch petty cash");
+    }
+  }
+
+  invalidateGraphqlListCache([
+    "ItemRegistration:list",
+    "finance:pityCash",
+  ]);
+  return created;
 }
 
 export async function fetchItemRegistrations() {

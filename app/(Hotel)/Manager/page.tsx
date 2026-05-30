@@ -882,6 +882,8 @@ function ManagerContent() {
               onRefresh={() => void loadData(true)}
               title="Purchase pipeline"
               description={`${scopedPurchases.length} purchase requests for this property.`}
+              propertyName={displayName || headerLabel}
+              logoUrl={logoUrl}
             />
           </div>
         );

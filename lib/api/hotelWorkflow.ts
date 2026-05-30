@@ -298,10 +298,59 @@ export async function createPurchaseRequestApi(
     throw new Error(response.data.errors[0]?.message || "Request failed");
   }
   if (!options?.suppressSuccessToast) {
-    toast.success("Purchase request submitted");
+    toast.success("Saved for your review — confirm under Review before send");
   }
   invalidateGraphqlListCache("hotel:purchaseRequests");
   return response.data.data.createPurchaseRequest;
+}
+
+export type PurchaseRequestLineInput = {
+  itemName: string;
+  quantity: number;
+  measuredBy: string;
+  notes?: string;
+  estimatedUnitPrice?: number;
+  supplierName?: string;
+  supplierPhone?: string;
+  category?: string;
+};
+
+/** Multiple purchase lines submitted together share one voucher number. */
+export async function createPurchaseRequestsBatchApi(
+  lines: PurchaseRequestLineInput[],
+  options?: { suppressSuccessToast?: boolean },
+) {
+  if (!lines.length) throw new Error("At least one line is required");
+  if (lines.length === 1) {
+    return [await createPurchaseRequestApi(lines[0], options)];
+  }
+  const mutation = `
+    mutation CreatePurchaseRequestsBatch($lines: [PurchaseRequestLineInput!]!) {
+      createPurchaseRequestsBatch(lines: $lines) {
+        id
+        status
+        voucherNumber
+        voucherDisplay
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { lines },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Request failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Saved for your review — confirm under Review before send");
+  }
+  invalidateGraphqlListCache("hotel:purchaseRequests");
+  return response.data.data.createPurchaseRequestsBatch as {
+    id: number;
+    status: string;
+    voucherNumber?: number | null;
+    voucherDisplay?: string | null;
+  }[];
 }
 
 export async function createStockOutRequestApi(
@@ -341,13 +390,61 @@ export async function createStockOutRequestApi(
     throw new Error(response.data.errors[0]?.message || "Request failed");
   }
   if (!options?.suppressSuccessToast) {
-    toast.success("Movement submitted for cost control approval");
+    toast.success("Saved for your review — confirm under Review before send");
   }
   invalidateGraphqlListCache([
     "hotel:stockOutRequests",
     "ItemRegistration:list",
   ]);
   return response.data.data.createStockOutRequest;
+}
+
+export type StockOutRequestLineInput = {
+  itemRegistrationId: number;
+  movementType: string;
+  amount: number;
+  stakeHolderOrReason: string;
+};
+
+/** Multiple stock movements submitted together share one voucher number. */
+export async function createStockOutRequestsBatchApi(
+  lines: StockOutRequestLineInput[],
+  options?: { suppressSuccessToast?: boolean },
+) {
+  if (!lines.length) throw new Error("At least one line is required");
+  if (lines.length === 1) {
+    return [await createStockOutRequestApi(lines[0], options)];
+  }
+  const mutation = `
+    mutation CreateStockOutRequestsBatch($lines: [StockOutRequestLineInput!]!) {
+      createStockOutRequestsBatch(lines: $lines) {
+        id
+        status
+        voucherNumber
+        voucherDisplay
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { lines },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Request failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Saved for your review — confirm under Review before send");
+  }
+  invalidateGraphqlListCache([
+    "hotel:stockOutRequests",
+    "ItemRegistration:list",
+  ]);
+  return response.data.data.createStockOutRequestsBatch as {
+    id: number;
+    status: string;
+    voucherNumber?: number | null;
+    voucherDisplay?: string | null;
+  }[];
 }
 
 export async function approvePurchaseRequestCCApi(
@@ -774,6 +871,60 @@ export async function rejectItemRegistrationFinanceApi(
     toast.success("Receipt voided — item will not appear in inventory");
   }
   return response.data.data.rejectItemRegistrationFinance;
+}
+
+export async function rejectItemRegistrationCCApi(
+  id: number,
+  reason: string,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation RejectRegCC($id: Int!, $reason: String) {
+      rejectItemRegistrationCC(id: $id, reason: $reason) {
+        id
+        approvalStatus
+        rejectionReason
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Rejection failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Registration rejected");
+  }
+  return response.data.data.rejectItemRegistrationCC;
+}
+
+export async function rejectItemRegistrationManagerApi(
+  id: number,
+  reason: string,
+  options?: HotelMutationToastOptions,
+) {
+  const mutation = `
+    mutation RejectRegMgr($id: Int!, $reason: String) {
+      rejectItemRegistrationManager(id: $id, reason: $reason) {
+        id
+        approvalStatus
+        rejectionReason
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, reason },
+  });
+  if (response.data.errors) {
+    throw new Error(response.data.errors[0]?.message || "Rejection failed");
+  }
+  if (!options?.suppressSuccessToast) {
+    toast.success("Registration rejected");
+  }
+  return response.data.data.rejectItemRegistrationManager;
 }
 
 export async function authorizeItemRegistrationManagerApi(

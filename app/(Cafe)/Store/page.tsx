@@ -23,6 +23,7 @@ import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   Loader2,
   MinusCircle,
@@ -36,9 +37,11 @@ import {
 import PurchaseRequestsTab from "@/components/hotel/PurchaseRequestsTab";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
+import { ItemRegistrationStatusPanel } from "@/components/hotel/ItemRegistrationStatusPanel";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
+import { StoreRequestReviewPanel } from "@/components/hotel/StoreRequestReviewPanel";
 import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
@@ -69,6 +72,7 @@ import Suppliers from "../../Suppliers/page";
 import Inactive from "../../Inactive/page";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
+import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import {
   effectiveTenantScopeForHotelTerminal,
   rowHotelMatchesTenantScope,
@@ -115,10 +119,12 @@ type StoreView =
   | "Active"
   | "Supplier"
   | "Inactive"
+  | "ReviewBeforeSend"
   | "Purchases"
   | "ReceiptPrinting"
   | "PurchaseRequestStatus"
   | "StockMovementStatus"
+  | "ItemRegistrationStatus"
   | "PaymentCredit"
   | "PaymentPaid"
   | "PaymentWithVat"
@@ -133,6 +139,7 @@ const HOTEL_STORE_NAV_TOP: {
   { id: "Active", label: "Inventory", icon: ShoppingCart },
   { id: "Inactive", label: "Inactive", icon: MinusCircle },
   { id: "Supplier", label: "Suppliers", icon: StoreIcon },
+  { id: "ReviewBeforeSend", label: "Review before send", icon: ClipboardCheck },
   { id: "Purchases", label: "Purchase pipeline", icon: Send },
   { id: "ReceiptPrinting", label: "Item receipts", icon: Printer },
 ];
@@ -152,6 +159,7 @@ const CAFE_STORE_NAV_TOP: {
 const REQUEST_STATUS_VIEWS: StoreView[] = [
   "PurchaseRequestStatus",
   "StockMovementStatus",
+  "ItemRegistrationStatus",
 ];
 
 const PAYMENT_VAT_VIEWS: StoreView[] = [
@@ -169,6 +177,8 @@ export function StoreComponent({
   useTenantRouteGuard({ role: "Store" });
   const [fetching, setFetching] = useState(false);
   const [requestStatusSeed, setRequestStatusSeed] = useState(0);
+  const [reviewSeed, setReviewSeed] = useState(0);
+  const [draftReviewCount, setDraftReviewCount] = useState(0);
   const [pendingLocalStockRows, setPendingLocalStockRows] = useState<
     StockOutRequestRow[]
   >([]);
@@ -210,13 +220,12 @@ export function StoreComponent({
 
           if (itemResult.status === "fulfilled") {
             const response = itemResult.value as ItemRegistration[];
-            setStoreItem(
-              Array.isArray(response)
-                ? response.filter((item) =>
-                    rowHotelMatchesTenantScope(item.HotelName, tenantEff),
-                  )
-                : [],
-            );
+            const scoped = Array.isArray(response)
+              ? response.filter((item) =>
+                  rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+                )
+              : [];
+            setStoreItem(filterInventoryListRegistrations(scoped));
           } else {
             setStoreItem([]);
             notifyApiFailure(
@@ -319,6 +328,15 @@ export function StoreComponent({
     );
   }, []);
 
+  const bumpReviewQueue = useCallback(() => {
+    setReviewSeed((n) => n + 1);
+  }, []);
+
+  const goToReviewBeforeSend = useCallback(() => {
+    setActiveView("ReviewBeforeSend");
+    bumpReviewQueue();
+  }, [bumpReviewQueue]);
+
   const handlePurchaseRequestCreated = useCallback(
     (row: PurchaseRequestRow) => {
       setPendingLocalPurchaseRows((prev) => {
@@ -330,7 +348,13 @@ export function StoreComponent({
     [refreshPurchasesOnly],
   );
 
+  const statusDataEnabled =
+    hotelInventory &&
+    (REQUEST_STATUS_VIEWS.includes(activeView) ||
+      activeView === "ReceiptPrinting");
+
   const requestStatusData = useStoreRequestStatusData({
+    enabled: statusDataEnabled,
     refreshSignal: requestStatusSeed,
     injectedStockRows: hotelInventory ? pendingLocalStockRows : undefined,
     onClearInjectedStockIds: hotelInventory ? clearInjectedStockIds : undefined,
@@ -381,10 +405,16 @@ export function StoreComponent({
         "Supplier records linked to registered inventory for quick purchasing follow-ups.",
       Icon: StoreIcon,
     },
+    ReviewBeforeSend: {
+      title: "Review before send",
+      description:
+        "Check purchase requests, stock movements, and registrations you submitted. Edit or delete mistakes, then send to cost control when correct.",
+      Icon: ClipboardCheck,
+    },
     Purchases: {
       title: HOTEL_INVENTORY_COPY.purchasePipeline,
       description:
-        "Create purchase requests for Cost Control and Finance approval, then register stock when goods arrive.",
+        "Create purchase requests — they go to Review before send first, then to Cost Control after you confirm.",
       Icon: Send,
     },
     ReceiptPrinting: {
@@ -404,6 +434,12 @@ export function StoreComponent({
       title: "Stock movement status",
       description:
         "Track stock out, wastage, and return-to-supplier requests you submitted.",
+      Icon: PackagePlus,
+    },
+    ItemRegistrationStatus: {
+      title: "Item registration status",
+      description:
+        "Track item registrations you submitted through the approval pipeline.",
       Icon: PackagePlus,
     },
     PaymentCredit: {
@@ -461,7 +497,27 @@ export function StoreComponent({
             hotelName={inventoryTenantKey || tenantScope}
             hotelInventory={hotelInventory}
             onRegistered={handleItemsRegistered}
+            onSubmittedForReview={
+              hotelInventory ? goToReviewBeforeSend : undefined
+            }
           />
+        ) : activeView === "ReviewBeforeSend" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <StoreRequestReviewPanel
+              refreshSignal={reviewSeed}
+              onDraftCountChange={setDraftReviewCount}
+              tenantScope={inventoryTenantKey}
+              injectedPurchaseRows={pendingLocalPurchaseRows}
+              injectedStockRows={pendingLocalStockRows}
+              onSubmitted={() => {
+                setPendingLocalPurchaseRows([]);
+                setPendingLocalStockRows([]);
+                if (statusDataEnabled) {
+                  setRequestStatusSeed((n) => n + 1);
+                }
+              }}
+            />
+          </div>
         ) : activeView === "Active" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <StoreItems
@@ -471,7 +527,12 @@ export function StoreComponent({
               embedded
               showPaymentSummary={hotelInventory && hotelHasFinance}
               onHotelStockRequestCreated={
-                hotelInventory ? handleHotelStockRequestCreated : undefined
+                hotelInventory
+                  ? (row) => {
+                      handleHotelStockRequestCreated(row);
+                      goToReviewBeforeSend();
+                    }
+                  : undefined
               }
             />
           </div>
@@ -480,6 +541,7 @@ export function StoreComponent({
             <PurchaseRequestsTab
               tenantScope={inventoryTenantKey}
               onCreated={handlePurchaseRequestCreated}
+              onSubmittedForReview={goToReviewBeforeSend}
             />
           </div>
         ) : activeView === "ReceiptPrinting" ? (
@@ -508,6 +570,8 @@ export function StoreComponent({
                 rows={requestStatusData.myPurchases}
                 unitPriceRole="Store"
                 onRefresh={() => void requestStatusData.reload()}
+                propertyName={displayLabel}
+                logoUrl={logoUrl}
               />
             )}
           </div>
@@ -518,7 +582,27 @@ export function StoreComponent({
                 <Loader2 className="h-9 w-9 animate-spin text-primary" />
               </div>
             ) : (
-              <StockMovementStatusPanel rows={requestStatusData.myStocks} />
+              <StockMovementStatusPanel
+                rows={requestStatusData.myStocks}
+                propertyName={displayLabel}
+                logoUrl={logoUrl}
+                linkedInventory={storeItem}
+              />
+            )}
+          </div>
+        ) : activeView === "ItemRegistrationStatus" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            {requestStatusData.initialLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-9 w-9 animate-spin text-primary" />
+              </div>
+            ) : (
+              <ItemRegistrationStatusPanel
+                rows={requestStatusData.myRegistrations}
+                purchaseRequests={requestStatusData.myPurchases}
+                propertyName={displayLabel}
+                logoUrl={logoUrl}
+              />
             )}
           </div>
         ) : activeView === "PaymentCredit" && hotelInventory ? (
@@ -604,7 +688,12 @@ export function StoreComponent({
                       className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
                     >
                       <Icon className="opacity-80" />
-                      <span>{label}</span>
+                      <span className="flex-1 truncate">{label}</span>
+                      {id === "ReviewBeforeSend" && draftReviewCount > 0 ? (
+                        <span className="ml-auto rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-amber-950 tabular-nums">
+                          {draftReviewCount}
+                        </span>
+                      ) : null}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -645,6 +734,17 @@ export function StoreComponent({
                             className="cursor-pointer"
                           >
                             Stock movements
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={activeView === "ItemRegistrationStatus"}
+                            onClick={() =>
+                              setActiveView("ItemRegistrationStatus")
+                            }
+                            className="cursor-pointer"
+                          >
+                            Item registrations
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       </SidebarMenuSub>

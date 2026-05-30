@@ -5,6 +5,7 @@ export * from "./cafeCatalog";
 export * from "./cafeOrders";
 export * from "./reports";
 export * from "./hotelWorkflow";
+export * from "./storeRequestDraft";
 
 export {
   CreateCreditLevel,
@@ -25,6 +26,7 @@ export {
 
 export {
   CreateItemRegistration,
+  createItemRegistrationsBatchApi,
   fetchItemRegistrations,
   UpdateItemRegistration,
   DeleteItemRegistration,

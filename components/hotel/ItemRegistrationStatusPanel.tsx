@@ -1,19 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ItemRegistration, StockOutRequestRow } from "@/lib/actions";
+import type { ItemRegistration, PurchaseRequestRow } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import {
-  formatMovementType,
+  formatItemRegistrationStatus,
   formatQtyWithUnit,
-  formatStockMovementRejectorLine,
-  formatStockOutRequestStatus,
 } from "@/lib/hotelDisplayLabels";
 import {
-  matchesStockApprovalFilter,
-  type StockApprovalFilter,
+  matchesRegistrationApprovalFilter,
+  type RegistrationApprovalFilter,
 } from "@/lib/panelFilters";
 import { cn } from "@/lib/utils";
 import {
@@ -23,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Package } from "lucide-react";
+import { PackagePlus } from "lucide-react";
 import { FilterChipGroup } from "@/components/hotel/ListPanelFilterBar";
 import { RequestStatusFilterBar } from "@/components/hotel/RequestStatusFilterBar";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
@@ -33,31 +31,35 @@ import {
   sortRowsByFifo,
 } from "@/lib/requestOrdering";
 import { applyRequestStatusFilters } from "@/lib/requestStatusFilters";
-import { canPrintStockMovementFromStatus } from "@/lib/hotelApproval";
-import { buildStockMovementReceiptBundleForStatus } from "@/lib/receiptGrouping";
+import { canPrintItemRegistrationFromStatus } from "@/lib/hotelApproval";
+import { buildRegistrationReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 
-const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
+const REG_APPROVAL_OPTIONS: {
+  id: RegistrationApprovalFilter;
+  label: string;
+}[] = [
   { id: "all", label: "All" },
-  { id: "pending", label: "Pending" },
+  { id: "pending", label: "Awaiting approval" },
   { id: "pending_store", label: "Store review" },
   { id: "pending_cc", label: "Pending CC" },
   { id: "pending_finance", label: "Pending finance" },
   { id: "pending_manager", label: "Pending manager" },
-  { id: "approved", label: "Approved" },
+  { id: "authorized", label: "Authorized" },
   { id: "rejected", label: "Rejected" },
 ];
 
-function stockBadgeVariant(
+function regBadgeVariant(
   status: string,
 ): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "REJECTED") return "destructive";
-  if (status === "APPROVED") return "default";
+  const s = String(status || "").trim().toUpperCase();
+  if (s.startsWith("REJECTED") || s === "VOID") return "destructive";
+  if (s === "AUTHORIZED" || !s) return "default";
   return "secondary";
 }
 
-function formatWhen(iso: string | null | undefined) {
+function formatWhen(iso: string | Date | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString(undefined, {
     dateStyle: "medium",
@@ -65,26 +67,27 @@ function formatWhen(iso: string | null | undefined) {
   });
 }
 
-export function StockMovementStatusPanel({
+export function ItemRegistrationStatusPanel({
   rows,
-  title = "Stock movement status",
+  purchaseRequests = [],
+  title = "Item registration status",
   description,
-  showRequestedBy = false,
+  showRegisteredBy = false,
   propertyName = "Property",
   propertyTin,
   logoUrl,
-  linkedInventory = [],
 }: {
-  rows: StockOutRequestRow[];
+  rows: ItemRegistration[];
+  purchaseRequests?: PurchaseRequestRow[];
   title?: string;
   description?: string;
-  showRequestedBy?: boolean;
+  showRegisteredBy?: boolean;
   propertyName?: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
-  linkedInventory?: ItemRegistration[];
 }) {
-  const [approvalFilter, setApprovalFilter] = useState<StockApprovalFilter>("all");
+  const [approvalFilter, setApprovalFilter] =
+    useState<RegistrationApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,10 +101,11 @@ export function StockMovementStatusPanel({
   const filtered = useMemo(() => {
     return sortRowsByFifo(
       applyRequestStatusFilters(rows, {
-        matchesApproval: (r) => matchesStockApprovalFilter(r, approvalFilter),
+        matchesApproval: (r) =>
+          matchesRegistrationApprovalFilter(r, approvalFilter),
         dateFrom,
         dateTo,
-        getSubmittedDate: (r) => r.createdAt,
+        getSubmittedDate: (r) => r.registrationDate,
         searchQuery,
       }),
     );
@@ -120,35 +124,24 @@ export function StockMovementStatusPanel({
     setSearchQuery("");
   };
 
-  const columns = useMemo((): ColumnDef<StockOutRequestRow>[] => {
-    const cols: ColumnDef<StockOutRequestRow>[] = [
-      buildVoucherColumn<StockOutRequestRow>(),
+  const columns = useMemo((): ColumnDef<ItemRegistration>[] => {
+    const cols: ColumnDef<ItemRegistration>[] = [
+      buildVoucherColumn<ItemRegistration>(),
       {
         id: "submitted",
-        header: "Submitted",
+        header: "Registered",
         accessorFn: (row) => requestFifoTimestamp(row),
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-            {formatWhen(row.original.createdAt)}
+            {formatWhen(row.original.registrationDate)}
           </span>
         ),
       },
       {
-        accessorKey: "itemName",
+        accessorKey: "name",
         header: "Item",
         cell: ({ row }) => (
-          <span className="font-medium max-w-[200px] truncate block">
-            {row.original.itemName?.trim() || "Unknown item"}
-          </span>
-        ),
-      },
-      {
-        id: "type",
-        header: "Type",
-        cell: ({ row }) => (
-          <Badge variant="outline" className="font-normal">
-            {formatMovementType(row.original.movementType)}
-          </Badge>
+          <span className="font-medium">{row.original.name}</span>
         ),
       },
       {
@@ -156,16 +149,16 @@ export function StockMovementStatusPanel({
         header: "Quantity",
         cell: ({ row }) => (
           <span className="tabular-nums text-muted-foreground whitespace-nowrap">
-            {formatQtyWithUnit(row.original.amount, "")}
+            {formatQtyWithUnit(row.original.amount, row.original.measuredBy)}
           </span>
         ),
       },
       {
-        id: "destination",
-        header: "Destination / reason",
+        accessorKey: "supplierName",
+        header: "Supplier",
         cell: ({ row }) => (
-          <span className="text-sm max-w-[160px] truncate block text-muted-foreground">
-            {row.original.stakeHolderOrReason?.trim() || "—"}
+          <span className="text-sm max-w-[140px] truncate block">
+            {row.original.supplierName || "—"}
           </span>
         ),
       },
@@ -174,67 +167,40 @@ export function StockMovementStatusPanel({
         header: "Status",
         cell: ({ row }) => (
           <Badge
-            variant={stockBadgeVariant(row.original.status)}
+            variant={regBadgeVariant(row.original.approvalStatus ?? "")}
             className={cn(
               "font-normal",
-              row.original.status === "APPROVED" &&
+              (row.original.approvalStatus === "AUTHORIZED" ||
+                !String(row.original.approvalStatus ?? "").trim()) &&
                 "bg-emerald-600/90 hover:bg-emerald-600/90",
             )}
           >
-            {formatStockOutRequestStatus(row.original.status)}
+            {formatItemRegistrationStatus(row.original.approvalStatus ?? "")}
           </Badge>
-        ),
-      },
-      {
-        id: "rejection",
-        header: "Rejection / reason",
-        cell: ({ row }) => {
-          const r = row.original;
-          if (r.status !== "REJECTED") {
-            return <span className="text-muted-foreground">—</span>;
-          }
-          return (
-            <div className="text-xs max-w-[200px] space-y-0.5">
-              <p className="font-medium">{formatStockMovementRejectorLine(r)}</p>
-              {r.rejectionReason?.trim() ? (
-                <p className="italic text-muted-foreground">
-                  {r.rejectionReason.trim()}
-                </p>
-              ) : null}
-            </div>
-          );
-        },
-      },
-      {
-        id: "when",
-        header: "When",
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-            {formatWhen(row.original.decidedAt ?? row.original.createdAt)}
-          </span>
         ),
       },
       buildRequestStatusReceiptColumn({
         pool: rows,
-        canPrintRow: (r) => canPrintStockMovementFromStatus(r.status),
+        canPrintRow: (r) =>
+          canPrintItemRegistrationFromStatus(r.approvalStatus),
         buildBundle: (r, pool) =>
-          buildStockMovementReceiptBundleForStatus(r, pool, linkedInventory),
+          buildRegistrationReceiptBundleForStatus(r, pool, purchaseRequests),
         openPreview,
       }),
     ];
-    if (showRequestedBy) {
-      cols.splice(3, 0, {
-        accessorKey: "requestedByUserName",
-        header: "Requested by",
+    if (showRegisteredBy) {
+      cols.splice(1, 0, {
+        accessorKey: "statusBy",
+        header: "Registered by",
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {row.original.requestedByUserName || "—"}
+            {row.original.statusBy || "—"}
           </span>
         ),
       });
     }
     return cols;
-  }, [rows, showRequestedBy, linkedInventory, openPreview]);
+  }, [rows, showRegisteredBy, purchaseRequests, openPreview]);
 
   return (
     <div className="space-y-4">
@@ -242,19 +208,18 @@ export function StockMovementStatusPanel({
       <Card className="border-border/80 bg-card/95 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Package className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            <PackagePlus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             {title}
           </CardTitle>
           <CardDescription>
             {description ??
-              `${filtered.length} of ${rows.length} movement request${rows.length !== 1 ? "s" : ""} shown.`}
+              `${filtered.length} of ${rows.length} registration${rows.length !== 1 ? "s" : ""} shown.`}
           </CardDescription>
         </CardHeader>
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
-            Stock out, wastage, and return requests with approval status.
-            Use View receipt in the table — printing is only inside the preview
-            after manager approval.
+            Item registrations through the approval pipeline. Use View receipt in
+            the table — printing is only inside the preview after authorization.
           </CardContent>
         ) : null}
       </Card>
@@ -266,6 +231,8 @@ export function StockMovementStatusPanel({
         onDateToChange={setDateTo}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
+        dateFromLabel="Registered from"
+        dateToLabel="Registered to"
         showClear={hasActiveFilters}
         onClear={clearFilters}
       >
@@ -273,7 +240,7 @@ export function StockMovementStatusPanel({
           label="Approval status"
           value={approvalFilter}
           onChange={setApprovalFilter}
-          options={STOCK_APPROVAL_OPTIONS}
+          options={REG_APPROVAL_OPTIONS}
         />
       </RequestStatusFilterBar>
 
@@ -283,7 +250,7 @@ export function StockMovementStatusPanel({
           data={filtered}
           hideToolbar
           initialSorting={FIFO_TABLE_SORT}
-          emptyMessage="No stock movement requests match these filters."
+          emptyMessage="No item registrations match these filters."
         />
       </div>
     </div>

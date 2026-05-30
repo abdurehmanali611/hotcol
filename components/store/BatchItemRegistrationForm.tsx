@@ -28,7 +28,10 @@ import {
 } from "@/components/ui/select";
 import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
-import { CreateItemRegistration, checkPityCashBalance } from "@/lib/actions";
+import {
+  createItemRegistrationsBatchApi,
+  checkPityCashBalance,
+} from "@/lib/actions";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 import {
@@ -122,10 +125,12 @@ export function BatchItemRegistrationForm({
   hotelName,
   hotelInventory = false,
   onRegistered,
+  onSubmittedForReview,
 }: {
   hotelName: string;
   hotelInventory?: boolean;
   onRegistered?: () => void | Promise<void>;
+  onSubmittedForReview?: () => void;
 }) {
   const { isPending, run } = useConcurrentActions();
   const submitKey = "batch-item-registration";
@@ -191,50 +196,65 @@ export function BatchItemRegistrationForm({
     void run(submitKey, async () => {
       let ok = 0;
       let failed = 0;
+      const linesToSubmit: Parameters<typeof createItemRegistrationsBatchApi>[0] =
+        [];
+
       for (const l of validLines) {
         const paidAmount = resolvePaidAmount(l);
-        try {
-          if (!hotelInventory) {
+        if (!hotelInventory) {
+          try {
             const hasCash = await checkPityCashBalance(hotelName, paidAmount);
             if (!hasCash) {
               toast.error(`Insufficient petty cash for ${l.name.trim()}`);
               failed++;
               continue;
             }
+          } catch {
+            failed++;
+            continue;
           }
-          await CreateItemRegistration({
-              name: l.name.trim(),
-              imageUrl: l.imageUrl || "https://placehold.co/200x200/png",
-              category: l.category,
-              amount: l.amount,
-              measuredBy: l.measuredBy,
-              unitPrice: l.unitPrice,
-              registrationDate: new Date(l.registrationDate),
-              expireDate: new Date(l.expireDate),
-              supplierName: supplierName.trim(),
-              supplierPhone: supplierPhone.trim(),
-              Address: addressPayload,
-              purchaseWithVat: l.purchaseWithVat,
-              supplierTinNumber: supplierTinNumber.trim() || undefined,
-              paidAmount,
-              HotelName: hotelName,
-            });
-          ok++;
-        } catch {
-          failed++;
+        }
+        linesToSubmit.push({
+          name: l.name.trim(),
+          imageUrl: l.imageUrl || "https://placehold.co/200x200/png",
+          category: l.category,
+          amount: l.amount,
+          measuredBy: l.measuredBy,
+          unitPrice: l.unitPrice,
+          registrationDate: new Date(l.registrationDate),
+          expireDate: new Date(l.expireDate),
+          supplierName: supplierName.trim(),
+          supplierPhone: supplierPhone.trim(),
+          Address: addressPayload,
+          purchaseWithVat: l.purchaseWithVat,
+          supplierTinNumber: supplierTinNumber.trim() || undefined,
+          paidAmount,
+        });
+      }
+
+      if (linesToSubmit.length > 0) {
+        try {
+          await createItemRegistrationsBatchApi(linesToSubmit, hotelName);
+          ok = linesToSubmit.length;
+        } catch (e: unknown) {
+          failed += linesToSubmit.length;
+          const msg =
+            e instanceof Error ? e.message : "Could not register items";
+          toast.error(msg);
         }
       }
       if (ok > 0) {
         toast.success(
           hotelInventory
-            ? `Submitted ${ok} item${ok === 1 ? "" : "s"} for approval${failed ? ` (${failed} failed)` : ""}`
+            ? `Saved ${ok} item${ok === 1 ? "" : "s"} for your review${failed ? ` (${failed} failed)` : ""}. Open Review before send to confirm.`
             : `Registered ${ok} item${ok === 1 ? "" : "s"}${failed ? ` (${failed} failed)` : ""}`,
         );
+        if (hotelInventory) onSubmittedForReview?.();
         setLines([emptyLine()]);
         setSharedNote("");
         lastAutoPaidRef.current.clear();
         await onRegistered?.();
-      } else {
+      } else if (failed === 0) {
         toast.error("Could not register items");
       }
     });

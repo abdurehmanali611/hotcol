@@ -25,16 +25,26 @@ import {
 import { Send } from "lucide-react";
 import {
   FilterChipGroup,
-  ListPanelFilterBar,
 } from "@/components/hotel/ListPanelFilterBar";
+import { RequestStatusFilterBar } from "@/components/hotel/RequestStatusFilterBar";
 import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
-import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
+import {
+  FIFO_TABLE_SORT,
+  requestFifoTimestamp,
+  sortRowsByFifo,
+} from "@/lib/requestOrdering";
+import { applyRequestStatusFilters } from "@/lib/requestStatusFilters";
+import { canPrintPurchaseRequestFromStatus } from "@/lib/hotelApproval";
+import { buildPurchaseRequestReceiptBundleForStatus } from "@/lib/receiptGrouping";
+import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
+import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
     { id: "all", label: "All" },
     { id: "pending", label: "Awaiting approval" },
+    { id: "pending_store", label: "Store review" },
     { id: "pending_cc", label: "Pending CC" },
     { id: "pending_finance", label: "Pending finance" },
     { id: "pending_manager", label: "Pending manager" },
@@ -59,99 +69,6 @@ function formatWhen(iso: string | null | undefined) {
   });
 }
 
-function buildColumns(showStoreUser: boolean): ColumnDef<PurchaseRequestRow>[] {
-  const cols: ColumnDef<PurchaseRequestRow>[] = [
-    buildVoucherColumn<PurchaseRequestRow>(),
-    {
-      accessorKey: "itemName",
-      header: "Item",
-      cell: ({ row }) => (
-        <span className="font-medium">{row.original.itemName}</span>
-      ),
-    },
-    {
-      id: "quantity",
-      header: "Quantity",
-      cell: ({ row }) => (
-        <span className="tabular-nums text-muted-foreground whitespace-nowrap">
-          {formatQtyWithUnit(row.original.quantity, row.original.measuredBy)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "supplierName",
-      header: "Supplier",
-      cell: ({ row }) => (
-        <span className="text-sm max-w-[140px] truncate block">
-          {row.original.supplierName || "—"}
-        </span>
-      ),
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge
-          variant={purchaseBadgeVariant(row.original.status)}
-          className={cn(
-            "font-normal",
-            (row.original.status === "AUTHORIZED" ||
-              row.original.status === "APPROVED_FINANCE") &&
-              "bg-emerald-600/90 hover:bg-emerald-600/90",
-          )}
-        >
-          {formatPurchaseStatus(row.original.status)}
-        </Badge>
-      ),
-    },
-    {
-      id: "rejection",
-      header: "Rejection / reason",
-      cell: ({ row }) => {
-        const r = row.original;
-        if (r.status !== "REJECTED_CC" && r.status !== "REJECTED_FINANCE") {
-          return <span className="text-muted-foreground">—</span>;
-        }
-        return (
-          <div className="text-xs max-w-[200px] space-y-0.5">
-            <p className="font-medium">{formatPurchaseRejectorLine(r)}</p>
-            {r.rejectionReason?.trim() ? (
-              <p className="italic text-muted-foreground">
-                {r.rejectionReason.trim()}
-              </p>
-            ) : null}
-          </div>
-        );
-      },
-    },
-    {
-      id: "updated",
-      header: "Last update",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-          {formatWhen(
-            row.original.financeApprovedAt ??
-              row.original.ccApprovedAt ??
-              row.original.createdAt,
-          )}
-        </span>
-      ),
-    },
-  ];
-  if (showStoreUser) {
-    cols.splice(1, 0, {
-      accessorKey: "storeUserName",
-      header: "Store user",
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {row.original.storeUserName || "—"}
-        </span>
-      ),
-    });
-  }
-  return cols;
-}
-
 export function PurchaseRequestStatusPanel({
   rows,
   title = "Purchase request status",
@@ -159,6 +76,9 @@ export function PurchaseRequestStatusPanel({
   showStoreUser = false,
   unitPriceRole,
   onRefresh,
+  propertyName = "Property",
+  propertyTin,
+  logoUrl,
 }: {
   rows: PurchaseRequestRow[];
   title?: string;
@@ -166,23 +86,161 @@ export function PurchaseRequestStatusPanel({
   showStoreUser?: boolean;
   unitPriceRole?: "Store" | "CostControl" | "Finance" | "Manager";
   onRefresh?: () => void;
+  propertyName?: string;
+  propertyTin?: string | null;
+  logoUrl?: string | null;
 }) {
   const [approvalFilter, setApprovalFilter] =
     useState<PurchaseApprovalFilter>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
+      propertyName,
+      propertyTin,
+      logoUrl,
+    });
 
   const filtered = useMemo(() => {
-    return [...rows]
-      .filter((r) => matchesPurchaseApprovalFilter(r, approvalFilter))
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-  }, [rows, approvalFilter]);
+    return sortRowsByFifo(
+      applyRequestStatusFilters(rows, {
+        matchesApproval: (r) =>
+          matchesPurchaseApprovalFilter(r, approvalFilter),
+        dateFrom,
+        dateTo,
+        getSubmittedDate: (r) => r.createdAt,
+        searchQuery,
+      }),
+    );
+  }, [rows, approvalFilter, dateFrom, dateTo, searchQuery]);
 
-  const hasActiveFilters = approvalFilter !== "all";
+  const hasActiveFilters =
+    approvalFilter !== "all" ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    searchQuery.trim() !== "";
+
+  const clearFilters = () => {
+    setApprovalFilter("all");
+    setDateFrom("");
+    setDateTo("");
+    setSearchQuery("");
+  };
+
+  const columns = useMemo((): ColumnDef<PurchaseRequestRow>[] => {
+    const cols: ColumnDef<PurchaseRequestRow>[] = [
+      buildVoucherColumn<PurchaseRequestRow>(),
+      {
+        id: "submitted",
+        header: "Submitted",
+        accessorFn: (row) => requestFifoTimestamp(row),
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+            {formatWhen(row.original.createdAt)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "itemName",
+        header: "Item",
+        cell: ({ row }) => (
+          <span className="font-medium">{row.original.itemName}</span>
+        ),
+      },
+      {
+        id: "quantity",
+        header: "Quantity",
+        cell: ({ row }) => (
+          <span className="tabular-nums text-muted-foreground whitespace-nowrap">
+            {formatQtyWithUnit(row.original.quantity, row.original.measuredBy)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "supplierName",
+        header: "Supplier",
+        cell: ({ row }) => (
+          <span className="text-sm max-w-[140px] truncate block">
+            {row.original.supplierName || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge
+            variant={purchaseBadgeVariant(row.original.status)}
+            className={cn(
+              "font-normal",
+              (row.original.status === "AUTHORIZED" ||
+                row.original.status === "APPROVED_FINANCE") &&
+                "bg-emerald-600/90 hover:bg-emerald-600/90",
+            )}
+          >
+            {formatPurchaseStatus(row.original.status)}
+          </Badge>
+        ),
+      },
+      {
+        id: "rejection",
+        header: "Rejection / reason",
+        cell: ({ row }) => {
+          const r = row.original;
+          if (r.status !== "REJECTED_CC" && r.status !== "REJECTED_FINANCE") {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          return (
+            <div className="text-xs max-w-[200px] space-y-0.5">
+              <p className="font-medium">{formatPurchaseRejectorLine(r)}</p>
+              {r.rejectionReason?.trim() ? (
+                <p className="italic text-muted-foreground">
+                  {r.rejectionReason.trim()}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "updated",
+        header: "Last update",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+            {formatWhen(
+              row.original.financeApprovedAt ??
+                row.original.ccApprovedAt ??
+                row.original.createdAt,
+            )}
+          </span>
+        ),
+      },
+      buildRequestStatusReceiptColumn({
+        pool: rows,
+        canPrintRow: (r) => canPrintPurchaseRequestFromStatus(r.status),
+        buildBundle: (r, pool) =>
+          buildPurchaseRequestReceiptBundleForStatus(r, pool),
+        openPreview,
+      }),
+    ];
+    if (showStoreUser) {
+      cols.splice(1, 0, {
+        accessorKey: "storeUserName",
+        header: "Store user",
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {row.original.storeUserName || "—"}
+          </span>
+        ),
+      });
+    }
+    return cols;
+  }, [rows, showStoreUser, openPreview]);
 
   return (
     <div className="space-y-4">
+      {ReceiptPreviewDialog}
       <Card className="border-border/80 bg-card/95 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -197,6 +255,8 @@ export function PurchaseRequestStatusPanel({
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
             Track Cost Control and Finance approval through the pipeline.
+            Use View receipt in the table — printing is only inside the preview
+            after manager authorization.
           </CardContent>
         ) : null}
       </Card>
@@ -209,9 +269,15 @@ export function PurchaseRequestStatusPanel({
         />
       ) : null}
 
-      <ListPanelFilterBar
+      <RequestStatusFilterBar
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
         showClear={hasActiveFilters}
-        onClear={() => setApprovalFilter("all")}
+        onClear={clearFilters}
       >
         <FilterChipGroup
           label="Approval status"
@@ -219,14 +285,14 @@ export function PurchaseRequestStatusPanel({
           onChange={setApprovalFilter}
           options={PURCHASE_APPROVAL_OPTIONS}
         />
-      </ListPanelFilterBar>
+      </RequestStatusFilterBar>
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
         <DataTable
-          columns={buildColumns(showStoreUser)}
+          columns={columns}
           data={filtered}
-          searchColumnId="itemName"
-          initialSorting={VOUCHER_TABLE_SORT}
+          hideToolbar
+          initialSorting={FIFO_TABLE_SORT}
           emptyMessage="No purchase requests match these filters."
         />
       </div>

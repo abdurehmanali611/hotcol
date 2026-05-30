@@ -18,7 +18,8 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { buildStoreMyPurchaseColumns } from "@/lib/dataTableColumns/purchaseRequests";
 import { buildStoreMyStockColumns } from "@/lib/dataTableColumns/stockMovement";
-import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
+import { FIFO_TABLE_SORT } from "@/lib/requestOrdering";
+import { sortRowsByFifo } from "@/lib/requestOrdering";
 import {
   ClipboardList,
   Clock,
@@ -39,10 +40,7 @@ function mergeStockOutRows(
   for (const e of injected) {
     if (!byId.has(e.id)) byId.set(e.id, e);
   }
-  return [...byId.values()].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  return sortRowsByFifo([...byId.values()]);
 }
 
 function mergePurchaseRows(
@@ -55,10 +53,7 @@ function mergePurchaseRows(
   for (const e of injected) {
     if (!byId.has(e.id)) byId.set(e.id, e);
   }
-  return [...byId.values()].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  return sortRowsByFifo([...byId.values()]);
 }
 
 export default function StoreRequestStatusTab({
@@ -158,9 +153,11 @@ export default function StoreRequestStatusTab({
   );
 
   const purchasePending = myPurchases.filter((r) =>
-    ["PENDING_CC", "PENDING_FINANCE"].includes(r.status),
+    ["PENDING_STORE", "PENDING_CC", "PENDING_FINANCE"].includes(r.status),
   ).length;
-  const stockPending = myStocks.filter((r) => r.status === "PENDING").length;
+  const stockPending = myStocks.filter((r) =>
+    ["PENDING_STORE", "PENDING", "PENDING_CC"].includes(r.status),
+  ).length;
 
   const handleRefresh = () => {
     void run(refreshKey, load);
@@ -289,7 +286,7 @@ export default function StoreRequestStatusTab({
                 columns={buildStoreMyPurchaseColumns()}
                 data={myPurchases}
                 searchColumnId="itemName"
-                initialSorting={VOUCHER_TABLE_SORT}
+                initialSorting={FIFO_TABLE_SORT}
                 emptyMessage="No purchase requests from you yet."
               />
             </div>
@@ -322,7 +319,7 @@ export default function StoreRequestStatusTab({
                 columns={buildStoreMyStockColumns()}
                 data={myStocks}
                 searchColumnId="itemName"
-                initialSorting={VOUCHER_TABLE_SORT}
+                initialSorting={FIFO_TABLE_SORT}
                 emptyMessage="No movement requests from you yet."
               />
             </div>

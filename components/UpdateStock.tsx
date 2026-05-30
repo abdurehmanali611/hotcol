@@ -23,6 +23,7 @@ import {
   computeInventoryPaidAmountETB,
   isVatEnabled,
 } from "@/lib/hotelInventoryPayment";
+import { registrationPreviewImageUrl } from "@/lib/registrationImageUrl";
 
 interface UpdateStockProps {
   isOpen: boolean;
@@ -98,7 +99,7 @@ const UpdateStock = ({
       paidAmount: item.paidAmount,
       HotelName: item.HotelName,
     });
-    setPreviewUrl(item.imageUrl);
+    setPreviewUrl(registrationPreviewImageUrl(item.imageUrl));
   }, [item, isOpen, form]);
 
   const watchedAmount = form.watch("amount");

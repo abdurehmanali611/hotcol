@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { useRejectionReasonDialog } from "@/hooks/useRejectionReasonDialog";
 import { notifyApiFailure } from "@/lib/actions";
 import { toast } from "sonner";
 
@@ -51,12 +52,18 @@ export function PurchaseRequestUnitPriceRevisions({
   const [ccProfileId, setCcProfileId] = useState("");
   const [storePage, setStorePage] = useState(0);
   const { isPending, run } = useConcurrentActions();
+  const { requestRejectionReason, RejectionReasonDialog } =
+    useRejectionReasonDialog();
 
   const storePageCount = Math.max(1, Math.ceil(eligible.length / STORE_PAGE_SIZE));
   const storePageItems = useMemo(() => {
     const start = storePage * STORE_PAGE_SIZE;
     return eligible.slice(start, start + STORE_PAGE_SIZE);
   }, [eligible, storePage]);
+
+  useEffect(() => {
+    setStorePage(0);
+  }, [eligible.length]);
 
   if (role === "Store") {
     return (
@@ -76,37 +83,6 @@ export function PurchaseRequestUnitPriceRevisions({
             </p>
           ) : (
             <>
-            {eligible.length > STORE_PAGE_SIZE ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>
-                  Showing {storePage * STORE_PAGE_SIZE + 1}–
-                  {Math.min((storePage + 1) * STORE_PAGE_SIZE, eligible.length)} of{" "}
-                  {eligible.length}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={storePage <= 0}
-                    onClick={() => setStorePage((p) => Math.max(0, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={storePage >= storePageCount - 1}
-                    onClick={() =>
-                      setStorePage((p) => Math.min(storePageCount - 1, p + 1))
-                    }
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            ) : null}
             {storePageItems.map((r) => (
               <div
                 key={r.id}
@@ -157,6 +133,37 @@ export function PurchaseRequestUnitPriceRevisions({
                 </PendingButton>
               </div>
             ))}
+            {eligible.length > STORE_PAGE_SIZE ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs text-muted-foreground border-t border-border/60">
+                <span>
+                  Showing {storePage * STORE_PAGE_SIZE + 1}–
+                  {Math.min((storePage + 1) * STORE_PAGE_SIZE, eligible.length)} of{" "}
+                  {eligible.length}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={storePage <= 0}
+                    onClick={() => setStorePage((p) => Math.max(0, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={storePage >= storePageCount - 1}
+                    onClick={() =>
+                      setStorePage((p) => Math.min(storePageCount - 1, p + 1))
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             </>
           )}
         </CardContent>
@@ -186,6 +193,8 @@ export function PurchaseRequestUnitPriceRevisions({
   }
 
   return (
+    <>
+      {RejectionReasonDialog}
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Unit price revisions</CardTitle>
@@ -236,9 +245,20 @@ export function PurchaseRequestUnitPriceRevisions({
                 variant="outline"
                 className="text-destructive"
                 onClick={() =>
-                  void rejectPurchaseRequestUnitPriceApi(r.id, "Rejected")
-                    .then(onRefresh)
-                    .catch((e) => notifyApiFailure(e, "Reject failed"))
+                  void (async () => {
+                    const reason = await requestRejectionReason({
+                      title: "Reject unit price revision",
+                      description:
+                        "Provide a reason for the store team.",
+                    });
+                    if (!reason) return;
+                    try {
+                      await rejectPurchaseRequestUnitPriceApi(r.id, reason);
+                      await onRefresh();
+                    } catch (e) {
+                      notifyApiFailure(e, "Reject failed");
+                    }
+                  })()
                 }
               >
                 Reject
@@ -248,6 +268,7 @@ export function PurchaseRequestUnitPriceRevisions({
         ))}
       </CardContent>
     </Card>
+    </>
   );
 }
 

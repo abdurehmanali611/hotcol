@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  fetchItemRegistrations,
   fetchPurchaseRequests,
   fetchStockOutRequests,
+  type ItemRegistration,
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
@@ -11,6 +13,10 @@ import {
   resolveCanonicalTenantKey,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
+import { sortRowsByFifo } from "@/lib/requestOrdering";
+import { matchesStoreOwner } from "@/lib/storeDraftOwner";
+import { isRegistrationPendingStore } from "@/lib/storeDraftStatus";
+import { fetchMe } from "@/lib/api/auth";
 import { toast } from "sonner";
 
 function mergeStockOutRows(
@@ -23,10 +29,7 @@ function mergeStockOutRows(
   for (const e of injected) {
     if (!byId.has(e.id)) byId.set(e.id, e);
   }
-  return [...byId.values()].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  return sortRowsByFifo([...byId.values()]);
 }
 
 function mergePurchaseRows(
@@ -39,40 +42,48 @@ function mergePurchaseRows(
   for (const e of injected) {
     if (!byId.has(e.id)) byId.set(e.id, e);
   }
-  return [...byId.values()].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  return sortRowsByFifo([...byId.values()]);
 }
 
 export function useStoreRequestStatusData({
+  enabled = true,
   refreshSignal = 0,
   injectedStockRows,
   onClearInjectedStockIds,
   injectedPurchaseRows,
   onClearInjectedPurchaseIds,
 }: {
+  /** When false, skips network load until a status/receipt view is opened. */
+  enabled?: boolean;
   refreshSignal?: number;
   injectedStockRows?: StockOutRequestRow[];
   onClearInjectedStockIds?: (ids: number[]) => void;
   injectedPurchaseRows?: PurchaseRequestRow[];
   onClearInjectedPurchaseIds?: (ids: number[]) => void;
 }) {
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready">("idle");
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
+  const [registrations, setRegistrations] = useState<ItemRegistration[]>([]);
   const [userName, setUserName] = useState("");
 
   const load = useCallback(async () => {
+    if (!enabled) return;
     try {
-      const name =
+      const storedName =
         typeof window !== "undefined"
           ? (localStorage.getItem("user_name")?.trim() ?? "")
           : "";
+      const me = await fetchMe();
+      const name = me?.UserName?.trim() || storedName;
+      if (name && typeof window !== "undefined") {
+        localStorage.setItem("user_name", name);
+      }
       setUserName(name);
-      const [pr, so] = await Promise.all([
+      const [pr, so, reg] = await Promise.all([
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
+        fetchItemRegistrations(),
       ]);
       const tenant = resolveCanonicalTenantKey();
       setPurchases(
@@ -81,28 +92,32 @@ export function useStoreRequestStatusData({
       setStocks(
         so.filter((s) => rowHotelMatchesTenantScope(s.HotelName, tenant)),
       );
+      setRegistrations(
+        reg.filter((r: ItemRegistration) =>
+          rowHotelMatchesTenantScope(r.HotelName, tenant),
+        ),
+      );
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "Could not load request status";
       toast.error(msg);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
-    const isInitial = refreshSignal === 0;
-
     void (async () => {
-      if (isInitial) setInitialLoading(true);
+      setLoadState("loading");
       await load();
-      if (!cancelled && isInitial) setInitialLoading(false);
+      if (!cancelled) setLoadState("ready");
     })();
-
     return () => {
       cancelled = true;
     };
-     
-  }, [load, refreshSignal]);
+  }, [load, refreshSignal, enabled]);
+
+  const initialLoading = enabled && loadState !== "ready";
 
   useEffect(() => {
     if (!onClearInjectedStockIds || !injectedStockRows?.length) return;
@@ -135,7 +150,7 @@ export function useStoreRequestStatusData({
   const myPurchases = useMemo(
     () =>
       mergedPurchases.filter(
-        (p) => userName && p.storeUserName === userName,
+        (p) => userName && matchesStoreOwner(p.storeUserName, userName),
       ),
     [mergedPurchases, userName],
   );
@@ -143,9 +158,23 @@ export function useStoreRequestStatusData({
   const myStocks = useMemo(
     () =>
       mergedStocks.filter(
-        (s) => userName && s.requestedByUserName === userName,
+        (s) => userName && matchesStoreOwner(s.requestedByUserName, userName),
       ),
     [mergedStocks, userName],
+  );
+
+  const myRegistrations = useMemo(
+    () =>
+      sortRowsByFifo(
+        registrations.filter((r) => {
+          if (!userName) return false;
+          const by = String(r.statusBy ?? "").trim();
+          if (by && matchesStoreOwner(by, userName)) return true;
+          if (!by && isRegistrationPendingStore(r.approvalStatus)) return true;
+          return false;
+        }),
+      ),
+    [registrations, userName],
   );
 
   return {
@@ -153,6 +182,7 @@ export function useStoreRequestStatusData({
     userName,
     myPurchases,
     myStocks,
+    myRegistrations,
     reload: load,
   };
 }

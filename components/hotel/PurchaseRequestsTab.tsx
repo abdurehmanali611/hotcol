@@ -13,7 +13,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createPurchaseRequestApi, type PurchaseRequestRow } from "@/lib/actions";
+import {
+  createPurchaseRequestsBatchApi,
+  type PurchaseRequestRow,
+} from "@/lib/actions";
 import { buildOptimisticPurchaseRequestRow } from "@/lib/hotelOptimisticPurchase";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -78,9 +81,11 @@ const CATEGORIES = ["Food", "Beverage", "House Keeping", "Others"] as const;
 export default function PurchaseRequestsTab({
   tenantScope = "",
   onCreated,
+  onSubmittedForReview,
 }: {
   tenantScope?: string;
   onCreated?: (row: PurchaseRequestRow) => void;
+  onSubmittedForReview?: () => void;
 }) {
   const { isPending, run } = useConcurrentActions();
   const submitKey = "purchase-request-batch-submit";
@@ -120,54 +125,45 @@ export default function PurchaseRequestsTab({
           ? (localStorage.getItem("user_name")?.trim() ?? "")
           : "";
       const notePayload = sharedNote.trim() || undefined;
+      const batchLines = validLines.map((l) => ({
+        itemName: l.itemName.trim(),
+        quantity: l.quantity,
+        measuredBy: l.measuredBy,
+        notes: notePayload,
+        estimatedUnitPrice: l.estimatedUnitPrice,
+        supplierName: l.supplierName.trim() || undefined,
+        supplierPhone: l.supplierPhone.trim() || undefined,
+        category: l.category,
+      }));
       let ok = 0;
       let failed = 0;
-      for (let i = 0; i < validLines.length; i++) {
-        const l = validLines[i];
-        try {
-          const supplierName = l.supplierName.trim() || undefined;
-          const supplierPhone = l.supplierPhone.trim() || undefined;
-          const result = await createPurchaseRequestApi(
-            {
-              itemName: l.itemName.trim(),
-              quantity: l.quantity,
-              measuredBy: l.measuredBy,
-              notes: notePayload,
-              estimatedUnitPrice: l.estimatedUnitPrice,
-              supplierName,
-              supplierPhone,
-              category: l.category,
-            },
-            { suppressSuccessToast: true },
-          );
+      try {
+        const results = await createPurchaseRequestsBatchApi(batchLines, {
+          suppressSuccessToast: true,
+        });
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i];
+          if (!result) continue;
           onCreated?.(
             buildOptimisticPurchaseRequestRow(
-              {
-                itemName: l.itemName.trim(),
-                quantity: l.quantity,
-                measuredBy: l.measuredBy,
-                notes: notePayload,
-                estimatedUnitPrice: l.estimatedUnitPrice,
-                supplierName,
-                supplierPhone,
-                category: l.category,
-              },
+              batchLines[i],
               result,
-              user || "—",
-              tenant || "—",
+              user,
+              tenant,
             ),
           );
           ok++;
-        } catch {
-          failed++;
         }
+      } catch {
+        failed = validLines.length;
       }
       if (ok > 0) {
         toast.success(
-          `Submitted ${ok} purchase request${ok === 1 ? "" : "s"}${
+          `Saved ${ok} purchase line${ok === 1 ? "" : "s"} for your review${
             failed ? ` (${failed} failed)` : ""
-          }`,
+          }. Open Review before send to confirm.`,
         );
+        onSubmittedForReview?.();
         setLines([emptyLine()]);
         setSharedNote("");
       } else {

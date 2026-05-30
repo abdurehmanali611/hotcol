@@ -9,7 +9,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "./ui/card";
 import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
@@ -17,8 +16,6 @@ import { Button } from "./ui/button";
 import { useState } from "react";
 import { LoginAction } from "@/lib/actions";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-
 const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

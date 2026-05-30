@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { PendingButton } from "@/components/ui/pending-button";
 import {
-  createStockOutRequestApi,
+  createStockOutRequestsBatchApi,
   type ItemRegistration,
   type StockOutRequestRow,
 } from "@/lib/actions";
@@ -132,56 +132,79 @@ export function InventoryBatchMovementBar({
         }
       }
 
-      let ok = 0;
-      let failed = 0;
+      const batchPayload: {
+        itemRegistrationId: number;
+        movementType: string;
+        amount: number;
+        stakeHolderOrReason: string;
+        row: ItemRegistration;
+        line: (typeof lines)[0];
+      }[] = [];
 
       for (const line of lines) {
         const row = rowById.get(line.registrationId);
-        if (!row) {
-          failed++;
-          continue;
-        }
+        if (!row) continue;
         const q = Number(line.amount);
-        const stakeOrReason =
-          line.movement === "STOCK_OUT"
-            ? stockOutDestination(line)
-            : line.reason.trim();
+        batchPayload.push({
+          itemRegistrationId: line.registrationId,
+          movementType: line.movement,
+          amount: q,
+          stakeHolderOrReason:
+            line.movement === "STOCK_OUT"
+              ? stockOutDestination(line)
+              : line.reason.trim(),
+          row,
+          line,
+        });
+      }
 
+      let ok = 0;
+      let failed = lines.length - batchPayload.length;
+
+      if (batchPayload.length > 0) {
         try {
-          const result = await createStockOutRequestApi(
-            {
-              itemRegistrationId: line.registrationId,
-              movementType: line.movement,
-              amount: q,
-              stakeHolderOrReason: stakeOrReason,
-            },
+          const results = await createStockOutRequestsBatchApi(
+            batchPayload.map(
+              ({ itemRegistrationId, movementType, amount, stakeHolderOrReason }) => ({
+                itemRegistrationId,
+                movementType,
+                amount,
+                stakeHolderOrReason,
+              }),
+            ),
             { suppressSuccessToast: true },
           );
-          onHotelStockRequestCreated?.(
-            buildOptimisticStockOutRequestRow(
-              {
-                id: row.id,
-                name: row.name,
-                HotelName: row.HotelName,
-              },
-              line.movement,
-              q,
-              stakeOrReason,
-              result,
-              user || "—",
-            ),
-          );
-          ok++;
+          for (let i = 0; i < results.length; i++) {
+            const { row, amount, stakeHolderOrReason, movementType } =
+              batchPayload[i];
+            const result = results[i];
+            if (!result) continue;
+            onHotelStockRequestCreated?.(
+              buildOptimisticStockOutRequestRow(
+                {
+                  id: row.id,
+                  name: row.name,
+                  HotelName: row.HotelName,
+                },
+                movementType,
+                amount,
+                stakeHolderOrReason,
+                result,
+                user,
+              ),
+            );
+            ok++;
+          }
         } catch {
-          failed++;
+          failed += batchPayload.length;
         }
       }
 
       if (ok > 0) {
         toast.success(
-          `Submitted ${ok} movement request${ok === 1 ? "" : "s"}${
+          `Saved ${ok} movement line${ok === 1 ? "" : "s"} for your review${
             failed ? ` (${failed} skipped or failed)` : ""
-          }`,
+          }. Open Review before send to confirm.`,
         );
       } else {
         toast.error(

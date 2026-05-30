@@ -5,6 +5,7 @@ import { toYmdLocal } from "@/lib/hotelDateYmd";
 export type PurchaseApprovalFilter =
   | "all"
   | "pending"
+  | "pending_store"
   | "pending_cc"
   | "pending_finance"
   | "pending_manager"
@@ -14,17 +15,36 @@ export type PurchaseApprovalFilter =
 export type StockApprovalFilter =
   | "all"
   | "pending"
+  | "pending_store"
   | "pending_cc"
   | "pending_finance"
   | "pending_manager"
   | "approved"
   | "rejected";
 
+export type RegistrationApprovalFilter =
+  | "all"
+  | "pending"
+  | "pending_store"
+  | "pending_cc"
+  | "pending_finance"
+  | "pending_manager"
+  | "authorized"
+  | "rejected";
+
 export type CreditAmountFilter = "all" | "under_10k" | "10k_50k" | "over_50k";
 
 export function purchaseApprovalBucket(
   status: string,
-): "pending_cc" | "pending_finance" | "pending_manager" | "approved" | "rejected" | "other" {
+):
+  | "pending_store"
+  | "pending_cc"
+  | "pending_finance"
+  | "pending_manager"
+  | "approved"
+  | "rejected"
+  | "other" {
+  if (status === "PENDING_STORE") return "pending_store";
   if (status === "PENDING_CC") return "pending_cc";
   if (status === "PENDING_FINANCE") return "pending_finance";
   if (status === "PENDING_MANAGER") return "pending_manager";
@@ -53,15 +73,60 @@ export function matchesPurchaseApprovalFilter(
   const bucket = purchaseApprovalBucket(row.status);
   if (filter === "pending") {
     return (
+      bucket === "pending_store" ||
       bucket === "pending_cc" ||
       bucket === "pending_finance" ||
       bucket === "pending_manager"
     );
   }
+  if (filter === "pending_store") return bucket === "pending_store";
   if (filter === "pending_cc") return bucket === "pending_cc";
   if (filter === "pending_finance") return bucket === "pending_finance";
   if (filter === "pending_manager") return bucket === "pending_manager";
   if (filter === "approved") return bucket === "approved";
+  if (filter === "rejected") return bucket === "rejected";
+  return true;
+}
+
+export function registrationApprovalBucket(
+  approvalStatus: string | null | undefined,
+):
+  | "pending_store"
+  | "pending_cc"
+  | "pending_finance"
+  | "pending_manager"
+  | "authorized"
+  | "rejected"
+  | "other" {
+  const s = String(approvalStatus ?? "").trim().toUpperCase();
+  if (s === "PENDING_STORE") return "pending_store";
+  if (s === "PENDING_CC") return "pending_cc";
+  if (s === "PENDING_FINANCE") return "pending_finance";
+  if (s === "PENDING_MANAGER") return "pending_manager";
+  if (s === "AUTHORIZED" || !s) return "authorized";
+  if (s.startsWith("REJECTED") || s === "VOID") return "rejected";
+  return "other";
+}
+
+export function matchesRegistrationApprovalFilter(
+  row: ItemRegistration,
+  filter: RegistrationApprovalFilter,
+): boolean {
+  if (filter === "all") return true;
+  const bucket = registrationApprovalBucket(row.approvalStatus);
+  if (filter === "pending") {
+    return (
+      bucket === "pending_store" ||
+      bucket === "pending_cc" ||
+      bucket === "pending_finance" ||
+      bucket === "pending_manager"
+    );
+  }
+  if (filter === "pending_store") return bucket === "pending_store";
+  if (filter === "pending_cc") return bucket === "pending_cc";
+  if (filter === "pending_finance") return bucket === "pending_finance";
+  if (filter === "pending_manager") return bucket === "pending_manager";
+  if (filter === "authorized") return bucket === "authorized";
   if (filter === "rejected") return bucket === "rejected";
   return true;
 }
@@ -73,12 +138,14 @@ export function matchesStockApprovalFilter(
   if (filter === "all") return true;
   if (filter === "pending") {
     return (
+      row.status === "PENDING_STORE" ||
       row.status === "PENDING" ||
       row.status === "PENDING_CC" ||
       row.status === "PENDING_FINANCE" ||
       row.status === "PENDING_MANAGER"
     );
   }
+  if (filter === "pending_store") return row.status === "PENDING_STORE";
   if (filter === "pending_cc") {
     return row.status === "PENDING" || row.status === "PENDING_CC";
   }

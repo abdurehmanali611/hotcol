@@ -6,8 +6,6 @@ import type {
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
-import { DataTable } from "@/app/StoreItems/data-table";
-import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,16 +24,9 @@ import {
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
-import {
-  bundleItemSummary,
-  bundleItemsToPrint,
-  bundleReceivedLabel,
-  bundleSupplierName,
-  bundleTotalETB,
-  bundleTypeLabel,
-  groupRegistrationsForReceipt,
-  type ReceiptBundle,
-} from "@/lib/receiptGrouping";
+import { bundleItemsToPrint, groupRegistrationsForReceipt, type ReceiptBundle } from "@/lib/receiptGrouping";
+import { ReceiptBundleList } from "@/components/hotel/ReceiptBundleList";
+import { RequestTypeCollapsibleSection } from "@/components/hotel/RequestTypeCollapsibleSection";
 import {
   Dialog,
   DialogContent,
@@ -58,7 +49,7 @@ const HOTEL_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     kind: "purchase_request",
     title: "Purchase request",
     description:
-      "Print grouped purchase request receipts using the supplier and date rules.",
+      "Grouped purchase request vouchers — expand a row, then view and print from preview.",
     emptyMessage: "No purchase request receipts to print.",
     searchPlaceholder: "Search purchase request receipts...",
     icon: FileText,
@@ -68,7 +59,7 @@ const HOTEL_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     kind: "registration",
     title: "New item registration",
     description:
-      "Print new item registration receipts grouped by supplier, date, and payment status.",
+      "Registration receipts grouped by supplier, date, and payment when applicable.",
     emptyMessage: "No new item registration receipts to print.",
     searchPlaceholder: "Search new registrations...",
     icon: PackagePlus,
@@ -78,7 +69,7 @@ const HOTEL_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     kind: "stock_movement",
     title: "Stock movement",
     description:
-      "Print stock movement receipts with specific titles such as stock out movement receipt.",
+      "Stock movement vouchers with titles such as stock out movement receipt.",
     emptyMessage: "No stock movement receipts to print.",
     searchPlaceholder: "Search stock movement receipts...",
     icon: ArrowRightLeft,
@@ -91,124 +82,13 @@ const CAFE_RECEIPT_SECTIONS: ReceiptSectionConfig[] = [
     kind: "registration",
     title: "Item receipts",
     description:
-      "Print goods receiving vouchers for authorized store registrations, including newly registered items and petty-cash stock-in.",
+      "Goods receiving vouchers for authorized registrations and petty-cash stock-in.",
     emptyMessage: "No item receipts ready to print.",
     searchPlaceholder: "Search item receipts...",
     icon: PackagePlus,
     accentClassName: "from-emerald-500/70 via-green-500/55 to-lime-400/45",
   },
 ];
-
-function bundleColumns(
-  onPrint: (bundle: ReceiptBundle) => void,
-  printable: boolean,
-): ColumnDef<ReceiptBundle>[] {
-  return [
-    {
-      id: "received",
-      header: "Date",
-      cell: ({ row }) => (
-        <span className="text-sm whitespace-nowrap font-medium tabular-nums">
-          {bundleReceivedLabel(row.original)}
-        </span>
-      ),
-    },
-    {
-      id: "type",
-      header: "Receipt",
-      cell: ({ row }) => (
-        <div className="min-w-[220px] max-w-[280px]">
-          <p className="text-sm font-medium leading-snug text-foreground">
-            {row.original.title}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {bundleTypeLabel(row.original)}
-          </p>
-        </div>
-      ),
-    },
-    {
-      id: "supplier",
-      header: "Supplier",
-      accessorFn: (row) => bundleSupplierName(row),
-      cell: ({ row }) => {
-        const firstPhone = row.original.supplierPhone;
-        return (
-          <div className="min-w-[170px] max-w-[220px]">
-            <p className="text-sm font-medium truncate text-foreground">
-              {bundleSupplierName(row.original)}
-            </p>
-            {firstPhone ? (
-              <p className="text-[10px] text-muted-foreground truncate">
-                {firstPhone}
-              </p>
-            ) : null}
-          </div>
-        );
-      },
-    },
-    {
-      id: "lines",
-      header: "Items on receipt",
-      cell: ({ row }) => (
-        <div className="min-w-[200px] max-w-[320px]">
-          <p className="text-sm text-foreground leading-snug">
-            {bundleItemSummary(row.original)}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {row.original.lines.length} line
-            {row.original.lines.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      ),
-    },
-    {
-      id: "payment",
-      header: "Payment",
-      cell: ({ row }) =>
-        row.original.paymentLabel ? (
-          <Badge
-            variant="outline"
-            className="font-normal whitespace-nowrap border-emerald-500/30 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200"
-          >
-            {row.original.paymentLabel}
-          </Badge>
-        ) : (
-          <span className="text-xs text-muted-foreground">-</span>
-        ),
-    },
-    {
-      id: "total",
-      header: "Total value",
-      cell: ({ row }) => (
-        <span className="text-sm font-semibold tabular-nums whitespace-nowrap text-foreground">
-          ETB {bundleTotalETB(row.original).toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      id: "print",
-      header: "",
-      cell: ({ row }) =>
-        printable ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            className="gap-1.5 whitespace-nowrap"
-            onClick={() => onPrint(row.original)}
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Print
-          </Button>
-        ) : (
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-            Not authorized
-          </span>
-        ),
-    },
-  ];
-}
 
 export function StoreItemReceiptPrinting({
   items,
@@ -236,6 +116,7 @@ export function StoreItemReceiptPrinting({
       ? localStorage.getItem("tin_number")?.trim() || null
       : null);
   const [previewBundle, setPreviewBundle] = useState<ReceiptBundle | null>(null);
+  const [previewCanPrint, setPreviewCanPrint] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -276,18 +157,10 @@ export function StoreItemReceiptPrinting({
     [bundles, receiptSections],
   );
 
-  const openPrintBundle = useCallback(
-    (bundle: ReceiptBundle) => {
-      setPreviewBundle(bundleItemsToPrint(bundle));
-      requestAnimationFrame(() => handlePrint());
-    },
-    [handlePrint],
-  );
-
-  const cols = useMemo(
-    () => bundleColumns(openPrintBundle, true),
-    [openPrintBundle],
-  );
+  const openReceiptPreview = useCallback((bundle: ReceiptBundle) => {
+    setPreviewBundle(bundleItemsToPrint(bundle));
+    setPreviewCanPrint(true);
+  }, []);
 
   return (
     <div className="space-y-6 py-2">
@@ -304,8 +177,8 @@ export function StoreItemReceiptPrinting({
               </CardTitle>
               <CardDescription className="max-w-2xl text-pretty">
                 {isCafe
-                  ? "Print goods receiving vouchers for all authorized store registrations, including newly registered items and petty-cash stock-in."
-                  : "Print new item registration, purchase request, and stock movement receipts. Multi-item receipts are grouped by supplier, date, and payment status when payment applies."}
+                  ? "Expand a receipt type to see vouchers, then open View receipt and print from the preview."
+                  : "Expand purchase, registration, or stock movement to list receipts, then open View receipt and print from the preview."}
               </CardDescription>
             </div>
           </div>
@@ -323,58 +196,30 @@ export function StoreItemReceiptPrinting({
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        {sectionBundles.map((section) => (
-          <Card
+      <div className="space-y-4">
+        {bundles.length === 0 ? (
+          <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-6 py-10 text-center">
+            No authorized receipts to show yet. They appear here after requests are
+            approved through the pipeline.
+          </p>
+        ) : null}
+        {sectionBundles
+          .filter((section) => section.bundles.length > 0)
+          .map((section) => (
+          <RequestTypeCollapsibleSection
             key={section.kind}
-            className="border-border/80 shadow-md bg-card/95 overflow-hidden"
+            title={section.title}
+            count={section.totalLines}
+            accentBarClassName={section.accentClassName}
+            summary={`${section.bundles.length} receipt${section.bundles.length !== 1 ? "s" : ""} · ETB ${section.totalValue.toLocaleString()} — ${section.description}`}
           >
-            <div className={`h-1 bg-linear-to-r ${section.accentClassName}`} />
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-muted/50">
-                    <section.icon className="h-5 w-5 text-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <CardTitle className="text-base sm:text-lg">
-                      {section.title}
-                    </CardTitle>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="font-normal">
-                        {section.bundles.length} receipt
-                        {section.bundles.length !== 1 ? "s" : ""}
-                      </Badge>
-                      <Badge variant="outline" className="font-normal">
-                        {section.totalLines} line
-                        {section.totalLines !== 1 ? "s" : ""}
-                      </Badge>
-                      <Badge variant="outline" className="font-normal">
-                        ETB {section.totalValue.toLocaleString()}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-                <div className="max-w-sm text-right">
-                  <CardDescription className="max-w-2xl">
-                    {section.description}
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                <DataTable
-                  columns={cols}
-                  data={section.bundles}
-                  getRowId={(row) => `${section.kind}-${row.id}`}
-                  searchColumnId="supplier"
-                  searchPlaceholder={section.searchPlaceholder}
-                  emptyMessage={section.emptyMessage}
-                />
-              </div>
-            </CardContent>
-          </Card>
+            <ReceiptBundleList
+              bundles={section.bundles}
+              searchPlaceholder={section.searchPlaceholder}
+              emptyMessage={section.emptyMessage}
+              onViewReceipt={openReceiptPreview}
+            />
+          </RequestTypeCollapsibleSection>
         ))}
       </div>
 
@@ -382,28 +227,55 @@ export function StoreItemReceiptPrinting({
         open={!!previewBundle}
         onOpenChange={(open) => !open && setPreviewBundle(null)}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle>Receipt preview</DialogTitle>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-hidden p-0 gap-0 border-border/80 shadow-2xl">
+          <div className="h-1 bg-linear-to-r from-primary/60 via-emerald-500/45 to-cyan-500/35" />
+          <DialogHeader className="px-6 pt-6 pb-3 border-b border-border/50 bg-muted/15">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10">
+                <Receipt className="h-5 w-5 text-primary" />
+              </div>
+              <div className="space-y-1 min-w-0">
+                <DialogTitle className="text-lg tracking-tight">
+                  Receipt preview
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                  {previewCanPrint
+                    ? "Authorized receipt — print when ready."
+                    : "Preview only until authorization."}
+                </p>
+              </div>
+            </div>
           </DialogHeader>
           {previewBundle ? (
-            <div className="px-2 pb-6">
-              <div ref={printRef}>
-                <StoreItemRegistrationReceipt
-                  bundle={previewBundle}
-                  propertyName={propertyName}
-                  propertyTin={resolvedTin}
-                  logoUrl={logoUrl}
-                />
+            <div className="overflow-y-auto max-h-[calc(92vh-11rem)]">
+              <div className="px-4 py-4 sm:px-6">
+                <div
+                  ref={printRef}
+                  className="rounded-xl border border-border/60 bg-white dark:bg-card shadow-sm overflow-hidden"
+                >
+                  <StoreItemRegistrationReceipt
+                    bundle={previewBundle}
+                    propertyName={propertyName}
+                    propertyTin={resolvedTin}
+                    logoUrl={logoUrl}
+                  />
+                </div>
               </div>
-              <div className="flex justify-end gap-2 px-6 pt-4 print:hidden">
+              <div className="sticky bottom-0 flex justify-end gap-2 px-6 py-4 border-t border-border/60 bg-background/95 backdrop-blur-sm print:hidden">
                 <Button variant="outline" onClick={() => setPreviewBundle(null)}>
                   Close
                 </Button>
-                <Button className="gap-2" onClick={() => handlePrint()}>
-                  <Printer className="h-4 w-4" />
-                  Print receipt
-                </Button>
+                {previewCanPrint ? (
+                  <Button className="gap-2 shadow-sm" onClick={() => handlePrint()}>
+                    <Printer className="h-4 w-4" />
+                    Print receipt
+                  </Button>
+                ) : (
+                  <Button disabled className="gap-2">
+                    <Printer className="h-4 w-4" />
+                    Print (after authorization)
+                  </Button>
+                )}
               </div>
             </div>
           ) : null}

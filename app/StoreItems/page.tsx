@@ -6,6 +6,7 @@ import {
 } from "@/lib/inventoryAggregation";
 import type { items } from "./columns";
 import { fetchItemRegistrations, ItemRegistration, type StockOutRequestRow } from "@/lib/actions";
+import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import {
   effectiveTenantScopeForHotelTerminal,
   rowHotelMatchesTenantScope,
@@ -82,8 +83,16 @@ export default function StoreItems({
       const eff = effectiveTenantScopeForHotelTerminal(tenantScope, {
         requireHotelTerminal: hotelStockApprovals,
       });
-      if (!eff) return hotelStockApprovals ? [] : rows;
-      return rows.filter((it) => rowHotelMatchesTenantScope(it.HotelName, eff));
+      let scoped = rows;
+      if (!eff) {
+        scoped = hotelStockApprovals ? [] : rows;
+      } else {
+        scoped = rows.filter((it) => rowHotelMatchesTenantScope(it.HotelName, eff));
+      }
+      if (hotelStockApprovals) {
+        return filterInventoryListRegistrations(scoped);
+      }
+      return scoped;
     },
     [tenantScope, hotelStockApprovals],
   );

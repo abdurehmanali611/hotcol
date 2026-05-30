@@ -5,10 +5,7 @@ import {
   fetchSignupPricingPreview,
   type SignupPricingPreview,
 } from "@/lib/api/pricing";
-import {
-  calculateSignupPricing,
-  type SignupPricing,
-} from "@/lib/subscriptionModules";
+import { calculateSignupPricing } from "@/lib/subscriptionModules";
 import type { BusinessType, ModuleOption } from "@/constants";
 
 export type SignupPricingState = SignupPricingPreview & { loading: boolean };
@@ -38,6 +35,8 @@ export function useSignupPricing(
     return () => {
       cancelled = true;
     };
+  // modulesKey tracks modules without unstable array reference in deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessType, modulesKey]);
 
   return pricing;

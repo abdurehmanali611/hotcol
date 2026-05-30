@@ -17,8 +17,10 @@ export function isStockPendingManager(status: string): boolean {
 }
 
 export function isItemRegAuthorized(status?: string | null): boolean {
-  const s = String(status || "AUTHORIZED");
-  return !s || s === "AUTHORIZED";
+  const s = String(status ?? "").trim().toUpperCase();
+  /** Legacy rows created before approval workflow (empty only). */
+  if (!s) return true;
+  return s === "AUTHORIZED";
 }
 
 /** Active stock lines for inventory tables (matches Store terminal / backend Store filter). */
@@ -28,6 +30,20 @@ export function filterInventoryListRegistrations<
   return rows.filter(
     (r) => isItemRegAuthorized(r.approvalStatus) && !isItemRegVoid(r.approvalStatus),
   );
+}
+
+/** Purchase lines that may receive stock or count as approved requests (manager-authorized). */
+export function filterPurchaseRequestsAuthorized<
+  T extends { status: string },
+>(rows: readonly T[]): T[] {
+  return rows.filter((r) => isPurchaseAuthorized(r.status));
+}
+
+/** Stock movements that have been applied to inventory (manager-approved). */
+export function filterStockMovementsApproved<
+  T extends { status: string },
+>(rows: readonly T[]): T[] {
+  return rows.filter((r) => isStockMovementPrintable(r.status));
 }
 
 export function isItemRegVoid(status?: string | null): boolean {
@@ -50,4 +66,19 @@ export function isPurchaseRequestPrintable(status: string): boolean {
 
 export function isStockMovementPrintable(status: string): boolean {
   return status === "APPROVED";
+}
+
+/** Request status panels: print only after manager sign-off. */
+export function canPrintPurchaseRequestFromStatus(status: string): boolean {
+  return status === "AUTHORIZED";
+}
+
+export function canPrintStockMovementFromStatus(status: string): boolean {
+  return status === "APPROVED";
+}
+
+export function canPrintItemRegistrationFromStatus(
+  status?: string | null,
+): boolean {
+  return isItemRegAuthorized(status) && !isItemRegVoid(status);
 }

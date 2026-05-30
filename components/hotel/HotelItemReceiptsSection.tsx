@@ -1,10 +1,16 @@
 "use client";
 
+import { useMemo } from "react";
 import type {
   ItemRegistration,
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
+import {
+  filterInventoryListRegistrations,
+  filterPurchaseRequestsAuthorized,
+  filterStockMovementsApproved,
+} from "@/lib/hotelApproval";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import {
   Card,
@@ -36,6 +42,19 @@ export function HotelItemReceiptsSection({
       ? localStorage.getItem("tin_number")?.trim() || null
       : null);
 
+  const authorizedItems = useMemo(
+    () => filterInventoryListRegistrations(items),
+    [items],
+  );
+  const authorizedPurchases = useMemo(
+    () => filterPurchaseRequestsAuthorized(purchaseRequests),
+    [purchaseRequests],
+  );
+  const approvedStockMovements = useMemo(
+    () => filterStockMovementsApproved(stockMovements),
+    [stockMovements],
+  );
+
   return (
     <Card className="border-primary/15 shadow-lg overflow-hidden bg-card/95">
       <div className="h-1 bg-linear-to-r from-primary/60 via-emerald-500/50 to-cyan-500/40" />
@@ -45,16 +64,15 @@ export function HotelItemReceiptsSection({
           Item receipts
         </CardTitle>
         <CardDescription className="max-w-2xl text-pretty">
-          Print new registration, purchase request, and stock movement receipts
-          with clear titles, voucher numbers, hotel TIN, payment status, and
-          signature lines.
+          Expand a receipt type (purchase, registration, or stock movement), pick a
+          voucher, then print from the preview when you are ready.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <StoreItemReceiptPrinting
-          items={items}
-          purchaseRequests={purchaseRequests}
-          stockMovements={stockMovements}
+          items={authorizedItems}
+          purchaseRequests={authorizedPurchases}
+          stockMovements={approvedStockMovements}
           propertyName={propertyName}
           propertyTin={tin}
           logoUrl={logoUrl}

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { useRejectionReasonDialog } from "@/hooks/useRejectionReasonDialog";
 import { notifyApiFailure } from "@/lib/actions";
 import { toast } from "sonner";
 
@@ -48,6 +49,8 @@ export function InventoryUnitPriceRevisions({
   const [draftPrice, setDraftPrice] = useState<Record<number, string>>({});
   const [ccProfileId, setCcProfileId] = useState("");
   const { isPending, run } = useConcurrentActions();
+  const { requestRejectionReason, RejectionReasonDialog } =
+    useRejectionReasonDialog();
 
   if (role === "Store") {
     return (
@@ -143,6 +146,8 @@ export function InventoryUnitPriceRevisions({
   }
 
   return (
+    <>
+      {RejectionReasonDialog}
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Inventory unit price revisions</CardTitle>
@@ -196,9 +201,20 @@ export function InventoryUnitPriceRevisions({
                 variant="outline"
                 className="text-destructive"
                 onClick={() =>
-                  void rejectItemRegistrationUnitPriceApi(r.id, "Rejected")
-                    .then(onRefresh)
-                    .catch((e) => notifyApiFailure(e, "Reject failed"))
+                  void (async () => {
+                    const reason = await requestRejectionReason({
+                      title: "Reject unit price revision",
+                      description:
+                        "Provide a reason for the store team.",
+                    });
+                    if (!reason) return;
+                    try {
+                      await rejectItemRegistrationUnitPriceApi(r.id, reason);
+                      await onRefresh();
+                    } catch (e) {
+                      notifyApiFailure(e, "Reject failed");
+                    }
+                  })()
                 }
               >
                 Reject
@@ -208,6 +224,7 @@ export function InventoryUnitPriceRevisions({
         ))}
       </CardContent>
     </Card>
+    </>
   );
 }
 

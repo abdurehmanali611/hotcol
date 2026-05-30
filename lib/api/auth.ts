@@ -457,6 +457,26 @@ export async function markTenantFeedbackRead(): Promise<void> {
   }
 }
 
+/** Authoritative signed-in username from the API (JWT session). */
+export async function fetchMe(): Promise<{ UserName: string } | null> {
+  const query = `
+    query Me {
+      me {
+        UserName
+      }
+    }
+  `;
+  try {
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors?.length) return null;
+    const row = response.data.data?.me as { UserName?: string } | null | undefined;
+    const name = String(row?.UserName ?? "").trim();
+    return name ? { UserName: name } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getCurrentUser(): User | null {
   if (typeof window === "undefined") return null;
 

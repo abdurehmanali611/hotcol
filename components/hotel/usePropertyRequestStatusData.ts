@@ -2,24 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  fetchItemRegistrations,
   fetchPurchaseRequests,
   fetchStockOutRequests,
+  type ItemRegistration,
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { sortRowsByFifo } from "@/lib/requestOrdering";
 import { toast } from "sonner";
 
 export function usePropertyRequestStatusData(tenantScope: string | null) {
   const [initialLoading, setInitialLoading] = useState(true);
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
+  const [registrations, setRegistrations] = useState<ItemRegistration[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [pr, so] = await Promise.all([
+      const [pr, so, reg] = await Promise.all([
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
+        fetchItemRegistrations(),
       ]);
       const t = String(tenantScope ?? "").trim();
       setPurchases(
@@ -31,6 +36,13 @@ export function usePropertyRequestStatusData(tenantScope: string | null) {
         t
           ? so.filter((s) => rowHotelMatchesTenantScope(s.HotelName, t))
           : so,
+      );
+      setRegistrations(
+        t
+          ? reg.filter((r: ItemRegistration) =>
+              rowHotelMatchesTenantScope(r.HotelName, t),
+            )
+          : reg,
       );
     } catch (e: unknown) {
       const msg =
@@ -48,27 +60,22 @@ export function usePropertyRequestStatusData(tenantScope: string | null) {
   }, [load]);
 
   const sortedPurchases = useMemo(
-    () =>
-      [...purchases].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      ),
+    () => sortRowsByFifo(purchases),
     [purchases],
   );
 
-  const sortedStocks = useMemo(
-    () =>
-      [...stocks].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      ),
-    [stocks],
+  const sortedStocks = useMemo(() => sortRowsByFifo(stocks), [stocks]);
+
+  const sortedRegistrations = useMemo(
+    () => sortRowsByFifo(registrations),
+    [registrations],
   );
 
   return {
     initialLoading,
     purchases: sortedPurchases,
     stocks: sortedStocks,
+    registrations: sortedRegistrations,
     reload: load,
   };
 }

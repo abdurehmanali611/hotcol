@@ -5,22 +5,15 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { DataTable, type DataTableRef } from "@/app/StoreItems/data-table";
+import { DataTable } from "@/app/StoreItems/data-table";
 import { useSearchParams } from "next/navigation";
 import {
-  approvePurchaseRequestFinanceApi,
-  approvePurchaseRequestsFinanceBatchApi,
   fetchItemRegistrations,
   fetchPurchaseRequests,
   fetchStockOutRequests,
-  rejectPurchaseRequestFinanceApi,
-  rejectPurchaseRequestsFinanceBatchApi,
   logoutAction,
   notifyApiFailure,
   type ItemRegistration,
@@ -38,6 +31,7 @@ import {
 } from "@/components/hotel/HotelRequestStatusSidebarGroup";
 import { StockMovementStatusPanel } from "@/components/hotel/StockMovementStatusPanel";
 import {
+  HotelPurchaseFinanceQueue,
   HotelRegistrationApprovalsBlock,
   HotelStockWorkflowQueue,
 } from "@/components/hotel/HotelWorkflowApprovalQueues";
@@ -49,17 +43,14 @@ import {
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
+import { ItemRegistrationStatusPanel } from "@/components/hotel/ItemRegistrationStatusPanel";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { PendingButton } from "@/components/ui/pending-button";
-import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { patchPurchaseRequestStatus } from "@/lib/hotelRowPatches";
@@ -94,7 +85,6 @@ import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary"
 import {
   formatPurchaseRejectorLine,
   formatPurchaseStatus,
-  formatQtyWithUnit,
   HOTEL_INVENTORY_COPY,
 } from "@/lib/hotelDisplayLabels";
 import { Badge } from "@/components/ui/badge";
@@ -105,6 +95,7 @@ type FinanceSection =
   | "stock-queue"
   | "purchase-request-status"
   | "stock-movement-status"
+  | "item-registration-status"
   | "history"
   | "inventory"
   | "registrations"
@@ -114,122 +105,6 @@ type FinanceSection =
   | "payment-with-vat"
   | "payment-without-vat"
   | "creditor-usage";
-
-function buildFinancePendingColumns(
-  isFinancePending: (key: string) => boolean,
-  runFinanceAction: (
-    key: string,
-    fn: () => Promise<void>,
-  ) => Promise<void> | void,
-  setRows: Dispatch<SetStateAction<PurchaseRequestRow[]>>,
-  refreshPurchasesOnly: () => Promise<void>,
-): ColumnDef<PurchaseRequestRow>[] {
-  return [
-    {
-      accessorKey: "itemName",
-      header: "Item",
-      cell: ({ row }) => (
-        <span className="font-medium">{row.original.itemName}</span>
-      ),
-    },
-    {
-      id: "quantity",
-      header: "Quantity",
-      cell: ({ row }) => (
-        <span className="tabular-nums whitespace-nowrap">
-          {formatQtyWithUnit(row.original.quantity, row.original.measuredBy)}
-        </span>
-      ),
-    },
-    {
-      id: "estLine",
-      header: "Est. line",
-      cell: ({ row }) => {
-        const r = row.original;
-        return (
-          <span className="tabular-nums font-medium">
-            {((r.estimatedUnitPrice || 0) * (r.quantity || 0)).toLocaleString()}{" "}
-            <span className="text-xs font-normal text-muted-foreground">ETB</span>
-          </span>
-        );
-      },
-    },
-    {
-      id: "ccActor",
-      header: "Cost control",
-      cell: ({ row }) => (
-        <span className="text-sm max-w-[160px] truncate block">
-          {row.original.ccActorName ?? "—"}
-        </span>
-      ),
-    },
-    {
-      id: "actions",
-      header: () => <span className="block text-right w-full">Actions</span>,
-      cell: ({ row }) => {
-        const r = row.original;
-        return (
-          <div className="flex flex-wrap justify-end gap-2">
-            <PendingButton
-              size="sm"
-              className="shadow-sm gap-1.5"
-              pending={isFinancePending(`finance-a-${r.id}`)}
-              onClick={() => {
-                void runFinanceAction(`finance-a-${r.id}`, async () => {
-                  try {
-                    const result = await approvePurchaseRequestFinanceApi(r.id);
-                    setRows((prev) =>
-                      patchPurchaseRequestStatus(prev, r.id, result.status),
-                    );
-                    void refreshPurchasesOnly();
-                  } catch (e: unknown) {
-                    notifyApiFailure(e, "Could not approve payment");
-                  }
-                });
-              }}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
-              Approve → manager
-            </PendingButton>
-            <PendingButton
-              size="sm"
-              variant="outline"
-              className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
-              pending={isFinancePending(`finance-r-${r.id}`)}
-              onClick={() => {
-                void runFinanceAction(`finance-r-${r.id}`, async () => {
-                  try {
-                    const result = await rejectPurchaseRequestFinanceApi(
-                      r.id,
-                      "Rejected by finance",
-                    );
-                    const actor =
-                      typeof window !== "undefined"
-                        ? (localStorage.getItem("user_name")?.trim() ?? "")
-                        : "";
-                    setRows((prev) =>
-                      patchPurchaseRequestStatus(prev, r.id, result.status, {
-                        ...result,
-                        financeActorName:
-                          result.financeActorName?.trim() || actor || undefined,
-                      }),
-                    );
-                    void refreshPurchasesOnly();
-                  } catch (e: unknown) {
-                    notifyApiFailure(e, "Could not reject payment");
-                  }
-                });
-              }}
-            >
-              <XCircle className="h-3.5 w-3.5 opacity-90" />
-              Reject
-            </PendingButton>
-          </div>
-        );
-      },
-    },
-  ];
-}
 
 function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
@@ -324,10 +199,6 @@ function FinanceInner() {
   const [stockRows, setStockRows] = useState<StockOutRequestRow[]>([]);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
-  const [selectedFinanceIds, setSelectedFinanceIds] = useState<number[]>([]);
-  const pendingTableRef = useRef<DataTableRef>(null);
-  const { isPending: isFinancePending, run: runFinanceAction } =
-    useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
 
   const load = useCallback(
@@ -394,10 +265,6 @@ function FinanceInner() {
   );
 
   const pending = scopedPurchases.filter((r) => r.status === "PENDING_FINANCE");
-  const allPendingFinanceSelected =
-    pending.length > 0 && selectedFinanceIds.length === pending.length;
-  const somePendingFinanceSelected =
-    selectedFinanceIds.length > 0 && selectedFinanceIds.length < pending.length;
   const history = scopedPurchases.filter((r) =>
     [
       "PENDING_MANAGER",
@@ -425,37 +292,8 @@ function FinanceInner() {
     [activeInventoryRows],
   );
 
-  const pendingColumns = useMemo(
-    () =>
-      buildFinancePendingColumns(
-        isFinancePending,
-        runFinanceAction,
-        setRows,
-        refreshPurchasesOnly,
-      ),
-    [isFinancePending, runFinanceAction, refreshPurchasesOnly],
-  );
   const historyColumns = useMemo(() => buildFinanceHistoryColumns(), []);
   const historySlice = useMemo(() => history.slice(0, 40), [history]);
-
-  const pendingFinanceIdsKey = useMemo(
-    () =>
-      scopedPurchases
-        .filter((r) => r.status === "PENDING_FINANCE")
-        .map((r) => r.id)
-        .sort((a, b) => a - b)
-        .join(","),
-    [scopedPurchases],
-  );
-
-  useEffect(() => {
-    const allow = new Set(
-      scopedPurchases
-        .filter((r) => r.status === "PENDING_FINANCE")
-        .map((r) => r.id),
-    );
-    setSelectedFinanceIds((prev) => prev.filter((id) => allow.has(id)));
-  }, [pendingFinanceIdsKey, scopedPurchases]);
 
   if (loading) {
     return (
@@ -669,138 +507,15 @@ function FinanceInner() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
-                  <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-center">
-                    <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                      <Checkbox
-                        checked={
-                          allPendingFinanceSelected
-                            ? true
-                            : somePendingFinanceSelected
-                              ? "indeterminate"
-                              : false
-                        }
-                        onCheckedChange={(checked) => {
-                          if (checked === true) {
-                            pendingTableRef.current?.setRowSelectionByIds(
-                              pending.map((x) => String(x.id)),
-                            );
-                            setSelectedFinanceIds(pending.map((x) => x.id));
-                            return;
-                          }
-                          pendingTableRef.current?.resetRowSelection();
-                          setSelectedFinanceIds([]);
-                        }}
-                        aria-label="Select all finance approvals"
-                      />
-                      <span>Select all</span>
-                    </label>
-                    <PendingButton
-                      size="sm"
-                      className="shadow-sm gap-1.5"
-                      pending={isFinancePending("batch-finance-a")}
-                      disabled={selectedFinanceIds.length === 0}
-                      onClick={() => {
-                        void runFinanceAction("batch-finance-a", async () => {
-                          try {
-                            const results =
-                              await approvePurchaseRequestsFinanceBatchApi(
-                                selectedFinanceIds,
-                              );
-                            for (const res of results) {
-                              setRows((prev) =>
-                                patchPurchaseRequestStatus(
-                                  prev,
-                                  res.id,
-                                  res.status,
-                                ),
-                              );
-                            }
-                            pendingTableRef.current?.resetRowSelection();
-                            setSelectedFinanceIds([]);
-                            void refreshPurchasesOnly();
-                          } catch (e: unknown) {
-                            notifyApiFailure(
-                              e,
-                              "Could not batch-approve payments",
-                            );
-                          }
-                        });
-                      }}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />
-                      Approve selected ({selectedFinanceIds.length})
-                    </PendingButton>
-                    <PendingButton
-                      size="sm"
-                      variant="outline"
-                      className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5"
-                      pending={isFinancePending("batch-finance-r")}
-                      disabled={selectedFinanceIds.length === 0}
-                      onClick={() => {
-                        void runFinanceAction("batch-finance-r", async () => {
-                          try {
-                            const results =
-                              await rejectPurchaseRequestsFinanceBatchApi(
-                                selectedFinanceIds,
-                              );
-                            const actor =
-                              typeof window !== "undefined"
-                                ? (localStorage.getItem("user_name")?.trim() ?? "")
-                                : "";
-                            for (const res of results) {
-                              setRows((prev) =>
-                                patchPurchaseRequestStatus(
-                                  prev,
-                                  res.id,
-                                  res.status,
-                                  {
-                                    ...res,
-                                    financeActorName:
-                                      res.financeActorName?.trim() ||
-                                      actor ||
-                                      undefined,
-                                  },
-                                ),
-                              );
-                            }
-                            pendingTableRef.current?.resetRowSelection();
-                            setSelectedFinanceIds([]);
-                            void refreshPurchasesOnly();
-                          } catch (e: unknown) {
-                            notifyApiFailure(
-                              e,
-                              "Could not batch-reject payments",
-                            );
-                          }
-                        });
-                      }}
-                    >
-                      <XCircle className="h-3.5 w-3.5 opacity-90" />
-                      Reject selected ({selectedFinanceIds.length})
-                    </PendingButton>
-                  </CardContent>
-                </Card>
-            <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6 p-4">
-              <div className="border-b border-border/60 bg-muted/25 -mx-4 -mt-4 mb-4 px-4 py-3 flex items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Awaiting you
-                </span>
-              </div>
-              <DataTable
-                ref={pendingTableRef}
-                columns={pendingColumns}
-                data={pending}
-                enableRowSelection
-                getRowId={(r) => String(r.id)}
-                onRowSelectionChange={(rows) =>
-                  setSelectedFinanceIds(rows.map((r) => r.id))
-                }
-                emptyMessage="Nothing is waiting for finance approval."
-              />
-            </div>
-            </div>
+            <HotelPurchaseFinanceQueue
+              purchases={scopedPurchases}
+              onRowPatched={(res) =>
+                setRows((prev) =>
+                  patchPurchaseRequestStatus(prev, res.id, res.status, res),
+                )
+              }
+              onRefresh={() => void refreshPurchasesOnly()}
+            />
           )}
         </section>
         )}
@@ -812,6 +527,8 @@ function FinanceInner() {
               showStoreUser
               unitPriceRole="Finance"
               onRefresh={() => void refreshPurchasesOnly()}
+              propertyName={displayName || "Property"}
+              logoUrl={logoUrl}
             />
           </section>
         )}
@@ -823,6 +540,21 @@ function FinanceInner() {
                 rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
               )}
               showRequestedBy
+              propertyName={displayName || "Property"}
+              logoUrl={logoUrl}
+              linkedInventory={inventoryRows}
+            />
+          </section>
+        )}
+
+        {financeSection === "item-registration-status" && (
+          <section className="space-y-4">
+            <ItemRegistrationStatusPanel
+              rows={inventoryRows}
+              purchaseRequests={scopedPurchases}
+              showRegisteredBy
+              propertyName={displayName || "Property"}
+              logoUrl={logoUrl}
             />
           </section>
         )}

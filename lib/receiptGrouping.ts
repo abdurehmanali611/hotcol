@@ -114,7 +114,11 @@ function registrationBundles(
     const supplier = groupSupplierKey(row.supplierName);
     const payment = itemPaymentBucket(row);
     const kind: ReceiptKind = "registration";
-    const key = `${kind}|${supplier}|${day}|${payment}`;
+    const voucher =
+      Math.floor(Number(row.voucherNumber) || 0) > 0
+        ? String(Math.floor(Number(row.voucherNumber)))
+        : String(row.voucherDisplay ?? "").trim() || `id:${row.id}`;
+    const key = `${kind}|${voucher}|${supplier}|${day}|${payment}`;
     const bucket = map.get(key) ?? [];
     bucket.push(row);
     map.set(key, bucket);
@@ -181,7 +185,11 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
   for (const row of rows) {
     const day = dateKey(row.createdAt);
     const supplier = groupSupplierKey(row.supplierName);
-    const key = `purchase_request|${supplier}|${day}`;
+    const voucher =
+      Math.floor(Number(row.voucherNumber) || 0) > 0
+        ? String(Math.floor(Number(row.voucherNumber)))
+        : String(row.voucherDisplay ?? "").trim() || `id:${row.id}`;
+    const key = `purchase_request|${voucher}|${supplier}|${day}`;
     const bucket = map.get(key) ?? [];
     bucket.push(row);
     map.set(key, bucket);
@@ -231,58 +239,79 @@ function stockMovementBundles(
   rows: StockOutRequestRow[],
   itemById: Map<number, ItemRegistration>,
 ): ReceiptBundle[] {
-  return rows.map((row) => {
-    const linkedItem = itemById.get(row.itemRegistrationId);
-    const line: ReceiptLine = {
-      id: `stock-movement-${row.id}`,
-      sourceId: row.id,
-      sourceKind: "stock_movement",
-      voucherNumber: row.voucherNumber,
-      voucherDisplay: row.voucherDisplay,
-      name:
-        String(row.itemName || "").trim() ||
-        String(linkedItem?.name || "").trim() ||
-        "Unknown item",
-      quantity: Number(row.amount) || 0,
-      measuredBy: linkedItem?.measuredBy || "units",
-      unitPrice:
-        linkedItem?.unitPrice != null ? Number(linkedItem.unitPrice) || 0 : null,
-      lineTotal:
-        linkedItem?.unitPrice != null
-          ? (Number(row.amount) || 0) * (Number(linkedItem.unitPrice) || 0)
-          : null,
-      category: linkedItem?.category ?? null,
-      imageUrl: linkedItem?.imageUrl ?? null,
-      notes: row.stakeHolderOrReason,
-      movementLabel: formatMovementType(row.movementType),
-    };
+  const map = new Map<string, StockOutRequestRow[]>();
+  for (const row of rows) {
+    const day = dateKey(row.createdAt);
+    const voucher =
+      Math.floor(Number(row.voucherNumber) || 0) > 0
+        ? String(Math.floor(Number(row.voucherNumber)))
+        : String(row.voucherDisplay ?? "").trim() || `id:${row.id}`;
+    const key = `stock_movement|${voucher}|${day}`;
+    const bucket = map.get(key) ?? [];
+    bucket.push(row);
+    map.set(key, bucket);
+  }
 
-    const key = `stock_movement|${row.id}`;
+  return [...map.entries()].map(([key, items]) => {
+    const first = items[0];
+    const linkedFirst = itemById.get(first.itemRegistrationId);
+    const lines: ReceiptLine[] = items.map((row) => {
+      const linkedItem = itemById.get(row.itemRegistrationId);
+      return {
+        id: `stock-movement-${row.id}`,
+        sourceId: row.id,
+        sourceKind: "stock_movement",
+        voucherNumber: row.voucherNumber,
+        voucherDisplay: row.voucherDisplay,
+        name:
+          String(row.itemName || "").trim() ||
+          String(linkedItem?.name || "").trim() ||
+          "Unknown item",
+        quantity: Number(row.amount) || 0,
+        measuredBy: linkedItem?.measuredBy || "units",
+        unitPrice:
+          linkedItem?.unitPrice != null
+            ? Number(linkedItem.unitPrice) || 0
+            : null,
+        lineTotal:
+          linkedItem?.unitPrice != null
+            ? (Number(row.amount) || 0) * (Number(linkedItem.unitPrice) || 0)
+            : null,
+        category: linkedItem?.category ?? null,
+        imageUrl: linkedItem?.imageUrl ?? null,
+        notes: row.stakeHolderOrReason,
+        movementLabel: formatMovementType(row.movementType),
+      };
+    });
     return {
       key,
       id: bundleIdFromKey(key),
       kind: "stock_movement",
-      title: receiptTitle("stock_movement", { movementType: row.movementType }),
-      date: dateKey(row.createdAt),
-      dateLabel: displayDate(row.createdAt),
-      supplierName: String(linkedItem?.supplierName || "").trim() || "-",
-      supplierPhone: linkedItem?.supplierPhone ?? null,
-      supplierAddress: linkedItem?.Address ?? null,
-      supplierTinNumber: linkedItem?.supplierTinNumber ?? null,
-      totalETB: line.lineTotal || 0,
-      paymentLabel: linkedItem ? itemPaymentLabel(itemPaymentBucket(linkedItem)) : null,
-      registrationVoucher: linkedItem
-        ? formatVoucherDisplay(linkedItem.voucherNumber, linkedItem.voucherDisplay)
+      title: receiptTitle("stock_movement", {
+        movementType: first.movementType,
+      }),
+      date: dateKey(first.createdAt),
+      dateLabel: displayDate(first.createdAt),
+      supplierName: String(linkedFirst?.supplierName || "").trim() || "-",
+      supplierPhone: linkedFirst?.supplierPhone ?? null,
+      supplierAddress: linkedFirst?.Address ?? null,
+      supplierTinNumber: linkedFirst?.supplierTinNumber ?? null,
+      totalETB: lines.reduce((sum, line) => sum + (line.lineTotal || 0), 0),
+      paymentLabel: linkedFirst
+        ? itemPaymentLabel(itemPaymentBucket(linkedFirst))
         : null,
-      stockMovementVoucher: formatVoucherDisplay(
-        row.voucherNumber,
-        row.voucherDisplay,
-      ),
-      lines: [line],
-      storeActorName: row.requestedByUserName ?? null,
-      ccActorName: row.ccActorName ?? null,
-      financeActorName: row.financeActorName ?? null,
-      managerActorName: row.managerActorName ?? null,
+      registrationVoucher: linkedFirst
+        ? formatVoucherDisplay(
+            linkedFirst.voucherNumber,
+            linkedFirst.voucherDisplay,
+          )
+        : null,
+      stockMovementVoucher: formatVoucherRange(items),
+      lines,
+      storeActorName: first.requestedByUserName ?? null,
+      ccActorName: first.ccActorName ?? null,
+      financeActorName: first.financeActorName ?? null,
+      managerActorName: first.managerActorName ?? null,
     };
   });
 }
@@ -351,6 +380,123 @@ export function bundleSupplierName(bundle: ReceiptBundle): string {
 
 export function bundleTotalETB(bundle: ReceiptBundle): number {
   return bundle.totalETB;
+}
+
+function mergeReceiptBundles(bundles: ReceiptBundle[]): ReceiptBundle | null {
+  if (!bundles.length) return null;
+  if (bundles.length === 1) return bundles[0];
+  const first = bundles[0];
+  return {
+    ...first,
+    lines: bundles.flatMap((b) => b.lines),
+    totalETB: bundles.reduce((sum, b) => sum + b.totalETB, 0),
+  };
+}
+
+export function buildPurchaseRequestReceiptBundle(
+  rows: PurchaseRequestRow[],
+): ReceiptBundle | null {
+  return mergeReceiptBundles(purchaseRequestBundles(rows));
+}
+
+/** All lines on the same voucher (may span suppliers) for request-status preview. */
+export function buildPurchaseRequestReceiptBundleForStatus(
+  anchor: PurchaseRequestRow,
+  pool: PurchaseRequestRow[],
+): ReceiptBundle | null {
+  const siblings = pool.filter((row) => {
+    const n = Math.floor(Number(anchor.voucherNumber) || 0);
+    const d = String(anchor.voucherDisplay ?? "").trim();
+    const rn = Math.floor(Number(row.voucherNumber) || 0);
+    const rd = String(row.voucherDisplay ?? "").trim();
+    if (n > 0 && rn === n) return true;
+    if (d && rd && d === rd) return true;
+    return false;
+  });
+  if (!siblings.length) return null;
+  const bundles = purchaseRequestBundles(siblings);
+  const merged = mergeReceiptBundles(bundles);
+  if (!merged) return null;
+  return {
+    ...merged,
+    purchaseRequestVoucher: formatVoucherRange(siblings),
+  };
+}
+
+export function buildStockMovementReceiptBundle(
+  rows: StockOutRequestRow[],
+  linkedItems: ItemRegistration[] = [],
+): ReceiptBundle | null {
+  const itemById = mapItemById(linkedItems);
+  const bundles = stockMovementBundles(rows, itemById);
+  return bundles[0] ?? null;
+}
+
+export function buildRegistrationReceiptBundle(
+  rows: ItemRegistration[],
+  purchaseRequests: PurchaseRequestRow[] = [],
+): ReceiptBundle | null {
+  const prById = new Map(
+    purchaseRequests.map((p) => [
+      p.id,
+      formatVoucherDisplay(p.voucherNumber, p.voucherDisplay),
+    ]),
+  );
+  return mergeReceiptBundles(registrationBundles(rows, prById));
+}
+
+export function buildRegistrationReceiptBundleForStatus(
+  anchor: ItemRegistration,
+  pool: ItemRegistration[],
+  purchaseRequests: PurchaseRequestRow[] = [],
+): ReceiptBundle | null {
+  const siblings = pool.filter((row) => {
+    const n = Math.floor(Number(anchor.voucherNumber) || 0);
+    const d = String(anchor.voucherDisplay ?? "").trim();
+    const rn = Math.floor(Number(row.voucherNumber) || 0);
+    const rd = String(row.voucherDisplay ?? "").trim();
+    if (n > 0 && rn === n) return true;
+    if (d && rd && d === rd) return true;
+    return false;
+  });
+  if (!siblings.length) return null;
+  const prById = new Map(
+    purchaseRequests.map((p) => [
+      p.id,
+      formatVoucherDisplay(p.voucherNumber, p.voucherDisplay),
+    ]),
+  );
+  const bundles = registrationBundles(siblings, prById);
+  const merged = mergeReceiptBundles(bundles);
+  if (!merged) return null;
+  return {
+    ...merged,
+    registrationVoucher: formatVoucherRange(siblings),
+  };
+}
+
+export function buildStockMovementReceiptBundleForStatus(
+  anchor: StockOutRequestRow,
+  pool: StockOutRequestRow[],
+  linkedItems: ItemRegistration[] = [],
+): ReceiptBundle | null {
+  const siblings = pool.filter((row) => {
+    const n = Math.floor(Number(anchor.voucherNumber) || 0);
+    const d = String(anchor.voucherDisplay ?? "").trim();
+    const rn = Math.floor(Number(row.voucherNumber) || 0);
+    const rd = String(row.voucherDisplay ?? "").trim();
+    if (n > 0 && rn === n) return true;
+    if (d && rd && d === rd) return true;
+    return false;
+  });
+  const itemById = mapItemById(linkedItems);
+  const bundles = stockMovementBundles(siblings, itemById);
+  const merged = mergeReceiptBundles(bundles);
+  if (!merged) return null;
+  return {
+    ...merged,
+    stockMovementVoucher: formatVoucherRange(siblings),
+  };
 }
 
 export function bundleItemsToPrint(bundle: ReceiptBundle): ReceiptBundle {
