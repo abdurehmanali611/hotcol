@@ -198,11 +198,10 @@ export function isPaidCashOrBankCafeOrder(
   return order.withBank === true || order.withBank === false;
 }
 
-/** Orders eligible for live correction after kitchen/bar received them. */
+/** Orders eligible for live correction — kitchen/bar still preparing (pending only). */
 export function isLiveOrderEditable(order: Order, hotelName: string): boolean {
   if (!isOpenCafeOrder(order, hotelName)) return false;
-  const status = String(order.status || "").toLowerCase();
-  return status === "pending" || status === "completed";
+  return String(order.status || "").toLowerCase() === "pending";
 }
 
 import { isBarStationOrder } from "./cafeOrderStation";
@@ -258,4 +257,66 @@ export function groupEditableOrdersByTable(
       tableNo,
       orders: tableOrders.sort((a, b) => b.id - a.id),
     }));
+}
+
+/** One unpaid table in order-update: pending lines to edit + context for add-items. */
+export type CafeOrderUpdateTableGroup = {
+  tableNo: number;
+  /** Pending tickets only — completed lines are omitted from the list UI. */
+  pendingOrders: Order[];
+  waiterName: string;
+  serviceCaption?: string | null;
+};
+
+/**
+ * Groups today's unpaid tables for cashier order update.
+ * Tables with only completed (but unpaid) lines are included so staff can add new orders.
+ */
+export function groupCafeOrderUpdateTables(
+  orders: Order[],
+  hotelName: string,
+): CafeOrderUpdateTableGroup[] {
+  const openByTable = new Map<number, Order[]>();
+  for (const order of orders) {
+    if (!isOpenCafeOrder(order, hotelName)) continue;
+    const key = normalizeOrderTableNo(order);
+    const list = openByTable.get(key);
+    if (list) list.push(order);
+    else openByTable.set(key, [order]);
+  }
+
+  return [...openByTable.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([tableNo, tableOrders]) => {
+      const sorted = [...tableOrders].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      const pendingOrders = sorted.filter((o) =>
+        isLiveOrderEditable(o, hotelName),
+      );
+      const anchor = sorted[0];
+      return {
+        tableNo,
+        pendingOrders,
+        waiterName: String(anchor?.waiterName ?? "").trim() || "Self-Service",
+        serviceCaption:
+          sorted.find((o) => String(o.serviceCaption ?? "").trim())?.serviceCaption ??
+          null,
+      };
+    });
+}
+
+/** Sum unpaid lines for one table (includes completed, excludes cancelled/paid). */
+export function sumOpenTableOrdersETB(
+  orders: Order[],
+  hotelName: string,
+  tableNo: number,
+): number {
+  const n = Math.floor(Number(tableNo));
+  return sumOrderLinesETB(
+    orders.filter(
+      (o) =>
+        isOpenCafeOrder(o, hotelName) && normalizeOrderTableNo(o) === n,
+    ),
+  );
 }

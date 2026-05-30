@@ -22,12 +22,14 @@ import {
 import {
   buildEditTableSelectOptions,
   formatCafeTableDisplayFromRegistry,
-  groupEditableOrdersByTable,
+  groupCafeOrderUpdateTables,
   isLiveOrderEditable,
+  isOpenCafeOrder,
   normalizeOrderTableNo,
   occupiedTableNumbersFromOrders,
   orderStationLabel,
   orderToLiveEditFormValues,
+  sumOpenTableOrdersETB,
   sumOrderLinesETB,
   tableCaptionForNo,
 } from "@/lib/cafeTableOrder";
@@ -162,45 +164,50 @@ export function CafeCashierOrderUpdatePanel({
     [orders, hotelName],
   );
 
-  const filteredOrders = useMemo(() => {
+  const openTableGroups = useMemo(
+    () => groupCafeOrderUpdateTables(orders, hotelName),
+    [orders, hotelName],
+  );
+
+  const filteredTableGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return editableOrders;
-    return editableOrders.filter((order) => {
-      const tableNo = normalizeOrderTableNo(order);
+    if (!q) return openTableGroups;
+    return openTableGroups.filter((group) => {
       const tableLabel = formatCafeTableDisplayFromRegistry(
-        tableNo,
+        group.tableNo,
         tables,
-        order.serviceCaption,
+        group.serviceCaption,
+      );
+      const openOnTable = orders.filter(
+        (o) =>
+          isOpenCafeOrder(o, hotelName) &&
+          normalizeOrderTableNo(o) === group.tableNo,
       );
       const haystack = [
-        order.title,
-        order.waiterName,
-        String(tableNo),
         tableLabel,
-        order.serviceCaption,
-        orderStationLabel(order),
-        order.status,
+        group.waiterName,
+        String(group.tableNo),
+        group.serviceCaption,
+        ...openOnTable.flatMap((order) => [
+          order.title,
+          order.waiterName,
+          orderStationLabel(order),
+          order.status,
+        ]),
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [editableOrders, searchQuery, tables]);
-
-  const tableGroups = useMemo(
-    () => groupEditableOrdersByTable(filteredOrders),
-    [filteredOrders],
-  );
-
-  const allTableGroups = useMemo(
-    () => groupEditableOrdersByTable(editableOrders),
-    [editableOrders],
-  );
+  }, [openTableGroups, searchQuery, tables, orders, hotelName]);
 
   const openTotal = useMemo(
-    () => sumOrderLinesETB(editableOrders),
-    [editableOrders],
+    () =>
+      sumOrderLinesETB(
+        orders.filter((o) => isOpenCafeOrder(o, hotelName)),
+      ),
+    [orders, hotelName],
   );
 
   const selectedOrder =
@@ -326,16 +333,17 @@ export function CafeCashierOrderUpdatePanel({
     }
   };
 
-  if (editableOrders.length === 0) {
+  if (openTableGroups.length === 0) {
     return (
       <Card className="border-dashed py-14 text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
           <ClipboardEdit className="h-7 w-7 text-muted-foreground/50" />
         </div>
-        <h3 className="mb-2 text-lg font-semibold">No live orders to update</h3>
+        <h3 className="mb-2 text-lg font-semibold">No open tables</h3>
         <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
-          Today&apos;s unpaid tickets still at kitchen or bar show up here.
-          You can edit a line, add menu items to a table, or remove a mistake.
+          Today&apos;s unpaid tables with pending kitchen/bar tickets show up here.
+          Tables that are fully prepared but not paid also appear so you can add
+          more orders — completed lines are not listed for editing.
         </p>
       </Card>
     );
@@ -383,7 +391,7 @@ export function CafeCashierOrderUpdatePanel({
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div className="rounded-xl border bg-card px-3 py-2.5 shadow-sm">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Open lines
+              Pending lines
             </p>
             <p className="mt-0.5 text-lg font-bold tabular-nums">
               {editableOrders.length}
@@ -394,7 +402,7 @@ export function CafeCashierOrderUpdatePanel({
               Tables
             </p>
             <p className="mt-0.5 text-lg font-bold tabular-nums">
-              {allTableGroups.length}
+              {openTableGroups.length}
             </p>
           </div>
           <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 shadow-sm">
@@ -409,16 +417,14 @@ export function CafeCashierOrderUpdatePanel({
         </div>
 
         <p className="rounded-lg border border-dashed bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          Expand a table to view lines. Select a line to edit, use{" "}
-          <span className="font-medium text-foreground">Add items</span> for new
-          menu tickets, or remove a line if it was sent by mistake (tell kitchen
-          or bar if already preparing).
+          Expand a table to edit pending lines or add new menu items. Completed
+          tickets stay hidden here — use Payment when the table is ready to pay.
         </p>
 
         <div className="grid h-[min(calc(100dvh-14rem),700px)] min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,440px)]">
           <div className="min-h-0 overflow-y-auto overscroll-y-contain rounded-xl border bg-muted/15 p-2 pr-1">
             <div className="space-y-3 pb-1">
-              {tableGroups.length === 0 ? (
+              {filteredTableGroups.length === 0 ? (
                 <Card className="border-dashed py-10 text-center">
                   <p className="text-sm font-medium">No matches</p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -437,19 +443,19 @@ export function CafeCashierOrderUpdatePanel({
                   ) : null}
                 </Card>
               ) : (
-                tableGroups.map(({ tableNo, orders: tableOrders }) => {
-                  const waiterName =
-                    tableOrders[0]?.waiterName || "Self-Service";
+                filteredTableGroups.map(({ tableNo, pendingOrders, waiterName, serviceCaption }) => {
                   const tableDisplay = formatCafeTableDisplayFromRegistry(
                     tableNo,
                     tables,
-                    tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
+                    serviceCaption,
                   );
-                  const tableTotal = sumOrderLinesETB(tableOrders);
-                  const pendingCount = tableOrders.filter(
-                    (o) =>
-                      String(o.status || "").toLowerCase() !== "completed",
-                  ).length;
+                  const tableTotal = sumOpenTableOrdersETB(
+                    orders,
+                    hotelName,
+                    tableNo,
+                  );
+                  const lineCount = pendingOrders.length;
+                  const allReady = lineCount === 0;
 
                   return (
                     <Collapsible
@@ -473,13 +479,13 @@ export function CafeCashierOrderUpdatePanel({
                                   >
                                     {tableDisplay}
                                   </Badge>
-                                  {pendingCount > 0 ? (
-                                    <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 text-[10px]">
-                                      {pendingCount} pending
+                                  {allReady ? (
+                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-[10px]">
+                                      All ready · add more
                                     </Badge>
                                   ) : (
-                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-[10px]">
-                                      All ready
+                                    <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 text-[10px]">
+                                      {lineCount} pending
                                     </Badge>
                                   )}
                                 </div>
@@ -494,7 +500,7 @@ export function CafeCashierOrderUpdatePanel({
                                     </p>
                                   </div>
                                   <Badge variant="secondary" className="tabular-nums">
-                                    {tableOrders.length}
+                                    {lineCount}
                                   </Badge>
                                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]/table-update:rotate-180" />
                                 </div>
@@ -512,7 +518,14 @@ export function CafeCashierOrderUpdatePanel({
                                 {tableTotal.toFixed(2)} ETB
                               </span>
                             </div>
-                            {tableOrders.map((order) => {
+                            {allReady ? (
+                              <p className="rounded-lg border border-dashed bg-background/80 px-3 py-3 text-center text-xs leading-relaxed text-muted-foreground">
+                                Kitchen and bar marked every item ready. Add new
+                                orders below — existing completed lines are not
+                                shown here.
+                              </p>
+                            ) : null}
+                            {pendingOrders.map((order) => {
                               const status = String(order.status || "Pending");
                               const isSelected = selectedId === order.id;
 
