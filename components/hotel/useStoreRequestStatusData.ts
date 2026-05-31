@@ -15,7 +15,7 @@ import {
 } from "@/lib/tenantRowMatch";
 import { sortRowsByFifo } from "@/lib/requestOrdering";
 import { matchesStoreOwner } from "@/lib/storeDraftOwner";
-import { isRegistrationPendingStore } from "@/lib/storeDraftStatus";
+import { isItemRegVoid } from "@/lib/hotelApproval";
 import { fetchMe } from "@/lib/api/auth";
 import { toast } from "sonner";
 
@@ -65,7 +65,10 @@ export function useStoreRequestStatusData({
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
   const [registrations, setRegistrations] = useState<ItemRegistration[]>([]);
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("user_name")?.trim() ?? "";
+  });
 
   const load = useCallback(async () => {
     if (!enabled) return;
@@ -167,11 +170,11 @@ export function useStoreRequestStatusData({
     () =>
       sortRowsByFifo(
         registrations.filter((r) => {
-          if (!userName) return false;
+          if (isItemRegVoid(r.approvalStatus)) return false;
           const by = String(r.statusBy ?? "").trim();
-          if (by && matchesStoreOwner(by, userName)) return true;
-          if (!by && isRegistrationPendingStore(r.approvalStatus)) return true;
-          return false;
+          if (!by) return true;
+          if (!userName) return true;
+          return matchesStoreOwner(by, userName);
         }),
       ),
     [registrations, userName],

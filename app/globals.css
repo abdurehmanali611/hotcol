@@ -184,4 +184,53 @@
     page-break-inside: avoid;
     box-shadow: none !important;
   }
+
+  .receipt-bulk-print-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .receipt-bulk-print-root {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .receipt-print-sheet {
+    width: 210mm;
+    height: 297mm;
+    max-height: 297mm;
+    break-after: page;
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .receipt-print-slot {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    flex: 1 1 50%;
+    max-height: 148.5mm;
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .receipt-print-slot--solo {
+    flex: 1 1 100%;
+    max-height: 297mm;
+  }
+
+  .receipt-print-slot--second {
+    border-top: 1px dashed #d4d4d8;
+  }
+
+  .receipt-bulk-print-doc {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

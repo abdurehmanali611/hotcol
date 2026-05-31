@@ -177,7 +177,7 @@ export function StoreItemReceiptPrinting({
               </CardTitle>
               <CardDescription className="max-w-2xl text-pretty">
                 {isCafe
-                  ? "Expand a receipt type to see vouchers, then open View receipt and print from the preview."
+                  ? "Expand item receipts to list vouchers, then open View receipt and print from the preview."
                   : "Expand purchase, registration, or stock movement to list receipts, then open View receipt and print from the preview."}
               </CardDescription>
             </div>

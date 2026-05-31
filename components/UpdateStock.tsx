@@ -156,7 +156,7 @@ const UpdateStock = ({
       const data = await response.json();
       const imageUrl = data.secure_url;
 
-      form.setValue("imageUrl", imageUrl);
+      form.setValue("imageUrl", imageUrl, { shouldValidate: true });
       setPreviewUrl(imageUrl);
       toast.success("Image uploaded successfully");
     } catch (error: any) {
@@ -283,7 +283,9 @@ const UpdateStock = ({
 
               <div className="space-y-4 self-center">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Item Image</label>
+                  <label className="text-sm font-medium">
+                    Item image <span className="text-destructive">*</span>
+                  </label>
                   <div className="relative w-42 h-42 rounded-lg flex items-center justify-center overflow-hidden group mt-2">
                     {previewUrl ? (
                       <>
@@ -333,6 +335,11 @@ const UpdateStock = ({
                       onChange={handleImageUpload}
                     />
                   </div>
+                  {form.formState.errors.imageUrl ? (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.imageUrl.message}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

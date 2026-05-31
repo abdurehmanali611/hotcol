@@ -15,18 +15,23 @@ import {
 } from "@/lib/receiptGrouping";
 import { cn } from "@/lib/utils";
 
+const RECEIPT_PAGE_SIZE = 10;
+
 export function ReceiptBundleList({
   bundles,
   searchPlaceholder = "Search receipts…",
   emptyMessage = "No receipts to show.",
+  pageSize = RECEIPT_PAGE_SIZE,
   onViewReceipt,
 }: {
   bundles: ReceiptBundle[];
   searchPlaceholder?: string;
   emptyMessage?: string;
+  pageSize?: number;
   onViewReceipt: (bundle: ReceiptBundle) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,12 +43,23 @@ export function ReceiptBundleList({
         bundleSupplierName(b),
         bundleItemSummary(b),
         b.date,
+        b.registrationVoucher,
+        b.purchaseRequestVoucher,
+        b.stockMovementVoucher,
       ]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
   }, [bundles, query]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+
+  const pageItems = useMemo(() => {
+    const start = safePage * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, safePage, pageSize]);
 
   if (bundles.length === 0) {
     return (
@@ -57,7 +73,10 @@ export function ReceiptBundleList({
     <div className="space-y-3">
       <Input
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setPage(0);
+        }}
         placeholder={searchPlaceholder}
         className="h-10 max-w-md bg-background/80"
       />
@@ -66,15 +85,48 @@ export function ReceiptBundleList({
           No receipts match your search.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((bundle) => (
-            <ReceiptBundleRow
-              key={`${bundle.kind}-${bundle.id}`}
-              bundle={bundle}
-              onViewReceipt={() => onViewReceipt(bundle)}
-            />
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2">
+            {pageItems.map((bundle) => (
+              <ReceiptBundleRow
+                key={`${bundle.kind}-${bundle.id}`}
+                bundle={bundle}
+                onViewReceipt={() => onViewReceipt(bundle)}
+              />
+            ))}
+          </ul>
+          {filtered.length > pageSize ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs text-muted-foreground border-t border-border/60">
+              <span>
+                Showing {safePage * pageSize + 1}–
+                {Math.min((safePage + 1) * pageSize, filtered.length)} of{" "}
+                {filtered.length} receipt{filtered.length !== 1 ? "s" : ""}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage <= 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage >= pageCount - 1}
+                  onClick={() =>
+                    setPage((p) => Math.min(pageCount - 1, p + 1))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );

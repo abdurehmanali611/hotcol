@@ -12,6 +12,7 @@ import {
 } from "@/lib/hotelInventoryPayment";
 import { formatVoucherRange } from "@/lib/voucherFormat";
 import type { ReceiptBundle } from "@/lib/receiptGrouping";
+import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
@@ -94,12 +95,15 @@ export function StoreItemRegistrationReceipt({
   propertyName,
   propertyTin,
   logoUrl,
+  layout = "default",
 }: {
   bundle?: ReceiptBundle;
   item?: ItemRegistration;
   propertyName: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
+  /** Compact layout for bulk A4 printing (two per page when they fit). */
+  layout?: "default" | "bulk";
 }) {
   const resolvedBundle = bundle ?? (item ? legacyBundleFromItem(item) : null);
   if (!resolvedBundle) return null;
@@ -122,13 +126,30 @@ export function StoreItemRegistrationReceipt({
       maximumFractionDigits: 2,
     });
 
+  const isBulk = layout === "bulk";
+
   return (
-    <div className="bg-white text-zinc-900 max-w-[210mm] mx-auto font-sans print:text-black">
-      <div className="px-8 pt-8 pb-5 print:px-6 print:pt-6">
+    <div
+      className={cn(
+        "bg-white text-zinc-900 max-w-[210mm] mx-auto font-sans print:text-black",
+        isBulk && "receipt-bulk-print-doc",
+      )}
+    >
+      <div
+        className={cn(
+          "px-8 pt-8 pb-5 print:px-6 print:pt-6",
+          isBulk && "px-5 pt-4 pb-3 print:px-4 print:pt-3 print:pb-2",
+        )}
+      >
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4 min-w-0">
             {logoUrl ? (
-              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-emerald-600/25 shadow-sm">
+              <div
+                className={cn(
+                  "relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-emerald-600/25 shadow-sm",
+                  isBulk && "h-11 w-11 print:h-10 print:w-10",
+                )}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={logoUrl}
@@ -137,7 +158,12 @@ export function StoreItemRegistrationReceipt({
                 />
               </div>
             ) : (
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-lg">
+              <div
+                className={cn(
+                  "flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-lg",
+                  isBulk && "h-11 w-11 text-sm print:h-10 print:w-10",
+                )}
+              >
                 {property.slice(0, 2).toUpperCase()}
               </div>
             )}
@@ -145,7 +171,12 @@ export function StoreItemRegistrationReceipt({
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700">
                 {receiptCaption(resolvedBundle)}
               </p>
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
+              <h1
+                className={cn(
+                  "text-2xl font-bold tracking-tight text-zinc-900",
+                  isBulk && "text-lg print:text-base",
+                )}
+              >
                 {resolvedBundle.title}
               </h1>
               <p className="text-sm font-semibold text-zinc-800 mt-1 tabular-nums">
@@ -188,8 +219,18 @@ export function StoreItemRegistrationReceipt({
       <div className="mx-8 h-1 rounded-full bg-linear-to-r from-emerald-600 via-emerald-400 to-teal-500 print:mx-6" />
 
       {isMulti ? (
-        <div className="px-8 py-6 print:px-6 space-y-3">
-          <table className="w-full text-sm border-collapse">
+        <div
+          className={cn(
+            "px-8 py-6 print:px-6 space-y-3",
+            isBulk && "px-4 py-2 print:px-3 print:py-1.5",
+          )}
+        >
+          <table
+            className={cn(
+              "w-full text-sm border-collapse",
+              isBulk && "text-xs print:text-[10px]",
+            )}
+          >
             <thead>
               <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
                 <th className="py-2 pr-2">Voucher</th>
@@ -228,8 +269,18 @@ export function StoreItemRegistrationReceipt({
       ) : (
         <>
           <div className="px-8 py-6 print:px-6">
-            <div className="flex gap-5 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4">
-              <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm bg-white">
+            <div
+              className={cn(
+                "flex gap-5 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4",
+                isBulk && "gap-3 p-3 print:p-2",
+              )}
+            >
+              <div
+                className={cn(
+                  "relative h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-zinc-200 shadow-sm bg-white",
+                  isBulk && "h-16 w-16 print:h-14 print:w-14",
+                )}
+              >
                 {primary.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -359,7 +410,12 @@ export function StoreItemRegistrationReceipt({
         </div>
       </div>
 
-      <div className="mx-8 mb-8 rounded-xl border border-zinc-800 bg-zinc-900 text-white px-5 py-4 print:mx-6 print:mb-6">
+      <div
+        className={cn(
+          "mx-8 mb-8 rounded-xl border border-zinc-800 bg-zinc-900 text-white px-5 py-4 print:mx-6 print:mb-6",
+          isBulk && "mx-4 mb-3 px-3 py-2 print:mx-3 print:mb-2 print:py-1.5",
+        )}
+      >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <Image

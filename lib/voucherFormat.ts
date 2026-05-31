@@ -1,3 +1,11 @@
+/** Parse user voucher input (e.g. "0045" → 45). Returns 0 when empty or invalid. */
+export function parseVoucherNumberInput(raw: string): number {
+  const s = String(raw ?? "").trim();
+  if (!s) return 0;
+  const parsed = parseInt(s, 10);
+  return !Number.isNaN(parsed) && parsed > 0 ? parsed : 0;
+}
+
 /** Display voucher numbers with leading zeros (0001, 0010, 0100, …). */
 
 export function formatVoucherDisplay(

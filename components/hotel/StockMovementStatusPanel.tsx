@@ -37,6 +37,8 @@ import { canPrintStockMovementFromStatus } from "@/lib/hotelApproval";
 import { buildStockMovementReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
+import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
+import { stockPrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -87,6 +89,8 @@ export function StockMovementStatusPanel({
   const [approvalFilter, setApprovalFilter] = useState<StockApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [voucherFrom, setVoucherFrom] = useState("");
+  const [voucherTo, setVoucherTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
@@ -101,22 +105,33 @@ export function StockMovementStatusPanel({
         matchesApproval: (r) => matchesStockApprovalFilter(r, approvalFilter),
         dateFrom,
         dateTo,
+        voucherFrom,
+        voucherTo,
         getSubmittedDate: (r) => r.createdAt,
         searchQuery,
       }),
     );
-  }, [rows, approvalFilter, dateFrom, dateTo, searchQuery]);
+  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, searchQuery]);
+
+  const printBundles = useMemo(
+    () => stockPrintBundlesFromFiltered(filtered, rows, linkedInventory),
+    [filtered, rows, linkedInventory],
+  );
 
   const hasActiveFilters =
     approvalFilter !== "all" ||
     dateFrom !== "" ||
     dateTo !== "" ||
+    voucherFrom.trim() !== "" ||
+    voucherTo.trim() !== "" ||
     searchQuery.trim() !== "";
 
   const clearFilters = () => {
     setApprovalFilter("all");
     setDateFrom("");
     setDateTo("");
+    setVoucherFrom("");
+    setVoucherTo("");
     setSearchQuery("");
   };
 
@@ -253,8 +268,8 @@ export function StockMovementStatusPanel({
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
             Stock out, wastage, and return requests with approval status.
-            Use View receipt in the table — printing is only inside the preview
-            after manager approval.
+            Filter by date, voucher range, or search — then print all authorized
+            receipts from the filtered results.
           </CardContent>
         ) : null}
       </Card>
@@ -264,10 +279,22 @@ export function StockMovementStatusPanel({
         dateTo={dateTo}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
+        voucherFrom={voucherFrom}
+        voucherTo={voucherTo}
+        onVoucherFromChange={setVoucherFrom}
+        onVoucherToChange={setVoucherTo}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         showClear={hasActiveFilters}
         onClear={clearFilters}
+        footer={
+          <RequestStatusBulkPrintActions
+            bundles={printBundles}
+            propertyName={propertyName}
+            propertyTin={propertyTin}
+            logoUrl={logoUrl}
+          />
+        }
       >
         <FilterChipGroup
           label="Approval status"

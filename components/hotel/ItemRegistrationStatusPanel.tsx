@@ -35,6 +35,8 @@ import { canPrintItemRegistrationFromStatus } from "@/lib/hotelApproval";
 import { buildRegistrationReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
+import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
+import { registrationPrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
 
 const REG_APPROVAL_OPTIONS: {
   id: RegistrationApprovalFilter;
@@ -90,6 +92,8 @@ export function ItemRegistrationStatusPanel({
     useState<RegistrationApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [voucherFrom, setVoucherFrom] = useState("");
+  const [voucherTo, setVoucherTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
@@ -105,22 +109,34 @@ export function ItemRegistrationStatusPanel({
           matchesRegistrationApprovalFilter(r, approvalFilter),
         dateFrom,
         dateTo,
+        voucherFrom,
+        voucherTo,
         getSubmittedDate: (r) => r.registrationDate,
         searchQuery,
       }),
     );
-  }, [rows, approvalFilter, dateFrom, dateTo, searchQuery]);
+  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, searchQuery]);
+
+  const printBundles = useMemo(
+    () =>
+      registrationPrintBundlesFromFiltered(filtered, rows, purchaseRequests),
+    [filtered, rows, purchaseRequests],
+  );
 
   const hasActiveFilters =
     approvalFilter !== "all" ||
     dateFrom !== "" ||
     dateTo !== "" ||
+    voucherFrom.trim() !== "" ||
+    voucherTo.trim() !== "" ||
     searchQuery.trim() !== "";
 
   const clearFilters = () => {
     setApprovalFilter("all");
     setDateFrom("");
     setDateTo("");
+    setVoucherFrom("");
+    setVoucherTo("");
     setSearchQuery("");
   };
 
@@ -218,8 +234,9 @@ export function ItemRegistrationStatusPanel({
         </CardHeader>
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
-            Item registrations through the approval pipeline. Use View receipt in
-            the table — printing is only inside the preview after authorization.
+            Item registrations through the approval pipeline. Filter by date,
+            voucher range, or search — then print all authorized receipts from
+            the filtered results, or open one receipt from the table.
           </CardContent>
         ) : null}
       </Card>
@@ -229,12 +246,24 @@ export function ItemRegistrationStatusPanel({
         dateTo={dateTo}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
+        voucherFrom={voucherFrom}
+        voucherTo={voucherTo}
+        onVoucherFromChange={setVoucherFrom}
+        onVoucherToChange={setVoucherTo}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         dateFromLabel="Registered from"
         dateToLabel="Registered to"
         showClear={hasActiveFilters}
         onClear={clearFilters}
+        footer={
+          <RequestStatusBulkPrintActions
+            bundles={printBundles}
+            propertyName={propertyName}
+            propertyTin={propertyTin}
+            logoUrl={logoUrl}
+          />
+        }
       >
         <FilterChipGroup
           label="Approval status"

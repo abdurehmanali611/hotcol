@@ -130,6 +130,19 @@ export function refreshCafeOrdersFeed() {
   bumpCafeOrdersFeed();
 }
 
+/** Hide raw Prisma/GraphQL schema errors from staff-facing toasts. */
+export function sanitizeGraphqlErrorMessage(raw: string, fallback = "Request failed"): string {
+  const msg = String(raw ?? "").trim();
+  if (!msg) return fallback;
+  if (/Invalid `prisma\./i.test(msg) || /Unknown argument/i.test(msg)) {
+    return "The server could not save this request. If you just updated the app, the database may need a migration — contact Apex support.";
+  }
+  if (/Unknown field|Cannot query field|Unknown type/i.test(msg)) {
+    return "This action is not supported by the current API version. Contact Apex support to deploy the latest backend.";
+  }
+  return msg;
+}
+
 /** UI catch helper: session expiry is already toasted + redirecting; surface timeouts/network clearly. */
 export function notifyApiFailure(error: unknown, fallback = "Request failed"): void {
   if (typeof window === "undefined") return;
@@ -148,13 +161,13 @@ export function notifyApiFailure(error: unknown, fallback = "Request failed"): v
       return;
     }
   }
-  const msg =
+  const raw =
     error instanceof Error
       ? error.message
       : typeof error === "string"
         ? error
         : fallback;
-  if (msg === "SESSION_EXPIRED") return;
-  toast.error(msg?.trim() ? msg : fallback);
+  if (raw === "SESSION_EXPIRED") return;
+  toast.error(sanitizeGraphqlErrorMessage(raw, fallback));
 }
 

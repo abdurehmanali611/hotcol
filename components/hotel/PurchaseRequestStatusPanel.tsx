@@ -39,6 +39,8 @@ import { canPrintPurchaseRequestFromStatus } from "@/lib/hotelApproval";
 import { buildPurchaseRequestReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
+import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
+import { purchasePrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
@@ -94,6 +96,8 @@ export function PurchaseRequestStatusPanel({
     useState<PurchaseApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [voucherFrom, setVoucherFrom] = useState("");
+  const [voucherTo, setVoucherTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
@@ -109,22 +113,33 @@ export function PurchaseRequestStatusPanel({
           matchesPurchaseApprovalFilter(r, approvalFilter),
         dateFrom,
         dateTo,
+        voucherFrom,
+        voucherTo,
         getSubmittedDate: (r) => r.createdAt,
         searchQuery,
       }),
     );
-  }, [rows, approvalFilter, dateFrom, dateTo, searchQuery]);
+  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, searchQuery]);
+
+  const printBundles = useMemo(
+    () => purchasePrintBundlesFromFiltered(filtered, rows),
+    [filtered, rows],
+  );
 
   const hasActiveFilters =
     approvalFilter !== "all" ||
     dateFrom !== "" ||
     dateTo !== "" ||
+    voucherFrom.trim() !== "" ||
+    voucherTo.trim() !== "" ||
     searchQuery.trim() !== "";
 
   const clearFilters = () => {
     setApprovalFilter("all");
     setDateFrom("");
     setDateTo("");
+    setVoucherFrom("");
+    setVoucherTo("");
     setSearchQuery("");
   };
 
@@ -255,8 +270,8 @@ export function PurchaseRequestStatusPanel({
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
             Track Cost Control and Finance approval through the pipeline.
-            Use View receipt in the table — printing is only inside the preview
-            after manager authorization.
+            Filter by date, voucher range, or search — then print all authorized
+            receipts from the filtered results.
           </CardContent>
         ) : null}
       </Card>
@@ -274,10 +289,22 @@ export function PurchaseRequestStatusPanel({
         dateTo={dateTo}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
+        voucherFrom={voucherFrom}
+        voucherTo={voucherTo}
+        onVoucherFromChange={setVoucherFrom}
+        onVoucherToChange={setVoucherTo}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         showClear={hasActiveFilters}
         onClear={clearFilters}
+        footer={
+          <RequestStatusBulkPrintActions
+            bundles={printBundles}
+            propertyName={propertyName}
+            propertyTin={propertyTin}
+            logoUrl={logoUrl}
+          />
+        }
       >
         <FilterChipGroup
           label="Approval status"

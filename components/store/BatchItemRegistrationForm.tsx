@@ -31,8 +31,10 @@ import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import {
   createItemRegistrationsBatchApi,
   checkPityCashBalance,
+  notifyApiFailure,
 } from "@/lib/actions";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
+import { hasRegistrationImage } from "@/lib/registrationImageUrl";
 import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 import {
   HotelFormFieldStack,
@@ -190,6 +192,16 @@ export function BatchItemRegistrationForm({
       toast.error("Add at least one item with a name (2+ characters)");
       return;
     }
+    const linesMissingImage = validLines.filter(
+      (l) => !hasRegistrationImage(l.imageUrl),
+    );
+    if (linesMissingImage.length > 0) {
+      const label = linesMissingImage
+        .map((l) => l.name.trim() || "Unnamed line")
+        .join(", ");
+      toast.error(`Upload an image for each item: ${label}`);
+      return;
+    }
 
     const addressPayload = buildAddressWithNote(address, sharedNote);
 
@@ -216,7 +228,7 @@ export function BatchItemRegistrationForm({
         }
         linesToSubmit.push({
           name: l.name.trim(),
-          imageUrl: l.imageUrl || "https://placehold.co/200x200/png",
+          imageUrl: l.imageUrl.trim(),
           category: l.category,
           amount: l.amount,
           measuredBy: l.measuredBy,
@@ -238,9 +250,7 @@ export function BatchItemRegistrationForm({
           ok = linesToSubmit.length;
         } catch (e: unknown) {
           failed += linesToSubmit.length;
-          const msg =
-            e instanceof Error ? e.message : "Could not register items";
-          toast.error(msg);
+          notifyApiFailure(e, "Could not register items");
         }
       }
       if (ok > 0) {
@@ -273,9 +283,9 @@ export function BatchItemRegistrationForm({
           Item registration (shared supplier)
         </CardTitle>
         <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-          Add one or more items under the same supplier. Each line has its own
-          quantity, price, dates, image, VAT setting, and paid amount — supplier
-          details and note are shared once for the whole batch.
+          Add one or more items under the same supplier. Each line needs a photo,
+          plus its own quantity, price, dates, VAT setting, and paid amount —
+          supplier details and note are shared once for the whole batch.
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-8">
@@ -454,8 +464,12 @@ export function BatchItemRegistrationForm({
                         Price includes VAT
                       </Label>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {l.imageUrl ? (
+                    <div className="flex flex-col gap-1.5 sm:items-end">
+                      <Label className="text-xs text-muted-foreground">
+                        Item image <span className="text-destructive">*</span>
+                      </Label>
+                      <div className="flex items-center gap-3">
+                      {l.imageUrl && hasRegistrationImage(l.imageUrl) ? (
                         <div className="relative h-12 w-12 overflow-hidden rounded-md border">
                           <Image
                             src={l.imageUrl}
@@ -484,8 +498,17 @@ export function BatchItemRegistrationForm({
                         className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-muted"
                       >
                         <Upload className="h-3.5 w-3.5" />
-                        {l.imageUrl ? "Change image" : "Upload image"}
+                        {hasRegistrationImage(l.imageUrl)
+                          ? "Change image"
+                          : "Upload image"}
                       </CldUploadButton>
+                      </div>
+                      {!hasRegistrationImage(l.imageUrl) &&
+                      l.name.trim().length >= 2 ? (
+                        <p className="text-[10px] text-destructive">
+                          Image is required for this line
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>

@@ -375,7 +375,10 @@ export function StoreComponent({
 
   const handleItemsRegistered = useCallback(() => {
     void loadData();
-  }, [loadData]);
+    if (hotelInventory) {
+      setRequestStatusSeed((n) => n + 1);
+    }
+  }, [loadData, hotelInventory]);
 
   const storeWorkspaceIntro = useMemo<
     Record<StoreView, { title: string; description: string; Icon: LucideIcon }>
@@ -600,6 +603,7 @@ export function StoreComponent({
               <ItemRegistrationStatusPanel
                 rows={requestStatusData.myRegistrations}
                 purchaseRequests={requestStatusData.myPurchases}
+                showRegisteredBy
                 propertyName={displayLabel}
                 logoUrl={logoUrl}
               />

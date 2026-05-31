@@ -1,5 +1,8 @@
 import { matchesRegistrationDateRange } from "@/lib/panelFilters";
-import { formatVoucherDisplay } from "@/lib/voucherFormat";
+import {
+  formatVoucherDisplay,
+  parseVoucherNumberInput,
+} from "@/lib/voucherFormat";
 
 export type VoucherSearchRow = {
   itemName?: string | null;
@@ -37,6 +40,25 @@ export function matchesVoucherOrItemSearch(
   );
 }
 
+export function matchesVoucherNumberRange(
+  row: VoucherSearchRow,
+  fromRaw: string,
+  toRaw: string,
+): boolean {
+  const from = parseVoucherNumberInput(fromRaw);
+  const to = parseVoucherNumberInput(toRaw);
+  if (from <= 0 && to <= 0) return true;
+
+  const n = Math.floor(Number(row.voucherNumber) || 0);
+  const key =
+    n > 0 ? n : parseVoucherNumberInput(String(row.voucherDisplay ?? ""));
+  if (key <= 0) return false;
+
+  const lo = from > 0 && to > 0 ? Math.min(from, to) : from > 0 ? from : to;
+  const hi = from > 0 && to > 0 ? Math.max(from, to) : from > 0 ? from : to;
+  return key >= lo && key <= hi;
+}
+
 export function rowsOnSameVoucher<T extends VoucherSearchRow>(
   anchor: T,
   pool: readonly T[],
@@ -58,6 +80,8 @@ export function applyRequestStatusFilters<T extends VoucherSearchRow>(
     matchesApproval: (row: T) => boolean;
     dateFrom: string;
     dateTo: string;
+    voucherFrom?: string;
+    voucherTo?: string;
     getSubmittedDate: (row: T) => string | Date | null | undefined;
     searchQuery: string;
   },
@@ -69,6 +93,15 @@ export function applyRequestStatusFilters<T extends VoucherSearchRow>(
         opts.getSubmittedDate(row),
         opts.dateFrom,
         opts.dateTo,
+      )
+    ) {
+      return false;
+    }
+    if (
+      !matchesVoucherNumberRange(
+        row,
+        opts.voucherFrom ?? "",
+        opts.voucherTo ?? "",
       )
     ) {
       return false;

@@ -4,6 +4,7 @@ import { api, API_URL, dedupeHotelListRead, invalidateGraphqlListCache } from ".
 
 import { computeInventoryPaidAmountETB } from "../hotelInventoryPayment";
 import { findRowByTenantScope, resolveCanonicalTenantKey } from "../tenantRowMatch";
+import { hasRegistrationImage } from "../registrationImageUrl";
 import { fetchPityCash } from "./cafeCredit";
 import { UpdatePityDeduction } from "./cafeOrders";
 import type {
@@ -27,11 +28,12 @@ function graphqlLooksLikeMissingBatchField(message: string): boolean {
   );
 }
 
-export async function CreateItemRegistration(
-  values: createItemRegistration,
-  options?: { suppressSuccessToast?: boolean },
-) {
+export async function CreateItemRegistration(values: createItemRegistration) {
   try {
+    if (!hasRegistrationImage(values.imageUrl)) {
+      throw new Error("Upload an item image");
+    }
+
     const mutation = `
       mutation ItemRegistration(
         $name: String!, 
@@ -137,21 +139,14 @@ export async function CreateItemRegistration(
     );
 
     if (response.data.errors) {
-      const errorMessage =
-        response.data.errors[0]?.message || "Failed to create item";
-      if (!options?.suppressSuccessToast) {
-        toast.error(errorMessage);
-      }
-      throw new Error(errorMessage);
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to create item",
+      );
     }
 
     const created = response.data.data?.ItemRegistration;
     if (!created) {
-      const errorMessage = "Item registration was not saved by the server";
-      if (!options?.suppressSuccessToast) {
-        toast.error(errorMessage);
-      }
-      throw new Error(errorMessage);
+      throw new Error("Item registration was not saved by the server");
     }
 
     const businessType =
@@ -219,15 +214,12 @@ async function sequentialItemRegistrationsWithSharedVoucher(
     line: ItemRegistrationLineInput,
     sharedVoucher?: number | null,
   ) {
-    return CreateItemRegistration(
-      {
-        ...line,
-        HotelName: canonical,
-        supplierTinNumber: line.supplierTinNumber,
-        voucherNumber: sharedVoucher,
-      },
-      { suppressSuccessToast: true },
-    );
+    return CreateItemRegistration({
+      ...line,
+      HotelName: canonical,
+      supplierTinNumber: line.supplierTinNumber,
+      voucherNumber: sharedVoucher,
+    });
   }
 
   try {
@@ -354,7 +346,6 @@ export async function createItemRegistrationsBatchApi(
           hotelName,
         );
       } else {
-        toast.error(errorMessage);
         throw new Error(errorMessage);
       }
     } else {

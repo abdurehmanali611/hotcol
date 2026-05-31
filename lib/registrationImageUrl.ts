@@ -14,6 +14,12 @@ export function isPlaceholderRegistrationImage(url?: string | null): boolean {
   }
 }
 
+/** True when the user uploaded a real photo (not empty or placeholder). */
+export function hasRegistrationImage(url?: string | null): boolean {
+  const s = String(url ?? "").trim();
+  return s.length >= 2 && !isPlaceholderRegistrationImage(s);
+}
+
 /** Use for UI preview only — omits placeholder / empty URLs. */
 export function registrationPreviewImageUrl(url?: string | null): string | null {
   const s = String(url ?? "").trim();

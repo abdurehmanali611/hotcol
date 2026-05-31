@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isPlaceholderRegistrationImage } from "./registrationImageUrl";
 import {
   BUSINESS_TYPES,
   MODULE_OPTIONS,
@@ -552,7 +553,13 @@ export const ItemRegistrationSchema = z.object({
   unitPrice: z.number().min(0, "Please Enter the unit price of the item"),
   registrationDate: z.date({message: "Please Enter when the item stocked in"}),
   expireDate: z.date({message: "Please Enter the expected Last Day of the item"}),
-  imageUrl: z.string().min(2, "Valid image URL is required"),
+  imageUrl: z
+    .string()
+    .min(1, "Upload an item image")
+    .refine(
+      (url) => !isPlaceholderRegistrationImage(url),
+      "Upload an item image",
+    ),
   supplierName: z.string().min(2, "Supplier name is required"),
   supplierPhone: z.string().min(3, "Please Enter Valid Phone Number"),
   Address: z.string().min(2, "Please Enter Valid Address"),
