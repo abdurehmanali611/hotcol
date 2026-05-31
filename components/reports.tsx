@@ -442,15 +442,23 @@ export default function Reports({
   });
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-3 p-2 text-foreground sm:space-y-6 sm:p-4 md:p-6">
-      <Card className="border border-border/50 bg-card shadow-sm">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-3 text-foreground sm:space-y-6">
+      <Card className="overflow-hidden border border-border/50 bg-card shadow-sm">
+        <div className="h-0.5 bg-gradient-to-r from-primary/40 via-primary/20 to-transparent" />
         <CardHeader className="px-3 pb-2 pt-4 sm:px-6">
-          <CardTitle className="text-base font-bold tracking-tight sm:text-2xl">
-            Financial Reports
-          </CardTitle>
-          <CardDescription className="text-pretty text-xs sm:text-sm">
-            Generate and export sales data for {displayName}.
-          </CardDescription>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
+              <FileBarChart className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="text-base font-bold tracking-tight sm:text-xl">
+                Financial Reports
+              </CardTitle>
+              <CardDescription className="text-pretty text-xs sm:text-sm">
+                Generate and export sales data for {displayName}.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 px-3 pb-4 sm:flex-row sm:flex-wrap sm:gap-4 sm:px-6 sm:pb-6">
           <Popover>

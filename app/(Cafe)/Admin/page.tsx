@@ -330,10 +330,27 @@ function AdminDashboardContent() {
     switch (activeTab) {
       case "reports":
         return (
-          <Reports
-            orders={orders}
-            hotelName={tenantScope}
-            onGenerateReport={async ({
+          <div className="flex flex-col gap-6 p-3 sm:gap-8 sm:p-5 md:p-6">
+            <CafeAdminDailyRevenueCards
+              orders={orders}
+              hotelName={tenantScope}
+              loading={loading}
+            />
+
+            <div className="relative">
+              <div
+                className="absolute inset-x-0 -top-3 hidden h-px bg-gradient-to-r from-transparent via-border to-transparent sm:block"
+                aria-hidden
+              />
+              <p className="mb-3 hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 sm:block">
+                Detailed reports
+              </p>
+            </div>
+
+            <Reports
+              orders={orders}
+              hotelName={tenantScope}
+              onGenerateReport={async ({
               date,
               type,
             }: {
@@ -367,7 +384,8 @@ function AdminDashboardContent() {
                 throw error;
               }
             }}
-          />
+            />
+          </div>
         );
       case "create-item":
         return (
@@ -560,12 +578,6 @@ function AdminDashboardContent() {
           <main className="min-h-0 flex-1 overflow-x-hidden p-2 pb-4 sm:p-4 md:p-6 lg:p-8">
             <div className="mx-auto w-full min-w-0 max-w-6xl space-y-3 sm:space-y-4">
               <SubscriptionAlertBanner />
-              {!loading ? (
-                <CafeAdminDailyRevenueCards
-                  orders={orders}
-                  hotelName={tenantScope}
-                />
-              ) : null}
               <div className="flex min-w-0 items-center gap-2 px-0.5">
                 <h2 className="min-w-0 truncate text-base font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
                   {sidebarItems.find((i) => i.id === activeTab)?.label}

@@ -9,12 +9,7 @@ import {
   formatCafeBusinessDayLabel,
   formatCafeRevenueETB,
 } from "@/lib/cafeDailyRevenueByCategory";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -22,11 +17,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   CalendarIcon,
   Coffee,
   Layers,
+  Sparkles,
   TrendingUp,
   Utensils,
 } from "lucide-react";
@@ -39,47 +36,55 @@ function startOfLocalDay(date: Date = new Date()): Date {
 }
 
 type CategoryCardTheme = {
-  border: string;
-  gradient: string;
-  accent: string;
+  ring: string;
+  surface: string;
+  bar: string;
   iconWrap: string;
   icon: string;
+  glow: string;
   Icon: LucideIcon;
 };
 
 const CATEGORY_THEMES: Record<string, CategoryCardTheme> = {
   food: {
-    border: "border-amber-500/20",
-    gradient: "from-card to-amber-500/5",
-    accent: "from-amber-500/80 to-orange-400/60",
-    iconWrap: "border-amber-500/25 bg-amber-500/10",
+    ring: "ring-amber-500/15",
+    surface:
+      "bg-gradient-to-br from-amber-500/[0.07] via-card to-card dark:from-amber-500/10",
+    bar: "bg-gradient-to-r from-amber-500 to-orange-400",
+    iconWrap: "bg-amber-500/15 ring-amber-500/20",
     icon: "text-amber-700 dark:text-amber-400",
+    glow: "shadow-[0_12px_40px_-12px_rgba(245,158,11,0.35)]",
     Icon: Utensils,
   },
   beverage: {
-    border: "border-sky-500/20",
-    gradient: "from-card to-sky-500/5",
-    accent: "from-sky-500/80 to-cyan-400/60",
-    iconWrap: "border-sky-500/25 bg-sky-500/10",
+    ring: "ring-sky-500/15",
+    surface:
+      "bg-gradient-to-br from-sky-500/[0.07] via-card to-card dark:from-sky-500/10",
+    bar: "bg-gradient-to-r from-sky-500 to-cyan-400",
+    iconWrap: "bg-sky-500/15 ring-sky-500/20",
     icon: "text-sky-700 dark:text-sky-400",
+    glow: "shadow-[0_12px_40px_-12px_rgba(14,165,233,0.35)]",
     Icon: Coffee,
   },
   others: {
-    border: "border-violet-500/20",
-    gradient: "from-card to-violet-500/5",
-    accent: "from-violet-500/80 to-purple-400/60",
-    iconWrap: "border-violet-500/25 bg-violet-500/10",
+    ring: "ring-violet-500/15",
+    surface:
+      "bg-gradient-to-br from-violet-500/[0.07] via-card to-card dark:from-violet-500/10",
+    bar: "bg-gradient-to-r from-violet-500 to-purple-400",
+    iconWrap: "bg-violet-500/15 ring-violet-500/20",
     icon: "text-violet-700 dark:text-violet-400",
+    glow: "shadow-[0_12px_40px_-12px_rgba(139,92,246,0.3)]",
     Icon: Layers,
   },
 };
 
 const DEFAULT_THEME: CategoryCardTheme = {
-  border: "border-primary/20",
-  gradient: "from-card to-primary/5",
-  accent: "from-primary/80 to-violet-400/60",
-  iconWrap: "border-primary/25 bg-primary/10",
+  ring: "ring-primary/15",
+  surface: "bg-gradient-to-br from-primary/[0.06] via-card to-card",
+  bar: "bg-gradient-to-r from-primary to-violet-400",
+  iconWrap: "bg-primary/15 ring-primary/20",
   icon: "text-primary",
+  glow: "shadow-[0_12px_40px_-12px_rgba(var(--primary),0.25)]",
   Icon: Layers,
 };
 
@@ -87,14 +92,41 @@ function themeForCategory(key: string): CategoryCardTheme {
   return CATEGORY_THEMES[key] ?? DEFAULT_THEME;
 }
 
+function sharePercent(revenue: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((revenue / total) * 100));
+}
+
 type CafeAdminDailyRevenueCardsProps = {
   orders: Order[];
   hotelName: string;
+  loading?: boolean;
 };
+
+function RevenueCardsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+        <Skeleton className="h-9 w-44 rounded-md" />
+      </div>
+      <Skeleton className="h-28 w-full rounded-2xl" />
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-32 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function CafeAdminDailyRevenueCards({
   orders,
   hotelName,
+  loading = false,
 }: CafeAdminDailyRevenueCardsProps) {
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay());
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -116,121 +148,229 @@ export function CafeAdminDailyRevenueCards({
           { key: "others", label: "Others", revenueETB: 0, lineCount: 0 },
         ];
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 px-0.5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {isToday ? "Today's revenue" : "Daily revenue"}
-          </p>
-          <p className="text-sm text-muted-foreground">{businessDayLabel}</p>
-        </div>
+  const hasSales = totalETB > 0;
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {!isToday ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9 px-2.5 text-xs"
-              onClick={() => setSelectedDate(startOfLocalDay())}
-            >
-              Back to today
-            </Button>
-          ) : null}
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
+  if (loading) {
+    return (
+      <section
+        aria-label="Daily sales by category"
+        className="rounded-2xl border border-border/60 bg-card/50 p-4 shadow-sm backdrop-blur-sm sm:p-6"
+      >
+        <RevenueCardsSkeleton />
+      </section>
+    );
+  }
+
+  return (
+    <section
+      aria-label="Daily sales by category"
+      className="overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-b from-muted/40 via-card to-card shadow-sm"
+    >
+      <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+
+      <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+              <Sparkles className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold tracking-tight sm:text-lg">
+                  Sales by category
+                </h3>
+                {isToday ? (
+                  <Badge
+                    variant="secondary"
+                    className="border-emerald-500/20 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400"
+                  >
+                    Live · Today
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    Historical
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">{businessDayLabel}</p>
+              <p className="text-xs text-muted-foreground/80">
+                Paid orders for this business day, grouped by menu category
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+            {!isToday ? (
               <Button
                 type="button"
-                variant="outline"
-                className={cn(
-                  "h-9 min-w-[170px] justify-start text-left font-normal shadow-sm",
-                  !selectedDate && "text-muted-foreground",
-                )}
+                variant="ghost"
+                size="sm"
+                className="h-9 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setSelectedDate(startOfLocalDay())}
               >
-                <CalendarIcon className="mr-2 h-4 w-4 shrink-0 opacity-70" />
-                <span className="truncate">
-                  {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
-                </span>
+                Jump to today
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                captionLayout="dropdown"
-                disabled={{ after: new Date() }}
-                onSelect={(date) => {
-                  if (!date) return;
-                  setSelectedDate(startOfLocalDay(date));
-                  setCalendarOpen(false);
-                }}
-                initialFocus
-                classNames={{
-                  day: "cursor-pointer rounded-md hover:bg-accent hover:text-accent-foreground",
-                }}
-              />
-            </PopoverContent>
-          </Popover>
+            ) : null}
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-9 min-w-[168px] justify-start gap-2 border-border/80 bg-background/80 font-normal shadow-sm backdrop-blur-sm",
+                    !selectedDate && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="h-4 w-4 shrink-0 opacity-60" />
+                  <span className="truncate">
+                    {selectedDate ? format(selectedDate, "MMM d, yyyy") : "Pick date"}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  captionLayout="dropdown"
+                  disabled={{ after: new Date() }}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    setSelectedDate(startOfLocalDay(date));
+                    setCalendarOpen(false);
+                  }}
+                  initialFocus
+                  classNames={{
+                    day: "cursor-pointer rounded-md hover:bg-accent hover:text-accent-foreground",
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-primary/20 bg-linear-to-br from-card to-primary/5 shadow-md overflow-hidden sm:col-span-2 xl:col-span-1">
-          <div className="h-0.5 bg-linear-to-r from-primary/80 to-violet-400/60" />
-          <CardHeader className="pb-2 pt-4">
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl border border-primary/20 bg-primary/10 p-2.5">
-                <TrendingUp className="h-5 w-5 text-primary" />
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-card to-violet-500/[0.04] p-5 shadow-md ring-1 ring-primary/10 transition-shadow hover:shadow-lg sm:p-6",
+            hasSales && "shadow-[0_20px_50px_-24px_rgba(var(--primary),0.45)]",
+          )}
+        >
+          <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-primary/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-10 -left-6 h-28 w-28 rounded-full bg-violet-500/10 blur-2xl" />
+
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 ring-1 ring-primary/25">
+                <TrendingUp className="h-6 w-6 text-primary" />
               </div>
-              <div className="min-w-0 space-y-1">
-                <CardDescription>
-                  {isToday ? "Total today" : "Day total"}
-                </CardDescription>
-                <CardTitle className="text-2xl tabular-nums tracking-tight sm:text-3xl">
+              <div className="space-y-0.5">
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  {isToday ? "Total revenue today" : "Total for selected day"}
+                </p>
+                <p
+                  className={cn(
+                    "text-3xl font-bold tabular-nums tracking-tight sm:text-4xl",
+                    hasSales ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
                   {formatCafeRevenueETB(totalETB)}
-                </CardTitle>
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Paid orders for this business day
+                  {displayCategories.reduce((n, c) => n + c.lineCount, 0) === 1
+                    ? "1 paid line"
+                    : `${displayCategories.reduce((n, c) => n + c.lineCount, 0)} paid lines`}
+                  {!hasSales ? " · No sales recorded yet" : ""}
                 </p>
               </div>
             </div>
-          </CardHeader>
-        </Card>
 
-        {displayCategories.map((item) => {
-          const theme = themeForCategory(item.key);
-          const Icon = theme.Icon;
-          return (
-            <Card
-              key={item.key}
-              className={`${theme.border} bg-linear-to-br ${theme.gradient} shadow-md overflow-hidden`}
-            >
-              <div className={`h-0.5 bg-linear-to-r ${theme.accent}`} />
-              <CardHeader className="pb-2 pt-4">
-                <div className="flex items-start gap-3">
+            {hasSales ? (
+              <div className="flex flex-wrap gap-2 sm:max-w-[220px] sm:justify-end">
+                {displayCategories
+                  .filter((c) => c.revenueETB > 0)
+                  .map((c) => (
+                    <span
+                      key={c.key}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-sm"
+                    >
+                      <span className="text-foreground">{c.label}</span>
+                      <span className="tabular-nums text-foreground/80">
+                        {sharePercent(c.revenueETB, totalETB)}%
+                      </span>
+                    </span>
+                  ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {displayCategories.map((item, index) => {
+            const theme = themeForCategory(item.key);
+            const Icon = theme.Icon;
+            const pct = sharePercent(item.revenueETB, totalETB);
+            const active = item.revenueETB > 0;
+
+            return (
+              <article
+                key={item.key}
+                style={{ animationDelay: `${index * 60}ms` }}
+                className={cn(
+                  "group relative overflow-hidden rounded-2xl border border-border/50 p-4 ring-1 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
+                  theme.ring,
+                  theme.surface,
+                  active
+                    ? cn("hover:-translate-y-0.5 hover:shadow-md", theme.glow)
+                    : "opacity-90",
+                )}
+              >
+                <div className="mb-4 flex items-start justify-between gap-2">
                   <div
-                    className={`rounded-xl border p-2.5 ${theme.iconWrap}`}
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-xl ring-1",
+                      theme.iconWrap,
+                    )}
                   >
-                    <Icon className={`h-5 w-5 ${theme.icon}`} />
+                    <Icon className={cn("h-5 w-5", theme.icon)} />
                   </div>
-                  <div className="min-w-0 space-y-1">
-                    <CardDescription>{item.label}</CardDescription>
-                    <CardTitle className="text-2xl tabular-nums tracking-tight sm:text-3xl">
-                      {formatCafeRevenueETB(item.revenueETB)}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      {item.lineCount === 1
-                        ? "1 paid line"
-                        : `${item.lineCount} paid lines`}
-                    </p>
-                  </div>
+                  {hasSales ? (
+                    <span className="tabular-nums text-xs font-semibold text-muted-foreground">
+                      {pct}%
+                    </span>
+                  ) : null}
                 </div>
-              </CardHeader>
-            </Card>
-          );
-        })}
+
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {item.label}
+                </p>
+                <p
+                  className={cn(
+                    "mt-1 text-2xl font-bold tabular-nums tracking-tight",
+                    active ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {formatCafeRevenueETB(item.revenueETB)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {item.lineCount === 1
+                    ? "1 paid line"
+                    : `${item.lineCount} paid lines`}
+                </p>
+
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted/80">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-700 ease-out",
+                      theme.bar,
+                    )}
+                    style={{ width: hasSales ? `${Math.max(pct, active ? 4 : 0)}%` : "0%" }}
+                  />
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { clearAuthTokenMetadata, readAuthToken } from "./authToken";
 import { clearTenantSubscriptionStorage } from "./tenantModules";
 import { clearTenantAccessModeStorage } from "./tenantAccessMode";
 
@@ -7,6 +8,11 @@ const LOGIN_PATH = "/";
 const TOAST_ID = "hotcol-session-expired";
 
 let redirectScheduled = false;
+
+/** Call after a fresh login so a prior redirect guard does not block the new session. */
+export function resetSessionExpiryGuard(): void {
+  redirectScheduled = false;
+}
 
 const AUTH_KEYS = [
   "auth_token",
@@ -27,6 +33,7 @@ export function clearAuthStorage(): void {
   for (const k of AUTH_KEYS) {
     localStorage.removeItem(k);
   }
+  clearAuthTokenMetadata();
   clearTenantSubscriptionStorage();
   clearTenantAccessModeStorage();
 }
@@ -58,15 +65,45 @@ export function isSessionExpiredError(e: unknown): e is SessionExpiredError {
   return e instanceof SessionExpiredError;
 }
 
-export function graphqlMessageIndicatesSessionExpiry(raw: string): boolean {
+function clientHasAuthToken(): boolean {
+  return Boolean(readAuthToken());
+}
+
+/** Permission / role failures — must not trigger session logout. */
+export function graphqlMessageIndicatesPermissionDenied(raw: string): boolean {
   const m = String(raw || "").trim().toLowerCase();
-  if (m === "not authenticated" || m === "not authenticated.") return true;
-  if (m === "unauthorized") return true;
-  if (m === "jwt expired") return true;
-  if (m.includes("jwt expired")) return true;
-  if (m.includes("jwt malformed")) return true;
-  if (m.includes("invalid token")) return true;
-  if (m.includes("invalid signature")) return true;
+  if (m === "not authorized" || m === "not authorized.") return true;
+  if (m.includes("not authorized to")) return true;
+  if (m.includes("not authorized for")) return true;
+  if (m === "forbidden") return true;
+  return false;
+}
+
+/**
+ * Session loss only — avoids treating role errors as logout.
+ * "Not Authenticated" counts only when a token was sent (stale/invalid session).
+ */
+export function graphqlMessageIndicatesSessionExpiry(raw: string): boolean {
+  if (graphqlMessageIndicatesPermissionDenied(raw)) return false;
+
+  const m = String(raw || "").trim().toLowerCase();
+  if (m === "jwt expired" || m.includes("jwt expired")) return true;
+  if (m.includes("token expired")) return true;
+
+  const hasToken =
+    typeof window === "undefined" ? true : clientHasAuthToken();
+
+  if (m === "not authenticated" || m === "not authenticated.") {
+    return hasToken;
+  }
+
+  if (hasToken && (m.includes("jwt malformed") || m.includes("invalid signature"))) {
+    return true;
+  }
+  if (hasToken && m.includes("invalid token") && !m.includes("not authorized")) {
+    return true;
+  }
+
   return false;
 }
 

@@ -49,6 +49,7 @@ export interface Order {
   credittorName?: string | null;
   creditAmount?: number | null;
   serviceCaption?: string | null;
+  cancelledBy?: string | null;
   createdAt: Date;
 }
 

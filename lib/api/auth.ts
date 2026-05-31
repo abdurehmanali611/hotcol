@@ -2,7 +2,8 @@
 import axios from "axios";
 import { toast } from "sonner";
 import { api, API_URL } from "./client";
-import { clearAuthStorage } from "../sessionExpiry";
+import { persistAuthToken } from "../authToken";
+import { clearAuthStorage, resetSessionExpiryGuard } from "../sessionExpiry";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { persistTenantSubscription, readTenantSubscriptionFromStorage } from "../tenantModules";
 import { persistTenantAccessMode, type TenantPaymentKind } from "../tenantAccessMode";
@@ -195,7 +196,8 @@ export async function LoginAction(
           ? String(user.tinNumber).trim()
           : "";
       const tenantId = tin || user.HotelName;
-      localStorage.setItem("auth_token", token);
+      persistAuthToken(token);
+      resetSessionExpiryGuard();
       localStorage.setItem("user_role", user.Role);
       localStorage.setItem("hotel_name", tenantId);
       localStorage.setItem("tin_number", tin || tenantId);

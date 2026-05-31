@@ -44,6 +44,7 @@ export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[
           credittorName
           creditAmount
           serviceCaption
+          cancelledBy
           createdAt
         }
       }

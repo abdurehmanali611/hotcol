@@ -1,6 +1,8 @@
 import axios from "axios";
+import { isStoredAuthTokenExpired, readAuthToken } from "../authToken";
 import {
   graphqlErrorsIndicateSessionExpiry,
+  graphqlMessageIndicatesPermissionDenied,
   isSessionExpiredError,
   scheduleSessionExpiredRedirect,
   SessionExpiredError,
@@ -53,7 +55,11 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("auth_token");
+      const token = readAuthToken();
+      if (token && isStoredAuthTokenExpired()) {
+        scheduleSessionExpiredRedirect();
+        return Promise.reject(new SessionExpiredError());
+      }
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -143,6 +149,9 @@ export function sanitizeGraphqlErrorMessage(raw: string, fallback = "Request fai
   return msg;
 }
 
+let lastFailureToast = "";
+let lastFailureToastAt = 0;
+
 /** UI catch helper: session expiry is already toasted + redirecting; surface timeouts/network clearly. */
 export function notifyApiFailure(error: unknown, fallback = "Request failed"): void {
   if (typeof window === "undefined") return;
@@ -168,6 +177,25 @@ export function notifyApiFailure(error: unknown, fallback = "Request failed"): v
         ? error
         : fallback;
   if (raw === "SESSION_EXPIRED") return;
-  toast.error(sanitizeGraphqlErrorMessage(raw, fallback));
+
+  const message = sanitizeGraphqlErrorMessage(raw, fallback);
+  if (graphqlMessageIndicatesPermissionDenied(message)) {
+    const friendly =
+      message.toLowerCase() === "not authorized"
+        ? "You do not have permission for this action."
+        : message;
+    const now = Date.now();
+    if (friendly === lastFailureToast && now - lastFailureToastAt < 4000) return;
+    lastFailureToast = friendly;
+    lastFailureToastAt = now;
+    toast.error(friendly, { id: "hotcol-permission-denied", duration: 5000 });
+    return;
+  }
+
+  const now = Date.now();
+  if (message === lastFailureToast && now - lastFailureToastAt < 3000) return;
+  lastFailureToast = message;
+  lastFailureToastAt = now;
+  toast.error(message);
 }
 
