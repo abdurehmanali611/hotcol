@@ -10,6 +10,7 @@ export function buildOptimisticPurchaseRequestRow(
     supplierName?: string;
     supplierPhone?: string;
     category?: string;
+    purchaseWithVat?: boolean;
   },
   created: { id: number; status: string; voucherNumber?: number | null; voucherDisplay?: string | null },
   storeUserName: string,
@@ -27,6 +28,7 @@ export function buildOptimisticPurchaseRequestRow(
     supplierName: fields.supplierName ?? "",
     supplierPhone: fields.supplierPhone ?? "",
     category: fields.category ?? "Others",
+    purchaseWithVat: fields.purchaseWithVat !== false,
     status: created.status,
     storeUserName,
     ccProfileId: null,

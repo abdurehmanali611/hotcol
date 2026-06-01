@@ -22,6 +22,7 @@ export async function updatePurchaseRequestStoreDraftApi(
     supplierName?: string;
     supplierPhone?: string;
     category?: string;
+    purchaseWithVat?: boolean;
   },
 ) {
   const data = await runMutation<{
@@ -37,6 +38,7 @@ export async function updatePurchaseRequestStoreDraftApi(
       $supplierName: String
       $supplierPhone: String
       $category: String
+      $purchaseWithVat: Boolean
     ) {
       updatePurchaseRequestStoreDraft(
         id: $id
@@ -48,6 +50,7 @@ export async function updatePurchaseRequestStoreDraftApi(
         supplierName: $supplierName
         supplierPhone: $supplierPhone
         category: $category
+        purchaseWithVat: $purchaseWithVat
       ) {
         id
         status

@@ -19,9 +19,13 @@ export const REGISTRATION_RECEIVED_BY_CODES = [
   "BAR",
 ] as const satisfies readonly HotelDepartmentCode[];
 
+/** Stock movements — all departments except Store. */
 export const REQUESTED_BY_DEPARTMENT_CODES = HOTEL_DEPARTMENT_CODES.filter(
   (c) => c !== "STORE",
 );
+
+/** Purchase requests — includes Store. */
+export const PURCHASE_REQUESTED_BY_DEPARTMENT_CODES = HOTEL_DEPARTMENT_CODES;
 
 export const DEPARTMENT_LABELS: Record<HotelDepartmentCode, string> = {
   KITCHEN: "Kitchen",

@@ -1,7 +1,9 @@
 import type { ItemRegistration, PurchaseRequestRow, StockOutRequestRow } from "@/lib/actions";
 import {
   computeInventoryPaidAmountETB,
+  computeInventoryVatETB,
   computeLineSubtotalETB,
+  isVatEnabled,
 } from "@/lib/hotelInventoryPayment";
 
 export function formatEtbAmount(amount: number): string {
@@ -23,8 +25,13 @@ export function registrationLineTotalETB(row: {
 export function purchaseLineTotalETB(row: {
   quantity: number;
   estimatedUnitPrice: number;
+  purchaseWithVat?: unknown;
 }): number {
-  return computeLineSubtotalETB(row.quantity, row.estimatedUnitPrice);
+  return computeInventoryPaidAmountETB(
+    row.quantity,
+    row.estimatedUnitPrice,
+    row.purchaseWithVat,
+  );
 }
 
 export type RegistrationUnitPriceLookup = Map<
@@ -75,12 +82,33 @@ export function formatRegistrationMoneyDetail(row: ItemRegistration): string {
   );
 }
 
+export function purchaseVatModeLabel(purchaseWithVat?: unknown): string {
+  return isVatEnabled(purchaseWithVat) ? "With VAT (15%)" : "Without VAT";
+}
+
+/** Subtotal, VAT portion, and line total (total includes 15% VAT when enabled). */
+export function purchaseLineMoneyBreakdown(row: {
+  quantity: number;
+  estimatedUnitPrice: number;
+  purchaseWithVat?: unknown;
+}) {
+  const unit = Number(row.estimatedUnitPrice) || 0;
+  const qty = Number(row.quantity) || 0;
+  const subtotalETB = computeLineSubtotalETB(qty, unit);
+  const withVat = isVatEnabled(row.purchaseWithVat);
+  const vatETB = withVat ? computeInventoryVatETB(subtotalETB, true) : 0;
+  const totalETB = subtotalETB + vatETB;
+  return { unit, qty, subtotalETB, vatETB, totalETB, withVat };
+}
+
 export function formatPurchaseMoneyDetail(row: PurchaseRequestRow): string {
-  return formatUnitAndTotalDetail(
-    Number(row.estimatedUnitPrice) || 0,
-    purchaseLineTotalETB(row),
-    { estimated: true },
-  );
+  const { unit, subtotalETB, vatETB, totalETB, withVat } =
+    purchaseLineMoneyBreakdown(row);
+  const mode = purchaseVatModeLabel(row.purchaseWithVat);
+  if (withVat) {
+    return `${mode} · Est. ${formatEtbAmount(unit)}/unit (ex-VAT) · ${formatEtbAmount(subtotalETB)} + VAT ${formatEtbAmount(vatETB)} = Total ${formatEtbAmount(totalETB)}`;
+  }
+  return `${mode} · Est. ${formatEtbAmount(unit)}/unit · Total ${formatEtbAmount(totalETB)}`;
 }
 
 export function formatStockMoneyDetail(

@@ -41,6 +41,11 @@ import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatu
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
 import { purchasePrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
+import {
+  formatEtbAmount,
+  purchaseLineMoneyBreakdown,
+  purchaseVatModeLabel,
+} from "@/lib/inventoryLineTotals";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
@@ -180,6 +185,33 @@ export function PurchaseRequestStatusPanel({
             {row.original.supplierName || "—"}
           </span>
         ),
+      },
+      {
+        id: "vatMode",
+        header: "VAT",
+        cell: ({ row }) => (
+          <Badge variant="outline" className="font-normal">
+            {purchaseVatModeLabel(row.original.purchaseWithVat)}
+          </Badge>
+        ),
+      },
+      {
+        id: "lineTotal",
+        header: "Line total",
+        cell: ({ row }) => {
+          const { subtotalETB, vatETB, totalETB, withVat } =
+            purchaseLineMoneyBreakdown(row.original);
+          return (
+            <div className="text-sm tabular-nums whitespace-nowrap">
+              <p className="font-medium">{formatEtbAmount(totalETB)}</p>
+              {withVat ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {formatEtbAmount(subtotalETB)} + VAT {formatEtbAmount(vatETB)}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         id: "status",

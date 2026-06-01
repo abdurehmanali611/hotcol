@@ -18,6 +18,7 @@ import {
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
 import { formatDepartmentWithLeader } from "@/lib/departments";
+import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { formatVoucherDisplay, formatVoucherRange } from "@/lib/voucherFormat";
 
 export type ReceiptKind = "registration" | "purchase_request" | "stock_movement";
@@ -219,10 +220,14 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
       quantity: Number(item.quantity) || 0,
       measuredBy: item.measuredBy,
       unitPrice: Number(item.estimatedUnitPrice) || 0,
-      lineTotal:
-        (Number(item.quantity) || 0) * (Number(item.estimatedUnitPrice) || 0),
+      lineTotal: computeInventoryPaidAmountETB(
+        item.quantity,
+        item.estimatedUnitPrice,
+        item.purchaseWithVat,
+      ),
       category: item.category,
       notes: item.notes,
+      purchaseWithVat: item.purchaseWithVat,
     }));
     return {
       key,

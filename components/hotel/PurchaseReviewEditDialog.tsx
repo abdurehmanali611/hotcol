@@ -33,6 +33,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { isVatEnabled } from "@/lib/hotelInventoryPayment";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -78,6 +80,9 @@ function PurchaseReviewEditDialogForm({
   const [supplierName, setSupplierName] = useState(row.supplierName || "");
   const [supplierPhone, setSupplierPhone] = useState(row.supplierPhone || "");
   const [category, setCategory] = useState<string>(row.category || "Others");
+  const [purchaseWithVat, setPurchaseWithVat] = useState(
+    isVatEnabled(row.purchaseWithVat),
+  );
 
   const unitOptions = useMemo(
     () => inventoryUnitSelectValues(measuredBy),
@@ -186,6 +191,16 @@ function PurchaseReviewEditDialogForm({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center gap-3 sm:col-span-2 rounded-lg border border-dashed border-border/80 bg-muted/20 p-3">
+                <Switch
+                  id="pr-edit-vat"
+                  checked={purchaseWithVat}
+                  onCheckedChange={setPurchaseWithVat}
+                />
+                <Label htmlFor="pr-edit-vat" className="cursor-pointer font-normal">
+                  Estimated price includes VAT (15%)
+                </Label>
+              </div>
             </div>
           </HotelFormSection>
 
@@ -246,6 +261,7 @@ function PurchaseReviewEditDialogForm({
                   supplierName,
                   supplierPhone,
                   category,
+                  purchaseWithVat,
                 });
                 toast.success("Purchase line updated");
                 onSaved();

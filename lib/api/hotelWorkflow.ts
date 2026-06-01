@@ -27,6 +27,7 @@ export interface PurchaseRequestRow {
   supplierName: string;
   supplierPhone: string;
   category: string;
+  purchaseWithVat?: boolean;
   status: string;
   storeUserName: string;
   voucherNumber?: number | null;
@@ -94,6 +95,7 @@ const HOTEL_PURCHASE_REQUEST_AFTER_REJECT_FIELDS = `
         supplierName
         supplierPhone
         category
+        purchaseWithVat
         storeUserName
         ccProfileId
         ccActorName
@@ -137,6 +139,7 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
         supplierName
         supplierPhone
         category
+        purchaseWithVat
         status
         storeUserName
         ccProfileId
@@ -337,6 +340,7 @@ export type PurchaseRequestLineInput = {
   supplierName?: string;
   supplierPhone?: string;
   category?: string;
+  purchaseWithVat?: boolean;
 };
 
 /** Multiple purchase lines submitted together share one voucher number. */

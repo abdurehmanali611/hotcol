@@ -34,7 +34,8 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
-import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
+import { PURCHASE_REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
+import { Switch } from "@/components/ui/switch";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -94,6 +95,7 @@ export default function PurchaseRequestsTab({
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [sharedNote, setSharedNote] = useState("");
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [purchaseWithVat, setPurchaseWithVat] = useState(true);
 
   const tenant = tenantScope.trim();
 
@@ -141,6 +143,7 @@ export default function PurchaseRequestsTab({
         supplierName: l.supplierName.trim() || undefined,
         supplierPhone: l.supplierPhone.trim() || undefined,
         category: l.category,
+        purchaseWithVat,
       }));
       let ok = 0;
       let failed = 0;
@@ -175,6 +178,8 @@ export default function PurchaseRequestsTab({
         onSubmittedForReview?.();
         setLines([emptyLine()]);
         setSharedNote("");
+        setRequestedByDepartment("");
+        setPurchaseWithVat(true);
       } else {
         toast.error("Could not submit purchase requests");
       }
@@ -247,12 +252,16 @@ export default function PurchaseRequestsTab({
                             compact
                             value={requestedByDepartment}
                             onChange={setRequestedByDepartment}
-                            allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+                            allowedDepartments={PURCHASE_REQUESTED_BY_DEPARTMENT_CODES}
                           />
                         </div>
                       ) : null}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div
+                      className={`grid grid-cols-2 gap-3 ${
+                        index === 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"
+                      }`}
+                    >
                       <div className="space-y-1.5">
                         <Label htmlFor={`pr-qty-${l.key}`}>Qty</Label>
                         <Input
@@ -325,6 +334,23 @@ export default function PurchaseRequestsTab({
                           className="h-10 tabular-nums"
                         />
                       </div>
+                      {index === 0 ? (
+                        <div className="col-span-2 flex items-end sm:col-span-1">
+                          <div className="flex h-10 w-full items-center gap-2 rounded-md border border-dashed border-border/80 bg-muted/20 px-2.5">
+                            <Switch
+                              id="pr-batch-vat"
+                              checked={purchaseWithVat}
+                              onCheckedChange={setPurchaseWithVat}
+                            />
+                            <Label
+                              htmlFor="pr-batch-vat"
+                              className="cursor-pointer text-sm font-normal"
+                            >
+                              With VAT (15%)
+                            </Label>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-w-0">
                       <div className="space-y-1.5 min-w-0">

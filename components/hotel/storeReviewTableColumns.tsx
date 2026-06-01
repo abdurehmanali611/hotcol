@@ -8,11 +8,13 @@ import type {
 } from "@/lib/actions";
 import {
   formatEtbAmount,
-  purchaseLineTotalETB,
+  purchaseLineMoneyBreakdown,
+  purchaseVatModeLabel,
   registrationLineTotalETB,
   stockLineTotalETB,
   type RegistrationUnitPriceLookup,
 } from "@/lib/inventoryLineTotals";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
@@ -77,21 +79,53 @@ export function buildPurchaseReviewColumns({
     },
     {
       accessorKey: "estimatedUnitPrice",
-      header: "Est. unit price",
-      cell: ({ row }) => (
-        <span className="tabular-nums whitespace-nowrap">
-          ETB {Number(row.original.estimatedUnitPrice || 0).toLocaleString()}
-        </span>
-      ),
+      header: "Est. unit (ex-VAT)",
+      cell: ({ row }) => {
+        const unit = Number(row.original.estimatedUnitPrice || 0);
+        return (
+          <span className="tabular-nums whitespace-nowrap text-sm">
+            {formatEtbAmount(unit)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "vatMode",
+      header: "VAT",
+      cell: ({ row }) => {
+        const withVat = purchaseLineMoneyBreakdown(row.original).withVat;
+        return (
+          <Badge
+            variant="outline"
+            className={
+              withVat
+                ? "border-emerald-500/40 bg-emerald-50 text-emerald-800 font-normal"
+                : "font-normal text-muted-foreground"
+            }
+          >
+            {purchaseVatModeLabel(row.original.purchaseWithVat)}
+          </Badge>
+        );
+      },
     },
     {
       id: "lineTotal",
-      header: "Total",
-      cell: ({ row }) => (
-        <span className="tabular-nums whitespace-nowrap font-medium">
-          {formatEtbAmount(purchaseLineTotalETB(row.original))}
-        </span>
-      ),
+      header: "Line total",
+      cell: ({ row }) => {
+        const { subtotalETB, vatETB, totalETB, withVat } = purchaseLineMoneyBreakdown(
+          row.original,
+        );
+        return (
+          <div className="tabular-nums whitespace-nowrap text-sm">
+            <p className="font-medium">{formatEtbAmount(totalETB)}</p>
+            {withVat ? (
+              <p className="text-[11px] text-muted-foreground">
+                {formatEtbAmount(subtotalETB)} + VAT {formatEtbAmount(vatETB)}
+              </p>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "supplierName",
