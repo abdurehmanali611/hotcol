@@ -4,7 +4,6 @@ import { api, API_URL, dedupeHotelListRead, invalidateGraphqlListCache } from ".
 
 import { computeInventoryPaidAmountETB } from "../hotelInventoryPayment";
 import { findRowByTenantScope, resolveCanonicalTenantKey } from "../tenantRowMatch";
-import { hasRegistrationImage } from "../registrationImageUrl";
 import { fetchPityCash } from "./cafeCredit";
 import { UpdatePityDeduction } from "./cafeOrders";
 import type {
@@ -30,10 +29,6 @@ function graphqlLooksLikeMissingBatchField(message: string): boolean {
 
 export async function CreateItemRegistration(values: createItemRegistration) {
   try {
-    if (!hasRegistrationImage(values.imageUrl)) {
-      throw new Error("Upload an item image");
-    }
-
     const mutation = `
       mutation ItemRegistration(
         $name: String!, 
@@ -283,21 +278,19 @@ export type ItemRegistrationLineInput = {
 export async function createItemRegistrationsBatchApi(
   lines: ItemRegistrationLineInput[],
   hotelName: string,
+  receivedByDepartment: string,
 ) {
   if (!lines.length) throw new Error("At least one line is required");
-  if (lines.length === 1) {
-    const line = lines[0];
-    const one = await CreateItemRegistration({
-      ...line,
-      HotelName: hotelName,
-      supplierTinNumber: line.supplierTinNumber,
-    });
-    return [one];
-  }
 
   const mutation = `
-    mutation CreateItemRegistrationsBatch($lines: [ItemRegistrationLineInput!]!) {
-      createItemRegistrationsBatch(lines: $lines) {
+    mutation CreateItemRegistrationsBatch(
+      $lines: [ItemRegistrationLineInput!]!
+      $receivedByDepartment: String!
+    ) {
+      createItemRegistrationsBatch(
+        lines: $lines
+        receivedByDepartment: $receivedByDepartment
+      ) {
         id
         name
         approvalStatus
@@ -314,7 +307,10 @@ export async function createItemRegistrationsBatchApi(
     throw new Error("No authenticated token found");
   }
 
-  const variables = { lines: mapLinesToBatchVariables(lines) };
+  const variables = {
+    lines: mapLinesToBatchVariables(lines),
+    receivedByDepartment: String(receivedByDepartment).trim(),
+  };
 
   let created:
     | {
@@ -451,6 +447,10 @@ export async function fetchItemRegistrations() {
           rejectionReason
           pendingUnitPrice
           unitPriceChangeStatus
+          receivedByDepartment
+          receivedByLeaderName
+          financeDeptLeaderName
+          gmDeptLeaderName
         }
       }
     `;

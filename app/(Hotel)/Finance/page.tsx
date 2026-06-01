@@ -642,6 +642,7 @@ function FinanceInner() {
               stocks={stockRows.filter((r) =>
                 rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
               )}
+              inventoryItems={inventoryRows}
               profiles={[]}
               onPatch={(id, status) =>
                 setStockRows((prev) =>

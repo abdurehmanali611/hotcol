@@ -47,6 +47,7 @@ import { VoucherGroupApprovalActions } from "@/components/hotel/VoucherGroupAppr
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useRejectionReasonDialog } from "@/hooks/useRejectionReasonDialog";
 import { notifyApiFailure } from "@/lib/actions";
+import { formatRegistrationMoneyDetail } from "@/lib/inventoryLineTotals";
 import { toast } from "sonner";
 
 type RoleMode = "CostControl" | "Finance" | "Manager";
@@ -359,6 +360,11 @@ export function HotelItemReceiptApprovals({
                   <RegistrationLineStatusBadge
                     approvalStatus={r.approvalStatus ?? ""}
                   />
+                )}
+                renderLineExtra={(r) => (
+                  <span className="tabular-nums">
+                    {formatRegistrationMoneyDetail(r)}
+                  </span>
                 )}
               />
             );

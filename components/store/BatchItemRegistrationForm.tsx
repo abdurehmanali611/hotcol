@@ -41,6 +41,8 @@ import {
   HotelFormSection,
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { REGISTRATION_RECEIVED_BY_CODES } from "@/lib/departments";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -141,6 +143,7 @@ export function BatchItemRegistrationForm({
   const [address, setAddress] = useState("");
   const [supplierTinNumber, setSupplierTinNumber] = useState("");
   const [sharedNote, setSharedNote] = useState("");
+  const [receivedByDepartment, setReceivedByDepartment] = useState("");
   const [lines, setLines] = useState<RegistrationLine[]>([emptyLine()]);
   const lastAutoPaidRef = useRef<Map<string, number>>(new Map());
 
@@ -184,22 +187,16 @@ export function BatchItemRegistrationForm({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supplierName.trim() || !supplierPhone.trim() || !address.trim()) {
-      toast.error("Enter shared supplier name, phone, and address");
+    if (!supplierName.trim() || !address.trim()) {
+      toast.error("Enter shared supplier name and address");
       return;
     }
     if (validLines.length === 0) {
       toast.error("Add at least one item with a name (2+ characters)");
       return;
     }
-    const linesMissingImage = validLines.filter(
-      (l) => !hasRegistrationImage(l.imageUrl),
-    );
-    if (linesMissingImage.length > 0) {
-      const label = linesMissingImage
-        .map((l) => l.name.trim() || "Unnamed line")
-        .join(", ");
-      toast.error(`Upload an image for each item: ${label}`);
+    if (!receivedByDepartment.trim()) {
+      toast.error("Select who received the goods (department leader)");
       return;
     }
 
@@ -246,7 +243,11 @@ export function BatchItemRegistrationForm({
 
       if (linesToSubmit.length > 0) {
         try {
-          await createItemRegistrationsBatchApi(linesToSubmit, hotelName);
+          await createItemRegistrationsBatchApi(
+            linesToSubmit,
+            hotelName,
+            receivedByDepartment,
+          );
           ok = linesToSubmit.length;
         } catch (e: unknown) {
           failed += linesToSubmit.length;
@@ -283,9 +284,9 @@ export function BatchItemRegistrationForm({
           Item registration (shared supplier)
         </CardTitle>
         <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-          Add one or more items under the same supplier. Each line needs a photo,
-          plus its own quantity, price, dates, VAT setting, and paid amount —
-          supplier details and note are shared once for the whole batch.
+          Add one or more items under the same supplier. Each line has its own
+          quantity, price, dates, VAT setting, and paid amount — supplier
+          details, phone, TIN, photos, and note are shared once for the batch.
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-8">
@@ -317,17 +318,35 @@ export function BatchItemRegistrationForm({
                     </Button>
                   </div>
 
-                  <div className="space-y-1.5 min-w-0">
-                    <Label htmlFor={`reg-name-${l.key}`}>Item name</Label>
-                    <Input
-                      id={`reg-name-${l.key}`}
-                      value={l.name}
-                      onChange={(e) =>
-                        updateLine(l.key, { name: e.target.value })
-                      }
-                      placeholder="Product name"
-                      className="h-10 min-w-0"
-                    />
+                  <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div
+                      className={`space-y-1.5 min-w-0 ${
+                        index === 0 ? "col-span-2" : "col-span-2 sm:col-span-4"
+                      }`}
+                    >
+                      <Label htmlFor={`reg-name-${l.key}`}>Item name</Label>
+                      <Input
+                        id={`reg-name-${l.key}`}
+                        value={l.name}
+                        onChange={(e) =>
+                          updateLine(l.key, { name: e.target.value })
+                        }
+                        placeholder="Product name"
+                        className="h-10 min-w-0"
+                      />
+                    </div>
+                    {index === 0 ? (
+                      <div className="col-span-2 space-y-1.5 min-w-0">
+                        <DepartmentLeaderSelect
+                          id="reg-received-by"
+                          label="Received by"
+                          compact
+                          value={receivedByDepartment}
+                          onChange={setReceivedByDepartment}
+                          allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
+                        />
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
@@ -466,7 +485,10 @@ export function BatchItemRegistrationForm({
                     </div>
                     <div className="flex flex-col gap-1.5 sm:items-end">
                       <Label className="text-xs text-muted-foreground">
-                        Item image <span className="text-destructive">*</span>
+                        Item image{" "}
+                        <span className="font-normal text-muted-foreground">
+                          (optional)
+                        </span>
                       </Label>
                       <div className="flex items-center gap-3">
                       {l.imageUrl && hasRegistrationImage(l.imageUrl) ? (
@@ -503,12 +525,6 @@ export function BatchItemRegistrationForm({
                           : "Upload image"}
                       </CldUploadButton>
                       </div>
-                      {!hasRegistrationImage(l.imageUrl) &&
-                      l.name.trim().length >= 2 ? (
-                        <p className="text-[10px] text-destructive">
-                          Image is required for this line
-                        </p>
-                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -528,7 +544,7 @@ export function BatchItemRegistrationForm({
 
           <HotelFormSection
             title="Shared supplier (whole batch)"
-            description="Supplier name, phone, and address apply to every line above. TIN is optional."
+            description="Supplier name and address apply to every line above. Phone, TIN, and product photos are optional."
           >
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
               <HotelFormFieldStack>
@@ -543,7 +559,12 @@ export function BatchItemRegistrationForm({
                 />
               </HotelFormFieldStack>
               <HotelFormFieldStack>
-                <Label htmlFor="reg-supplier-phone">Supplier phone</Label>
+                <Label htmlFor="reg-supplier-phone">
+                  Supplier phone{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </Label>
                 <PhoneInput
                   id="reg-supplier-phone"
                   defaultCountry="ET"

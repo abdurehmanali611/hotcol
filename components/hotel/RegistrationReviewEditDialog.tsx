@@ -178,7 +178,12 @@ function RegistrationReviewEditDialogForm({
   const onSubmit = (values: ItemRegForm) => {
     void run(`save-reg-${row.id}`, async () => {
       try {
-        await UpdateItemRegistration({ ...values, id: row.id });
+        await UpdateItemRegistration({
+          ...values,
+          id: row.id,
+          imageUrl: values.imageUrl ?? "",
+          supplierPhone: values.supplierPhone ?? "",
+        });
         toast.success(`${values.name.trim()} updated`);
         onSaved();
       } catch (e) {
@@ -431,7 +436,7 @@ function RegistrationReviewEditDialogForm({
                   name="supplierPhone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Supplier phone</FormLabel>
+                      <FormLabel>Supplier phone (optional)</FormLabel>
                       <FormControl>
                         <PhoneInput
                           value={field.value}
@@ -478,7 +483,7 @@ function RegistrationReviewEditDialogForm({
 
             <HotelFormSection
               title="Item image"
-              description="Required — same as when you first registered this line."
+              description="Optional — same as when you first registered this line."
             >
               <FormField
                 control={form.control}
@@ -486,7 +491,7 @@ function RegistrationReviewEditDialogForm({
                 render={({ field }) => (
                   <FormItem>
                     <RegistrationImageUploadField
-                      value={field.value}
+                      value={field.value ?? ""}
                       onChange={field.onChange}
                       itemLabel={itemName}
                       hint={`${formatQtyWithUnit(amount, measuredBy)} · ETB ${Number(unitPrice || 0).toLocaleString()} / unit`}

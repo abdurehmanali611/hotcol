@@ -46,6 +46,7 @@ import {
   buildRegistrationReviewColumns,
   buildStockReviewColumns,
 } from "@/components/hotel/storeReviewTableColumns";
+import { unitPriceByRegistrationIdFromInventory } from "@/lib/inventoryLineTotals";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { notifyApiFailure } from "@/lib/actions";
 import { ClipboardCheck, Loader2 } from "lucide-react";
@@ -342,13 +343,19 @@ export function StoreRequestReviewPanel({
     [openDeletePurchase],
   );
 
+  const stockUnitPriceLookup = useMemo(
+    () => unitPriceByRegistrationIdFromInventory(tenantRegistrations),
+    [tenantRegistrations],
+  );
+
   const stockReviewColumns = useMemo(
     () =>
       buildStockReviewColumns({
         onEdit: setEditSo,
         onRequestDelete: openDeleteStock,
+        unitPriceByRegistrationId: stockUnitPriceLookup,
       }),
-    [openDeleteStock],
+    [openDeleteStock, stockUnitPriceLookup],
   );
 
   const registrationReviewColumns = useMemo(

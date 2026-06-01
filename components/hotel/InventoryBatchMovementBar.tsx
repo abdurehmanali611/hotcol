@@ -33,6 +33,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Send } from "lucide-react";
+import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 
 type MovementKind = "STOCK_OUT" | "WASTAGE" | "RETURN_SUPPLIER";
 
@@ -90,6 +92,7 @@ export function InventoryBatchMovementBar({
 }) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<LineDraft[]>([]);
+  const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const { isPending, run } = useConcurrentActions();
   const batchKey = "inventory-batch-movements";
 
@@ -100,6 +103,10 @@ export function InventoryBatchMovementBar({
   }, []);
 
   const handleSubmit = () => {
+    if (!requestedByDepartment.trim()) {
+      toast.error("Select the requesting department");
+      return;
+    }
     void run(batchKey, async () => {
       const user =
         typeof window !== "undefined"
@@ -172,6 +179,7 @@ export function InventoryBatchMovementBar({
                 stakeHolderOrReason,
               }),
             ),
+            requestedByDepartment,
             { suppressSuccessToast: true },
           );
           for (let i = 0; i < results.length; i++) {
@@ -277,6 +285,14 @@ export function InventoryBatchMovementBar({
 
           <ScrollArea className="min-h-0 flex-1 overflow-x-hidden">
             <div className="space-y-3 px-4 py-4 sm:px-5">
+              <DepartmentLeaderSelect
+                id="stock-requested-by"
+                label="Requested by"
+                description="Same department list as purchase requests (all except Store)."
+                value={requestedByDepartment}
+                onChange={setRequestedByDepartment}
+                allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+              />
               {lines.map((line) => (
                 <div
                   key={line.registrationId}

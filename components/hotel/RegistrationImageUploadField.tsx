@@ -91,7 +91,8 @@ export function RegistrationImageUploadField({
         </div>
         <div className="min-w-0 space-y-0.5">
           <p className="text-sm font-medium">
-            Product photo <span className="text-destructive">*</span>
+            Product photo{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
           </p>
           {hint ? (
             <p className="text-xs text-muted-foreground max-w-xs">{hint}</p>

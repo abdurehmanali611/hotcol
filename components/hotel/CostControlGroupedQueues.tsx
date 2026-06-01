@@ -11,7 +11,17 @@ import {
   PurchaseLineStatusBadge,
   StockLineStatusBadge,
 } from "@/components/hotel/voucherQueueLineStatus";
-import type { PurchaseRequestRow, StockOutRequestRow } from "@/lib/actions";
+import type {
+  ItemRegistration,
+  PurchaseRequestRow,
+  StockOutRequestRow,
+} from "@/lib/actions";
+import { departmentLeaderDisplayLabel } from "@/lib/departments";
+import {
+  formatPurchaseMoneyDetail,
+  formatStockMoneyDetail,
+  unitPriceByRegistrationIdFromInventory,
+} from "@/lib/inventoryLineTotals";
 import {
   groupVoucherBatchesForQueue,
   voucherGroupStatusSummary,
@@ -97,8 +107,11 @@ export function CostControlPurchaseVoucherGroups({
             )}
             renderLineExtra={(r) => (
               <span>
-                Requested by <strong>{r.storeUserName}</strong> · Est.{" "}
-                {r.estimatedUnitPrice} ETB/unit
+                Requested by{" "}
+                <strong>
+                  {departmentLeaderDisplayLabel(r) || r.storeUserName || "—"}
+                </strong>{" "}
+                · {formatPurchaseMoneyDetail(r)}
                 {r.notes?.trim() ? ` · ${r.notes.trim()}` : ""}
               </span>
             )}
@@ -136,6 +149,7 @@ export function CostControlPurchaseVoucherGroups({
 
 export function CostControlStockVoucherGroups({
   stocks,
+  inventoryItems = [],
   selectedIds,
   setSelectedIds,
   isCcPending,
@@ -146,6 +160,7 @@ export function CostControlStockVoucherGroups({
   onRejectVoucher,
 }: {
   stocks: StockOutRequestRow[];
+  inventoryItems?: ItemRegistration[];
   selectedIds: number[];
   setSelectedIds: React.Dispatch<React.SetStateAction<number[]>>;
   isCcPending: (key: string) => boolean;
@@ -155,6 +170,7 @@ export function CostControlStockVoucherGroups({
   onCheckVoucher: (rows: StockOutRequestRow[], profileId: number) => Promise<void>;
   onRejectVoucher: (rows: StockOutRequestRow[], reason: string) => Promise<void>;
 }) {
+  const unitPriceLookup = unitPriceByRegistrationIdFromInventory(inventoryItems);
   const groups = groupVoucherBatchesForQueue(stocks, soNeedsCc);
 
   return (
@@ -199,12 +215,19 @@ export function CostControlStockVoucherGroups({
             renderLineStatus={(r) => (
               <StockLineStatusBadge status={r.status} />
             )}
-            renderLineExtra={(r) => (
-              <span>
-                {formatMovementType(r.movementType)} · {r.stakeHolderOrReason}{" "}
-                · Requested by <strong>{r.requestedByUserName}</strong>
-              </span>
-            )}
+            renderLineExtra={(r) => {
+              const money = formatStockMoneyDetail(r, unitPriceLookup);
+              return (
+                <span>
+                  {formatMovementType(r.movementType)} · {r.stakeHolderOrReason}{" "}
+                  · Requested by{" "}
+                  <strong>
+                    {departmentLeaderDisplayLabel(r) || r.requestedByUserName || "—"}
+                  </strong>
+                  {money ? ` · ${money}` : ""}
+                </span>
+              );
+            }}
             actions={
               <VoucherGroupApprovalActions
                 group={group}

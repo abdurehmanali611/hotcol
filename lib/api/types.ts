@@ -352,11 +352,15 @@ export interface ItemRegistration {
   rejectionReason?: string | null;
   pendingUnitPrice?: number | null;
   unitPriceChangeStatus?: string | null;
+  receivedByDepartment?: string | null;
+  receivedByLeaderName?: string | null;
+  financeDeptLeaderName?: string | null;
+  gmDeptLeaderName?: string | null;
 }
 
 export interface createItemRegistration {
   name: string;
-  imageUrl: string;
+  imageUrl?: string;
   category: string;
   amount: number;
   measuredBy: string;
@@ -364,7 +368,7 @@ export interface createItemRegistration {
   registrationDate: Date;
   expireDate: Date;
   supplierName: string;
-  supplierPhone: string;
+  supplierPhone?: string;
   purchaseWithVat?: boolean;
   supplierTinNumber?: string;
   Address: string;

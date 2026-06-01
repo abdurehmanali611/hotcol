@@ -555,13 +555,14 @@ export const ItemRegistrationSchema = z.object({
   expireDate: z.date({message: "Please Enter the expected Last Day of the item"}),
   imageUrl: z
     .string()
-    .min(1, "Upload an item image")
+    .optional()
+    .or(z.literal(""))
     .refine(
-      (url) => !isPlaceholderRegistrationImage(url),
-      "Upload an item image",
+      (url) => !url?.trim() || !isPlaceholderRegistrationImage(url),
+      "Use a valid image URL or leave empty",
     ),
   supplierName: z.string().min(2, "Supplier name is required"),
-  supplierPhone: z.string().min(3, "Please Enter Valid Phone Number"),
+  supplierPhone: z.string().optional().or(z.literal("")),
   Address: z.string().min(2, "Please Enter Valid Address"),
   purchaseWithVat: z.boolean().default(true),
   supplierTinNumber: z

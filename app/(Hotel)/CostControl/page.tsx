@@ -1324,6 +1324,7 @@ function CostControlInner() {
                 ) : null}
                 <CostControlStockVoucherGroups
                   stocks={stocks}
+                  inventoryItems={inventoryRows}
                   selectedIds={selectedSoBatchIds}
                   setSelectedIds={setSelectedSoBatchIds}
                   isCcPending={isCcPending}

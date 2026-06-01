@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import type { ItemRegistration, PurchaseRequestRow, StockOutRequestRow } from "@/lib/actions";
 import {
+  formatPurchaseMoneyDetail,
+  formatStockMoneyDetail,
+  unitPriceByRegistrationIdFromInventory,
+} from "@/lib/inventoryLineTotals";
+import {
   approvePurchaseRequestFinanceApi,
   approvePurchaseRequestsFinanceBatchApi,
   authorizePurchaseRequestManagerApi,
@@ -16,6 +21,7 @@ import {
   type CostControllerProfileRow,
 } from "@/lib/actions";
 import { HotelItemReceiptApprovals } from "@/components/hotel/HotelItemReceiptApprovals";
+import { departmentLeaderDisplayLabel } from "@/lib/departments";
 import {
   formatMovementType,
   formatPurchaseStatus,
@@ -207,7 +213,7 @@ export function HotelPurchaseManagerQueue({
               )}
               renderLineExtra={(r) => (
                 <span>
-                  Est. {r.estimatedUnitPrice} ETB/unit
+                  {formatPurchaseMoneyDetail(r)}
                   {r.notes?.trim() ? ` · ${r.notes.trim()}` : ""}
                 </span>
               )}
@@ -387,12 +393,16 @@ export function HotelPurchaseFinanceQueue({
               )}
               renderLineExtra={(r) => (
                 <span>
-                  {r.storeUserName ? (
+                  {departmentLeaderDisplayLabel(r) || r.storeUserName ? (
                     <>
-                      Requested by <strong>{r.storeUserName}</strong> ·{" "}
+                      Requested by{" "}
+                      <strong>
+                        {departmentLeaderDisplayLabel(r) || r.storeUserName}
+                      </strong>{" "}
+                      ·{" "}
                     </>
                   ) : null}
-                  Est. {r.estimatedUnitPrice} ETB/unit
+                  {formatPurchaseMoneyDetail(r)}
                   {r.ccActorName?.trim()
                     ? ` · CC: ${r.ccActorName.trim()}`
                     : ""}
@@ -445,12 +455,14 @@ export function HotelPurchaseFinanceQueue({
 export function HotelStockWorkflowQueue({
   role,
   stocks,
+  inventoryItems = [],
   profiles,
   onPatch,
   onRefresh,
 }: {
   role: TerminalRole;
   stocks: StockOutRequestRow[];
+  inventoryItems?: ItemRegistration[];
   profiles: CostControllerProfileRow[];
   onPatch: (id: number, status: string, row?: StockOutRequestRow) => void;
   onRefresh: () => void;
@@ -510,6 +522,9 @@ export function HotelStockWorkflowQueue({
 
   const { requestRejectionReason, RejectionReasonDialog } =
     useRejectionReasonDialog();
+
+  const stockUnitPriceLookup =
+    unitPriceByRegistrationIdFromInventory(inventoryItems);
 
   if (pending.length === 0) {
     return (
@@ -647,11 +662,23 @@ export function HotelStockWorkflowQueue({
               renderLineStatus={(r) => (
                 <StockLineStatusBadge status={r.status} />
               )}
-              renderLineExtra={(r) => (
-                <span>
-                  {formatMovementType(r.movementType)} · {r.stakeHolderOrReason}
-                </span>
-              )}
+              renderLineExtra={(r) => {
+                const money = formatStockMoneyDetail(r, stockUnitPriceLookup);
+                const requested =
+                  departmentLeaderDisplayLabel(r) || r.requestedByUserName;
+                return (
+                  <span>
+                    {formatMovementType(r.movementType)} · {r.stakeHolderOrReason}
+                    {requested ? (
+                      <>
+                        {" "}
+                        · Requested by <strong>{requested}</strong>
+                      </>
+                    ) : null}
+                    {money ? ` · ${money}` : ""}
+                  </span>
+                );
+              }}
               actions={
                 <VoucherGroupApprovalActions
                   group={group}

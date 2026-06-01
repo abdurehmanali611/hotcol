@@ -33,6 +33,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -91,6 +93,7 @@ export default function PurchaseRequestsTab({
   const submitKey = "purchase-request-batch-submit";
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [sharedNote, setSharedNote] = useState("");
+  const [requestedByDepartment, setRequestedByDepartment] = useState("");
 
   const tenant = tenantScope.trim();
 
@@ -119,6 +122,10 @@ export default function PurchaseRequestsTab({
       toast.error("Add at least one line with an item name");
       return;
     }
+    if (!requestedByDepartment.trim()) {
+      toast.error("Select the requesting department");
+      return;
+    }
     void run(submitKey, async () => {
       const user =
         typeof window !== "undefined"
@@ -138,9 +145,11 @@ export default function PurchaseRequestsTab({
       let ok = 0;
       let failed = 0;
       try {
-        const results = await createPurchaseRequestsBatchApi(batchLines, {
-          suppressSuccessToast: true,
-        });
+        const results = await createPurchaseRequestsBatchApi(
+          batchLines,
+          requestedByDepartment,
+          { suppressSuccessToast: true },
+        );
         for (let i = 0; i < results.length; i++) {
           const result = results[i];
           if (!result) continue;
@@ -213,17 +222,35 @@ export default function PurchaseRequestsTab({
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    <div className="space-y-1.5 min-w-0">
-                      <Label htmlFor={`pr-item-${l.key}`}>Item name</Label>
-                      <Input
-                        id={`pr-item-${l.key}`}
-                        value={l.itemName}
-                        onChange={(e) =>
-                          updateLine(l.key, { itemName: e.target.value })
-                        }
-                        placeholder="What to order"
-                        className="h-10 min-w-0"
-                      />
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 min-w-0">
+                      <div
+                        className={`space-y-1.5 min-w-0 ${
+                          index === 0 ? "col-span-2" : "col-span-2 sm:col-span-4"
+                        }`}
+                      >
+                        <Label htmlFor={`pr-item-${l.key}`}>Item name</Label>
+                        <Input
+                          id={`pr-item-${l.key}`}
+                          value={l.itemName}
+                          onChange={(e) =>
+                            updateLine(l.key, { itemName: e.target.value })
+                          }
+                          placeholder="What to order"
+                          className="h-10 min-w-0"
+                        />
+                      </div>
+                      {index === 0 ? (
+                        <div className="col-span-2 space-y-1.5 min-w-0">
+                          <DepartmentLeaderSelect
+                            id="pr-requested-by"
+                            label="Requested by"
+                            compact
+                            value={requestedByDepartment}
+                            onChange={setRequestedByDepartment}
+                            allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       <div className="space-y-1.5">

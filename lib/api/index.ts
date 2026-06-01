@@ -6,6 +6,7 @@ export * from "./cafeOrders";
 export * from "./reports";
 export * from "./hotelWorkflow";
 export * from "./storeRequestDraft";
+export * from "./departmentLeaders";
 
 export {
   CreateCreditLevel,

@@ -169,12 +169,12 @@ const UpdateStock = ({
 
     setLoading(true);
     try {
-      const updateData = {
+      await UpdateItemRegistration({
         ...values,
         id: item.id,
-      };
-
-      await UpdateItemRegistration(updateData);
+        imageUrl: values.imageUrl ?? "",
+        supplierPhone: values.supplierPhone ?? "",
+      });
       toast.success(`${item.name} updated successfully`);
       onUpdateSuccess();
       onOpenChange(false);
@@ -356,7 +356,7 @@ const UpdateStock = ({
                   name="supplierPhone"
                   control={form.control}
                   fieldType={formFieldTypes.PHONE_INPUT}
-                  label="Supplier Contact"
+                  label="Supplier Contact (optional)"
                   inputClassName="h-fit p-2 w-56"
                 />
               </div>

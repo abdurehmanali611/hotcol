@@ -4,6 +4,7 @@ import Image from "next/image";
 import { APEX_SOLUTION, HOTCOL_SYSTEM } from "@/constants/branding";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import type { ItemRegistration } from "@/lib/actions";
+import { formatDepartmentWithLeader } from "@/lib/departments";
 import {
   itemPaymentBucket,
   itemPaymentLabel,
@@ -15,10 +16,6 @@ import type { ReceiptBundle } from "@/lib/receiptGrouping";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-
-function signatureLabel(kind: ReceiptBundle["kind"]): string {
-  return kind === "registration" ? "Received by" : "Requested by";
-}
 
 function receiptMetaLabel(bundle: ReceiptBundle): string {
   if (bundle.kind === "stock_movement") {
@@ -38,6 +35,24 @@ function receiptMetaLabel(bundle: ReceiptBundle): string {
 
 function receiptCaption(bundle: ReceiptBundle): string {
   return bundle.title;
+}
+
+function receiptSignatureBlocks(bundle: ReceiptBundle): { label: string; name: string | null | undefined }[] {
+  if (bundle.kind === "registration") {
+    return [
+      { label: "Received by", name: bundle.receivedByLabel },
+      { label: "Checked by", name: bundle.checkedByName },
+      { label: "Approved by", name: bundle.approvedByLeaderName },
+      { label: "Authorized by", name: bundle.authorizedByLeaderName },
+    ];
+  }
+  return [
+    { label: "Requested by", name: bundle.requestedByLabel },
+    { label: "Prepared by", name: bundle.preparedByLeaderName },
+    { label: "Checked by", name: bundle.checkedByName },
+    { label: "Approved by", name: bundle.approvedByLeaderName },
+    { label: "Authorized by", name: bundle.authorizedByLeaderName },
+  ];
 }
 
 function legacyBundleFromItem(item: ItemRegistration): ReceiptBundle {
@@ -82,10 +97,13 @@ function legacyBundleFromItem(item: ItemRegistration): ReceiptBundle {
         purchaseWithVat: item.purchaseWithVat,
       },
     ],
-    storeActorName: item.statusBy ?? null,
-    ccActorName: item.ccActorName ?? null,
-    financeActorName: item.financeActorName ?? null,
-    managerActorName: item.managerActorName ?? null,
+    receivedByLabel: formatDepartmentWithLeader(
+      item.receivedByDepartment ?? "",
+      item.receivedByLeaderName,
+    ),
+    checkedByName: item.ccActorName ?? null,
+    approvedByLeaderName: item.financeDeptLeaderName ?? null,
+    authorizedByLeaderName: item.gmDeptLeaderName ?? null,
   };
 }
 
@@ -127,6 +145,11 @@ export function StoreItemRegistrationReceipt({
     });
 
   const isBulk = layout === "bulk";
+  const signatureBlocks = receiptSignatureBlocks(resolvedBundle);
+  const signatureGridClass =
+    signatureBlocks.length > 4
+      ? "grid-cols-2 sm:grid-cols-3"
+      : "grid-cols-2";
 
   return (
     <div
@@ -392,13 +415,13 @@ export function StoreItemRegistrationReceipt({
       </div>
 
       <div className="px-8 pb-8 print:px-6 print:pb-6">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-6 border border-zinc-200 rounded-xl p-5">
-          {[
-            { label: signatureLabel(resolvedBundle.kind), name: resolvedBundle.storeActorName },
-            { label: "Checked by", name: resolvedBundle.ccActorName },
-            { label: "Approved by", name: resolvedBundle.financeActorName },
-            { label: "Authorized by", name: resolvedBundle.managerActorName },
-          ].map((entry) => (
+        <div
+          className={cn(
+            "grid gap-x-8 gap-y-6 border border-zinc-200 rounded-xl p-5",
+            signatureGridClass,
+          )}
+        >
+          {signatureBlocks.map((entry) => (
             <div key={entry.label} className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 {entry.label}
@@ -412,31 +435,37 @@ export function StoreItemRegistrationReceipt({
 
       <div
         className={cn(
-          "mx-8 mb-8 rounded-xl border border-zinc-800 bg-zinc-900 text-white px-5 py-4 print:mx-6 print:mb-6",
+          "mx-8 mb-8 rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50 via-white to-amber-50 px-5 py-4 shadow-sm print:mx-6 print:mb-6 print:border-emerald-300 print:shadow-none",
           isBulk && "mx-4 mb-3 px-3 py-2 print:mx-3 print:mb-2 print:py-1.5",
         )}
       >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Image
-              src={APEX_SOLUTION.logoPath}
-              alt={APEX_SOLUTION.name}
-              width={120}
-              height={40}
-              className="h-9 w-auto object-contain"
-            />
+            <div className="rounded-lg bg-white/90 border border-emerald-100 px-2 py-1.5 shadow-sm">
+              <Image
+                src={APEX_SOLUTION.logoPath}
+                alt={APEX_SOLUTION.name}
+                width={120}
+                height={40}
+                className="h-9 w-auto object-contain"
+              />
+            </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold">{APEX_SOLUTION.name}</p>
+              <p className="text-sm font-semibold text-emerald-950">{APEX_SOLUTION.name}</p>
               <a
                 href={APEX_SOLUTION.website}
-                className="text-xs text-zinc-300 hover:text-white underline-offset-2 hover:underline print:text-zinc-300"
+                className="text-xs text-emerald-800/80 underline-offset-2 hover:underline hover:text-emerald-950"
               >
                 {APEX_SOLUTION.website.replace(/^https?:\/\//, "")}
               </a>
             </div>
           </div>
-          <div className="text-right text-[10px] text-zinc-400 max-w-[220px]">
-            <p>Powered by {HOTCOL_SYSTEM.name} inventory</p>
+          <div className="text-right text-[10px] text-zinc-600 max-w-[220px]">
+            <p>
+              Powered by{" "}
+              <span className="font-medium text-emerald-900">{HOTCOL_SYSTEM.name}</span>{" "}
+              inventory
+            </p>
             <p className="mt-0.5">Printed {new Date().toLocaleString()}</p>
           </div>
         </div>

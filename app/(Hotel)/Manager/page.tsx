@@ -63,6 +63,7 @@ import {
   ShoppingCart,
   ClipboardList,
   UserCheck,
+  Users,
   Loader2,
   BadgePercent,
   PlusCircle,
@@ -72,6 +73,7 @@ import {
   Building2,
   type LucideIcon,
 } from "lucide-react";
+import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
 import {
   Sidebar,
   SidebarContent,
@@ -140,6 +142,7 @@ const sidebarIconMap: Record<
   PlusCircle,
   Edit,
   UserCheck,
+  Users,
   Package,
   ArrowRightLeft,
   ShoppingCart,
@@ -916,6 +919,7 @@ function ManagerContent() {
             <HotelStockWorkflowQueue
               role="Manager"
               stocks={stockReqs}
+              inventoryItems={items}
               profiles={ccProfiles}
               onPatch={(id, status) =>
                 setStockReqs((prev) =>
@@ -1098,6 +1102,13 @@ function ManagerContent() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        );
+
+      case "department-leaders":
+        return (
+          <div className="p-4 md:p-6">
+            <DepartmentLeadersPanel />
           </div>
         );
 

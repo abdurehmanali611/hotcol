@@ -17,6 +17,7 @@ import {
   itemPaymentLabel,
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
+import { formatDepartmentWithLeader } from "@/lib/departments";
 import { formatVoucherDisplay, formatVoucherRange } from "@/lib/voucherFormat";
 
 export type ReceiptKind = "registration" | "purchase_request" | "stock_movement";
@@ -57,10 +58,18 @@ export type ReceiptBundle = {
   registrationVoucher?: string | null;
   stockMovementVoucher?: string | null;
   lines: ReceiptLine[];
-  storeActorName?: string | null;
-  ccActorName?: string | null;
-  financeActorName?: string | null;
-  managerActorName?: string | null;
+  /** Department leader snapshot at submit (registration). */
+  receivedByLabel?: string | null;
+  /** Department leader snapshot at submit (purchase / stock). */
+  requestedByLabel?: string | null;
+  /** Store department leader at submit. */
+  preparedByLeaderName?: string | null;
+  /** Cost controller name from approval workflow. */
+  checkedByName?: string | null;
+  /** Finance department head name frozen at submit. */
+  approvedByLeaderName?: string | null;
+  /** GM department head name frozen at submit. */
+  authorizedByLeaderName?: string | null;
 };
 
 function bundleIdFromKey(key: string): number {
@@ -172,10 +181,13 @@ function registrationBundles(
       purchaseRequestVoucher,
       registrationVoucher: formatVoucherRange(items),
       lines,
-      storeActorName: first.statusBy ?? null,
-      ccActorName: first.ccActorName ?? null,
-      financeActorName: first.financeActorName ?? null,
-      managerActorName: first.managerActorName ?? null,
+      receivedByLabel: formatDepartmentWithLeader(
+        first.receivedByDepartment ?? "",
+        first.receivedByLeaderName,
+      ),
+      checkedByName: first.ccActorName ?? null,
+      approvedByLeaderName: first.financeDeptLeaderName ?? null,
+      authorizedByLeaderName: first.gmDeptLeaderName ?? null,
     };
   });
 }
@@ -227,10 +239,14 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
       registrationVoucher: null,
       purchaseRequestVoucher: formatVoucherRange(items),
       lines,
-      storeActorName: first.storeUserName ?? null,
-      ccActorName: first.ccActorName ?? null,
-      financeActorName: first.financeActorName ?? null,
-      managerActorName: first.managerActorName ?? null,
+      requestedByLabel: formatDepartmentWithLeader(
+        first.requestedByDepartment ?? "",
+        first.requestedByLeaderName,
+      ),
+      preparedByLeaderName: first.preparedByLeaderName ?? null,
+      checkedByName: first.ccActorName ?? null,
+      approvedByLeaderName: first.financeDeptLeaderName ?? null,
+      authorizedByLeaderName: first.gmDeptLeaderName ?? null,
     };
   });
 }
@@ -308,10 +324,14 @@ function stockMovementBundles(
         : null,
       stockMovementVoucher: formatVoucherRange(items),
       lines,
-      storeActorName: first.requestedByUserName ?? null,
-      ccActorName: first.ccActorName ?? null,
-      financeActorName: first.financeActorName ?? null,
-      managerActorName: first.managerActorName ?? null,
+      requestedByLabel: formatDepartmentWithLeader(
+        first.requestedByDepartment ?? "",
+        first.requestedByLeaderName,
+      ),
+      preparedByLeaderName: first.preparedByLeaderName ?? null,
+      checkedByName: first.ccActorName ?? null,
+      approvedByLeaderName: first.financeDeptLeaderName ?? null,
+      authorizedByLeaderName: first.gmDeptLeaderName ?? null,
     };
   });
 }

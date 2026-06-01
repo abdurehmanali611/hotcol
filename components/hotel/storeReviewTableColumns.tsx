@@ -6,12 +6,20 @@ import type {
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
+import {
+  formatEtbAmount,
+  purchaseLineTotalETB,
+  registrationLineTotalETB,
+  stockLineTotalETB,
+  type RegistrationUnitPriceLookup,
+} from "@/lib/inventoryLineTotals";
 import { Button } from "@/components/ui/button";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
   formatMovementType,
   formatQtyWithUnit,
 } from "@/lib/hotelDisplayLabels";
+import { departmentLeaderDisplayLabel } from "@/lib/departments";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import {
   PurchaseLineStatusBadge,
@@ -77,6 +85,15 @@ export function buildPurchaseReviewColumns({
       ),
     },
     {
+      id: "lineTotal",
+      header: "Total",
+      cell: ({ row }) => (
+        <span className="tabular-nums whitespace-nowrap font-medium">
+          {formatEtbAmount(purchaseLineTotalETB(row.original))}
+        </span>
+      ),
+    },
+    {
       accessorKey: "supplierName",
       header: "Supplier",
       cell: ({ row }) => (
@@ -91,6 +108,15 @@ export function buildPurchaseReviewColumns({
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.category || "—"}
+        </span>
+      ),
+    },
+    {
+      id: "requestedBy",
+      header: "Requested by",
+      cell: ({ row }) => (
+        <span className="text-sm max-w-[160px] truncate block">
+          {departmentLeaderDisplayLabel(row.original) || "—"}
         </span>
       ),
     },
@@ -135,9 +161,11 @@ export function buildPurchaseReviewColumns({
 export function buildStockReviewColumns({
   onEdit,
   onRequestDelete,
+  unitPriceByRegistrationId,
 }: {
   onEdit: (row: StockOutRequestRow) => void;
   onRequestDelete: (row: StockOutRequestRow) => void;
+  unitPriceByRegistrationId?: RegistrationUnitPriceLookup;
 }): ColumnDef<StockOutRequestRow>[] {
   return [
     buildVoucherColumn<StockOutRequestRow>(),
@@ -176,11 +204,35 @@ export function buildStockReviewColumns({
       ),
     },
     {
+      id: "lineTotal",
+      header: "Total",
+      cell: ({ row }) => {
+        const total = stockLineTotalETB(
+          row.original,
+          unitPriceByRegistrationId,
+        );
+        return (
+          <span className="tabular-nums whitespace-nowrap font-medium">
+            {total != null ? formatEtbAmount(total) : "—"}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: "stakeHolderOrReason",
       header: "Destination / reason",
       cell: ({ row }) => (
         <span className="text-sm max-w-[160px] truncate block text-muted-foreground">
           {row.original.stakeHolderOrReason?.trim() || "—"}
+        </span>
+      ),
+    },
+    {
+      id: "requestedBy",
+      header: "Requested by",
+      cell: ({ row }) => (
+        <span className="text-sm max-w-[160px] truncate block">
+          {departmentLeaderDisplayLabel(row.original) || "—"}
         </span>
       ),
     },
@@ -264,6 +316,15 @@ export function buildRegistrationReviewColumns({
       ),
     },
     {
+      id: "lineTotal",
+      header: "Total",
+      cell: ({ row }) => (
+        <span className="tabular-nums whitespace-nowrap font-medium">
+          {formatEtbAmount(registrationLineTotalETB(row.original))}
+        </span>
+      ),
+    },
+    {
       accessorKey: "supplierName",
       header: "Supplier",
       cell: ({ row }) => (
@@ -296,6 +357,15 @@ export function buildRegistrationReviewColumns({
       cell: ({ row }) => (
         <span className="tabular-nums text-sm whitespace-nowrap">
           ETB {Number(row.original.paidAmount || 0).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      id: "receivedBy",
+      header: "Received by",
+      cell: ({ row }) => (
+        <span className="text-sm max-w-[160px] truncate block">
+          {departmentLeaderDisplayLabel(row.original) || "—"}
         </span>
       ),
     },

@@ -41,6 +41,12 @@ export interface PurchaseRequestRow {
   rejectionReason?: string | null;
   pendingUnitPrice?: number | null;
   unitPriceChangeStatus?: string | null;
+  requestedByDepartment?: string | null;
+  requestedByLeaderName?: string | null;
+  requestedByDepartmentLabel?: string | null;
+  preparedByLeaderName?: string | null;
+  financeDeptLeaderName?: string | null;
+  gmDeptLeaderName?: string | null;
   createdAt: string;
 }
 
@@ -66,6 +72,12 @@ export interface StockOutRequestRow {
   managerAuthorizedAt?: string | null;
   decidedAt?: string | null;
   rejectionReason?: string | null;
+  requestedByDepartment?: string | null;
+  requestedByLeaderName?: string | null;
+  requestedByDepartmentLabel?: string | null;
+  preparedByLeaderName?: string | null;
+  financeDeptLeaderName?: string | null;
+  gmDeptLeaderName?: string | null;
   createdAt: string;
 }
 
@@ -139,6 +151,12 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
         pendingUnitPrice
         unitPriceChangeStatus
         rejectionReason
+        requestedByDepartment
+        requestedByLeaderName
+        requestedByDepartmentLabel
+        preparedByLeaderName
+        financeDeptLeaderName
+        gmDeptLeaderName
         createdAt
       }
     }
@@ -178,6 +196,12 @@ export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
         managerAuthorizedAt
         decidedAt
         rejectionReason
+        requestedByDepartment
+        requestedByLeaderName
+        requestedByDepartmentLabel
+        preparedByLeaderName
+        financeDeptLeaderName
+        gmDeptLeaderName
         createdAt
       }
     }
@@ -318,15 +342,19 @@ export type PurchaseRequestLineInput = {
 /** Multiple purchase lines submitted together share one voucher number. */
 export async function createPurchaseRequestsBatchApi(
   lines: PurchaseRequestLineInput[],
+  requestedByDepartment: string,
   options?: { suppressSuccessToast?: boolean },
 ) {
   if (!lines.length) throw new Error("At least one line is required");
-  if (lines.length === 1) {
-    return [await createPurchaseRequestApi(lines[0], options)];
-  }
   const mutation = `
-    mutation CreatePurchaseRequestsBatch($lines: [PurchaseRequestLineInput!]!) {
-      createPurchaseRequestsBatch(lines: $lines) {
+    mutation CreatePurchaseRequestsBatch(
+      $lines: [PurchaseRequestLineInput!]!
+      $requestedByDepartment: String!
+    ) {
+      createPurchaseRequestsBatch(
+        lines: $lines
+        requestedByDepartment: $requestedByDepartment
+      ) {
         id
         status
         voucherNumber
@@ -336,7 +364,10 @@ export async function createPurchaseRequestsBatchApi(
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { lines },
+    variables: {
+      lines,
+      requestedByDepartment: String(requestedByDepartment).trim(),
+    },
   });
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");
@@ -409,15 +440,19 @@ export type StockOutRequestLineInput = {
 /** Multiple stock movements submitted together share one voucher number. */
 export async function createStockOutRequestsBatchApi(
   lines: StockOutRequestLineInput[],
+  requestedByDepartment: string,
   options?: { suppressSuccessToast?: boolean },
 ) {
   if (!lines.length) throw new Error("At least one line is required");
-  if (lines.length === 1) {
-    return [await createStockOutRequestApi(lines[0], options)];
-  }
   const mutation = `
-    mutation CreateStockOutRequestsBatch($lines: [StockOutRequestLineInput!]!) {
-      createStockOutRequestsBatch(lines: $lines) {
+    mutation CreateStockOutRequestsBatch(
+      $lines: [StockOutRequestLineInput!]!
+      $requestedByDepartment: String!
+    ) {
+      createStockOutRequestsBatch(
+        lines: $lines
+        requestedByDepartment: $requestedByDepartment
+      ) {
         id
         status
         voucherNumber
@@ -427,7 +462,10 @@ export async function createStockOutRequestsBatchApi(
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { lines },
+    variables: {
+      lines,
+      requestedByDepartment: String(requestedByDepartment).trim(),
+    },
   });
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");

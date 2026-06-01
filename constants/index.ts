@@ -125,6 +125,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "menu-create-item", label: "Add items", icon: "PlusCircle" },
   { id: "menu-update-item", label: "Menu items", icon: "Edit" },
   { id: "cc-profiles", label: "Cost control IDs", icon: "UserCheck" },
+  { id: "department-leaders", label: "Department leaders", icon: "Users" },
   { id: "reports-inventory", label: "Inventory items (list)", icon: "Package" },
   { id: "reports-movements", label: "Stock movements", icon: "ArrowRightLeft" },
   { id: "reports-purchases", label: "Purchase pipeline", icon: "ShoppingCart" },
