@@ -169,8 +169,14 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                   } else {
                     if (props.type === "number") {
                       const value = e.target.value;
-                      const numValue = value === "" ? 0 : parseFloat(value);
-                      field.onChange(numValue);
+                      if (value === "") {
+                        field.onChange(undefined);
+                      } else {
+                        const parsed = Number.parseInt(value, 10);
+                        field.onChange(
+                          Number.isNaN(parsed) ? undefined : parsed,
+                        );
+                      }
                     } else {
                       field.onChange(e.target.value);
                     }

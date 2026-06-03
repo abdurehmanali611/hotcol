@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
 import { toast } from "sonner";
-import { api, API_URL } from "./client";
+import { api, API_URL, invalidateGraphqlListCache } from "./client";
 import { persistAuthToken } from "../authToken";
 import { clearAuthStorage, resetSessionExpiryGuard } from "../sessionExpiry";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
@@ -190,12 +190,14 @@ export async function LoginAction(
       );
     }
 
+    const tin =
+      user.tinNumber != null && String(user.tinNumber).trim() !== ""
+        ? String(user.tinNumber).trim()
+        : "";
+    const tenantId = tin || String(user.HotelName || "").trim();
+
     if (typeof window !== "undefined") {
-      const tin =
-        user.tinNumber != null && String(user.tinNumber).trim() !== ""
-          ? String(user.tinNumber).trim()
-          : "";
-      const tenantId = tin || user.HotelName;
+      invalidateGraphqlListCache("cafe:orders");
       persistAuthToken(token);
       resetSessionExpiryGuard();
       localStorage.setItem("user_role", user.Role);
@@ -246,7 +248,7 @@ export async function LoginAction(
     toast.success(`Welcome back, ${user.UserName}!`);
 
     const queryParams = new URLSearchParams({
-      hotel: user.HotelName || "",
+      hotel: tenantId,
       logo: user.LogoUrl || "",
       role: user.Role,
     });

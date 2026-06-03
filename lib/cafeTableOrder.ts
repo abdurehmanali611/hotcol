@@ -306,6 +306,47 @@ export function groupCafeOrderUpdateTables(
     });
 }
 
+/** Kitchen/bar ticket: one card per batch (same table + waiter + short time window). */
+export type CafeStationOrderGroup = {
+  key: string;
+  orders: Order[];
+};
+
+const CAFE_BATCH_CARD_WINDOW_MS = 15_000;
+
+/**
+ * Groups pending station orders so batch submissions appear as one card.
+ * Single orders at the same table stay separate when placed outside the batch window.
+ */
+export function groupCafeStationOrderCards(orders: Order[]): CafeStationOrderGroup[] {
+  if (orders.length === 0) return [];
+
+  const sorted = [...orders].sort((a, b) => a.id - b.id);
+  const bucketMap = new Map<string, Order[]>();
+
+  for (const order of sorted) {
+    const tableNo = normalizeOrderTableNo(order);
+    const waiter = String(order.waiterName ?? "").trim().toLowerCase();
+    const ts = Math.floor(
+      new Date(order.createdAt).getTime() / CAFE_BATCH_CARD_WINDOW_MS,
+    );
+    const bucketKey = `${tableNo}|${waiter}|${ts}`;
+    const list = bucketMap.get(bucketKey) ?? [];
+    list.push(order);
+    bucketMap.set(bucketKey, list);
+  }
+
+  const groups: CafeStationOrderGroup[] = [];
+  for (const list of bucketMap.values()) {
+    groups.push({
+      key: list.length === 1 ? String(list[0].id) : list.map((o) => o.id).join("-"),
+      orders: list,
+    });
+  }
+
+  return groups.sort((a, b) => a.orders[0].id - b.orders[0].id);
+}
+
 /** Sum unpaid lines for one table (includes completed, excludes cancelled/paid). */
 export function sumOpenTableOrdersETB(
   orders: Order[],

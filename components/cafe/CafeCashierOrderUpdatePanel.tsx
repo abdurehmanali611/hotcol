@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import {
@@ -81,6 +81,8 @@ interface Props {
   items: Item[];
   hotelName: string;
   onRefresh: () => void | Promise<void>;
+  /** After creating a line, select it once it appears in `orders`. */
+  focusOrderId?: number | null;
 }
 
 type AddItemsTarget = { tableNo: number; waiterName: string };
@@ -141,6 +143,7 @@ export function CafeCashierOrderUpdatePanel({
   items,
   hotelName,
   onRefresh,
+  focusOrderId = null,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
@@ -213,6 +216,12 @@ export function CafeCashierOrderUpdatePanel({
   const selectedOrder =
     editableOrders.find((o) => o.id === selectedId) ?? null;
 
+  useEffect(() => {
+    if (focusOrderId == null) return;
+    const match = editableOrders.find((o) => o.id === focusOrderId);
+    if (match) setSelectedId(focusOrderId);
+  }, [focusOrderId, editableOrders]);
+
   const addContext: AddItemsTarget | null = useMemo(() => {
     if (selectedOrder) {
       return {
@@ -224,7 +233,9 @@ export function CafeCashierOrderUpdatePanel({
   }, [selectedOrder]);
 
   const form = useForm<UpdateLiveOrderFormValues>({
-    resolver: zodResolver(updateLiveOrderSchema),
+    resolver: zodResolver(
+      updateLiveOrderSchema,
+    ) as Resolver<UpdateLiveOrderFormValues>,
   });
 
   useEffect(() => {
@@ -292,8 +303,18 @@ export function CafeCashierOrderUpdatePanel({
     setAddItemsTarget({ tableNo, waiterName });
   };
 
+  const onInvalid = (errors: FieldErrors<UpdateLiveOrderFormValues>) => {
+    const first = Object.values(errors)[0];
+    toast.error(
+      (first?.message as string) || "Please fix the highlighted fields",
+    );
+  };
+
   const onSubmit = async (values: UpdateLiveOrderFormValues) => {
-    if (!selectedOrder) return;
+    if (!selectedOrder) {
+      toast.error("Select an order line to update");
+      return;
+    }
     setSaving(true);
     try {
       const prevQty = Math.max(1, Number(selectedOrder.orderAmount) || 1);
@@ -755,8 +776,7 @@ export function CafeCashierOrderUpdatePanel({
                         </div>
                         <Form {...form} key={`edit-form-${selectedOrder.id}`}>
                           <form
-                            id="edit-live-order-form"
-                            onSubmit={form.handleSubmit(onSubmit)}
+                            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
                             className="w-full space-y-4"
                           >
                             <input
@@ -804,25 +824,24 @@ export function CafeCashierOrderUpdatePanel({
                               formItemClassName="w-full"
                               inputClassName="h-fit w-full min-w-0 text-base"
                             />
+                            <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-0 pt-3 backdrop-blur-sm">
+                              <Button
+                                type="submit"
+                                disabled={saving || !selectedOrder}
+                                className="w-full gap-2 shadow-sm"
+                              >
+                                {saving ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Saving…
+                                  </>
+                                ) : (
+                                  "Save changes"
+                                )}
+                              </Button>
+                            </div>
                           </form>
                         </Form>
-                        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur-sm">
-                          <Button
-                            type="submit"
-                            form="edit-live-order-form"
-                            disabled={saving}
-                            className="w-full gap-2 shadow-sm"
-                          >
-                            {saving ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Saving…
-                              </>
-                            ) : (
-                              "Save changes"
-                            )}
-                          </Button>
-                        </div>
                         <Separator className="my-2" />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>

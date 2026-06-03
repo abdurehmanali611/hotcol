@@ -45,6 +45,8 @@ export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[
           creditAmount
           serviceCaption
           cancelledBy
+          orderRevisedAt
+          orderRevisionCount
           createdAt
         }
       }
@@ -94,6 +96,8 @@ export async function updateLiveOrder(
           status
           payment
           serviceCaption
+          orderRevisedAt
+          orderRevisionCount
           createdAt
         }
       }
@@ -116,10 +120,14 @@ export async function updateLiveOrder(
     refreshCafeOrdersFeed();
     return response.data.data.UpdateLiveOrder;
   } catch (error: any) {
-    const message =
+    const raw =
       error?.response?.data?.errors?.[0]?.message ||
       error?.message ||
       "Failed to update order";
+    const message =
+      raw === "Order not found or not authorized"
+        ? "This order could not be updated for your property. Sign out and sign in again, then retry."
+        : raw;
     if (!options?.silent) {
       toast.error(message);
     }
@@ -223,25 +231,46 @@ export async function createOrder(orderData: OrderCreationData) {
 
 export async function createBatchOrders(orderDataArray: any[]) {
   try {
-    const results = [];
-    for (const o of orderDataArray) {
-      results.push(
-        await postOrderCreation({
-          title: String(o.title),
-          imageUrl: String(o.imageUrl || ""),
-          tableNo: Math.floor(Number(o.tableNo)),
-          orderAmount: Math.floor(Number(o.orderAmount)),
-          HotelName: String(o.HotelName),
-          category: String(o.category),
-          type: String(o.type),
-          price: parseFloat(Number(o.price).toFixed(2)),
-          waiterName: String(o.waiterName),
-          status: "Pending",
-          payment: "Unpaid",
-        }),
+    const orders = orderDataArray.map((o) => ({
+      title: String(o.title),
+      imageUrl: String(o.imageUrl || ""),
+      tableNo: Math.floor(Number(o.tableNo)),
+      orderAmount: Math.floor(Number(o.orderAmount)),
+      HotelName: String(o.HotelName),
+      category: String(o.category),
+      type: String(o.type),
+      price: parseFloat(Number(o.price).toFixed(2)),
+      waiterName: String(o.waiterName),
+      status: "Pending",
+      payment: "Unpaid",
+    }));
+
+    const mutation = `
+      mutation BatchOrderCreation($orders: [OrderInput!]!) {
+        BatchOrderCreation(orders: $orders) {
+          id
+          title
+          tableNo
+          waiterName
+          orderAmount
+          status
+          createdAt
+        }
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { orders },
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to create batch orders",
       );
     }
 
+    const results = response.data.data.BatchOrderCreation || [];
     toast.success(`${results.length} orders sent to kitchen!`);
     refreshCafeOrdersFeed();
     return results;

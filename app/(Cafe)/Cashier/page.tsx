@@ -26,6 +26,7 @@ import {
   logoutAction,
   updateOrderPayment,
 } from "@/lib/actions";
+import { resolveCanonicalTenantKey } from "@/lib/tenantRowMatch";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import OrderComponent from "@/components/Order";
 import PaymentComponent from "@/components/Payment";
@@ -89,6 +90,9 @@ function CashierContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [focusUpdateOrderId, setFocusUpdateOrderId] = useState<number | null>(
+    null,
+  );
   const loadCoordinator = useLoadCoordinator();
 
   const tenantModules = useTenantModules();
@@ -191,7 +195,7 @@ function CashierContent() {
       tableNo: data.tableNo,
       waiterName: data.waiterName,
       orderAmount: data.orderAmount,
-      HotelName: tenantScope,
+      HotelName: resolveCanonicalTenantKey(tenantScope),
       status: "Pending",
       payment: "Unpaid",
       category: selectedItem.category,
@@ -201,8 +205,11 @@ function CashierContent() {
 
     try {
       const result = await createOrder(orderData);
-      toast.success("Order created successfully!");
       await loadData({ refresh: true });
+      if (result?.id != null) {
+        setFocusUpdateOrderId(Number(result.id));
+        setActiveView("order-update");
+      }
       setShowOrderModal(false);
       setSelectedItem(null);
       return result;
@@ -280,6 +287,7 @@ function CashierContent() {
         orders={orders}
         items={items}
         hotelName={tenantScope}
+        focusOrderId={focusUpdateOrderId}
         onRefresh={() => loadData({ refresh: true })}
       />
     ) : activeView === "credit" ? (

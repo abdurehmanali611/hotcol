@@ -97,7 +97,6 @@ import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 import { buildPurchaseRequestDashboardColumns } from "@/lib/dataTableColumns/purchaseRequests";
-import { buildStockMovementDashboardColumns } from "@/lib/dataTableColumns/stockMovement";
 import { buildItemStatusColumns } from "@/lib/dataTableColumns/itemStatus";
 import {
   buildKitchenBarDailyColumns,
@@ -373,10 +372,40 @@ function ManagerContent() {
     [purchases, tenantScope],
   );
 
+  const scopedStockReqs = useMemo(
+    () =>
+      stockReqs.filter((s) =>
+        rowHotelMatchesTenantScope(s.HotelName, tenantScope || ""),
+      ),
+    [stockReqs, tenantScope],
+  );
+
+  const recentPurchases = useMemo(
+    () =>
+      [...scopedPurchases]
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
+        .slice(0, 8),
+    [scopedPurchases],
+  );
+
+  const recentStockMovements = useMemo(
+    () =>
+      [...(statuses as ItemStatus[])]
+        .sort(
+          (a, b) =>
+            new Date(b.actionDate).getTime() - new Date(a.actionDate).getTime(),
+        )
+        .slice(0, 8),
+    [statuses],
+  );
+
   const pendingPurchases = scopedPurchases.filter((p) =>
     ["PENDING_CC", "PENDING_FINANCE", "PENDING_MANAGER"].includes(p.status),
   ).length;
-  const pendingStock = stockReqs.filter((s) => s.status === "PENDING").length;
+  const pendingStock = scopedStockReqs.filter((s) => s.status === "PENDING").length;
   const beginningsScoped = useMemo(() => {
     const t = String(tenantScope ?? "").trim();
     if (!t) return [];
@@ -621,13 +650,6 @@ function ManagerContent() {
     () => buildPurchaseRequestDashboardColumns(),
     [],
   );
-  const recentStockColumns = useMemo(
-    () =>
-      buildStockMovementDashboardColumns(
-        (id) => items.find((it) => it.id === id)?.measuredBy || "units",
-      ),
-    [items],
-  );
   const itemStatusColumns = useMemo(() => buildItemStatusColumns(), []);
   const managerRollupColumns = useMemo(
     () =>
@@ -701,24 +723,23 @@ function ManagerContent() {
               <CardContent>
                 <DataTable
                   columns={recentPurchaseColumns}
-                  data={purchases.slice(0, 8)}
+                  data={recentPurchases}
                   getRowId={(row) => String(row.id)}
-                  initialSorting={VOUCHER_TABLE_SORT}
                   emptyMessage="No purchase requests yet."
                 />
               </CardContent>
             </Card>
             <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden">
               <CardHeader>
-                <CardTitle>Recent stock-out requests</CardTitle>
+                <CardTitle>Recent stock movements</CardTitle>
+                <CardDescription>Latest 8 rows</CardDescription>
               </CardHeader>
               <CardContent>
                 <DataTable
-                  columns={recentStockColumns}
-                  data={stockReqs.slice(0, 8)}
+                  columns={itemStatusColumns}
+                  data={recentStockMovements}
                   getRowId={(row) => String(row.id)}
-                  initialSorting={VOUCHER_TABLE_SORT}
-                  emptyMessage="No stock-out requests yet."
+                  emptyMessage="No stock movements yet."
                 />
               </CardContent>
             </Card>

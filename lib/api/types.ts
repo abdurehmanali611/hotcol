@@ -50,6 +50,8 @@ export interface Order {
   creditAmount?: number | null;
   serviceCaption?: string | null;
   cancelledBy?: string | null;
+  orderRevisedAt?: string | null;
+  orderRevisionCount?: number | null;
   createdAt: Date;
 }
 

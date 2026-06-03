@@ -301,11 +301,14 @@ export const createTableSchema = z.object({
 });
 
 export const updateLiveOrderSchema = z.object({
-  id: z.number().min(1),
-  tableNo: z.number().min(0),
-  waiterName: z.string().min(1),
-  orderAmount: z.number().int().min(1),
-  title: z.string().min(1),
+  id: z.coerce.number().min(1),
+  tableNo: z.coerce.number().min(0),
+  waiterName: z.string().trim().min(1, "Waiter is required"),
+  orderAmount: z.coerce
+    .number({ message: "Quantity must be a number" })
+    .int("Quantity must be a whole number")
+    .min(1, "Quantity must be at least 1"),
+  title: z.string().trim().min(1, "Item name is required"),
 });
 
 export type UpdateLiveOrderFormValues = z.infer<typeof updateLiveOrderSchema>;
