@@ -14,6 +14,7 @@ import {
 } from "./ui/card";
 import { Form } from "./ui/form";
 import { Button } from "./ui/button";
+import { PendingButton } from "./ui/pending-button";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { creditRegistrationSchema } from "@/lib/validations";
 import {
@@ -694,17 +695,17 @@ const CreditRegistrationForm = ({
                     </div>
                   </ScrollArea>
                 </div>
-                <Button
-                  disabled={loading}
+                <PendingButton
+                  pending={loading}
                   type="submit"
                   className="w-full bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer"
                 >
                   {loading
-                    ? "Submitting..."
+                    ? "Submitting…"
                     : registrantMode === "COMPANY"
                       ? "Register company"
                       : "Register staff creditor"}
-                </Button>
+                </PendingButton>
               </form>
             </Form>
           </div>

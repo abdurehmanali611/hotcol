@@ -19,7 +19,7 @@ import {
   occupiedTableNumbersFromOrders,
 } from "@/lib/cafeTableOrder";
 import { orderDetailsSchema } from "@/lib/validations";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Form } from "@/components/ui/form";
 import {
   Dialog,
@@ -186,9 +186,9 @@ export default function OrderDetailsModal({
               </div>
 
               <DialogFooter>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Processing..." : "Confirm Order"}
-                </Button>
+                <PendingButton type="submit" className="w-full" pending={loading}>
+                  {loading ? "Processing…" : "Confirm Order"}
+                </PendingButton>
               </DialogFooter>
             </form>
           </Form>

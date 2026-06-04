@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -186,15 +186,19 @@ export default function GrantCredential({
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-11 text-base shadow-lg cursor-pointer" disabled={isSubmitting}>
+              <PendingButton
+                type="submit"
+                pending={isSubmitting}
+                className="w-full h-11 text-base shadow-lg cursor-pointer"
+              >
                 {isSubmitting ? (
-                  "Generating Account..."
+                  "Generating account…"
                 ) : (
                   <span className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" /> Grant Access
                   </span>
                 )}
-              </Button>
+              </PendingButton>
             </form>
           </Form>
         </CardContent>

@@ -8,6 +8,7 @@ import {
 import { SignupPendingApprovalScreen, SignupApprovalNotice } from "@/components/signup/SignupPendingApprovalScreen";
 import { SignupPaymentSection } from "@/components/signup/SignupPaymentSection";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Card,
   CardContent,
@@ -302,10 +303,10 @@ export default function SignUp() {
                 <SignupApprovalNotice />
               ) : null}
 
-              <Button
+              <PendingButton
                 type="submit"
+                pending={isLoading || pricing.loading}
                 className="h-12 cursor-pointer bg-green-600 text-base font-semibold shadow-md hover:bg-green-700"
-                disabled={isLoading || pricing.loading}
               >
                 {isLoading
                   ? "Creating account…"
@@ -314,7 +315,7 @@ export default function SignUp() {
                     : pricing.setupFeeETB > 0
                       ? `Submit registration · ${pricing.setupFeeETB.toLocaleString("en-ET")} ETB setup`
                       : "Submit registration"}
-              </Button>
+              </PendingButton>
             </form>
           </Form>
         </CardContent>

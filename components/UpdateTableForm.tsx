@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form"
 import z from "zod"
 import { Form } from "./ui/form"
 import CustomFormField, { formFieldTypes } from "./customFormField"
-import { Button } from "./ui/button"
+import { PendingButton } from "./ui/pending-button"
 
 interface UpdateTableFormProp {
     Table: Table
@@ -75,12 +75,13 @@ const UpdateTableForm = ({ Table, onSuccess }: UpdateTableFormProp) => {
           Optional label for this table number (e.g. Delivery, Takeaway). Any
           table number can have a caption.
         </p>
-        <Button
+        <PendingButton
           type="submit"
+          pending={loading}
           className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
         >
-          {loading ? "Updating..." : "Update table"}
-        </Button>
+          {loading ? "Updating…" : "Update table"}
+        </PendingButton>
       </form>
     </Form>
   )

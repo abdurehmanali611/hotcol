@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Card,
   CardContent,
@@ -41,6 +42,10 @@ export default function WaiterAndTable({
 }: any) {
   const [waiterOpen, setWaiterOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
+  const [waiterSubmitting, setWaiterSubmitting] = useState(false);
+  const [tableSubmitting, setTableSubmitting] = useState(false);
+  const [exportingWaiters, setExportingWaiters] = useState(false);
+  const [exportingTables, setExportingTables] = useState(false);
   const hotelWaiters = waiters.filter((item: any) =>
     rowHotelMatchesTenantScope(item.HotelName, hotelName),
   );
@@ -100,10 +105,15 @@ export default function WaiterAndTable({
               <Form {...waiterForm}>
                 <form
                   className="flex w-full min-w-0 flex-col gap-4 sm:gap-5"
-                  onSubmit={waiterForm.handleSubmit((values) => {
-                    onAddWaiter(values);
-                    waiterForm.reset();
-                    setWaiterOpen(false);
+                  onSubmit={waiterForm.handleSubmit(async (values) => {
+                    setWaiterSubmitting(true);
+                    try {
+                      await onAddWaiter(values);
+                      waiterForm.reset();
+                      setWaiterOpen(false);
+                    } finally {
+                      setWaiterSubmitting(false);
+                    }
                   })}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
@@ -153,12 +163,13 @@ export default function WaiterAndTable({
                     placeholder="Phone number"
                     inputClassName="h-fit w-full p-2 sm:max-w-sm"
                   />
-                  <Button
+                  <PendingButton
                     type="submit"
+                    pending={waiterSubmitting}
                     className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
                   >
-                    Register waiter
-                  </Button>
+                    {waiterSubmitting ? "Registering…" : "Register waiter"}
+                  </PendingButton>
                 </form>
               </Form>
             </DialogContent>
@@ -183,10 +194,15 @@ export default function WaiterAndTable({
               <Form {...tableForm}>
                 <form
                   className="flex w-full min-w-0 flex-col gap-4 sm:gap-5"
-                  onSubmit={tableForm.handleSubmit((values) => {
-                    onAddTable(values);
-                    tableForm.reset();
-                    setTableOpen(false);
+                  onSubmit={tableForm.handleSubmit(async (values) => {
+                    setTableSubmitting(true);
+                    try {
+                      await onAddTable(values);
+                      tableForm.reset();
+                      setTableOpen(false);
+                    } finally {
+                      setTableSubmitting(false);
+                    }
                   })}
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -222,12 +238,13 @@ export default function WaiterAndTable({
                     Takeaway). Use any table number — the caption does not change
                     the number stored on orders.
                   </p>
-                  <Button
+                  <PendingButton
                     type="submit"
+                    pending={tableSubmitting}
                     className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
                   >
-                    Register table
-                  </Button>
+                    {tableSubmitting ? "Registering…" : "Register table"}
+                  </PendingButton>
                 </form>
               </Form>
             </DialogContent>
@@ -245,20 +262,25 @@ export default function WaiterAndTable({
                   Manage your front-of-house service team.
                 </CardDescription>
               </div>
-              <Button
+              <PendingButton
+                type="button"
                 variant="outline"
                 size="sm"
+                pending={exportingWaiters}
                 className="gap-2 cursor-pointer w-full sm:w-auto"
                 onClick={async () => {
+                  setExportingWaiters(true);
                   try {
                     const exportData = prepareWaiterExportData(hotelWaiters);
                     await exportToExcel(exportData);
                   } catch {
+                  } finally {
+                    setExportingWaiters(false);
                   }
                 }}
               >
                 <Download className="h-4 w-4" /> Export Excel
-              </Button>
+              </PendingButton>
             </div>
           </CardHeader>
           <CardContent className="min-w-0 px-2 pb-4 pt-0 sm:px-6 sm:pb-6">
@@ -277,20 +299,25 @@ export default function WaiterAndTable({
                   Configure floor capacity and table numbers.
                 </CardDescription>
               </div>
-              <Button
+              <PendingButton
+                type="button"
                 variant="outline"
                 size="sm"
+                pending={exportingTables}
                 className="gap-2 cursor-pointer w-full sm:w-auto"
                 onClick={async () => {
+                  setExportingTables(true);
                   try {
                     const exportData = prepareTableExportData(hotelTables);
                     await exportToExcel(exportData);
                   } catch {
+                  } finally {
+                    setExportingTables(false);
                   }
                 }}
               >
                 <Download className="h-4 w-4" /> Export Excel
-              </Button>
+              </PendingButton>
             </div>
           </CardHeader>
           <CardContent className="min-w-0 px-2 pb-4 pt-0 sm:px-6 sm:pb-6">

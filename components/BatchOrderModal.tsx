@@ -24,6 +24,7 @@ import {
 } from "@/lib/cafeTableOrder";
 import { batchOrderSchema } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Form } from "@/components/ui/form";
 import {
   Dialog,
@@ -346,14 +347,15 @@ export default function BatchOrderModal({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button
+              <PendingButton
                 type="submit"
+                pending={loading}
                 className="bg-green-600 hover:bg-green-700 min-w-40 cursor-pointer"
               >
                 {loading
-                  ? "Processing..."
+                  ? "Processing…"
                   : `Send ${selectedItems.length} Orders`}
-              </Button>
+              </PendingButton>
             </DialogFooter>
           </form>
         </Form>

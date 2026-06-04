@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -260,9 +261,9 @@ function EditForm({
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Saving..." : "Save Changes"}
-          </Button>
+          <PendingButton type="submit" className="w-full" pending={loading}>
+            {loading ? "Saving…" : "Save Changes"}
+          </PendingButton>
         </form>
       </Form>
     </FormProvider>

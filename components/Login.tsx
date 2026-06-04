@@ -12,7 +12,7 @@ import {
 } from "./ui/card";
 import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
-import { Button } from "./ui/button";
+import { PendingButton } from "./ui/pending-button";
 import { useState } from "react";
 import { LoginAction } from "@/lib/actions";
 import { useRouter } from "next/navigation";
@@ -75,20 +75,13 @@ const Login = () => {
                 {error}
               </div>
             )}
-            <Button
+            <PendingButton
               type="submit"
+              pending={loading}
               className="h-11 cursor-pointer bg-green-600 font-semibold hover:bg-green-700"
-              disabled={loading}
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Signing in…
-                </span>
-              ) : (
-                "Sign in"
-              )}
-            </Button>
+              {loading ? "Signing in…" : "Sign in"}
+            </PendingButton>
           </form>
         </Form>
       </CardContent>

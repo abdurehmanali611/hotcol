@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import z from "zod";
 import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
-import { Button } from "./ui/button";
+import { PendingButton } from "./ui/pending-button";
 
 interface updateWaiterFormProps {
   waiter: Waiter;
@@ -90,12 +90,13 @@ const UpdateWaiterForm = ({ waiter, onSuccess }: updateWaiterFormProps) => {
           label="Phone Number: "
           inputClassName="h-fit w-full p-2 sm:max-w-sm"
         />
-        <Button
+        <PendingButton
           type="submit"
+          pending={loading}
           className="h-11 w-full cursor-pointer bg-green-500 sm:h-10"
         >
-          {loading ? "Updating..." : "Update waiter"}
-        </Button>
+          {loading ? "Updating…" : "Update waiter"}
+        </PendingButton>
       </form>
     </Form>
   );

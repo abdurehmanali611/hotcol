@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Sheet,
   SheetContent,
@@ -404,13 +405,13 @@ const UpdateStock = ({
                 >
                   Cancel
                 </Button>
-                <Button
+                <PendingButton
                   type="submit"
-                  disabled={loading}
+                  pending={loading}
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  {loading ? "Updating..." : "Update Item"}
-                </Button>
+                  {loading ? "Updating…" : "Update Item"}
+                </PendingButton>
               </div>
             </form>
           </Form>

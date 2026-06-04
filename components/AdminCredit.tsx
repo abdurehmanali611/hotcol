@@ -14,6 +14,7 @@ import {
 import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { Button } from "./ui/button";
+import { PendingButton } from "./ui/pending-button";
 import { useEffect, useState } from "react";
 import {
   CreateCreditLevel,
@@ -247,13 +248,17 @@ const AdminCredit = ({ hotelName }: AdminCreditProps) => {
                 </div>
 
                 <div className="flex flex-row-reverse gap-3 pt-2 justify-center">
-                  <Button
+                  <PendingButton
                     type="submit"
+                    pending={loading}
                     className="flex-1 md:flex-none md:w-48 font-medium shadow-sm transition-all active:scale-95"
-                    disabled={loading}
                   >
-                    {loading ? "Processing..." : editingId ? "Save Changes" : "Create Level"}
-                  </Button>
+                    {loading
+                      ? "Processing…"
+                      : editingId
+                        ? "Save Changes"
+                        : "Create Level"}
+                  </PendingButton>
                   {editingId && (
                     <Button
                       type="button"

@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { updateItemSchema } from "@/lib/validations";
 import Image from "next/image";
-import { ImageIcon, RefreshCw, UploadCloud } from "lucide-react";
+import { ImageIcon, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
 import { updateItem } from "@/lib/actions";
@@ -219,14 +220,14 @@ export default function UpdateScreen({
         </div>
 
         <div className="pt-4">
-          <Button type="submit" className="w-full gap-2 cursor-pointer" disabled={isUploading}>
-            {isUploading ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <UploadCloud className="h-4 w-4" />
-            )}
-            Update Menu Item
-          </Button>
+          <PendingButton
+            type="submit"
+            pending={isUploading}
+            className="w-full gap-2 cursor-pointer"
+          >
+            <UploadCloud className="h-4 w-4" />
+            {isUploading ? "Updating…" : "Update Menu Item"}
+          </PendingButton>
         </div>
       </form>
     </Form>

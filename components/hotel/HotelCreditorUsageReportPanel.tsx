@@ -16,6 +16,7 @@ import {
   usageLines,
 } from "@/lib/dataTableColumns/creditorUsage";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -160,10 +161,15 @@ export function HotelCreditorUsageReportPanel({
             className="h-10 w-56"
           />
         </div>
-        <Button type="button" className="h-10 gap-2" onClick={() => void run()} disabled={loading}>
+        <PendingButton
+          type="button"
+          className="h-10 gap-2"
+          onClick={() => void run()}
+          pending={loading}
+        >
           <Search className="h-4 w-4" />
-          {loading ? "Loading..." : "Run report"}
-        </Button>
+          {loading ? "Loading…" : "Run report"}
+        </PendingButton>
         <Button
           type="button"
           variant="outline"

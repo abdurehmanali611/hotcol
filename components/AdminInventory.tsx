@@ -15,6 +15,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { Button } from "./ui/button";
+import { PendingButton } from "./ui/pending-button";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   CreatePityCash,
@@ -52,6 +54,7 @@ interface AdminInventoryProps {
 const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
   const [displayName, setDisplayName] = useState(hotelName);
   const [loading, setLoading] = useState(false);
+  const [resettingBalance, setResettingBalance] = useState(false);
   const [pityCashSummary, setPityCashSummary] = useState<PityCashType | null>(
     null,
   );
@@ -205,17 +208,17 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                   placeholder="0.00"
                   inputClassName="h-fit p-2 w-56"
                 />
-                <Button
+                <PendingButton
                   type="submit"
-                  disabled={loading}
+                  pending={loading}
                   className="w-full md:w-auto px-8 bg-primary hover:opacity-90 shadow-lg shadow-primary/20"
                 >
                   {loading
-                    ? "Syncing..."
+                    ? "Syncing…"
                     : pityCashSummary
                       ? "Save Changes"
                       : "Initialize Liquidity"}
-                </Button>
+                </PendingButton>
               </form>
             </Form>
           </CardContent>
@@ -305,21 +308,39 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
-                          className="bg-red-600 hover:bg-red-700"
-                          onClick={async() => {
-                            await DeletePityCash(pityCashSummary.id);
-                            const response = await fetchPityCash();
-                            if (Array.isArray(response)) {
-                              const hotelPityCash = response.find(
-                                (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
-                              );
-                              setPityCashSummary(hotelPityCash ?? null);
-                            } else {
-                              setPityCashSummary(null);
+                          className="bg-red-600 hover:bg-red-700 gap-2"
+                          disabled={resettingBalance}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            setResettingBalance(true);
+                            try {
+                              await DeletePityCash(pityCashSummary.id);
+                              const response = await fetchPityCash();
+                              if (Array.isArray(response)) {
+                                const hotelPityCash = response.find(
+                                  (item) =>
+                                    rowHotelMatchesTenantScope(
+                                      item.HotelName,
+                                      hotelName,
+                                    ),
+                                );
+                                setPityCashSummary(hotelPityCash ?? null);
+                              } else {
+                                setPityCashSummary(null);
+                              }
+                            } finally {
+                              setResettingBalance(false);
                             }
                           }}
                         >
-                          Reset Balance
+                          {resettingBalance ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Resetting…
+                            </>
+                          ) : (
+                            "Reset Balance"
+                          )}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

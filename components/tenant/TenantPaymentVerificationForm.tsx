@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Building2, Smartphone } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import {
   Form,
   FormControl,
@@ -197,9 +197,9 @@ export function TenantPaymentVerificationForm({
             }}
           />
 
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <PendingButton type="submit" className="w-full" pending={submitting}>
             {submitting ? "Submitting…" : "Submit for Apex verification"}
-          </Button>
+          </PendingButton>
         </form>
       </Form>
     </div>

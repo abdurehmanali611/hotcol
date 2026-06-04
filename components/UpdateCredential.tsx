@@ -5,6 +5,8 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
+import { Loader2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -76,6 +78,9 @@ export default function UpdateCredential({
       : "",
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [staffPending, setStaffPending] = useState(false);
+  const [adminPending, setAdminPending] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
 
   const nonAdminStaff = useMemo(
     () =>
@@ -118,7 +123,14 @@ export default function UpdateCredential({
           <CardContent>
             <Form {...staffForm}>
               <form
-                onSubmit={staffForm.handleSubmit(onUpdateCredential)}
+                onSubmit={staffForm.handleSubmit(async (data) => {
+                  setStaffPending(true);
+                  try {
+                    await onUpdateCredential(data);
+                  } finally {
+                    setStaffPending(false);
+                  }
+                })}
                 className="space-y-6"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -172,9 +184,13 @@ export default function UpdateCredential({
                     inputClassName="h-fit p-2 w-56"
                   />
                 </div>
-                <Button type="submit" className="w-full cursor-pointer">
-                  Update Staff Access
-                </Button>
+                <PendingButton
+                  type="submit"
+                  pending={staffPending}
+                  className="w-full cursor-pointer"
+                >
+                  {staffPending ? "Updating…" : "Update Staff Access"}
+                </PendingButton>
               </form>
             </Form>
           </CardContent>
@@ -234,20 +250,31 @@ export default function UpdateCredential({
                     Cancel
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    className="cursor-pointer gap-2 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={deletePending}
                     onClick={async (e) => {
                       e.preventDefault();
                       const name = deleteForm.getValues("UserName");
+                      setDeletePending(true);
                       try {
                         await onDeleteCredential(name);
                         deleteForm.reset({ UserName: "" });
                         setDeleteDialogOpen(false);
                       } catch {
                         // Toasts handled in deleteCredential / server layer
+                      } finally {
+                        setDeletePending(false);
                       }
                     }}
                   >
-                    Delete permanently
+                    {deletePending ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Deleting…
+                      </>
+                    ) : (
+                      "Delete permanently"
+                    )}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -267,7 +294,14 @@ export default function UpdateCredential({
           <CardContent>
             <Form {...adminForm}>
               <form
-                onSubmit={adminForm.handleSubmit(onUpdateAdminPassword)}
+                onSubmit={adminForm.handleSubmit(async (data) => {
+                  setAdminPending(true);
+                  try {
+                    await onUpdateAdminPassword(data);
+                  } finally {
+                    setAdminPending(false);
+                  }
+                })}
                 className="space-y-4"
               >
                 <CustomFormField
@@ -296,13 +330,15 @@ export default function UpdateCredential({
                     inputClassName="h-fit p-2 w-56"
                   />
                 </div>
-                <Button
+                <PendingButton
                   variant="destructive"
                   type="submit"
+                  pending={adminPending}
                   className="w-full gap-2"
                 >
-                  <RefreshCcw className="h-4 w-4" /> Reset owner access
-                </Button>
+                  <RefreshCcw className="h-4 w-4" />
+                  {adminPending ? "Resetting…" : "Reset owner access"}
+                </PendingButton>
               </form>
             </Form>
           </CardContent>
