@@ -20,6 +20,7 @@ import {
 import {
   DEPARTMENT_LABELS,
   HOTEL_DEPARTMENT_CODES,
+  LEGACY_HOUSE_KEEPING_CODE,
   type DepartmentLeaderRow,
 } from "@/lib/departments";
 import { notifyApiFailure } from "@/lib/actions";
@@ -39,6 +40,10 @@ export function DepartmentLeadersPanel() {
       for (const code of HOTEL_DEPARTMENT_CODES) {
         const row = rows.find((r) => r.department === code);
         next[code] = row?.leaderName ?? "";
+      }
+      const legacy = rows.find((r) => r.department === LEGACY_HOUSE_KEEPING_CODE);
+      if (legacy?.leaderName && !next.HOUSE_KEEPING_ROOM?.trim()) {
+        next.HOUSE_KEEPING_ROOM = legacy.leaderName;
       }
       setDraftNames(next);
     } catch (e) {
@@ -62,9 +67,10 @@ export function DepartmentLeadersPanel() {
           Department leaders
         </CardTitle>
         <CardDescription>
-          Register one leader per department. Only departments with a leader appear
-          when store staff choose received by or requested by. Names are snapshotted
-          on each request for printed receipts.
+          Register one leader per department. Housekeeping has separate room and
+          public area leaders. Only departments with a leader appear when store
+          staff choose received by or requested by. Names are snapshotted on
+          each request for printed receipts.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

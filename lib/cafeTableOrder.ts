@@ -312,7 +312,62 @@ export type CafeStationOrderGroup = {
   orders: Order[];
 };
 
+/** Paid-order batch: lines placed on the same table in the same second. */
+export type CafePaidOrderBatch = {
+  key: string;
+  tableNo: number;
+  createdAt: Date | string;
+  orders: Order[];
+};
+
 const CAFE_BATCH_CARD_WINDOW_MS = 15_000;
+
+/** Batch key: same table number + same creation second. */
+export function cafePaidOrderBatchKey(order: Pick<Order, "tableNo" | "createdAt">): string {
+  const tableNo = normalizeOrderTableNo(order);
+  const second = Math.floor(new Date(order.createdAt).getTime() / 1000);
+  return `${tableNo}|${second}`;
+}
+
+export function formatCafeOrderBatchTime(createdAt: Date | string): string {
+  return new Date(createdAt).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+/**
+ * Groups orders submitted together: same table number and same creation time (to the second).
+ * Single lines stay as batches of one for a consistent list shape.
+ */
+export function groupCafePaidOrderBatches(orders: Order[]): CafePaidOrderBatch[] {
+  if (orders.length === 0) return [];
+
+  const bucketMap = new Map<string, Order[]>();
+
+  for (const order of orders) {
+    const key = cafePaidOrderBatchKey(order);
+    const list = bucketMap.get(key) ?? [];
+    list.push(order);
+    bucketMap.set(key, list);
+  }
+
+  const batches: CafePaidOrderBatch[] = [];
+  for (const [key, list] of bucketMap.entries()) {
+    const sorted = [...list].sort((a, b) => a.id - b.id);
+    batches.push({
+      key,
+      tableNo: normalizeOrderTableNo(sorted[0]),
+      createdAt: sorted[0].createdAt,
+      orders: sorted,
+    });
+  }
+
+  return batches.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
 
 /**
  * Groups pending station orders so batch submissions appear as one card.

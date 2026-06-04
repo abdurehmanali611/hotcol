@@ -249,6 +249,7 @@ export default function PurchaseRequestsTab({
                           <DepartmentLeaderSelect
                             id="pr-requested-by"
                             label="Requested by"
+                            description="House Keeping (Room) and House Keeping (Public) are listed separately when both leaders are registered."
                             compact
                             value={requestedByDepartment}
                             onChange={setRequestedByDepartment}

@@ -288,7 +288,7 @@ export function InventoryBatchMovementBar({
               <DepartmentLeaderSelect
                 id="stock-requested-by"
                 label="Requested by"
-                description="Same department list as purchase requests (all except Store)."
+                description="House Keeping (Room) and House Keeping (Public) are separate departments. Register both leaders under Manager → Department leaders."
                 value={requestedByDepartment}
                 onChange={setRequestedByDepartment}
                 allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}

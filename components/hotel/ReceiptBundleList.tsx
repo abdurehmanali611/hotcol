@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   bundleItemSummary,
   bundleReceivedLabel,
+  bundleDepartmentLeaderLabel,
   bundleSupplierName,
   bundleTotalETB,
   bundleTypeLabel,
@@ -140,6 +141,7 @@ function ReceiptBundleRow({
   onViewReceipt: () => void;
 }) {
   const total = bundleTotalETB(bundle);
+  const deptLabel = bundleDepartmentLeaderLabel(bundle);
 
   return (
     <li
@@ -157,6 +159,9 @@ function ReceiptBundleRow({
           {bundleTypeLabel(bundle)}
           {bundle.paymentLabel ? ` · ${bundle.paymentLabel}` : ""}
         </p>
+        {deptLabel ? (
+          <p className="text-xs font-medium text-foreground/85">{deptLabel}</p>
+        ) : null}
         <p className="text-xs text-foreground/80 line-clamp-2">
           {bundleItemSummary(bundle)}
         </p>

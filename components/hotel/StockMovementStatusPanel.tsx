@@ -39,6 +39,7 @@ import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatu
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
 import { stockPrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
+import { departmentLeaderDisplayLabel } from "@/lib/departments";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -226,6 +227,15 @@ export function StockMovementStatusPanel({
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
             {formatWhen(row.original.decidedAt ?? row.original.createdAt)}
+          </span>
+        ),
+      },
+      {
+        id: "deptLeader",
+        header: "Requested by (dept)",
+        cell: ({ row }) => (
+          <span className="text-sm max-w-[180px] truncate block">
+            {departmentLeaderDisplayLabel(row.original) || "—"}
           </span>
         ),
       },

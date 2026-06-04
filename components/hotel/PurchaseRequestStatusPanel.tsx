@@ -39,6 +39,7 @@ import { canPrintPurchaseRequestFromStatus } from "@/lib/hotelApproval";
 import { buildPurchaseRequestReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
+import { departmentLeaderDisplayLabel } from "@/lib/departments";
 import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
 import { purchasePrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
 import {
@@ -183,6 +184,15 @@ export function PurchaseRequestStatusPanel({
         cell: ({ row }) => (
           <span className="text-sm max-w-[140px] truncate block">
             {row.original.supplierName || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "deptLeader",
+        header: "Requested by (dept)",
+        cell: ({ row }) => (
+          <span className="text-sm max-w-[180px] truncate block">
+            {departmentLeaderDisplayLabel(row.original) || "—"}
           </span>
         ),
       },

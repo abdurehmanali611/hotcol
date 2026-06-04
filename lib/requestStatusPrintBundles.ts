@@ -6,6 +6,7 @@ import {
   bundleItemsToPrint,
   type ReceiptBundle,
 } from "@/lib/receiptGrouping";
+import { receiptDepartmentGroupKey } from "@/lib/departments";
 import {
   canPrintItemRegistrationFromStatus,
   canPrintPurchaseRequestFromStatus,
@@ -20,6 +21,16 @@ function voucherKey(
   if (n > 0) return `n:${n}`;
   if (d) return `d:${d}`;
   return "";
+}
+
+function purchaseOrStockPrintKey(row: {
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
+  requestedByDepartment?: string | null;
+}): string {
+  const voucher = voucherKey(row);
+  if (!voucher) return "";
+  return `${voucher}|${receiptDepartmentGroupKey(row.requestedByDepartment)}`;
 }
 
 export function registrationPrintBundlesFromFiltered(
@@ -52,7 +63,7 @@ export function purchasePrintBundlesFromFiltered(
   const bundles: ReceiptBundle[] = [];
   for (const row of filtered) {
     if (!canPrintPurchaseRequestFromStatus(row.status)) continue;
-    const key = voucherKey(row);
+    const key = purchaseOrStockPrintKey(row);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const bundle = buildPurchaseRequestReceiptBundleForStatus(row, [...pool]);
@@ -70,7 +81,7 @@ export function stockPrintBundlesFromFiltered(
   const bundles: ReceiptBundle[] = [];
   for (const row of filtered) {
     if (!canPrintStockMovementFromStatus(row.status)) continue;
-    const key = voucherKey(row);
+    const key = purchaseOrStockPrintKey(row);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const bundle = buildStockMovementReceiptBundleForStatus(

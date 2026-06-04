@@ -17,7 +17,11 @@ import {
   itemPaymentLabel,
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
-import { formatDepartmentWithLeader } from "@/lib/departments";
+import {
+  departmentCodesMatch,
+  formatDepartmentWithLeader,
+  receiptDepartmentGroupKey,
+} from "@/lib/departments";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { formatVoucherDisplay, formatVoucherRange } from "@/lib/voucherFormat";
 
@@ -198,11 +202,12 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
   for (const row of rows) {
     const day = dateKey(row.createdAt);
     const supplier = groupSupplierKey(row.supplierName);
+    const dept = receiptDepartmentGroupKey(row.requestedByDepartment);
     const voucher =
       Math.floor(Number(row.voucherNumber) || 0) > 0
         ? String(Math.floor(Number(row.voucherNumber)))
         : String(row.voucherDisplay ?? "").trim() || `id:${row.id}`;
-    const key = `purchase_request|${voucher}|${supplier}|${day}`;
+    const key = `purchase_request|${voucher}|${supplier}|${day}|${dept}`;
     const bucket = map.get(key) ?? [];
     bucket.push(row);
     map.set(key, bucket);
@@ -263,11 +268,12 @@ function stockMovementBundles(
   const map = new Map<string, StockOutRequestRow[]>();
   for (const row of rows) {
     const day = dateKey(row.createdAt);
+    const dept = receiptDepartmentGroupKey(row.requestedByDepartment);
     const voucher =
       Math.floor(Number(row.voucherNumber) || 0) > 0
         ? String(Math.floor(Number(row.voucherNumber)))
         : String(row.voucherDisplay ?? "").trim() || `id:${row.id}`;
-    const key = `stock_movement|${voucher}|${day}`;
+    const key = `stock_movement|${voucher}|${day}|${dept}`;
     const bucket = map.get(key) ?? [];
     bucket.push(row);
     map.set(key, bucket);
@@ -434,9 +440,13 @@ export function buildPurchaseRequestReceiptBundleForStatus(
     const d = String(anchor.voucherDisplay ?? "").trim();
     const rn = Math.floor(Number(row.voucherNumber) || 0);
     const rd = String(row.voucherDisplay ?? "").trim();
-    if (n > 0 && rn === n) return true;
-    if (d && rd && d === rd) return true;
-    return false;
+    const voucherMatch =
+      (n > 0 && rn === n) || (d && rd && d === rd);
+    if (!voucherMatch) return false;
+    return departmentCodesMatch(
+      row.requestedByDepartment,
+      anchor.requestedByDepartment,
+    );
   });
   if (!siblings.length) return null;
   const bundles = purchaseRequestBundles(siblings);
@@ -510,9 +520,13 @@ export function buildStockMovementReceiptBundleForStatus(
     const d = String(anchor.voucherDisplay ?? "").trim();
     const rn = Math.floor(Number(row.voucherNumber) || 0);
     const rd = String(row.voucherDisplay ?? "").trim();
-    if (n > 0 && rn === n) return true;
-    if (d && rd && d === rd) return true;
-    return false;
+    const voucherMatch =
+      (n > 0 && rn === n) || (d && rd && d === rd);
+    if (!voucherMatch) return false;
+    return departmentCodesMatch(
+      row.requestedByDepartment,
+      anchor.requestedByDepartment,
+    );
   });
   const itemById = mapItemById(linkedItems);
   const bundles = stockMovementBundles(siblings, itemById);
@@ -538,6 +552,10 @@ export function bundleTypeLabel(bundle: ReceiptBundle): string {
   if (bundle.kind === "stock_movement") return bundle.title;
   if (bundle.paymentLabel) return `${bundle.title} - ${bundle.paymentLabel}`;
   return bundle.title;
+}
+
+export function bundleDepartmentLeaderLabel(bundle: ReceiptBundle): string | null {
+  return bundle.requestedByLabel ?? bundle.receivedByLabel ?? null;
 }
 
 export function bundleQuantityLabel(bundle: ReceiptBundle): string {

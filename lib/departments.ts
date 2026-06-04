@@ -1,7 +1,8 @@
 export const HOTEL_DEPARTMENT_CODES = [
   "KITCHEN",
   "BAR",
-  "HOUSE_KEEPING",
+  "HOUSE_KEEPING_ROOM",
+  "HOUSE_KEEPING_PUBLIC",
   "SECURITY",
   "MAINTENANCE",
   "FINANCE",
@@ -12,6 +13,9 @@ export const HOTEL_DEPARTMENT_CODES = [
 ] as const;
 
 export type HotelDepartmentCode = (typeof HOTEL_DEPARTMENT_CODES)[number];
+
+/** @deprecated Renamed to HOUSE_KEEPING_ROOM — kept for receipt snapshots. */
+export const LEGACY_HOUSE_KEEPING_CODE = "HOUSE_KEEPING";
 
 export const REGISTRATION_RECEIVED_BY_CODES = [
   "STORE",
@@ -30,7 +34,8 @@ export const PURCHASE_REQUESTED_BY_DEPARTMENT_CODES = HOTEL_DEPARTMENT_CODES;
 export const DEPARTMENT_LABELS: Record<HotelDepartmentCode, string> = {
   KITCHEN: "Kitchen",
   BAR: "Bar",
-  HOUSE_KEEPING: "House Keeping",
+  HOUSE_KEEPING_ROOM: "House Keeping (Room)",
+  HOUSE_KEEPING_PUBLIC: "House Keeping (Public)",
   SECURITY: "Security",
   MAINTENANCE: "Maintenance",
   FINANCE: "Finance",
@@ -40,9 +45,34 @@ export const DEPARTMENT_LABELS: Record<HotelDepartmentCode, string> = {
   STORE: "Store",
 };
 
+const LEGACY_DEPARTMENT_LABELS: Record<string, string> = {
+  [LEGACY_HOUSE_KEEPING_CODE]: DEPARTMENT_LABELS.HOUSE_KEEPING_ROOM,
+};
+
+export function normalizeDepartmentCode(code: string): string {
+  const key = String(code ?? "").trim();
+  if (key === LEGACY_HOUSE_KEEPING_CODE) return "HOUSE_KEEPING_ROOM";
+  return key;
+}
+
+export function departmentCodesMatch(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  return normalizeDepartmentCode(String(a ?? "")) === normalizeDepartmentCode(String(b ?? ""));
+}
+
 export function departmentLabel(code: string): string {
-  const key = String(code ?? "").trim() as HotelDepartmentCode;
-  return DEPARTMENT_LABELS[key] ?? key;
+  const key = String(code ?? "").trim();
+  if (LEGACY_DEPARTMENT_LABELS[key]) return LEGACY_DEPARTMENT_LABELS[key];
+  const normalized = normalizeDepartmentCode(key);
+  return DEPARTMENT_LABELS[normalized as HotelDepartmentCode] ?? key;
+}
+
+/** Stable key for grouping receipts and vouchers by department. */
+export function receiptDepartmentGroupKey(code: string | null | undefined): string {
+  const normalized = normalizeDepartmentCode(String(code ?? "").trim());
+  return normalized || "unknown";
 }
 
 export function formatDepartmentWithLeader(
@@ -71,13 +101,17 @@ export function leadersByDepartment(
 export function departmentLeaderDisplayLabel(row: {
   requestedByDepartment?: string | null;
   requestedByLeaderName?: string | null;
+  requestedByDepartmentLabel?: string | null;
   receivedByDepartment?: string | null;
   receivedByLeaderName?: string | null;
 }): string | null {
   const reqDept = String(row.requestedByDepartment ?? "").trim();
   const reqLeader = String(row.requestedByLeaderName ?? "").trim();
   if (reqDept && reqLeader) {
-    return formatDepartmentWithLeader(reqDept, reqLeader);
+    const deptLabel =
+      String(row.requestedByDepartmentLabel ?? "").trim() ||
+      departmentLabel(reqDept);
+    return `${deptLabel} (${reqLeader})`;
   }
   const recvDept = String(row.receivedByDepartment ?? "").trim();
   const recvLeader = String(row.receivedByLeaderName ?? "").trim();
