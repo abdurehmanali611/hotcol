@@ -6,9 +6,12 @@ import type { Order } from "@/lib/actions";
 import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
 import {
   computeDailyCafeRevenueByCategory,
+  computeDailyCafeRevenueByType,
   formatCafeBusinessDayLabel,
   formatCafeRevenueETB,
+  type CafeRevenueBreakdownItem,
 } from "@/lib/cafeDailyRevenueByCategory";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -97,6 +100,100 @@ function sharePercent(revenue: number, total: number): number {
   return Math.min(100, Math.round((revenue / total) * 100));
 }
 
+type BreakdownMode = "category" | "type";
+
+function RevenueBreakdownCard({
+  item,
+  totalETB,
+  hasSales,
+  theme,
+  index,
+  compact = false,
+}: {
+  item: CafeRevenueBreakdownItem;
+  totalETB: number;
+  hasSales: boolean;
+  theme: CategoryCardTheme;
+  index: number;
+  compact?: boolean;
+}) {
+  const Icon = theme.Icon;
+  const pct = sharePercent(item.revenueETB, totalETB);
+  const active = item.revenueETB > 0;
+
+  return (
+    <article
+      style={{ animationDelay: `${index * 60}ms` }}
+      className={cn(
+        "group relative overflow-hidden rounded-2xl border border-border/50 ring-1 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
+        compact ? "min-w-[200px] max-w-[220px] shrink-0 snap-start p-3.5" : "p-4",
+        theme.ring,
+        theme.surface,
+        active
+          ? cn("hover:-translate-y-0.5 hover:shadow-md", theme.glow)
+          : "opacity-90",
+      )}
+    >
+      <div className={cn("flex items-start justify-between gap-2", compact ? "mb-3" : "mb-4")}>
+        <div
+          className={cn(
+            "flex items-center justify-center rounded-xl ring-1",
+            compact ? "h-9 w-9" : "h-10 w-10",
+            theme.iconWrap,
+          )}
+        >
+          <Icon className={cn(compact ? "h-4 w-4" : "h-5 w-5", theme.icon)} />
+        </div>
+        {hasSales ? (
+          <span className="tabular-nums text-xs font-semibold text-muted-foreground">
+            {pct}%
+          </span>
+        ) : null}
+      </div>
+
+      <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {item.label}
+      </p>
+      <p
+        className={cn(
+          "mt-1 font-bold tabular-nums tracking-tight",
+          compact ? "text-xl" : "text-2xl",
+          active ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {formatCafeRevenueETB(item.revenueETB)}
+      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {item.lineCount === 1
+          ? "1 paid line"
+          : `${item.lineCount} paid lines`}
+      </p>
+
+      <div className={cn("overflow-hidden rounded-full bg-muted/80", compact ? "mt-3 h-1" : "mt-4 h-1.5")}>
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-700 ease-out",
+            theme.bar,
+          )}
+          style={{ width: hasSales ? `${Math.max(pct, active ? 4 : 0)}%` : "0%" }}
+        />
+      </div>
+    </article>
+  );
+}
+
+function themeForBreakdownKey(key: string, mode: BreakdownMode): CategoryCardTheme {
+  if (mode === "category") return themeForCategory(key);
+  const palette = [
+    CATEGORY_THEMES.food,
+    CATEGORY_THEMES.beverage,
+    CATEGORY_THEMES.others,
+  ];
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash + key.charCodeAt(i)) % palette.length;
+  return palette[hash] ?? DEFAULT_THEME;
+}
+
 type CafeAdminDailyRevenueCardsProps = {
   orders: Order[];
   hotelName: string;
@@ -130,11 +227,17 @@ export function CafeAdminDailyRevenueCards({
 }: CafeAdminDailyRevenueCardsProps) {
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay());
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>("category");
 
   const isToday = isSameCafeBusinessDay(selectedDate, new Date());
 
-  const { categories, totalETB } = useMemo(
+  const { categories, totalETB: categoryTotal } = useMemo(
     () => computeDailyCafeRevenueByCategory(orders, hotelName, selectedDate),
+    [orders, hotelName, selectedDate],
+  );
+
+  const { types, totalETB: typeTotal } = useMemo(
+    () => computeDailyCafeRevenueByType(orders, hotelName, selectedDate),
     [orders, hotelName, selectedDate],
   );
 
@@ -148,7 +251,12 @@ export function CafeAdminDailyRevenueCards({
           { key: "others", label: "Others", revenueETB: 0, lineCount: 0 },
         ];
 
+  const displayTypes = types.length > 0 ? types : [];
+  const breakdownItems =
+    breakdownMode === "category" ? displayCategories : displayTypes;
+  const totalETB = breakdownMode === "category" ? categoryTotal : typeTotal;
   const hasSales = totalETB > 0;
+  const totalLineCount = breakdownItems.reduce((n, c) => n + c.lineCount, 0);
 
   if (loading) {
     return (
@@ -163,10 +271,10 @@ export function CafeAdminDailyRevenueCards({
 
   return (
     <section
-      aria-label="Daily sales by category"
-      className="overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-b from-muted/40 via-card to-card shadow-sm"
+      aria-label="Daily sales revenue"
+      className="overflow-hidden rounded-2xl border border-border/50 bg-linear-to-b from-muted/40 via-card to-card shadow-sm"
     >
-      <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+      <div className="h-px bg-linear-to-r from-transparent via-primary/30 to-transparent" />
 
       <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -177,7 +285,9 @@ export function CafeAdminDailyRevenueCards({
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-semibold tracking-tight sm:text-lg">
-                  Sales by category
+                  {breakdownMode === "category"
+                    ? "Sales by category"
+                    : "Sales by type"}
                 </h3>
                 {isToday ? (
                   <Badge
@@ -194,10 +304,28 @@ export function CafeAdminDailyRevenueCards({
               </div>
               <p className="text-sm text-muted-foreground">{businessDayLabel}</p>
               <p className="text-xs text-muted-foreground/80">
-                Paid orders for this business day, grouped by menu category
+                Paid orders for this business day, grouped by{" "}
+                {breakdownMode === "category" ? "menu category" : "item type"}
               </p>
             </div>
           </div>
+
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+            <Tabs
+              value={breakdownMode}
+              onValueChange={(value) =>
+                setBreakdownMode(value as BreakdownMode)
+              }
+            >
+              <TabsList className="grid h-9 w-full grid-cols-2 sm:w-[220px]">
+                <TabsTrigger value="category" className="text-xs">
+                  Category
+                </TabsTrigger>
+                <TabsTrigger value="type" className="text-xs">
+                  Type
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
             {!isToday ? (
@@ -247,11 +375,12 @@ export function CafeAdminDailyRevenueCards({
               </PopoverContent>
             </Popover>
           </div>
+          </div>
         </div>
 
         <div
           className={cn(
-            "relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-card to-violet-500/[0.04] p-5 shadow-md ring-1 ring-primary/10 transition-shadow hover:shadow-lg sm:p-6",
+            "relative overflow-hidden rounded-2xl border border-primary/15 bg-linear-to-br from-primary/8 via-card to-violet-500/4 p-5 shadow-md ring-1 ring-primary/10 transition-shadow hover:shadow-lg sm:p-6",
             hasSales && "shadow-[0_20px_50px_-24px_rgba(var(--primary),0.45)]",
           )}
         >
@@ -276,17 +405,17 @@ export function CafeAdminDailyRevenueCards({
                   {formatCafeRevenueETB(totalETB)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {displayCategories.reduce((n, c) => n + c.lineCount, 0) === 1
+                  {totalLineCount === 1
                     ? "1 paid line"
-                    : `${displayCategories.reduce((n, c) => n + c.lineCount, 0)} paid lines`}
+                    : `${totalLineCount} paid lines`}
                   {!hasSales ? " · No sales recorded yet" : ""}
                 </p>
               </div>
             </div>
 
             {hasSales ? (
-              <div className="flex flex-wrap gap-2 sm:max-w-[220px] sm:justify-end">
-                {displayCategories
+              <div className="flex flex-wrap gap-2 sm:max-w-[280px] sm:justify-end">
+                {breakdownItems
                   .filter((c) => c.revenueETB > 0)
                   .map((c) => (
                     <span
@@ -304,72 +433,52 @@ export function CafeAdminDailyRevenueCards({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {displayCategories.map((item, index) => {
-            const theme = themeForCategory(item.key);
-            const Icon = theme.Icon;
-            const pct = sharePercent(item.revenueETB, totalETB);
-            const active = item.revenueETB > 0;
-
-            return (
-              <article
+        {breakdownMode === "category" ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {displayCategories.map((item, index) => (
+              <RevenueBreakdownCard
                 key={item.key}
-                style={{ animationDelay: `${index * 60}ms` }}
-                className={cn(
-                  "group relative overflow-hidden rounded-2xl border border-border/50 p-4 ring-1 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
-                  theme.ring,
-                  theme.surface,
-                  active
-                    ? cn("hover:-translate-y-0.5 hover:shadow-md", theme.glow)
-                    : "opacity-90",
-                )}
-              >
-                <div className="mb-4 flex items-start justify-between gap-2">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-xl ring-1",
-                      theme.iconWrap,
-                    )}
-                  >
-                    <Icon className={cn("h-5 w-5", theme.icon)} />
-                  </div>
-                  {hasSales ? (
-                    <span className="tabular-nums text-xs font-semibold text-muted-foreground">
-                      {pct}%
-                    </span>
-                  ) : null}
-                </div>
-
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {item.label}
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 text-2xl font-bold tabular-nums tracking-tight",
-                    active ? "text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {formatCafeRevenueETB(item.revenueETB)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {item.lineCount === 1
-                    ? "1 paid line"
-                    : `${item.lineCount} paid lines`}
-                </p>
-
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted/80">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all duration-700 ease-out",
-                      theme.bar,
-                    )}
-                    style={{ width: hasSales ? `${Math.max(pct, active ? 4 : 0)}%` : "0%" }}
-                  />
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                item={item}
+                totalETB={totalETB}
+                hasSales={hasSales}
+                theme={themeForBreakdownKey(item.key, "category")}
+                index={index}
+              />
+            ))}
+          </div>
+        ) : displayTypes.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-10 text-center">
+            <p className="text-sm font-medium text-muted-foreground">
+              No paid sales by type for this day
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground/80">
+              Types come from each menu item&apos;s type field on paid orders
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Revenue per type · scroll horizontally
+            </p>
+            <div
+              className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:thin]"
+              role="list"
+              aria-label="Revenue by item type"
+            >
+              {displayTypes.map((item, index) => (
+                <RevenueBreakdownCard
+                  key={item.key}
+                  item={item}
+                  totalETB={totalETB}
+                  hasSales={hasSales}
+                  theme={themeForBreakdownKey(item.key, "type")}
+                  index={index}
+                  compact
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

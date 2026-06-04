@@ -32,6 +32,7 @@ import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { CafeStationOrderCards } from "@/components/cafe/CafeStationOrderCards";
+import { CafeStationOrdersLayout } from "@/components/cafe/CafeStationOrdersLayout";
 
 function ChefContent() {
   useTenantRouteGuard({ role: "Kitchen" });
@@ -172,7 +173,7 @@ function ChefContent() {
     <div className="min-h-screen bg-muted/20 pb-10">
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="max-w-5xl mx-auto px-4 h-18 py-4 flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 h-18 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Avatar className="h-12 w-12 border-2 border-primary/20">
               <AvatarImage
@@ -231,7 +232,7 @@ function ChefContent() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto p-4 md:p-6">
+      <main className="mx-auto max-w-7xl p-4 md:p-6">
         {pendingOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="bg-background p-8 rounded-full shadow-sm mb-6">
@@ -245,14 +246,16 @@ function ChefContent() {
             </p>
           </div>
         ) : (
-          <CafeStationOrderCards
-            orders={pendingOrders}
-            cafeTables={cafeTables}
-            updatingId={updatingId}
-            updatingGroupKey={updatingGroupKey}
-            onStatusUpdate={handleStatusUpdate}
-            onCompleteAll={handleCompleteAll}
-          />
+          <CafeStationOrdersLayout orders={pendingOrders} station="kitchen">
+            <CafeStationOrderCards
+              orders={pendingOrders}
+              cafeTables={cafeTables}
+              updatingId={updatingId}
+              updatingGroupKey={updatingGroupKey}
+              onStatusUpdate={handleStatusUpdate}
+              onCompleteAll={handleCompleteAll}
+            />
+          </CafeStationOrdersLayout>
         )}
       </main>
     </div>

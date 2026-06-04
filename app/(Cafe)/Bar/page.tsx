@@ -34,6 +34,7 @@ import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { CafeStationOrderCards } from "@/components/cafe/CafeStationOrderCards";
+import { CafeStationOrdersLayout } from "@/components/cafe/CafeStationOrdersLayout";
 
 function BaristaContent() {
   useTenantRouteGuard({ role: "Barista" });
@@ -176,7 +177,7 @@ function BaristaContent() {
 
       {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border">
               <AvatarImage src={logoUrl} alt={displayLabel} />
@@ -232,7 +233,7 @@ function BaristaContent() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto p-4 md:p-6">
+      <main className="mx-auto max-w-7xl p-4 md:p-6">
         {pendingOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="bg-background p-8 rounded-full shadow-sm mb-6">
@@ -246,14 +247,16 @@ function BaristaContent() {
             </p>
           </div>
         ) : (
-          <CafeStationOrderCards
-            orders={pendingOrders}
-            cafeTables={cafeTables}
-            updatingId={updatingId}
-            updatingGroupKey={updatingGroupKey}
-            onStatusUpdate={handleStatusUpdate}
-            onCompleteAll={handleCompleteAll}
-          />
+          <CafeStationOrdersLayout orders={pendingOrders} station="bar">
+            <CafeStationOrderCards
+              orders={pendingOrders}
+              cafeTables={cafeTables}
+              updatingId={updatingId}
+              updatingGroupKey={updatingGroupKey}
+              onStatusUpdate={handleStatusUpdate}
+              onCompleteAll={handleCompleteAll}
+            />
+          </CafeStationOrdersLayout>
         )}
       </main>
     </div>

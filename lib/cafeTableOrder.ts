@@ -402,6 +402,44 @@ export function groupCafeStationOrderCards(orders: Order[]): CafeStationOrderGro
   return groups.sort((a, b) => a.orders[0].id - b.orders[0].id);
 }
 
+/** One menu line rolled up across all tables for kitchen/bar prep totals. */
+export type CafeStationPrepItem = {
+  title: string;
+  quantity: number;
+  imageUrl: string | null;
+};
+
+/** Sum pending station lines by item title (e.g. 2 + 4 burgers → 6 burgers). */
+export function aggregateCafeStationPrepByTitle(
+  orders: Pick<Order, "title" | "orderAmount" | "imageUrl">[],
+): CafeStationPrepItem[] {
+  const map = new Map<
+    string,
+    { title: string; quantity: number; imageUrl: string | null }
+  >();
+
+  for (const order of orders) {
+    const title = String(order.title ?? "").trim() || "Unknown item";
+    const key = title.toLowerCase();
+    const qty = Math.max(1, Number(order.orderAmount) || 1);
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity += qty;
+      if (!existing.imageUrl && order.imageUrl) {
+        existing.imageUrl = order.imageUrl;
+      }
+    } else {
+      map.set(key, {
+        title,
+        quantity: qty,
+        imageUrl: order.imageUrl ?? null,
+      });
+    }
+  }
+
+  return [...map.values()].sort((a, b) => b.quantity - a.quantity);
+}
+
 /** Sum unpaid lines for one table (includes completed, excludes cancelled/paid). */
 export function sumOpenTableOrdersETB(
   orders: Order[],
