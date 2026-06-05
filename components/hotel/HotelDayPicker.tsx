@@ -18,6 +18,7 @@ export function HotelDayPicker({
   buttonClassName,
   placeholder = "Pick a date",
   disabled,
+  compact = false,
 }: {
   label?: string;
   id?: string;
@@ -27,16 +28,21 @@ export function HotelDayPicker({
   buttonClassName?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Shorter label + date text for dense inline form grids. */
+  compact?: boolean;
 }) {
   const selected = parseYmdToDate(value);
+  const dateFormat = compact ? "MMM d, yyyy" : "PPP";
 
   return (
-    <div className={cn(label && "space-y-1.5", className)}>
+    <div className={cn(label && "space-y-1.5 min-w-0", className)}>
       {label ? (
         id ? (
-          <Label htmlFor={id}>{label}</Label>
+          <Label htmlFor={id} className={compact ? "text-sm" : undefined}>
+            {label}
+          </Label>
         ) : (
-          <Label>{label}</Label>
+          <Label className={compact ? "text-sm" : undefined}>{label}</Label>
         )
       ) : null}
       <Popover>
@@ -47,12 +53,15 @@ export function HotelDayPicker({
             variant="outline"
             disabled={disabled}
             className={cn(
-              "h-10 w-full min-w-[170px] justify-start border-border/80 px-3 text-left font-normal shadow-sm",
+              "h-10 w-full justify-start border-border/80 px-3 text-left font-normal shadow-sm",
+              compact ? "min-w-0 truncate text-sm" : "min-w-[170px]",
               buttonClassName,
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4 shrink-0 opacity-70" />
-            {selected ? format(selected, "PPP") : placeholder}
+            <span className="truncate">
+              {selected ? format(selected, dateFormat) : placeholder}
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

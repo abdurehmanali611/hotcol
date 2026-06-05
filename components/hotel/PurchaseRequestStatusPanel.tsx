@@ -29,11 +29,9 @@ import {
 import { RequestStatusFilterBar } from "@/components/hotel/RequestStatusFilterBar";
 import { PurchaseRequestUnitPriceRevisions } from "@/components/hotel/PurchaseRequestUnitPriceRevisions";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
-import {
-  FIFO_TABLE_SORT,
-  requestFifoTimestamp,
-  sortRowsByFifo,
-} from "@/lib/requestOrdering";
+import { FIFO_TABLE_SORT, sortRowsByFifo } from "@/lib/requestOrdering";
+import { purchaseEntranceDate } from "@/lib/purchaseRequestDates";
+import { buildPurchaseEntranceDateColumn } from "@/lib/dataTableColumns/purchaseRequests";
 import { applyRequestStatusFilters } from "@/lib/requestStatusFilters";
 import { canPrintPurchaseRequestFromStatus } from "@/lib/hotelApproval";
 import { buildPurchaseRequestReceiptBundleForStatus } from "@/lib/receiptGrouping";
@@ -121,7 +119,7 @@ export function PurchaseRequestStatusPanel({
         dateTo,
         voucherFrom,
         voucherTo,
-        getSubmittedDate: (r) => r.createdAt,
+        getSubmittedDate: (r) => purchaseEntranceDate(r),
         searchQuery,
       }),
     );
@@ -152,16 +150,7 @@ export function PurchaseRequestStatusPanel({
   const columns = useMemo((): ColumnDef<PurchaseRequestRow>[] => {
     const cols: ColumnDef<PurchaseRequestRow>[] = [
       buildVoucherColumn<PurchaseRequestRow>(),
-      {
-        id: "submitted",
-        header: "Submitted",
-        accessorFn: (row) => requestFifoTimestamp(row),
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-            {formatWhen(row.original.createdAt)}
-          </span>
-        ),
-      },
+      buildPurchaseEntranceDateColumn(),
       {
         accessorKey: "itemName",
         header: "Item",
@@ -331,6 +320,8 @@ export function PurchaseRequestStatusPanel({
         dateTo={dateTo}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
+        dateFromLabel="Entrance from"
+        dateToLabel="Entrance to"
         voucherFrom={voucherFrom}
         voucherTo={voucherTo}
         onVoucherFromChange={setVoucherFrom}

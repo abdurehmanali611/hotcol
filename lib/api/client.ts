@@ -140,6 +140,9 @@ export function refreshCafeOrdersFeed() {
 export function sanitizeGraphqlErrorMessage(raw: string, fallback = "Request failed"): string {
   const msg = String(raw ?? "").trim();
   if (!msg) return fallback;
+  if (/expired transaction|transaction was \d+ ms|P2028/i.test(msg)) {
+    return "This batch took too long on the server. Try fewer lines at once, or wait a moment and try again.";
+  }
   if (/Invalid `prisma\./i.test(msg) || /Unknown argument/i.test(msg)) {
     return "The server could not save this request. If you just updated the app, the database may need a migration — contact Apex support.";
   }

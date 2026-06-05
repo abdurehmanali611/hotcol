@@ -70,6 +70,9 @@ export async function exportHotelInventoryWorkbook(
     category: r.category,
     status: formatPurchaseStatus(r.status),
     store_user: r.storeUserName,
+    entrance_date: (r.entranceDate ?? r.createdAt)
+      ? new Date(r.entranceDate ?? r.createdAt).toISOString().slice(0, 10)
+      : "",
     created: r.createdAt,
   }));
   XLSX.utils.book_append_sheet(

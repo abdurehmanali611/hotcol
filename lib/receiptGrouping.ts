@@ -24,6 +24,10 @@ import {
 } from "@/lib/departments";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { formatVoucherDisplay, formatVoucherRange } from "@/lib/voucherFormat";
+import {
+  formatPurchaseEntranceDate,
+  purchaseEntranceDate,
+} from "@/lib/purchaseRequestDates";
 
 export type ReceiptKind = "registration" | "purchase_request" | "stock_movement";
 
@@ -200,7 +204,7 @@ function registrationBundles(
 function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
   const map = new Map<string, PurchaseRequestRow[]>();
   for (const row of rows) {
-    const day = dateKey(row.createdAt);
+    const day = dateKey(purchaseEntranceDate(row));
     const supplier = groupSupplierKey(row.supplierName);
     const dept = receiptDepartmentGroupKey(row.requestedByDepartment);
     const voucher =
@@ -239,8 +243,8 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
       id: bundleIdFromKey(key),
       kind: "purchase_request",
       title: receiptTitle("purchase_request"),
-      date: dateKey(first.createdAt),
-      dateLabel: displayDate(first.createdAt),
+      date: dateKey(purchaseEntranceDate(first)),
+      dateLabel: formatPurchaseEntranceDate(first),
       supplierName: String(first.supplierName || "").trim() || "-",
       supplierPhone: first.supplierPhone,
       supplierAddress: null,

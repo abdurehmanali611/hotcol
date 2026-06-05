@@ -29,6 +29,7 @@ import {
   updateKitchenBarBeginningApi,
   logoutAction,
   notifyApiFailure,
+  invalidateGraphqlListCache,
   type ItemRegistration,
   type ItemStatus,
   type KitchenBarBeginningRow,
@@ -95,6 +96,7 @@ import {
   CostControlPurchaseVoucherGroups,
   CostControlStockVoucherGroups,
 } from "@/components/hotel/CostControlGroupedQueues";
+import { CostControllerIdentitySelect } from "@/components/hotel/CostControllerIdentitySelect";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   HotelFormFieldStack,
@@ -396,8 +398,127 @@ function CostControlInner() {
     }));
   }, [selectedDailyDate]);
 
+  type DataSlice =
+    | "profiles"
+    | "purchases"
+    | "stocks"
+    | "kb"
+    | "regs"
+    | "stats";
+
+  const loadedSlicesRef = useRef(new Set<DataSlice>());
+  const sectionSlices = useMemo<
+    Partial<Record<CostSection, DataSlice[]>>
+  >(
+    () => ({
+      purchases: ["profiles", "purchases"],
+      stock: ["profiles", "stocks"],
+      inventory: ["regs", "stats"],
+      inactive: ["stats"],
+      beginnings: ["kb"],
+      registrations: ["regs"],
+      "item-receipts": ["regs", "purchases", "stocks"],
+      "payment-credit": ["regs"],
+      "payment-paid": ["regs"],
+      "payment-with-vat": ["regs"],
+      "payment-without-vat": ["regs"],
+    }),
+    [],
+  );
+
+  const applyInventoryScope = useCallback(
+    (regs: ItemRegistration[], stats: ItemStatus[]) => {
+      const t = String(tenantScope ?? "").trim();
+      const inv = t
+        ? regs.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
+        : regs;
+      const st = t
+        ? stats.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
+        : stats;
+      setInventoryRows(inv);
+      setStatusRows(st);
+    },
+    [tenantScope],
+  );
+
+  const ensureSectionData = useCallback(
+    async (
+      section: CostSection,
+      opts?: { showLoading?: boolean; force?: boolean },
+    ) => {
+      const slices = sectionSlices[section] ?? [];
+      if (!slices.length) return;
+      const pending = opts?.force
+        ? slices
+        : slices.filter((s) => !loadedSlicesRef.current.has(s));
+      if (!pending.length) return;
+
+      const invPending = pending.some((s) => s === "regs" || s === "stats");
+      const otherPending = pending.filter((s) => s !== "regs" && s !== "stats");
+
+      await loadCoordinator.run(async (isStale) => {
+        if (opts?.showLoading) setLoading(true);
+        try {
+          await Promise.all([
+            ...otherPending.map(async (slice) => {
+              switch (slice) {
+                case "profiles": {
+                  const p = await fetchCostControllerProfiles();
+                  if (!isStale()) setProfiles(p);
+                  break;
+                }
+                case "purchases": {
+                  const pr = await fetchPurchaseRequests();
+                  if (!isStale()) setPurchases(pr);
+                  break;
+                }
+                case "stocks": {
+                  const so = await fetchStockOutRequests();
+                  if (!isStale()) setStocks(so);
+                  break;
+                }
+                case "kb": {
+                  const kb = await fetchKitchenBarBeginnings();
+                  if (!isStale()) setBeginnings(kb);
+                  break;
+                }
+                default:
+                  break;
+              }
+              if (!isStale()) loadedSlicesRef.current.add(slice);
+            }),
+            invPending
+              ? (async () => {
+                  const [regs, stats] = await Promise.all([
+                    fetchItemRegistrations(),
+                    fetchItemStatus(),
+                  ]);
+                  if (!isStale()) {
+                    applyInventoryScope(
+                      regs as ItemRegistration[],
+                      stats as ItemStatus[],
+                    );
+                    loadedSlicesRef.current.add("regs");
+                    loadedSlicesRef.current.add("stats");
+                  }
+                })()
+              : Promise.resolve(),
+          ]);
+        } catch (e: unknown) {
+          if (!isStale()) {
+            notifyApiFailure(e, "Load failed");
+          }
+        } finally {
+          if (!isStale() && opts?.showLoading) setLoading(false);
+        }
+      });
+    },
+    [applyInventoryScope, loadCoordinator, sectionSlices],
+  );
+
   const load = useCallback(
     async (isRefresh = false, fetchRollupSnapshots = false) => {
+      loadedSlicesRef.current.clear();
       await loadCoordinator.run(async (isStale) => {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
@@ -429,17 +550,15 @@ function CostControlInner() {
           setStocks(so);
           setBeginnings(kb);
           if (snapsMaybe !== null) setMonthlySnapshots(snapsMaybe);
-          const t = String(tenantScope ?? "").trim();
-          const regList = regs as ItemRegistration[];
-          const statList = stats as ItemStatus[];
-          const inv = t
-            ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
-            : regList;
-          const st = t
-            ? statList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
-            : statList;
-          setInventoryRows(inv);
-          setStatusRows(st);
+          applyInventoryScope(regs as ItemRegistration[], stats as ItemStatus[]);
+          loadedSlicesRef.current = new Set([
+            "profiles",
+            "purchases",
+            "stocks",
+            "kb",
+            "regs",
+            "stats",
+          ]);
         } catch (e: any) {
           if (!isStale()) toast.error(e?.message || "Load failed");
         } finally {
@@ -450,52 +569,57 @@ function CostControlInner() {
         }
       });
     },
-    [tenantScope, loadCoordinator],
+    [applyInventoryScope, loadCoordinator],
   );
 
-  const refreshPurchaseQueues = useCallback(async () => {
-    await loadCoordinator.run(async (isStale) => {
-      setRefreshing(true);
-      try {
-        const pr = await fetchPurchaseRequests();
-        if (isStale()) return;
-        setPurchases(pr);
-      } catch (e: unknown) {
-        if (!isStale()) {
-          notifyApiFailure(e, "Could not refresh purchase queue");
+  const refreshPurchaseQueues = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      await loadCoordinator.run(async (isStale) => {
+        if (!opts?.silent) setRefreshing(true);
+        try {
+          invalidateGraphqlListCache("hotel:purchaseRequests");
+          const pr = await fetchPurchaseRequests();
+          if (isStale()) return;
+          setPurchases(pr);
+        } catch (e: unknown) {
+          if (!isStale()) {
+            notifyApiFailure(e, "Could not refresh purchase queue");
+          }
+        } finally {
+          if (!isStale() && !opts?.silent) setRefreshing(false);
         }
-      } finally {
-        if (!isStale()) setRefreshing(false);
-      }
-    });
-  }, [loadCoordinator]);
+      });
+    },
+    [loadCoordinator],
+  );
 
-  const refreshStockQueues = useCallback(async () => {
-    await loadCoordinator.run(async (isStale) => {
-      setRefreshing(true);
-      try {
-        const [so, regs] = await Promise.all([
-          fetchStockOutRequests(),
-          fetchItemRegistrations(),
-        ]);
-        if (isStale()) return;
-        setStocks(so);
-        const t = String(tenantScope ?? "").trim();
-        const regList = regs as ItemRegistration[];
-        setInventoryRows(
-          t
-            ? regList.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
-            : regList,
-        );
-      } catch (e: unknown) {
-        if (!isStale()) {
-          notifyApiFailure(e, "Could not refresh stock queue");
+  const refreshStockQueues = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      await loadCoordinator.run(async (isStale) => {
+        if (!opts?.silent) setRefreshing(true);
+        try {
+          invalidateGraphqlListCache([
+            "hotel:stockOutRequests",
+            "ItemRegistration:list",
+          ]);
+          const [so, regs] = await Promise.all([
+            fetchStockOutRequests(),
+            fetchItemRegistrations(),
+          ]);
+          if (isStale()) return;
+          setStocks(so);
+          applyInventoryScope(regs as ItemRegistration[], statusRows);
+        } catch (e: unknown) {
+          if (!isStale()) {
+            notifyApiFailure(e, "Could not refresh stock queue");
+          }
+        } finally {
+          if (!isStale() && !opts?.silent) setRefreshing(false);
         }
-      } finally {
-        if (!isStale()) setRefreshing(false);
-      }
-    });
-  }, [loadCoordinator, tenantScope]);
+      });
+    },
+    [applyInventoryScope, loadCoordinator, statusRows],
+  );
 
   const handleEditBeginning = useCallback((b: KitchenBarBeginningRow) => {
     setEditingId(b.id);
@@ -551,10 +675,14 @@ function CostControlInner() {
   );
 
   useEffect(() => {
-    const isRefresh = isFirstLoadRef.current;
-    isFirstLoadRef.current = true;
-    void load(isRefresh, true);
-  }, [load]);
+    isFirstLoadRef.current = false;
+    void ensureSectionData("purchases", { showLoading: true });
+  }, [ensureSectionData]);
+
+  useEffect(() => {
+    if (loading) return;
+    void ensureSectionData(activeSection);
+  }, [activeSection, ensureSectionData, loading]);
 
   const insetBusy = loading;
 
@@ -562,16 +690,22 @@ function CostControlInner() {
   const pendingSo = stocks.filter(
     (x) => x.status === "PENDING" || x.status === "PENDING_CC",
   );
+  const selectedPendingPrIds = pendingPr
+    .filter((p) => selectedPrBatchIds.includes(p.id))
+    .map((p) => p.id);
   const allPendingPrSelected =
-    pendingPr.length > 0 && selectedPrBatchIds.length === pendingPr.length;
+    pendingPr.length > 0 &&
+    pendingPr.every((p) => selectedPrBatchIds.includes(p.id));
   const somePendingPrSelected =
-    selectedPrBatchIds.length > 0 &&
-    selectedPrBatchIds.length < pendingPr.length;
+    selectedPendingPrIds.length > 0 && !allPendingPrSelected;
+  const selectedPendingSoIds = pendingSo
+    .filter((p) => selectedSoBatchIds.includes(p.id))
+    .map((p) => p.id);
   const allPendingSoSelected =
-    pendingSo.length > 0 && selectedSoBatchIds.length === pendingSo.length;
+    pendingSo.length > 0 &&
+    pendingSo.every((p) => selectedSoBatchIds.includes(p.id));
   const somePendingSoSelected =
-    selectedSoBatchIds.length > 0 &&
-    selectedSoBatchIds.length < pendingSo.length;
+    selectedPendingSoIds.length > 0 && !allPendingSoSelected;
 
   useEffect(() => {
     const allow = new Set(
@@ -923,26 +1057,13 @@ function CostControlInner() {
                 {profiles.length > 0 && pendingPr.length > 0 ? (
                   <Card className="border-dashed border-primary/25 bg-primary/5 shadow-sm">
                     <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-end">
-                      <div className="flex-1 min-w-[220px] space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Cost controller identity for batch approve
-                        </Label>
-                        <Select
-                          value={batchCcProfileId}
-                          onValueChange={setBatchCcProfileId}
-                        >
-                          <SelectTrigger className="bg-background max-w-md">
-                            <SelectValue placeholder="Select your name for batch" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {profiles.map((p) => (
-                              <SelectItem key={p.id} value={String(p.id)}>
-                                {p.displayName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <CostControllerIdentitySelect
+                        profiles={profiles}
+                        value={batchCcProfileId}
+                        onValueChange={setBatchCcProfileId}
+                        label="Cost controller identity for batch approve"
+                        placeholder="Select your name for batch"
+                      />
                       <div className="flex flex-wrap items-center gap-2">
                         <label className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <Checkbox
@@ -965,7 +1086,7 @@ function CostControlInner() {
                         <PendingButton
                           className="shadow-sm"
                           pending={isCcPending("batch-pr-a")}
-                          disabled={selectedPrBatchIds.length === 0}
+                          disabled={selectedPendingPrIds.length === 0}
                           onClick={() => {
                             const pid = Number(batchCcProfileId);
                             if (!pid) {
@@ -978,7 +1099,7 @@ function CostControlInner() {
                               try {
                                 const results =
                                   await approvePurchaseRequestsCCBatchApi(
-                                    selectedPrBatchIds,
+                                    selectedPendingPrIds,
                                     pid,
                                   );
                                 for (const res of results) {
@@ -991,7 +1112,7 @@ function CostControlInner() {
                                   );
                                 }
                                 setSelectedPrBatchIds([]);
-                                void refreshPurchaseQueues();
+                                void refreshPurchaseQueues({ silent: true });
                               } catch (e: unknown) {
                                 notifyApiFailure(
                                   e,
@@ -1001,13 +1122,13 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Check selected ({selectedPrBatchIds.length})
+                          Check selected ({selectedPendingPrIds.length})
                         </PendingButton>
                         <PendingButton
                           variant="outline"
                           className="text-destructive border-destructive/30 hover:bg-destructive/10"
                           pending={isCcPending("batch-pr-r")}
-                          disabled={selectedPrBatchIds.length === 0}
+                          disabled={selectedPendingPrIds.length === 0}
                           onClick={() => {
                             void runCcAction("batch-pr-r", async () => {
                               try {
@@ -1023,7 +1144,7 @@ function CostControlInner() {
                                     ?.displayName?.trim() ?? "";
                                 const results =
                                   await rejectPurchaseRequestsCCBatchApi(
-                                    selectedPrBatchIds,
+                                    selectedPendingPrIds,
                                     reason,
                                     batchActor,
                                   );
@@ -1038,7 +1159,7 @@ function CostControlInner() {
                                   );
                                 }
                                 setSelectedPrBatchIds([]);
-                                void refreshPurchaseQueues();
+                                void refreshPurchaseQueues({ silent: true });
                               } catch (e: unknown) {
                                 notifyApiFailure(
                                   e,
@@ -1048,20 +1169,21 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Reject selected ({selectedPrBatchIds.length})
+                          Reject selected ({selectedPendingPrIds.length})
                         </PendingButton>
                       </div>
                     </CardContent>
                   </Card>
                 ) : null}
                 <CostControlPurchaseVoucherGroups
-                  purchases={purchases}
+                  purchases={pendingPr}
                   selectedIds={selectedPrBatchIds}
                   setSelectedIds={setSelectedPrBatchIds}
                   isCcPending={isCcPending}
                   runCcAction={runCcAction}
                   requestRejectionReason={requestRejectionReason}
-                  batchCcProfileId={batchCcProfileId}
+                  profiles={profiles}
+                  defaultProfileId={batchCcProfileId}
                   onCheckVoucher={async (rows, profileId) => {
                     const results = await approvePurchaseRequestsCCBatchApi(
                       rows.map((r) => r.id),
@@ -1076,12 +1198,12 @@ function CostControlInner() {
                         ),
                       );
                     }
-                    void refreshPurchaseQueues();
+                    void refreshPurchaseQueues({ silent: true });
                   }}
-                  onRejectVoucher={async (rows, reason) => {
+                  onRejectVoucher={async (rows, reason, profileId) => {
                     const batchActor =
                       profiles
-                        .find((p) => p.id === Number(batchCcProfileId))
+                        .find((p) => p.id === profileId)
                         ?.displayName?.trim() ?? "";
                     const results = await rejectPurchaseRequestsCCBatchApi(
                       rows.map((r) => r.id),
@@ -1098,7 +1220,7 @@ function CostControlInner() {
                         ),
                       );
                     }
-                    void refreshPurchaseQueues();
+                    void refreshPurchaseQueues({ silent: true });
                   }}
                 />
               </div>
@@ -1134,7 +1256,7 @@ function CostControlInner() {
                   embedded
                   showPaymentSummary
                   onHotelStockRequestCreated={() => {
-                    void refreshStockQueues();
+                    void refreshStockQueues({ silent: true });
                   }}
                 />
               </CardContent>
@@ -1185,26 +1307,13 @@ function CostControlInner() {
                 {profiles.length > 0 && pendingSo.length > 0 ? (
                   <Card className="border-dashed border-amber-500/30 bg-amber-500/5 shadow-sm">
                     <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-end">
-                      <div className="flex-1 min-w-[220px] space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Cost controller identity for batch approve
-                        </Label>
-                        <Select
-                          value={batchCcProfileId}
-                          onValueChange={setBatchCcProfileId}
-                        >
-                          <SelectTrigger className="bg-background max-w-md">
-                            <SelectValue placeholder="Select your name for batch" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {profiles.map((p) => (
-                              <SelectItem key={p.id} value={String(p.id)}>
-                                {p.displayName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <CostControllerIdentitySelect
+                        profiles={profiles}
+                        value={batchCcProfileId}
+                        onValueChange={setBatchCcProfileId}
+                        label="Cost controller identity for batch approve"
+                        placeholder="Select your name for batch"
+                      />
                       <div className="flex flex-wrap items-center gap-2">
                         <label className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <Checkbox
@@ -1227,7 +1336,7 @@ function CostControlInner() {
                         <PendingButton
                           className="shadow-sm"
                           pending={isCcPending("batch-so-a")}
-                          disabled={selectedSoBatchIds.length === 0}
+                          disabled={selectedPendingSoIds.length === 0}
                           onClick={() => {
                             const pid = Number(batchCcProfileId);
                             if (!pid) {
@@ -1240,7 +1349,7 @@ function CostControlInner() {
                               try {
                                 const results =
                                   await approveStockOutRequestsBatchApi(
-                                    selectedSoBatchIds,
+                                    selectedPendingSoIds,
                                     pid,
                                   );
                                 for (const res of results) {
@@ -1253,7 +1362,7 @@ function CostControlInner() {
                                   );
                                 }
                                 setSelectedSoBatchIds([]);
-                                void refreshStockQueues();
+                                void refreshStockQueues({ silent: true });
                               } catch (e: unknown) {
                                 notifyApiFailure(
                                   e,
@@ -1263,13 +1372,13 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Check selected ({selectedSoBatchIds.length})
+                          Check selected ({selectedPendingSoIds.length})
                         </PendingButton>
                         <PendingButton
                           variant="outline"
                           className="text-destructive border-destructive/30 hover:bg-destructive/10"
                           pending={isCcPending("batch-so-r")}
-                          disabled={selectedSoBatchIds.length === 0}
+                          disabled={selectedPendingSoIds.length === 0}
                           onClick={() => {
                             void runCcAction("batch-so-r", async () => {
                               try {
@@ -1285,7 +1394,7 @@ function CostControlInner() {
                                     ?.displayName?.trim() ?? "";
                                 const results =
                                   await rejectStockOutRequestsBatchApi(
-                                    selectedSoBatchIds,
+                                    selectedPendingSoIds,
                                     reason,
                                     batchActor,
                                   );
@@ -1306,7 +1415,7 @@ function CostControlInner() {
                                   );
                                 }
                                 setSelectedSoBatchIds([]);
-                                void refreshStockQueues();
+                                void refreshStockQueues({ silent: true });
                               } catch (e: unknown) {
                                 notifyApiFailure(
                                   e,
@@ -1316,21 +1425,22 @@ function CostControlInner() {
                             });
                           }}
                         >
-                          Reject selected ({selectedSoBatchIds.length})
+                          Reject selected ({selectedPendingSoIds.length})
                         </PendingButton>
                       </div>
                     </CardContent>
                   </Card>
                 ) : null}
                 <CostControlStockVoucherGroups
-                  stocks={stocks}
+                  stocks={pendingSo}
                   inventoryItems={inventoryRows}
                   selectedIds={selectedSoBatchIds}
                   setSelectedIds={setSelectedSoBatchIds}
                   isCcPending={isCcPending}
                   runCcAction={runCcAction}
                   requestRejectionReason={requestRejectionReason}
-                  batchCcProfileId={batchCcProfileId}
+                  profiles={profiles}
+                  defaultProfileId={batchCcProfileId}
                   onCheckVoucher={async (rows, profileId) => {
                     const results = await approveStockOutRequestsBatchApi(
                       rows.map((r) => r.id),
@@ -1345,12 +1455,12 @@ function CostControlInner() {
                         ),
                       );
                     }
-                    void refreshStockQueues();
+                    void refreshStockQueues({ silent: true });
                   }}
-                  onRejectVoucher={async (rows, reason) => {
+                  onRejectVoucher={async (rows, reason, profileId) => {
                     const batchActor =
                       profiles
-                        .find((p) => p.id === Number(batchCcProfileId))
+                        .find((p) => p.id === profileId)
                         ?.displayName?.trim() ?? "";
                     const results = await rejectStockOutRequestsBatchApi(
                       rows.map((r) => r.id),
@@ -1371,7 +1481,7 @@ function CostControlInner() {
                         ),
                       );
                     }
-                    void refreshStockQueues();
+                    void refreshStockQueues({ silent: true });
                   }}
                 />
               </div>

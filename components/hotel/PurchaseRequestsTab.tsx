@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
 import { PURCHASE_REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 import { Switch } from "@/components/ui/switch";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -52,6 +53,7 @@ type DraftLine = {
   itemName: string;
   quantity: number;
   measuredBy: string;
+  entranceDate: string;
   estimatedUnitPrice: number;
   supplierName: string;
   supplierPhone: string;
@@ -66,11 +68,13 @@ function newLineKey() {
 }
 
 function emptyLine(): DraftLine {
+  const today = new Date().toISOString().slice(0, 10);
   return {
     key: newLineKey(),
     itemName: "",
     quantity: 1,
     measuredBy: "Piece",
+    entranceDate: today,
     estimatedUnitPrice: 0,
     supplierName: "",
     supplierPhone: "",
@@ -138,6 +142,7 @@ export default function PurchaseRequestsTab({
         itemName: l.itemName.trim(),
         quantity: l.quantity,
         measuredBy: l.measuredBy,
+        entranceDate: new Date(l.entranceDate),
         notes: notePayload,
         estimatedUnitPrice: l.estimatedUnitPrice,
         supplierName: l.supplierName.trim() || undefined,
@@ -202,7 +207,7 @@ export default function PurchaseRequestsTab({
         <form onSubmit={onSubmit} className="space-y-8">
           <HotelFormSection
             title="Request lines"
-            description="Each card is one purchase request. Supplier and phone are per line. Fields wrap and stack so you do not need to scroll sideways."
+            description="Each card is one purchase request. Supplier and phone are per line. Set the entrance date (when stock is expected to arrive) per line."
           >
             <div className="space-y-3 min-w-0">
               {lines.map((l, index) => (
@@ -258,11 +263,27 @@ export default function PurchaseRequestsTab({
                         </div>
                       ) : null}
                     </div>
-                    <div
-                      className={`grid grid-cols-2 gap-3 ${
-                        index === 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"
-                      }`}
-                    >
+                    <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
+                        <Label>Category</Label>
+                        <Select
+                          value={l.category}
+                          onValueChange={(v) =>
+                            updateLine(l.key, { category: v })
+                          }
+                        >
+                          <SelectTrigger className="h-10 w-full min-w-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORIES.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="space-y-1.5">
                         <Label htmlFor={`pr-qty-${l.key}`}>Qty</Label>
                         <Input
@@ -299,27 +320,7 @@ export default function PurchaseRequestsTab({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
-                        <Label>Category</Label>
-                        <Select
-                          value={l.category}
-                          onValueChange={(v) =>
-                            updateLine(l.key, { category: v })
-                          }
-                        >
-                          <SelectTrigger className="h-10 w-full min-w-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CATEGORIES.map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
+                      <div className="space-y-1.5">
                         <Label htmlFor={`pr-price-${l.key}`}>Est. ETB</Label>
                         <Input
                           id={`pr-price-${l.key}`}
@@ -335,24 +336,33 @@ export default function PurchaseRequestsTab({
                           className="h-10 tabular-nums"
                         />
                       </div>
-                      {index === 0 ? (
-                        <div className="col-span-2 flex items-end sm:col-span-1">
-                          <div className="flex h-10 w-full items-center gap-2 rounded-md border border-dashed border-border/80 bg-muted/20 px-2.5">
-                            <Switch
-                              id="pr-batch-vat"
-                              checked={purchaseWithVat}
-                              onCheckedChange={setPurchaseWithVat}
-                            />
-                            <Label
-                              htmlFor="pr-batch-vat"
-                              className="cursor-pointer text-sm font-normal"
-                            >
-                              With VAT (15%)
-                            </Label>
-                          </div>
-                        </div>
-                      ) : null}
+                      <HotelDayPicker
+                        id={`pr-date-${l.key}`}
+                        label="Entrance date"
+                        compact
+                        value={l.entranceDate}
+                        onChange={(ymd) =>
+                          updateLine(l.key, { entranceDate: ymd })
+                        }
+                        className="col-span-2 sm:col-span-1"
+                        buttonClassName="min-w-0"
+                      />
                     </div>
+                    {index === 0 ? (
+                      <div className="flex items-center gap-3 rounded-lg border border-dashed border-border/80 bg-muted/20 p-3">
+                        <Switch
+                          id="pr-batch-vat"
+                          checked={purchaseWithVat}
+                          onCheckedChange={setPurchaseWithVat}
+                        />
+                        <Label
+                          htmlFor="pr-batch-vat"
+                          className="cursor-pointer text-sm font-normal"
+                        >
+                          Estimated prices include VAT (15%) for this batch
+                        </Label>
+                      </div>
+                    ) : null}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-w-0">
                       <div className="space-y-1.5 min-w-0">
                         <Label htmlFor={`pr-supplier-${l.key}`}>Supplier</Label>

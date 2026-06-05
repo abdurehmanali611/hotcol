@@ -35,6 +35,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { isVatEnabled } from "@/lib/hotelInventoryPayment";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -72,6 +73,11 @@ function PurchaseReviewEditDialogForm({
   const [quantity, setQuantity] = useState(String(row.quantity));
   const [measuredBy, setMeasuredBy] = useState(
     row.measuredBy?.trim() || DEFAULT_INVENTORY_UNIT,
+  );
+  const [entranceDate, setEntranceDate] = useState(
+    row.entranceDate
+      ? new Date(row.entranceDate).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
   );
   const [notes, setNotes] = useState(row.notes || "");
   const [estimatedUnitPrice, setEstimatedUnitPrice] = useState(
@@ -114,8 +120,8 @@ function PurchaseReviewEditDialogForm({
               Edit purchase request line
             </DialogTitle>
             <DialogDescription className="text-pretty leading-relaxed">
-              Update item, quantity, supplier, and notes before sending to cost
-              control.
+              Update item, entrance date, quantity, supplier, and notes before sending
+              to cost control.
             </DialogDescription>
           </div>
         </div>
@@ -125,7 +131,7 @@ function PurchaseReviewEditDialogForm({
         <div className="px-6 py-5 space-y-6">
           <HotelFormSection
             title="Item & quantity"
-            description="What you are requesting to purchase."
+            description="What you are requesting to purchase. Entrance date is when stock is expected to arrive."
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
@@ -191,6 +197,15 @@ function PurchaseReviewEditDialogForm({
                   </SelectContent>
                 </Select>
               </div>
+              <HotelDayPicker
+                id="pr-edit-entrance-date"
+                label="Entrance date"
+                compact
+                value={entranceDate}
+                onChange={setEntranceDate}
+                className="sm:col-span-2"
+                buttonClassName="min-w-0"
+              />
               <div className="flex items-center gap-3 sm:col-span-2 rounded-lg border border-dashed border-border/80 bg-muted/20 p-3">
                 <Switch
                   id="pr-edit-vat"
@@ -256,6 +271,7 @@ function PurchaseReviewEditDialogForm({
                   itemName: itemName.trim(),
                   quantity: Number(quantity),
                   measuredBy,
+                  entranceDate: new Date(entranceDate),
                   notes,
                   estimatedUnitPrice: Number(estimatedUnitPrice) || 0,
                   supplierName,

@@ -5,6 +5,7 @@ export function buildOptimisticPurchaseRequestRow(
     itemName: string;
     quantity: number;
     measuredBy: string;
+    entranceDate?: Date | string;
     notes?: string;
     estimatedUnitPrice?: number;
     supplierName?: string;
@@ -23,6 +24,9 @@ export function buildOptimisticPurchaseRequestRow(
     itemName: fields.itemName,
     quantity: fields.quantity,
     measuredBy: fields.measuredBy,
+    entranceDate: fields.entranceDate
+      ? new Date(fields.entranceDate).toISOString()
+      : now,
     notes: fields.notes ?? "",
     estimatedUnitPrice: Number(fields.estimatedUnitPrice) || 0,
     supplierName: fields.supplierName ?? "",

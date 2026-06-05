@@ -3,27 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ItemRegistration } from "@/lib/actions";
 import {
-  approveItemRegistrationFinanceApi,
-  authorizeItemRegistrationManagerApi,
-  checkItemRegistrationCCApi,
+  approveItemRegistrationsFinanceBatchApi,
+  authorizeItemRegistrationsManagerBatchApi,
+  checkItemRegistrationsCCBatchApi,
   fetchCostControllerProfiles,
-  rejectItemRegistrationCCApi,
-  rejectItemRegistrationFinanceApi,
-  rejectItemRegistrationManagerApi,
+  rejectItemRegistrationsRoleBatchApi,
   type CostControllerProfileRow,
 } from "@/lib/actions";
+import { CostControllerIdentitySelect } from "@/components/hotel/CostControllerIdentitySelect";
+import { RegistrationVoucherApprovalActions } from "@/components/hotel/RegistrationVoucherApprovalActions";
 import { StoreItemRegistrationReceipt } from "./StoreItemRegistrationReceipt";
 import { formatItemRegistrationStatus } from "@/lib/hotelDisplayLabels";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Printer } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import {
@@ -43,7 +35,6 @@ import {
 } from "@/components/hotel/VoucherGroupedRequestCard";
 import { VoucherGroupSelectCheckbox } from "@/components/hotel/VoucherGroupSelectCheckbox";
 import { VoucherBatchToolbar } from "@/components/hotel/VoucherBatchToolbar";
-import { VoucherGroupApprovalActions } from "@/components/hotel/VoucherGroupApprovalActions";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useRejectionReasonDialog } from "@/hooks/useRejectionReasonDialog";
 import { notifyApiFailure } from "@/lib/actions";
@@ -106,8 +97,8 @@ export function HotelItemReceiptApprovals({
   );
 
   const groups = useMemo(
-    () => groupVoucherBatchesForQueue(items, needsAction),
-    [items, needsAction],
+    () => groupVoucherBatchesForQueue(pending, needsAction),
+    [pending, needsAction],
   );
 
   const allActionableIds = useMemo(
@@ -140,15 +131,23 @@ export function HotelItemReceiptApprovals({
         ? "Approve selected"
         : "Authorize selected";
 
-  const runOnSelected = async (
-    ids: number[],
-    fn: (row: ItemRegistration) => Promise<void>,
-  ) => {
-    const byId = new Map(items.map((i) => [i.id, i]));
-    for (const id of ids) {
-      const row = byId.get(id);
-      if (row && needsAction(row)) await fn(row);
+  const approveSelected = async (ids: number[], profileId?: number) => {
+    if (role === "CostControl") {
+      const pid = profileId ?? Number(effectiveCcProfileId);
+      if (!pid) {
+        toast.error("Select cost controller identity for batch");
+        return;
+      }
+      await checkItemRegistrationsCCBatchApi(ids, pid);
+    } else if (role === "Finance") {
+      await approveItemRegistrationsFinanceBatchApi(ids);
+    } else {
+      await authorizeItemRegistrationsManagerBatchApi(ids);
     }
+  };
+
+  const rejectSelected = async (ids: number[], reason: string) => {
+    await rejectItemRegistrationsRoleBatchApi(ids, reason, role);
   };
 
   if (pending.length === 0) {
@@ -175,51 +174,25 @@ export function HotelItemReceiptApprovals({
           pendingRejectKey={`reg-batch-r-${role}`}
           leading={
             role === "CostControl" && ccProfiles.length > 0 ? (
-              <div className="flex-1 min-w-[220px] space-y-1.5">
-                <Label className="text-xs text-muted-foreground">
-                  Cost controller identity for batch
-                </Label>
-                <Select
-                  value={effectiveCcProfileId || undefined}
-                  onValueChange={setCcProfileId}
-                >
-                  <SelectTrigger className="bg-background max-w-md">
-                    <SelectValue placeholder="Select your name" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ccProfiles.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <CostControllerIdentitySelect
+                profiles={ccProfiles}
+                value={effectiveCcProfileId}
+                onValueChange={setCcProfileId}
+                label="Cost controller identity for batch"
+                placeholder="Select your name"
+              />
             ) : null
           }
           onApproveSelected={() =>
             run(`reg-batch-a-${role}`, async () => {
               try {
-                if (role === "CostControl") {
-                  const pid = Number(effectiveCcProfileId);
-                  if (!pid) {
-                    toast.error("Select cost controller identity for batch");
-                    return;
-                  }
-                  await runOnSelected(selectedIds, (row) =>
-                    checkItemRegistrationCCApi(row.id, pid),
-                  );
-                } else if (role === "Finance") {
-                  await runOnSelected(selectedIds, (row) =>
-                    approveItemRegistrationFinanceApi(row.id),
-                  );
-                } else {
-                  await runOnSelected(selectedIds, (row) =>
-                    authorizeItemRegistrationManagerApi(row.id),
-                  );
-                }
+                const actionable = selectedIds.filter((id) => {
+                  const row = items.find((i) => i.id === id);
+                  return row && needsAction(row);
+                });
+                await approveSelected(actionable);
                 setSelectedIds([]);
-                onRefresh();
+                void onRefresh();
               } catch (e) {
                 notifyApiFailure(e, `${approveLabel} failed`);
               }
@@ -233,17 +206,13 @@ export function HotelItemReceiptApprovals({
                   description: `Provide a reason (${stakeholderLabel}). Applies to all selected lines.`,
                 });
                 if (!reason) return;
-                await runOnSelected(selectedIds, async (row) => {
-                  if (role === "CostControl") {
-                    await rejectItemRegistrationCCApi(row.id, reason);
-                  } else if (role === "Finance") {
-                    await rejectItemRegistrationFinanceApi(row.id, reason);
-                  } else {
-                    await rejectItemRegistrationManagerApi(row.id, reason);
-                  }
+                const actionable = selectedIds.filter((id) => {
+                  const row = items.find((i) => i.id === id);
+                  return row && needsAction(row);
                 });
+                await rejectSelected(actionable, reason);
                 setSelectedIds([]);
-                onRefresh();
+                void onRefresh();
               } catch (e) {
                 notifyApiFailure(e, "Rejection failed");
               }
@@ -293,69 +262,47 @@ export function HotelItemReceiptApprovals({
                       <Printer className="h-3.5 w-3.5 mr-1" />
                       Print voucher
                     </Button>
-                    <VoucherGroupApprovalActions
+                    <RegistrationVoucherApprovalActions
+                      role={role}
                       group={group}
                       groupKey={group.key}
                       needsAction={needsAction}
+                      profiles={ccProfiles}
+                      defaultProfileId={effectiveCcProfileId}
                       approveLabel={`${approveLabel}${approveSuffix}`}
                       isPending={isPending}
                       run={run}
                       rejectTitle="Reject item registration"
                       rejectDescription={`Provide a reason (${stakeholderLabel}). Applies to pending lines on this voucher.`}
                       requestRejectionReason={requestRejectionReason}
-                      onApprove={async (rows) => {
-                        if (role === "CostControl") {
-                          const pid = Number(effectiveCcProfileId);
-                          if (!pid) {
-                            toast.error("Select cost controller identity");
-                            throw new Error("Select cost controller identity");
-                          }
-                          for (const r of rows) {
-                            await checkItemRegistrationCCApi(r.id, pid);
-                          }
-                        } else if (role === "Finance") {
-                          for (const r of rows) {
-                            await approveItemRegistrationFinanceApi(r.id);
-                          }
-                        } else {
-                          for (const r of rows) {
-                            await authorizeItemRegistrationManagerApi(r.id);
-                          }
-                        }
-                        onRefresh();
+                      onApproveBatch={async (rows, profileId) => {
+                        await approveSelected(
+                          rows.map((r) => r.id),
+                          profileId,
+                        );
+                        void onRefresh();
                       }}
-                      onReject={async (rows, reason) => {
-                        for (const r of rows) {
-                          if (role === "CostControl") {
-                            await rejectItemRegistrationCCApi(r.id, reason);
-                          } else if (role === "Finance") {
-                            await rejectItemRegistrationFinanceApi(r.id, reason);
-                          } else {
-                            await rejectItemRegistrationManagerApi(r.id, reason);
-                          }
-                        }
-                        onRefresh();
+                      onRejectBatch={async (rows, reason) => {
+                        await rejectSelected(
+                          rows.map((r) => r.id),
+                          reason,
+                        );
+                        void onRefresh();
                       }}
                     />
                   </div>
                 }
-                lineLeading={(r) =>
-                  needsAction(r) ? (
-                    <Checkbox
-                      checked={selectedIds.includes(r.id)}
-                      onCheckedChange={(checked) => {
-                        setSelectedIds((prev) =>
-                          toggleIdsInSelection(
-                            [r.id],
-                            prev,
-                            checked === true,
-                          ),
-                        );
-                      }}
-                      aria-label={`Select registration ${r.name}`}
-                    />
-                  ) : null
-                }
+                lineLeading={(r) => (
+                  <Checkbox
+                    checked={selectedIds.includes(r.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedIds((prev) =>
+                        toggleIdsInSelection([r.id], prev, checked === true),
+                      );
+                    }}
+                    aria-label={`Select registration ${r.name}`}
+                  />
+                )}
                 renderLineStatus={(r) => (
                   <RegistrationLineStatusBadge
                     approvalStatus={r.approvalStatus ?? ""}

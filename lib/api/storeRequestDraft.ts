@@ -17,6 +17,7 @@ export async function updatePurchaseRequestStoreDraftApi(
     itemName?: string;
     quantity?: number;
     measuredBy?: string;
+    entranceDate?: Date | string;
     notes?: string;
     estimatedUnitPrice?: number;
     supplierName?: string;
@@ -33,6 +34,7 @@ export async function updatePurchaseRequestStoreDraftApi(
       $itemName: String
       $quantity: Float
       $measuredBy: String
+      $entranceDate: DateTime
       $notes: String
       $estimatedUnitPrice: Float
       $supplierName: String
@@ -45,6 +47,7 @@ export async function updatePurchaseRequestStoreDraftApi(
         itemName: $itemName
         quantity: $quantity
         measuredBy: $measuredBy
+        entranceDate: $entranceDate
         notes: $notes
         estimatedUnitPrice: $estimatedUnitPrice
         supplierName: $supplierName

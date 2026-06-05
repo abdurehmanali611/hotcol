@@ -422,12 +422,32 @@ export function StoreItemRegistrationReceipt({
           )}
         >
           {signatureBlocks.map((entry) => (
-            <div key={entry.label} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                {entry.label}
-              </p>
-              <div className="pt-6 border-b border-zinc-400" />
-              <p className="text-xs text-zinc-600 min-h-4">{entry.name || " "}</p>
+            <div key={entry.label} className="flex items-end gap-3 min-w-0">
+              <div className="shrink-0 min-w-22 max-w-36 space-y-0.5">
+                <p
+                  className={cn(
+                    "font-semibold uppercase tracking-wider text-zinc-500 leading-tight",
+                    isBulk ? "text-[9px]" : "text-[10px]",
+                  )}
+                >
+                  {entry.label}
+                </p>
+                <p
+                  className={cn(
+                    "font-medium text-zinc-700 leading-tight wrap-break-word",
+                    isBulk ? "text-[10px]" : "text-xs",
+                  )}
+                >
+                  {entry.name?.trim() || "—"}
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "flex-1 min-w-10 border-b-2 border-zinc-400",
+                  isBulk ? "mb-0.5 h-4" : "mb-1 h-5",
+                )}
+                aria-label={`${entry.label} signature`}
+              />
             </div>
           ))}
         </div>

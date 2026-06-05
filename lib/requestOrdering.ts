@@ -15,14 +15,17 @@ export type FifoRow = {
   id?: number;
   createdAt?: string | null;
   registrationDate?: string | Date | null;
+  entranceDate?: string | Date | null;
 };
 
 /** Earliest-first timestamp for queue ordering. */
 export function requestFifoTimestamp(row: FifoRow): number {
-  const created = new Date(row.createdAt ?? "").getTime();
-  if (!Number.isNaN(created) && created > 0) return created;
+  const entrance = new Date(row.entranceDate ?? "").getTime();
+  if (!Number.isNaN(entrance) && entrance > 0) return entrance;
   const reg = new Date(row.registrationDate ?? "").getTime();
   if (!Number.isNaN(reg) && reg > 0) return reg;
+  const created = new Date(row.createdAt ?? "").getTime();
+  if (!Number.isNaN(created) && created > 0) return created;
   return 0;
 }
 
@@ -57,7 +60,7 @@ export type VoucherGroup<T extends VoucherLike & FifoRow> = {
 
 /**
  * Group by voucher for approval queues: if any line on a voucher needs action,
- * show the whole batch (siblings may already be checked / rejected / approved).
+ * include only those lines still awaiting this queue (hide siblings already checked).
  */
 export function groupVoucherBatchesForQueue<T extends VoucherLike & FifoRow & { id: number }>(
   allRows: T[],
@@ -72,6 +75,7 @@ export function groupVoucherBatchesForQueue<T extends VoucherLike & FifoRow & { 
 
   const byKey = new Map<string, T[]>();
   for (const row of sorted) {
+    if (!needsAction(row)) continue;
     const key = voucherGroupKey(row);
     if (!actionableKeys.has(key)) continue;
     const bucket = byKey.get(key) ?? [];

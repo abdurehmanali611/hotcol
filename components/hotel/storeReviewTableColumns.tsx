@@ -29,6 +29,7 @@ import {
   StockLineStatusBadge,
 } from "@/components/hotel/voucherQueueLineStatus";
 import { Pencil, Trash2 } from "lucide-react";
+import { buildPurchaseEntranceDateColumn } from "@/lib/dataTableColumns/purchaseRequests";
 
 function formatWhen(iso: string | Date | null | undefined) {
   if (!iso) return "—";
@@ -145,6 +146,7 @@ export function buildPurchaseReviewColumns({
         </span>
       ),
     },
+    buildPurchaseEntranceDateColumn(),
     {
       id: "requestedBy",
       header: "Requested by",

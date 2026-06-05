@@ -6,7 +6,8 @@ import {
   VoucherGroupedRequestCard,
 } from "@/components/hotel/VoucherGroupedRequestCard";
 import { VoucherGroupSelectCheckbox } from "@/components/hotel/VoucherGroupSelectCheckbox";
-import { VoucherGroupApprovalActions } from "@/components/hotel/VoucherGroupApprovalActions";
+import { CostControlVoucherApprovalActions } from "@/components/hotel/CostControlVoucherApprovalActions";
+import type { CostControllerProfileRow } from "@/lib/api/types";
 import {
   PurchaseLineStatusBadge,
   StockLineStatusBadge,
@@ -50,7 +51,8 @@ export function CostControlPurchaseVoucherGroups({
   isCcPending,
   runCcAction,
   requestRejectionReason,
-  batchCcProfileId,
+  profiles,
+  defaultProfileId,
   onCheckVoucher,
   onRejectVoucher,
 }: {
@@ -60,9 +62,14 @@ export function CostControlPurchaseVoucherGroups({
   isCcPending: (key: string) => boolean;
   runCcAction: (key: string, fn: () => Promise<void>) => void;
   requestRejectionReason: RejectPrompt;
-  batchCcProfileId: string;
+  profiles: CostControllerProfileRow[];
+  defaultProfileId: string;
   onCheckVoucher: (rows: PurchaseRequestRow[], profileId: number) => Promise<void>;
-  onRejectVoucher: (rows: PurchaseRequestRow[], reason: string) => Promise<void>;
+  onRejectVoucher: (
+    rows: PurchaseRequestRow[],
+    reason: string,
+    profileId: number,
+  ) => Promise<void>;
 }) {
   const groups = groupVoucherBatchesForQueue(purchases, prNeedsCc);
 
@@ -89,19 +96,17 @@ export function CostControlPurchaseVoucherGroups({
                 onSelectedIdsChange={setSelectedIds}
               />
             }
-            lineLeading={(r) =>
-              prNeedsCc(r) ? (
-                <Checkbox
-                  checked={selectedIds.includes(r.id)}
-                  onCheckedChange={(checked) => {
-                    setSelectedIds((prev) =>
-                      toggleIdsInSelection([r.id], prev, checked === true),
-                    );
-                  }}
-                  aria-label={`Select purchase ${r.itemName}`}
-                />
-              ) : null
-            }
+            lineLeading={(r) => (
+              <Checkbox
+                checked={selectedIds.includes(r.id)}
+                onCheckedChange={(checked) => {
+                  setSelectedIds((prev) =>
+                    toggleIdsInSelection([r.id], prev, checked === true),
+                  );
+                }}
+                aria-label={`Select purchase ${r.itemName}`}
+              />
+            )}
             renderLineStatus={(r) => (
               <PurchaseLineStatusBadge status={r.status} />
             )}
@@ -116,28 +121,20 @@ export function CostControlPurchaseVoucherGroups({
               </span>
             )}
             actions={
-              <VoucherGroupApprovalActions
+              <CostControlVoucherApprovalActions
                 group={group}
                 groupKey={group.key}
                 needsAction={prNeedsCc}
+                profiles={profiles}
+                defaultProfileId={defaultProfileId}
                 approveLabel="Check → finance"
                 isPending={isCcPending}
                 run={runCcAction}
                 rejectTitle="Reject purchase request"
                 rejectDescription="Provide a reason for the store team. Applies to pending lines on this voucher."
                 requestRejectionReason={requestRejectionReason}
-                onApprove={async (rows) => {
-                  const pid = Number(batchCcProfileId);
-                  if (!pid) {
-                    const { toast } = await import("sonner");
-                    toast.error("Select cost controller identity for batch");
-                    throw new Error("Select cost controller identity");
-                  }
-                  await onCheckVoucher(rows, pid);
-                }}
-                onReject={async (rows, reason) => {
-                  await onRejectVoucher(rows, reason);
-                }}
+                onCheckVoucher={onCheckVoucher}
+                onRejectVoucher={onRejectVoucher}
               />
             }
           />
@@ -155,7 +152,8 @@ export function CostControlStockVoucherGroups({
   isCcPending,
   runCcAction,
   requestRejectionReason,
-  batchCcProfileId,
+  profiles,
+  defaultProfileId,
   onCheckVoucher,
   onRejectVoucher,
 }: {
@@ -166,9 +164,14 @@ export function CostControlStockVoucherGroups({
   isCcPending: (key: string) => boolean;
   runCcAction: (key: string, fn: () => Promise<void>) => void;
   requestRejectionReason: RejectPrompt;
-  batchCcProfileId: string;
+  profiles: CostControllerProfileRow[];
+  defaultProfileId: string;
   onCheckVoucher: (rows: StockOutRequestRow[], profileId: number) => Promise<void>;
-  onRejectVoucher: (rows: StockOutRequestRow[], reason: string) => Promise<void>;
+  onRejectVoucher: (
+    rows: StockOutRequestRow[],
+    reason: string,
+    profileId: number,
+  ) => Promise<void>;
 }) {
   const unitPriceLookup = unitPriceByRegistrationIdFromInventory(inventoryItems);
   const groups = groupVoucherBatchesForQueue(stocks, soNeedsCc);
@@ -199,19 +202,17 @@ export function CostControlStockVoucherGroups({
                 onSelectedIdsChange={setSelectedIds}
               />
             }
-            lineLeading={(r) =>
-              soNeedsCc(r) ? (
-                <Checkbox
-                  checked={selectedIds.includes(r.id)}
-                  onCheckedChange={(checked) => {
-                    setSelectedIds((prev) =>
-                      toggleIdsInSelection([r.id], prev, checked === true),
-                    );
-                  }}
-                  aria-label={`Select movement ${r.itemName || r.id}`}
-                />
-              ) : null
-            }
+            lineLeading={(r) => (
+              <Checkbox
+                checked={selectedIds.includes(r.id)}
+                onCheckedChange={(checked) => {
+                  setSelectedIds((prev) =>
+                    toggleIdsInSelection([r.id], prev, checked === true),
+                  );
+                }}
+                aria-label={`Select movement ${r.itemName || r.id}`}
+              />
+            )}
             renderLineStatus={(r) => (
               <StockLineStatusBadge status={r.status} />
             )}
@@ -229,28 +230,20 @@ export function CostControlStockVoucherGroups({
               );
             }}
             actions={
-              <VoucherGroupApprovalActions
+              <CostControlVoucherApprovalActions
                 group={group}
                 groupKey={group.key}
                 needsAction={soNeedsCc}
+                profiles={profiles}
+                defaultProfileId={defaultProfileId}
                 approveLabel="Check → finance"
                 isPending={isCcPending}
                 run={runCcAction}
                 rejectTitle="Reject stock movement"
                 rejectDescription="Provide a reason for the store team. Applies to pending lines on this voucher."
                 requestRejectionReason={requestRejectionReason}
-                onApprove={async (rows) => {
-                  const pid = Number(batchCcProfileId);
-                  if (!pid) {
-                    const { toast } = await import("sonner");
-                    toast.error("Select cost controller identity for batch");
-                    throw new Error("Select cost controller identity");
-                  }
-                  await onCheckVoucher(rows, pid);
-                }}
-                onReject={async (rows, reason) => {
-                  await onRejectVoucher(rows, reason);
-                }}
+                onCheckVoucher={onCheckVoucher}
+                onRejectVoucher={onRejectVoucher}
               />
             }
           />

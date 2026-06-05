@@ -10,6 +10,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
+import { formatPurchaseEntranceDate } from "@/lib/purchaseRequestDates";
+import { requestFifoTimestamp } from "@/lib/requestOrdering";
 
 function purchaseBadgeVariant(
   status: string,
@@ -28,10 +30,25 @@ function formatWhen(iso: string | null | undefined) {
   });
 }
 
+/** FIFO sort column — id `submitted` matches shared FIFO_TABLE_SORT. */
+export function buildPurchaseEntranceDateColumn(): ColumnDef<PurchaseRequestRow> {
+  return {
+    id: "submitted",
+    header: "Entrance date",
+    accessorFn: (row) => requestFifoTimestamp(row),
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+        {formatPurchaseEntranceDate(row.original)}
+      </span>
+    ),
+  };
+}
+
 /** Store user's own purchase requests (status tab). */
 export function buildStoreMyPurchaseColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
     buildVoucherColumn<PurchaseRequestRow>(),
+    buildPurchaseEntranceDateColumn(),
     {
       accessorKey: "itemName",
       header: "Item",
@@ -120,15 +137,7 @@ export function buildPurchaseRequestDashboardColumns(): ColumnDef<PurchaseReques
       accessorKey: "storeUserName",
       header: "Store user",
     },
-    {
-      id: "when",
-      header: "When",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {new Date(row.original.createdAt).toLocaleString()}
-        </span>
-      ),
-    },
+    buildPurchaseEntranceDateColumn(),
   ];
 }
 
@@ -187,14 +196,6 @@ export function buildPurchaseRequestReportColumns(): ColumnDef<PurchaseRequestRo
         return "—";
       },
     },
-    {
-      id: "created",
-      header: "Created",
-      cell: ({ row }) => (
-        <span className="text-sm">
-          {new Date(row.original.createdAt).toLocaleString()}
-        </span>
-      ),
-    },
+    buildPurchaseEntranceDateColumn(),
   ];
 }
