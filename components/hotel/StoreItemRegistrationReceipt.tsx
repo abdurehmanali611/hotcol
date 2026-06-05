@@ -241,57 +241,81 @@ export function StoreItemRegistrationReceipt({
 
       <div className="mx-8 h-1 rounded-full bg-linear-to-r from-emerald-600 via-emerald-400 to-teal-500 print:mx-6" />
 
-      {isMulti ? (
+      <div
+        className={cn(
+          "px-8 py-6 print:px-6 space-y-2.5 text-sm",
+          isBulk && "px-4 py-2 print:px-3 print:py-1.5",
+        )}
+      >
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+          Supplier
+        </h3>
         <div
           className={cn(
-            "px-8 py-6 print:px-6 space-y-3",
-            isBulk && "px-4 py-2 print:px-3 print:py-1.5",
+            "rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 space-y-1.5",
+            isBulk && "p-3 print:p-2",
           )}
         >
-          <table
-            className={cn(
-              "w-full text-sm border-collapse",
-              isBulk && "text-xs print:text-[10px]",
-            )}
-          >
-            <thead>
-              <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
-                <th className="py-2 pr-2">Voucher</th>
-                <th className="py-2 pr-2">Item</th>
-                <th className="py-2 pr-2 text-right">Qty</th>
-                <th className="py-2 pr-2 text-right">Unit</th>
-                <th className="py-2 text-right">Line total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((line) => (
-                <tr key={line.id} className="border-b border-zinc-100">
-                  <td className="py-2.5 pr-2 font-mono text-xs text-zinc-600">
-                    {line.voucherDisplay || line.voucherNumber || "-"}
-                  </td>
-                  <td className="py-2.5 pr-2">
-                    <p className="font-medium">{line.name}</p>
-                    {line.notes ? (
-                      <p className="text-[11px] text-zinc-500 mt-0.5">{line.notes}</p>
-                    ) : null}
-                  </td>
-                  <td className="py-2.5 pr-2 text-right tabular-nums text-zinc-600">
-                    {formatQtyWithUnit(line.quantity, line.measuredBy)}
-                  </td>
-                  <td className="py-2.5 pr-2 text-right tabular-nums">
-                    {line.unitPrice != null ? line.unitPrice.toLocaleString() : "-"}
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums font-medium">
-                    {line.lineTotal != null ? line.lineTotal.toLocaleString() : "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <p className="font-semibold text-base">{resolvedBundle.supplierName || "-"}</p>
+          <p className="text-zinc-600">{resolvedBundle.supplierPhone || "-"}</p>
+          <p className="text-zinc-600 leading-snug">{resolvedBundle.supplierAddress || "-"}</p>
+          {resolvedBundle.supplierTinNumber?.trim() ? (
+            <p className="text-zinc-600 font-medium">
+              TIN: {resolvedBundle.supplierTinNumber.trim()}
+            </p>
+          ) : null}
         </div>
-      ) : (
-        <>
-          <div className="px-8 py-6 print:px-6">
+      </div>
+
+      <Separator className="mx-8 bg-zinc-200 print:mx-6" />
+
+      <div className="px-8 py-6 grid grid-cols-2 gap-8 text-sm print:px-6">
+        <section className="space-y-2.5">
+          <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+            Item{isMulti ? "s" : ""}
+          </h3>
+          {isMulti ? (
+            <table
+              className={cn(
+                "w-full text-sm border-collapse",
+                isBulk && "text-xs print:text-[10px]",
+              )}
+            >
+              <thead>
+                <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                  <th className="py-2 pr-2">Voucher</th>
+                  <th className="py-2 pr-2">Item</th>
+                  <th className="py-2 pr-2 text-right">Qty</th>
+                  <th className="py-2 pr-2 text-right">Unit</th>
+                  <th className="py-2 text-right">Line total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line) => (
+                  <tr key={line.id} className="border-b border-zinc-100">
+                    <td className="py-2.5 pr-2 font-mono text-xs text-zinc-600">
+                      {line.voucherDisplay || line.voucherNumber || "-"}
+                    </td>
+                    <td className="py-2.5 pr-2">
+                      <p className="font-medium">{line.name}</p>
+                      {line.notes ? (
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{line.notes}</p>
+                      ) : null}
+                    </td>
+                    <td className="py-2.5 pr-2 text-right tabular-nums text-zinc-600">
+                      {formatQtyWithUnit(line.quantity, line.measuredBy)}
+                    </td>
+                    <td className="py-2.5 pr-2 text-right tabular-nums">
+                      {line.unitPrice != null ? line.unitPrice.toLocaleString() : "-"}
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums font-medium">
+                      {line.lineTotal != null ? line.lineTotal.toLocaleString() : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
             <div
               className={cn(
                 "flex gap-5 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4",
@@ -318,7 +342,14 @@ export function StoreItemRegistrationReceipt({
                 )}
               </div>
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                <h2 className="text-2xl font-bold tracking-tight">{primary.name}</h2>
+                <h2
+                  className={cn(
+                    "text-2xl font-bold tracking-tight",
+                    isBulk && "text-lg print:text-base",
+                  )}
+                >
+                  {primary.name}
+                </h2>
                 <p className="text-sm text-zinc-600">
                   {formatQtyWithUnit(primary.quantity, primary.measuredBy)}
                   {primary.unitPrice != null
@@ -338,25 +369,7 @@ export function StoreItemRegistrationReceipt({
                 ) : null}
               </div>
             </div>
-          </div>
-
-          <Separator className="mx-8 bg-zinc-200 print:mx-6" />
-        </>
-      )}
-
-      <div className="px-8 py-6 grid grid-cols-2 gap-8 text-sm print:px-6">
-        <section className="space-y-2.5">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-            Supplier
-          </h3>
-          <p className="font-semibold text-base">{resolvedBundle.supplierName || "-"}</p>
-          <p className="text-zinc-600">{resolvedBundle.supplierPhone || "-"}</p>
-          <p className="text-zinc-600 leading-snug">{resolvedBundle.supplierAddress || "-"}</p>
-          {resolvedBundle.supplierTinNumber?.trim() ? (
-            <p className="text-zinc-600 font-medium">
-              TIN: {resolvedBundle.supplierTinNumber.trim()}
-            </p>
-          ) : null}
+          )}
         </section>
         <section className="space-y-2.5">
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">

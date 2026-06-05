@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { CostControllerIdentitySelect } from "@/components/hotel/CostControllerIdentitySelect";
 import { VoucherGroupApprovalActions } from "@/components/hotel/VoucherGroupApprovalActions";
@@ -48,16 +48,11 @@ export function CostControlVoucherApprovalActions<T extends RowWithId>({
   ) => Promise<void>;
 }) {
   const selectId = useId();
-  const [profileId, setProfileId] = useState(defaultProfileId);
-
-  useEffect(() => {
-    if (defaultProfileId && !profileId) {
-      setProfileId(defaultProfileId);
-    }
-  }, [defaultProfileId, profileId]);
+  const [profileId, setProfileId] = useState("");
+  const resolvedProfileId = profileId || defaultProfileId;
 
   const requireProfileId = (): number => {
-    const pid = Number(profileId);
+    const pid = Number(resolvedProfileId);
     if (!pid) {
       toast.error("Select your cost controller identity for this voucher");
       throw new Error("Select cost controller identity");
@@ -80,7 +75,7 @@ export function CostControlVoucherApprovalActions<T extends RowWithId>({
         <CostControllerIdentitySelect
           id={selectId}
           profiles={profiles}
-          value={profileId}
+          value={resolvedProfileId}
           onValueChange={setProfileId}
           label="Cost controller for this voucher"
           placeholder="Select your name"

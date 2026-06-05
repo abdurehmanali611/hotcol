@@ -1287,8 +1287,10 @@ function CostControlInner() {
               <CardContent className="pt-0 pb-6 px-3 sm:px-6">
                 <Inactive
                   items={statusRows}
+                  stockMovements={stocks}
                   admin={false}
                   hotelName={tenantScope}
+                  logoUrl={logoUrl}
                   embedded
                 />
               </CardContent>

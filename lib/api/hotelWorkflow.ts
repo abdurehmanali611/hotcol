@@ -402,6 +402,7 @@ export async function createStockOutRequestApi(
     movementType: string;
     amount: number;
     stakeHolderOrReason: string;
+    requestedByDepartment: string;
   },
   options?: { suppressSuccessToast?: boolean },
 ) {
@@ -411,12 +412,14 @@ export async function createStockOutRequestApi(
       $movementType: String!
       $amount: Float!
       $stakeHolderOrReason: String!
+      $requestedByDepartment: String!
     ) {
       createStockOutRequest(
         itemRegistrationId: $itemRegistrationId
         movementType: $movementType
         amount: $amount
         stakeHolderOrReason: $stakeHolderOrReason
+        requestedByDepartment: $requestedByDepartment
       ) {
         id
         status

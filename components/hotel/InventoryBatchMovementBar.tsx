@@ -54,8 +54,8 @@ type LineDraft = {
 };
 
 function defaultAmountForRow(row: ItemRegistration): string {
-  const maxMovable = Math.max(0, Number(row.amount) - 1);
-  const def = Math.min(1, maxMovable || 0);
+  const onHand = Math.max(0, Number(row.amount) || 0);
+  const def = Math.min(1, onHand);
   return def > 0 ? String(def) : "0";
 }
 
@@ -131,9 +131,9 @@ export function InventoryBatchMovementBar({
           toast.error(`Enter a valid quantity for “${line.itemName}”.`);
           return;
         }
-        if (row.amount - q < 1) {
+        if (q > row.amount) {
           toast.error(
-            `“${line.itemName}”: leave at least 1 unit on hand (reduce quantity).`,
+            `“${line.itemName}”: quantity cannot exceed ${row.amount} on hand.`,
           );
           return;
         }

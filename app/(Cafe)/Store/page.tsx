@@ -647,6 +647,7 @@ export function StoreComponent({
               items={itemStatus}
               admin={false}
               hotelName={hotelInventory ? inventoryTenantKey : tenantScope}
+              logoUrl={logoUrl}
             />
           </div>
         ) : (

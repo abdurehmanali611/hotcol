@@ -250,4 +250,327 @@
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
+  .inactive-audit-print-root {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    background: #fff;
+    color: #18181b;
+  }
+
+  .inactive-audit-print-sheet {
+    width: 210mm;
+    min-height: auto;
+    padding: 8mm 7mm 10mm;
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  }
+
+  .inactive-audit-print-brand-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .inactive-audit-print-brand-left {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .inactive-audit-print-hotel-logo {
+    width: 14mm;
+    height: 14mm;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 2px solid rgb(5 150 105 / 0.25);
+    background: #fff;
+  }
+
+  .inactive-audit-print-hotel-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .inactive-audit-print-hotel-logo--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ecfdf5;
+    color: #065f46;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .inactive-audit-print-brand-copy {
+    min-width: 0;
+  }
+
+  .inactive-audit-print-eyebrow {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #047857;
+    margin: 0 0 3px;
+  }
+
+  .inactive-audit-print-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.2;
+    color: #18181b;
+  }
+
+  .inactive-audit-print-property {
+    font-size: 10px;
+    font-weight: 600;
+    color: #27272a;
+    margin: 4px 0 0;
+  }
+
+  .inactive-audit-print-tin {
+    font-size: 9px;
+    color: #52525b;
+    margin: 2px 0 0;
+  }
+
+  .inactive-audit-print-brand-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .inactive-audit-print-hotcol-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    background: #fafafa;
+    padding: 4px 8px;
+  }
+
+  .inactive-audit-print-hotcol-logo {
+    width: 7mm;
+    height: 7mm;
+    border-radius: 4px;
+    object-fit: cover;
+  }
+
+  .inactive-audit-print-hotcol-name {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #52525b;
+  }
+
+  .inactive-audit-print-meta {
+    font-size: 7px;
+    color: #71717a;
+    text-align: right;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .inactive-audit-print-divider {
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(to right, #059669, #34d399, #14b8a6);
+    margin-bottom: 8px;
+  }
+
+  .inactive-audit-print-filters {
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    background: #fafafa;
+    padding: 7px 9px;
+    margin-bottom: 8px;
+  }
+
+  .inactive-audit-print-filters-title {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #71717a;
+    margin: 0 0 5px;
+  }
+
+  .inactive-audit-print-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px 8px;
+    margin: 0;
+  }
+
+  .inactive-audit-print-filter-item dt {
+    font-size: 6.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #a1a1aa;
+    margin: 0;
+  }
+
+  .inactive-audit-print-filter-item dd {
+    font-size: 8.5px;
+    font-weight: 600;
+    color: #18181b;
+    margin: 1px 0 0;
+  }
+
+  .inactive-audit-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7.5px;
+    line-height: 1.35;
+    margin-bottom: 8px;
+  }
+
+  .inactive-audit-print-table thead {
+    display: table-header-group;
+  }
+
+  .inactive-audit-print-table th,
+  .inactive-audit-print-table td {
+    border: 1px solid #d4d4d8;
+    padding: 2.5px 3.5px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .inactive-audit-print-table th {
+    background: #f4f4f5;
+    font-weight: 700;
+    font-size: 6.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .inactive-audit-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .inactive-audit-print-empty {
+    text-align: center;
+    font-style: italic;
+    color: #71717a;
+    padding: 14px !important;
+  }
+
+  .inactive-audit-print-summary {
+    margin-bottom: 8px;
+  }
+
+  .inactive-audit-print-summary-title {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #71717a;
+    margin: 0 0 4px;
+  }
+
+  .inactive-audit-print-summary-box {
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    background: #fff;
+    padding: 6px 8px;
+  }
+
+  .inactive-audit-print-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 8px;
+    color: #52525b;
+    padding: 2px 0;
+  }
+
+  .inactive-audit-print-summary-row--emphasis {
+    font-weight: 700;
+    color: #047857;
+  }
+
+  .inactive-audit-print-summary-row--grand {
+    font-size: 9px;
+    font-weight: 700;
+    color: #065f46;
+  }
+
+  .inactive-audit-print-summary-divider {
+    height: 1px;
+    background: #e4e4e7;
+    margin: 4px 0;
+  }
+
+  .inactive-audit-print-apex-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    border: 1px solid rgb(16 185 129 / 0.35);
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ecfdf5, #fff 55%, #fffbeb);
+    padding: 6px 8px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .inactive-audit-print-apex-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .inactive-audit-print-apex-logo-wrap {
+    border: 1px solid #d1fae5;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.9);
+    padding: 3px 5px;
+  }
+
+  .inactive-audit-print-apex-logo {
+    height: 8mm;
+    width: auto;
+    max-width: 28mm;
+    object-fit: contain;
+  }
+
+  .inactive-audit-print-apex-name {
+    font-size: 8px;
+    font-weight: 700;
+    color: #064e3b;
+    margin: 0;
+  }
+
+  .inactive-audit-print-apex-site {
+    font-size: 7px;
+    color: #047857;
+    margin: 1px 0 0;
+  }
+
+  .inactive-audit-print-apex-right {
+    text-align: right;
+    font-size: 7px;
+    color: #52525b;
+    line-height: 1.35;
+  }
+
+  .inactive-audit-print-hotcol-inline {
+    font-weight: 700;
+    color: #065f46;
+  }
 }

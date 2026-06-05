@@ -54,6 +54,8 @@ import {
 import { cn } from "@/lib/utils";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
+import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 import { ColumnDef } from "@tanstack/react-table";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
@@ -375,6 +377,7 @@ const StockOut = ({
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
+  const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const { isPending, run } = useConcurrentActions();
   const actionKey = `stock-out-${data.id}`;
   const submitting = isPending(actionKey);
@@ -384,10 +387,12 @@ const StockOut = ({
       toast.error("Select or enter where stock is going");
       return;
     }
-    if (hotelStockApprovals && data.amount - amountDeduct < 1) {
-      toast.error(
-        "At least 1 unit must remain in stock. Reduce the quantity.",
-      );
+    if (hotelStockApprovals && !requestedByDepartment.trim()) {
+      toast.error("Select the requesting department");
+      return;
+    }
+    if (hotelStockApprovals && amountDeduct > data.amount) {
+      toast.error("Quantity cannot exceed stock on hand.");
       return;
     }
     void run(actionKey, async () => {
@@ -398,6 +403,7 @@ const StockOut = ({
             movementType: "STOCK_OUT",
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
+            requestedByDepartment: requestedByDepartment.trim(),
           });
           const user =
             typeof window !== "undefined"
@@ -477,7 +483,15 @@ const StockOut = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            {hotelStockApprovals ? (
+              <DepartmentLeaderSelect
+                label="Requested by"
+                value={requestedByDepartment}
+                onChange={setRequestedByDepartment}
+                allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+              />
+            ) : null}
             <Select
               value={statusBy}
               onValueChange={(value) => setStatusBy(value)}
@@ -503,6 +517,7 @@ const StockOut = ({
               onChange={(e) => setAmountDeduct(Number(e.target.value))}
               placeholder="Enter amount..."
               className="h-fit p-2 w-full rounded-md"
+              max={hotelStockApprovals ? data.amount : undefined}
             />
           </div>
           <div className="flex items-center justify-end gap-7">
@@ -547,6 +562,7 @@ const Wastage = ({
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
+  const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const { isPending, run } = useConcurrentActions();
   const actionKey = `wastage-${data.id}`;
   const submitting = isPending(actionKey);
@@ -556,10 +572,12 @@ const Wastage = ({
       toast.error("Enter a short reason for wastage");
       return;
     }
-    if (hotelStockApprovals && data.amount - amountDeduct < 1) {
-      toast.error(
-        "At least 1 unit must remain in stock. Reduce the quantity.",
-      );
+    if (hotelStockApprovals && !requestedByDepartment.trim()) {
+      toast.error("Select the requesting department");
+      return;
+    }
+    if (hotelStockApprovals && amountDeduct > data.amount) {
+      toast.error("Quantity cannot exceed stock on hand.");
       return;
     }
     void run(actionKey, async () => {
@@ -570,6 +588,7 @@ const Wastage = ({
             movementType: "WASTAGE",
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
+            requestedByDepartment: requestedByDepartment.trim(),
           });
           const user =
             typeof window !== "undefined"
@@ -649,7 +668,15 @@ const Wastage = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            {hotelStockApprovals ? (
+              <DepartmentLeaderSelect
+                label="Requested by"
+                value={requestedByDepartment}
+                onChange={setRequestedByDepartment}
+                allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+              />
+            ) : null}
             <Label htmlFor="Reason">Reason:</Label>
             <Input
               type="text"
@@ -665,6 +692,7 @@ const Wastage = ({
               onChange={(e) => setAmountDeduct(Number(e.target.value))}
               placeholder="Enter amount..."
               className="h-fit p-2 w-full rounded-md"
+              max={hotelStockApprovals ? data.amount : undefined}
             />
           </div>
           <div className="flex items-center justify-end gap-7">
@@ -709,6 +737,7 @@ const Returned = ({
   const [open, setOpen] = useState(false);
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
+  const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const { isPending, run } = useConcurrentActions();
   const actionKey = `return-${data.id}`;
   const submitting = isPending(actionKey);
@@ -718,10 +747,12 @@ const Returned = ({
       toast.error("Enter the return reason / reference");
       return;
     }
-    if (hotelStockApprovals && data.amount - amountDeduct < 1) {
-      toast.error(
-        "At least 1 unit must remain in stock. Reduce the quantity.",
-      );
+    if (hotelStockApprovals && !requestedByDepartment.trim()) {
+      toast.error("Select the requesting department");
+      return;
+    }
+    if (hotelStockApprovals && amountDeduct > data.amount) {
+      toast.error("Quantity cannot exceed stock on hand.");
       return;
     }
     void run(actionKey, async () => {
@@ -732,6 +763,7 @@ const Returned = ({
             movementType: "RETURN_SUPPLIER",
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
+            requestedByDepartment: requestedByDepartment.trim(),
           });
           const user =
             typeof window !== "undefined"
@@ -811,7 +843,15 @@ const Returned = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            {hotelStockApprovals ? (
+              <DepartmentLeaderSelect
+                label="Requested by"
+                value={requestedByDepartment}
+                onChange={setRequestedByDepartment}
+                allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+              />
+            ) : null}
             <Label htmlFor="Reason">Reason:</Label>
             <Input
               type="text"
@@ -827,6 +867,7 @@ const Returned = ({
               onChange={(e) => setAmountDeduct(Number(e.target.value))}
               placeholder="Enter amount..."
               className="h-fit p-2 w-full rounded-md"
+              max={hotelStockApprovals ? data.amount : undefined}
             />
           </div>
           <div className="flex items-center justify-end gap-7">

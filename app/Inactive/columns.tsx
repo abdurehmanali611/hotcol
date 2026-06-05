@@ -39,6 +39,8 @@ export type itemStatus = {
   HotelName: string;
   voucherNumber?: number | null;
   voucherDisplay?: string | null;
+  movementDepartmentLabel?: string;
+  movementType?: string;
 };
 
 async function handleDelete(id: number) {
@@ -180,6 +182,19 @@ export const columns = (
         </div>
       </div>
     ),
+  },
+  {
+    id: "department",
+    header: "Department",
+    cell: ({ row }) => {
+      const label = row.original.movementDepartmentLabel?.trim();
+      if (!label) {
+        return <span className="text-xs text-muted-foreground">—</span>;
+      }
+      return (
+        <span className="text-xs font-medium text-foreground/85">{label}</span>
+      );
+    },
   },
   {
     accessorKey: "status",
