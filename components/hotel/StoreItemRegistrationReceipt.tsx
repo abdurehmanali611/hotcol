@@ -134,8 +134,10 @@ export function StoreItemRegistrationReceipt({
   const property = (propertyName || "Property").trim() || "Property";
   const tin = (propertyTin || "").trim();
   const totalPaidLabel = resolvedBundle.paymentLabel || "-";
-  const isGoodsReceiving = resolvedBundle.kind === "registration";
-  const financials = isGoodsReceiving
+  const showVatBreakdown =
+    resolvedBundle.kind === "registration" ||
+    resolvedBundle.kind === "purchase_request";
+  const financials = showVatBreakdown
     ? summarizeReceiptFinancials(lines)
     : null;
   const formatEtb = (n: number) =>
@@ -389,7 +391,7 @@ export function StoreItemRegistrationReceipt({
               </p>
             )}
             <Separator className="bg-zinc-200" />
-            {isGoodsReceiving && financials ? (
+            {showVatBreakdown && financials ? (
               <>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-600">Subtotal</span>
