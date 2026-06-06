@@ -49,6 +49,7 @@ import {
   Store,
   Building2,
   Receipt,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
@@ -81,6 +82,7 @@ import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
+import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
@@ -88,6 +90,7 @@ type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials"
 const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
   "create-item": ["items"],
   "update-item": ["items"],
+  "station-prep-qty": ["items"],
   "grant-credential": ["credentials"],
   "waiter-table": ["waiters", "tables"],
   "update-credential": ["credentials"],
@@ -287,6 +290,7 @@ function AdminDashboardContent() {
     Store,
     Building2,
     Receipt,
+    ClipboardList,
   };
 
   const tenantModules = useTenantModules();
@@ -418,6 +422,14 @@ function AdminDashboardContent() {
             onImageUpload={uploadImage}
           />
           </div>
+        );
+      case "station-prep-qty":
+        return (
+          <CafeAdminStationPrepQtyPanel
+            items={items}
+            hotelName={tenantScope}
+            onRefresh={() => loadData(true)}
+          />
         );
       case "grant-credential":
         return (

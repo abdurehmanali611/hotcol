@@ -29,6 +29,7 @@ export async function fetchItems(): Promise<Item[]> {
           category
           type
           imageUrl
+          showStationPrepQty
           createdAt
         }
       }
@@ -118,6 +119,41 @@ export async function updateItem(itemData: UpdateItemData) {
     return response.data;
   } catch (error: any) {
     toast.error("Unable to update item. Please try again.");
+    throw error;
+  }
+}
+
+export async function updateItemStationPrepQty(
+  id: number,
+  showStationPrepQty: boolean,
+) {
+  try {
+    const mutation = `
+      mutation UpdateItemStationPrepQty($id: Int!, $showStationPrepQty: Boolean!) {
+        UpdateItemStationPrepQty(id: $id, showStationPrepQty: $showStationPrepQty) {
+          id
+          name
+          showStationPrepQty
+        }
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id, showStationPrepQty },
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message ||
+          "Failed to update prep quantity display",
+      );
+    }
+
+    invalidateGraphqlListCache("catalog:items");
+    return response.data.data.UpdateItemStationPrepQty;
+  } catch (error: any) {
+    toast.error("Unable to update prep quantity display. Please try again.");
     throw error;
   }
 }

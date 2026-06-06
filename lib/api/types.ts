@@ -63,6 +63,8 @@ export interface Item {
   category: string;
   type: string;
   imageUrl: string;
+  /** When true, kitchen/bar prep summary aggregates quantity for this item. */
+  showStationPrepQty?: boolean;
   createdAt: Date;
 }
 

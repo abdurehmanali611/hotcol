@@ -412,6 +412,7 @@ export type CafeStationPrepItem = {
 /** Sum pending station lines by item title (e.g. 2 + 4 burgers → 6 burgers). */
 export function aggregateCafeStationPrepByTitle(
   orders: Pick<Order, "title" | "orderAmount" | "imageUrl">[],
+  qtyVisibleTitles?: ReadonlySet<string>,
 ): CafeStationPrepItem[] {
   const map = new Map<
     string,
@@ -421,6 +422,7 @@ export function aggregateCafeStationPrepByTitle(
   for (const order of orders) {
     const title = String(order.title ?? "").trim() || "Unknown item";
     const key = title.toLowerCase();
+    if (qtyVisibleTitles && !qtyVisibleTitles.has(key)) continue;
     const qty = Math.max(1, Number(order.orderAmount) || 1);
     const existing = map.get(key);
     if (existing) {
@@ -438,6 +440,19 @@ export function aggregateCafeStationPrepByTitle(
   }
 
   return [...map.values()].sort((a, b) => b.quantity - a.quantity);
+}
+
+/** Menu item names approved for aggregated quantity in kitchen/bar prep summary. */
+export function buildStationPrepQtyVisibleTitles(
+  menuItems: { name: string; showStationPrepQty?: boolean }[],
+): Set<string> {
+  const set = new Set<string>();
+  for (const item of menuItems) {
+    if (item.showStationPrepQty === false) continue;
+    const name = String(item.name ?? "").trim();
+    if (name) set.add(name.toLowerCase());
+  }
+  return set;
 }
 
 /** Sum unpaid lines for one table (includes completed, excludes cancelled/paid). */

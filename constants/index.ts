@@ -63,6 +63,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "reports", label: "Reports", icon: "FileText" },
   { id: "create-item", label: "Add Item", icon: "PlusCircle" },
   { id: "update-item", label: "Update/Delete Item", icon: "Edit" },
+  { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "update-credential", label: "Update Credential", icon: "RefreshCw" },

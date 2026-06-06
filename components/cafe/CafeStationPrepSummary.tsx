@@ -41,11 +41,17 @@ const STATION_THEME: Record<
 type Props = {
   orders: Order[];
   station: Station;
+  qtyVisibleTitles?: ReadonlySet<string>;
   className?: string;
 };
 
-export function CafeStationPrepSummary({ orders, station, className }: Props) {
-  const items = aggregateCafeStationPrepByTitle(orders);
+export function CafeStationPrepSummary({
+  orders,
+  station,
+  qtyVisibleTitles,
+  className,
+}: Props) {
+  const items = aggregateCafeStationPrepByTitle(orders, qtyVisibleTitles);
   if (items.length === 0) return null;
 
   const theme = STATION_THEME[station];

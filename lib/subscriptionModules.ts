@@ -202,6 +202,7 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   reports: "Cafe and Restaurant",
   "create-item": "Cafe and Restaurant",
   "update-item": "Cafe and Restaurant",
+  "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
   "grant-credential": "Credentials(Common)",
   "update-credential": "Credentials(Common)",

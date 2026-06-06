@@ -179,35 +179,6 @@ function PaymentMethodBadge({ order }: { order: Order }) {
   );
 }
 
-function SummaryStat({
-  label,
-  value,
-  sub,
-  accentClass,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accentClass?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-xl border border-border/60 bg-linear-to-br from-card to-muted/20 p-3.5 shadow-sm",
-        accentClass,
-      )}
-    >
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-xl font-bold tabular-nums tracking-tight">{value}</p>
-      {sub ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>
-      ) : null}
-    </div>
-  );
-}
-
 type OrderRowProps = {
   order: Order;
   tables: Table[];
@@ -557,15 +528,6 @@ export function CafeCashierPaymentTypePanel({
     [paidOrders],
   );
 
-  const revenueSummary = useMemo(() => {
-    const cashOrders = paidOrders.filter((order) => isCashPayment(order));
-    const bankOrders = paidOrders.filter((order) => isBankPayment(order));
-    return {
-      cashTotal: sumOrderLinesETB(cashOrders),
-      bankTotal: sumOrderLinesETB(bankOrders),
-    };
-  }, [paidOrders]);
-
   const filteredBatches = useMemo(() => {
     const q = search.trim().toLowerCase();
     return paidBatches
@@ -580,11 +542,6 @@ export function CafeCashierPaymentTypePanel({
   const filteredOrders = useMemo(
     () => filteredBatches.flatMap((batch) => batch.orders),
     [filteredBatches],
-  );
-
-  const visibleTotal = useMemo(
-    () => sumOrderLinesETB(filteredOrders),
-    [filteredOrders],
   );
 
   const allVisibleSelected =
@@ -686,37 +643,6 @@ export function CafeCashierPaymentTypePanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <SummaryStat
-              label="Showing"
-              value={String(filteredOrders.length)}
-              sub={
-                paymentFilter === "all"
-                  ? "All paid lines"
-                  : paymentFilter === "cash"
-                    ? "Cash only"
-                    : "Bank only"
-              }
-            />
-            <SummaryStat
-              label="Visible total"
-              value={formatAmountETB(visibleTotal)}
-              sub="ETB in current view"
-            />
-            <SummaryStat
-              label="Cash today"
-              value={formatAmountETB(revenueSummary.cashTotal)}
-              sub={`${paymentFilterCounts.cash} line${paymentFilterCounts.cash === 1 ? "" : "s"}`}
-              accentClass="ring-1 ring-emerald-500/10"
-            />
-            <SummaryStat
-              label="Bank today"
-              value={formatAmountETB(revenueSummary.bankTotal)}
-              sub={`${paymentFilterCounts.bank} line${paymentFilterCounts.bank === 1 ? "" : "s"}`}
-              accentClass="ring-1 ring-sky-500/10"
-            />
-          </div>
-
           <div className="flex flex-col gap-4 rounded-xl border border-border/60 bg-muted/20 p-3 sm:p-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="inline-flex w-full flex-wrap gap-1 rounded-xl border border-border/50 bg-background/60 p-1 sm:w-auto">

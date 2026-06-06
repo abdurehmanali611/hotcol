@@ -1,19 +1,22 @@
 "use client";
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { useEffect, useState, Suspense, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast, Toaster } from "sonner";
 
 import {
   Order,
   fetchLiveCafeOrders,
+  fetchItems,
   fetchTables,
   updateOrderStatus,
   filterBaristaOrders,
   logoutAction,
   CAFE_LIVE_ORDERS_POLL_MS,
+  type Item,
   type Table,
 } from "@/lib/actions";
 import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
+import { buildStationPrepQtyVisibleTitles } from "@/lib/cafeTableOrder";
 import {
   effectiveTenantScopeForHotelTerminal,
   rowHotelMatchesTenantScope,
@@ -46,6 +49,7 @@ function BaristaContent() {
   const logoUrl = searchParams.get("logo") || "";
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [menuItems, setMenuItems] = useState<Item[]>([]);
   const [cafeTables, setCafeTables] = useState<
     Pick<Table, "tableNo" | "orderCaption">[]
   >([]);
@@ -62,15 +66,21 @@ function BaristaContent() {
         if (mode === "initial") setLoading(true);
         else if (mode === "refresh") setRefreshing(true);
         try {
-          const [allOrders, allTables] = await Promise.all([
+          const [allOrders, allTables, allItems] = await Promise.all([
             fetchLiveCafeOrders(),
             fetchTables(),
+            fetchItems(),
           ]);
           if (isStale()) return;
           const scope = effectiveTenantScopeForHotelTerminal(tenantScope);
           setCafeTables(
             allTables.filter((t) =>
               rowHotelMatchesTenantScope(t.HotelName, scope),
+            ),
+          );
+          setMenuItems(
+            allItems.filter((item) =>
+              rowHotelMatchesTenantScope(item.HotelName, scope),
             ),
           );
           setOrders(filterBaristaOrders(allOrders, scope));
@@ -157,6 +167,11 @@ function BaristaContent() {
   );
 
   pendingOrders.sort((a, b) => a.id - b.id);
+
+  const qtyVisibleTitles = useMemo(
+    () => buildStationPrepQtyVisibleTitles(menuItems),
+    [menuItems],
+  );
 
   if (loading) {
     return (
@@ -247,7 +262,11 @@ function BaristaContent() {
             </p>
           </div>
         ) : (
-          <CafeStationOrdersLayout orders={pendingOrders} station="bar">
+          <CafeStationOrdersLayout
+            orders={pendingOrders}
+            station="bar"
+            qtyVisibleTitles={qtyVisibleTitles}
+          >
             <CafeStationOrderCards
               orders={pendingOrders}
               cafeTables={cafeTables}
