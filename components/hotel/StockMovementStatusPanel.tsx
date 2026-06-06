@@ -37,9 +37,12 @@ import { canPrintStockMovementFromStatus } from "@/lib/hotelApproval";
 import { buildStockMovementReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
-import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
-import { stockPrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
-import { departmentLeaderDisplayLabel } from "@/lib/departments";
+import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
+import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
+import {
+  departmentLeaderDisplayLabel,
+  REQUESTED_BY_DEPARTMENT_CODES,
+} from "@/lib/departments";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -92,7 +95,7 @@ export function StockMovementStatusPanel({
   const [dateTo, setDateTo] = useState("");
   const [voucherFrom, setVoucherFrom] = useState("");
   const [voucherTo, setVoucherTo] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [department, setDepartment] = useState("");
 
   const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
       propertyName,
@@ -109,15 +112,11 @@ export function StockMovementStatusPanel({
         voucherFrom,
         voucherTo,
         getSubmittedDate: (r) => r.createdAt,
-        searchQuery,
+        department,
+        getDepartment: (r) => r.requestedByDepartment,
       }),
     );
-  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, searchQuery]);
-
-  const printBundles = useMemo(
-    () => stockPrintBundlesFromFiltered(filtered, rows, linkedInventory),
-    [filtered, rows, linkedInventory],
-  );
+  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, department]);
 
   const hasActiveFilters =
     approvalFilter !== "all" ||
@@ -125,7 +124,35 @@ export function StockMovementStatusPanel({
     dateTo !== "" ||
     voucherFrom.trim() !== "" ||
     voucherTo.trim() !== "" ||
-    searchQuery.trim() !== "";
+    department.trim() !== "";
+
+  const printScope = useMemo(
+    () =>
+      resolveRequestStatusPrintScope(rows, filtered, hasActiveFilters, {
+        dateFrom,
+        dateTo,
+        dateFromLabel: "Submitted from",
+        dateToLabel: "Submitted to",
+        department,
+        departmentLabelText: "Requested by department",
+        voucherFrom,
+        voucherTo,
+        approvalLabel:
+          STOCK_APPROVAL_OPTIONS.find((o) => o.id === approvalFilter)?.label ??
+          "All",
+      }),
+    [
+      rows,
+      filtered,
+      hasActiveFilters,
+      dateFrom,
+      dateTo,
+      department,
+      voucherFrom,
+      voucherTo,
+      approvalFilter,
+    ],
+  );
 
   const clearFilters = () => {
     setApprovalFilter("all");
@@ -133,7 +160,7 @@ export function StockMovementStatusPanel({
     setDateTo("");
     setVoucherFrom("");
     setVoucherTo("");
-    setSearchQuery("");
+    setDepartment("");
   };
 
   const columns = useMemo((): ColumnDef<StockOutRequestRow>[] => {
@@ -278,8 +305,8 @@ export function StockMovementStatusPanel({
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
             Stock out, wastage, and return requests with approval status.
-            Filter by date, voucher range, or search — then print all authorized
-            receipts from the filtered results.
+            Filter by date, voucher range, or department — then print the list
+            below the filters.
           </CardContent>
         ) : null}
       </Card>
@@ -293,13 +320,27 @@ export function StockMovementStatusPanel({
         voucherTo={voucherTo}
         onVoucherFromChange={setVoucherFrom}
         onVoucherToChange={setVoucherTo}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
+        department={department}
+        onDepartmentChange={setDepartment}
+        departmentCodes={REQUESTED_BY_DEPARTMENT_CODES}
+        departmentLabelText="Requested by department"
+        filteredCount={filtered.length}
+        totalCount={rows.length}
+        helperText={
+          department
+            ? "Showing stock movements requested by the selected department."
+            : "Filter by submission date, voucher range, and requesting department."
+        }
         showClear={hasActiveFilters}
         onClear={clearFilters}
-        footer={
-          <RequestStatusBulkPrintActions
-            bundles={printBundles}
+        printAction={
+          <RequestStatusListPrintActions
+            variant="stock"
+            rows={printScope.rows}
+            linkedInventory={linkedInventory}
+            filters={printScope.filters}
+            filteredCount={printScope.filteredCount}
+            totalCount={printScope.totalCount}
             propertyName={propertyName}
             propertyTin={propertyTin}
             logoUrl={logoUrl}

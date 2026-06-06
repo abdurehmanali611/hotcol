@@ -37,9 +37,12 @@ import { canPrintPurchaseRequestFromStatus } from "@/lib/hotelApproval";
 import { buildPurchaseRequestReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
-import { departmentLeaderDisplayLabel } from "@/lib/departments";
-import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
-import { purchasePrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
+import {
+  departmentLeaderDisplayLabel,
+  PURCHASE_REQUESTED_BY_DEPARTMENT_CODES,
+} from "@/lib/departments";
+import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
+import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import {
   formatEtbAmount,
   purchaseLineMoneyBreakdown,
@@ -102,7 +105,7 @@ export function PurchaseRequestStatusPanel({
   const [dateTo, setDateTo] = useState("");
   const [voucherFrom, setVoucherFrom] = useState("");
   const [voucherTo, setVoucherTo] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [department, setDepartment] = useState("");
 
   const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
       propertyName,
@@ -120,15 +123,11 @@ export function PurchaseRequestStatusPanel({
         voucherFrom,
         voucherTo,
         getSubmittedDate: (r) => purchaseEntranceDate(r),
-        searchQuery,
+        department,
+        getDepartment: (r) => r.requestedByDepartment,
       }),
     );
-  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, searchQuery]);
-
-  const printBundles = useMemo(
-    () => purchasePrintBundlesFromFiltered(filtered, rows),
-    [filtered, rows],
-  );
+  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, department]);
 
   const hasActiveFilters =
     approvalFilter !== "all" ||
@@ -136,7 +135,35 @@ export function PurchaseRequestStatusPanel({
     dateTo !== "" ||
     voucherFrom.trim() !== "" ||
     voucherTo.trim() !== "" ||
-    searchQuery.trim() !== "";
+    department.trim() !== "";
+
+  const printScope = useMemo(
+    () =>
+      resolveRequestStatusPrintScope(rows, filtered, hasActiveFilters, {
+        dateFrom,
+        dateTo,
+        dateFromLabel: "Entrance from",
+        dateToLabel: "Entrance to",
+        department,
+        departmentLabelText: "Requested by department",
+        voucherFrom,
+        voucherTo,
+        approvalLabel:
+          PURCHASE_APPROVAL_OPTIONS.find((o) => o.id === approvalFilter)
+            ?.label ?? "All",
+      }),
+    [
+      rows,
+      filtered,
+      hasActiveFilters,
+      dateFrom,
+      dateTo,
+      department,
+      voucherFrom,
+      voucherTo,
+      approvalFilter,
+    ],
+  );
 
   const clearFilters = () => {
     setApprovalFilter("all");
@@ -144,7 +171,7 @@ export function PurchaseRequestStatusPanel({
     setDateTo("");
     setVoucherFrom("");
     setVoucherTo("");
-    setSearchQuery("");
+    setDepartment("");
   };
 
   const columns = useMemo((): ColumnDef<PurchaseRequestRow>[] => {
@@ -301,7 +328,7 @@ export function PurchaseRequestStatusPanel({
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
             Track Cost Control and Finance approval through the pipeline.
-            Filter by date, voucher range, or search — then print all authorized
+            Filter by date, voucher range, or department — then print all authorized
             receipts from the filtered results.
           </CardContent>
         ) : null}
@@ -326,13 +353,26 @@ export function PurchaseRequestStatusPanel({
         voucherTo={voucherTo}
         onVoucherFromChange={setVoucherFrom}
         onVoucherToChange={setVoucherTo}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
+        department={department}
+        onDepartmentChange={setDepartment}
+        departmentCodes={PURCHASE_REQUESTED_BY_DEPARTMENT_CODES}
+        departmentLabelText="Requested by department"
+        filteredCount={filtered.length}
+        totalCount={rows.length}
+        helperText={
+          department
+            ? "Showing purchase requests from the selected department."
+            : "Filter by entrance date, voucher range, and requesting department."
+        }
         showClear={hasActiveFilters}
         onClear={clearFilters}
-        footer={
-          <RequestStatusBulkPrintActions
-            bundles={printBundles}
+        printAction={
+          <RequestStatusListPrintActions
+            variant="purchase"
+            rows={printScope.rows}
+            filters={printScope.filters}
+            filteredCount={printScope.filteredCount}
+            totalCount={printScope.totalCount}
             propertyName={propertyName}
             propertyTin={propertyTin}
             logoUrl={logoUrl}

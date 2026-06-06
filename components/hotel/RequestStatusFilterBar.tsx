@@ -1,113 +1,188 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useId } from "react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
-import { Search } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { departmentLabel } from "@/lib/departments";
+import { cn } from "@/lib/utils";
+import { Building2, Hash } from "lucide-react";
+
+const DEPARTMENT_SELECT_ALL = "all";
 
 export function RequestStatusFilterBar({
   dateFrom,
   dateTo,
   onDateFromChange,
   onDateToChange,
-  searchQuery,
-  onSearchQueryChange,
+  department = "",
+  onDepartmentChange,
+  departmentCodes = [],
   voucherFrom = "",
   voucherTo = "",
   onVoucherFromChange,
   onVoucherToChange,
   dateFromLabel = "Submitted from",
   dateToLabel = "Submitted to",
-  searchPlaceholder = "Search voucher or item name…",
+  departmentLabelText = "Department",
+  filteredCount,
+  totalCount,
+  helperText = "Filter by date, voucher range, and department.",
+  title = "Filter records",
   showClear,
   onClear,
   children,
-  footer,
+  printAction,
+  className,
 }: {
   dateFrom: string;
   dateTo: string;
   onDateFromChange: (v: string) => void;
   onDateToChange: (v: string) => void;
-  searchQuery: string;
-  onSearchQueryChange: (v: string) => void;
+  department?: string;
+  onDepartmentChange?: (v: string) => void;
+  departmentCodes?: readonly string[];
   voucherFrom?: string;
   voucherTo?: string;
   onVoucherFromChange?: (v: string) => void;
   onVoucherToChange?: (v: string) => void;
   dateFromLabel?: string;
   dateToLabel?: string;
-  searchPlaceholder?: string;
+  departmentLabelText?: string;
+  filteredCount?: number;
+  totalCount?: number;
+  helperText?: string;
+  title?: string;
   showClear: boolean;
   onClear: () => void;
   children?: ReactNode;
-  footer?: ReactNode;
+  printAction?: ReactNode;
+  className?: string;
 }) {
+  const baseId = useId();
   const showVoucherRange = Boolean(onVoucherFromChange && onVoucherToChange);
+  const showDepartment = Boolean(onDepartmentChange);
+  const departmentSelectValue = department || DEPARTMENT_SELECT_ALL;
+  const showCounts =
+    typeof filteredCount === "number" && typeof totalCount === "number";
 
   return (
-    <ListPanelFilterBar showClear={showClear} onClear={onClear}>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-3 items-end">
+    <ListPanelFilterBar
+      title={title}
+      showClear={showClear}
+      onClear={onClear}
+      className={cn("shadow-sm", className)}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 items-end">
           <HotelDayPicker
+            id={`${baseId}-date-from`}
             label={dateFromLabel}
             value={dateFrom}
             onChange={onDateFromChange}
-            className="min-w-[200px]"
             placeholder="Any date"
+            compact
           />
           <HotelDayPicker
+            id={`${baseId}-date-to`}
             label={dateToLabel}
             value={dateTo}
             onChange={onDateToChange}
-            className="min-w-[200px]"
             placeholder="Any date"
+            compact
           />
-          {showVoucherRange ? (
-            <>
-              <div className="space-y-1.5 min-w-[120px]">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Voucher from
-                </span>
+          {showDepartment ? (
+            <div className="space-y-1.5 min-w-0 sm:col-span-2 xl:col-span-1">
+              <Label htmlFor={`${baseId}-department`}>{departmentLabelText}</Label>
+              <Select
+                value={departmentSelectValue}
+                onValueChange={(value) =>
+                  onDepartmentChange!(value === DEPARTMENT_SELECT_ALL ? "" : value)
+                }
+              >
+                <SelectTrigger
+                  id={`${baseId}-department`}
+                  className="h-10 w-full gap-2 border-border/80 bg-background shadow-sm"
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent align="end" className="max-h-72">
+                  <SelectItem value={DEPARTMENT_SELECT_ALL}>
+                    All departments
+                  </SelectItem>
+                  {departmentCodes.map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {departmentLabel(code)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+        </div>
+
+        {showVoucherRange ? (
+          <div className="rounded-lg border border-border/60 bg-background/80 px-3 py-3">
+            <p className="mb-2.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <Hash className="h-3 w-3" aria-hidden />
+              Voucher range
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 items-end">
+              <div className="space-y-1.5 min-w-0">
+                <Label htmlFor={`${baseId}-voucher-from`}>From voucher</Label>
                 <Input
+                  id={`${baseId}-voucher-from`}
                   value={voucherFrom}
                   onChange={(e) => onVoucherFromChange!(e.target.value)}
-                  placeholder="0045"
-                  className="h-10 bg-background font-mono tabular-nums"
+                  placeholder="e.g. 0045"
+                  className="h-10 border-border/80 bg-background font-mono tabular-nums shadow-sm"
                   inputMode="numeric"
                 />
               </div>
-              <div className="space-y-1.5 min-w-[120px]">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Voucher to
-                </span>
+              <div className="space-y-1.5 min-w-0">
+                <Label htmlFor={`${baseId}-voucher-to`}>To voucher</Label>
                 <Input
+                  id={`${baseId}-voucher-to`}
                   value={voucherTo}
                   onChange={(e) => onVoucherToChange!(e.target.value)}
-                  placeholder="0065"
-                  className="h-10 bg-background font-mono tabular-nums"
+                  placeholder="e.g. 0065"
+                  className="h-10 border-border/80 bg-background font-mono tabular-nums shadow-sm"
                   inputMode="numeric"
                 />
               </div>
-            </>
-          ) : null}
-          <div className="flex-1 min-w-[220px] max-w-md space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">
-              Voucher or item
-            </span>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => onSearchQueryChange(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="pl-9 h-10 bg-background"
-              />
             </div>
           </div>
+        ) : null}
+
+        {printAction ? (
+          <div className="pt-1">{printAction}</div>
+        ) : null}
+
+        {children ? (
+          <div className="border-t border-border/50 pt-3">{children}</div>
+        ) : null}
+
+        <div className="flex flex-col gap-3 border-t border-border/50 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground text-pretty min-w-0">
+            {helperText}
+          </p>
+          {showCounts ? (
+            <Badge variant="secondary" className="font-normal tabular-nums shrink-0">
+              {filteredCount} of {totalCount}
+            </Badge>
+          ) : null}
         </div>
-        {children}
-        {footer}
       </div>
     </ListPanelFilterBar>
   );

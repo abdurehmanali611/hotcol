@@ -35,8 +35,9 @@ import { canPrintItemRegistrationFromStatus } from "@/lib/hotelApproval";
 import { buildRegistrationReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
-import { RequestStatusBulkPrintActions } from "@/components/hotel/RequestStatusBulkPrintSheet";
-import { registrationPrintBundlesFromFiltered } from "@/lib/requestStatusPrintBundles";
+import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
+import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
+import { REGISTRATION_RECEIVED_BY_CODES } from "@/lib/departments";
 
 const REG_APPROVAL_OPTIONS: {
   id: RegistrationApprovalFilter;
@@ -94,7 +95,7 @@ export function ItemRegistrationStatusPanel({
   const [dateTo, setDateTo] = useState("");
   const [voucherFrom, setVoucherFrom] = useState("");
   const [voucherTo, setVoucherTo] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [department, setDepartment] = useState("");
 
   const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
       propertyName,
@@ -112,16 +113,11 @@ export function ItemRegistrationStatusPanel({
         voucherFrom,
         voucherTo,
         getSubmittedDate: (r) => r.registrationDate,
-        searchQuery,
+        department,
+        getDepartment: (r) => r.receivedByDepartment,
       }),
     );
-  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, searchQuery]);
-
-  const printBundles = useMemo(
-    () =>
-      registrationPrintBundlesFromFiltered(filtered, rows, purchaseRequests),
-    [filtered, rows, purchaseRequests],
-  );
+  }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, department]);
 
   const hasActiveFilters =
     approvalFilter !== "all" ||
@@ -129,7 +125,35 @@ export function ItemRegistrationStatusPanel({
     dateTo !== "" ||
     voucherFrom.trim() !== "" ||
     voucherTo.trim() !== "" ||
-    searchQuery.trim() !== "";
+    department.trim() !== "";
+
+  const printScope = useMemo(
+    () =>
+      resolveRequestStatusPrintScope(rows, filtered, hasActiveFilters, {
+        dateFrom,
+        dateTo,
+        dateFromLabel: "Registered from",
+        dateToLabel: "Registered to",
+        department,
+        departmentLabelText: "Received by department",
+        voucherFrom,
+        voucherTo,
+        approvalLabel:
+          REG_APPROVAL_OPTIONS.find((o) => o.id === approvalFilter)?.label ??
+          "All",
+      }),
+    [
+      rows,
+      filtered,
+      hasActiveFilters,
+      dateFrom,
+      dateTo,
+      department,
+      voucherFrom,
+      voucherTo,
+      approvalFilter,
+    ],
+  );
 
   const clearFilters = () => {
     setApprovalFilter("all");
@@ -137,7 +161,7 @@ export function ItemRegistrationStatusPanel({
     setDateTo("");
     setVoucherFrom("");
     setVoucherTo("");
-    setSearchQuery("");
+    setDepartment("");
   };
 
   const columns = useMemo((): ColumnDef<ItemRegistration>[] => {
@@ -235,7 +259,7 @@ export function ItemRegistrationStatusPanel({
         {!description ? (
           <CardContent className="text-sm text-muted-foreground pb-4">
             Item registrations through the approval pipeline. Filter by date,
-            voucher range, or search — then print all authorized receipts from
+            voucher range, or department — then print all authorized receipts from
             the filtered results, or open one receipt from the table.
           </CardContent>
         ) : null}
@@ -250,15 +274,28 @@ export function ItemRegistrationStatusPanel({
         voucherTo={voucherTo}
         onVoucherFromChange={setVoucherFrom}
         onVoucherToChange={setVoucherTo}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
+        department={department}
+        onDepartmentChange={setDepartment}
+        departmentCodes={REGISTRATION_RECEIVED_BY_CODES}
+        departmentLabelText="Received by department"
         dateFromLabel="Registered from"
         dateToLabel="Registered to"
+        filteredCount={filtered.length}
+        totalCount={rows.length}
+        helperText={
+          department
+            ? "Showing registrations received by the selected department."
+            : "Filter by registration date, voucher range, and receiving department."
+        }
         showClear={hasActiveFilters}
         onClear={clearFilters}
-        footer={
-          <RequestStatusBulkPrintActions
-            bundles={printBundles}
+        printAction={
+          <RequestStatusListPrintActions
+            variant="registration"
+            rows={printScope.rows}
+            filters={printScope.filters}
+            filteredCount={printScope.filteredCount}
+            totalCount={printScope.totalCount}
             propertyName={propertyName}
             propertyTin={propertyTin}
             logoUrl={logoUrl}

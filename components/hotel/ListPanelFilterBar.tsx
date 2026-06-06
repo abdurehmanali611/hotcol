@@ -66,7 +66,12 @@ export function FilterChipGroup<T extends string>({
             type="button"
             size="sm"
             variant={value === opt.id ? "default" : "outline"}
-            className="h-8 rounded-full px-3.5 text-xs cursor-pointer"
+            className={cn(
+              "h-8 rounded-full px-3.5 text-xs cursor-pointer transition-colors",
+              value === opt.id
+                ? "shadow-sm"
+                : "border-border/70 bg-background/80 hover:bg-muted/50",
+            )}
             onClick={() => onChange(opt.id)}
           >
             {opt.label}

@@ -17,6 +17,7 @@ export type HotelDepartmentCode = (typeof HOTEL_DEPARTMENT_CODES)[number];
 /** @deprecated Renamed to HOUSE_KEEPING_ROOM — kept for receipt snapshots. */
 export const LEGACY_HOUSE_KEEPING_CODE = "HOUSE_KEEPING";
 
+/** Item registrations received by store, kitchen, or bar only. */
 export const REGISTRATION_RECEIVED_BY_CODES = [
   "STORE",
   "KITCHEN",

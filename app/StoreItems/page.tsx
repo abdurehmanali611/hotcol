@@ -16,14 +16,29 @@ import type { DataTableRef } from "./data-table";
 import { InventoryBatchMovementBar } from "@/components/hotel/InventoryBatchMovementBar";
 import UpdateStock from "@/components/UpdateStock";
 import { ActiveInventoryPaymentSummary } from "@/components/hotel/ActiveInventoryPaymentSummary";
+import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
+import { InventoryListPrintActions } from "@/components/hotel/InventoryListPrintActions";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { CalendarIcon, LayoutGrid } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DEFAULT_INVENTORY_LIST_FILTERS,
+  filterInventoryRegistrations,
+  inventoryListFiltersActive,
+  type InventoryListFilters,
+} from "@/lib/inventoryListFilters";
+import {
+  departmentLabel,
+  REGISTRATION_RECEIVED_BY_CODES,
+} from "@/lib/departments";
+import { Building2, LayoutGrid } from "lucide-react";
 
 export default function StoreItems({
   items = [],
@@ -52,8 +67,9 @@ export default function StoreItems({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemRegistration | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [filters, setFilters] = useState<InventoryListFilters>(
+    DEFAULT_INVENTORY_LIST_FILTERS,
+  );
   const [data, setData] = useState<ItemRegistration[]>(
     Array.isArray(items) ? items : [],
   );
@@ -129,12 +145,10 @@ export default function StoreItems({
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
-  const filteredData = date !== undefined
-    ? data.filter(
-        (item) =>
-          new Date(item.registrationDate).toDateString() === date.toDateString()
-      )
-    : data;
+  const filteredData = useMemo(
+    () => filterInventoryRegistrations(data, filters),
+    [data, filters],
+  );
 
   const tableData = useMemo(() => {
     const rows = filteredData as items[];
@@ -159,12 +173,30 @@ export default function StoreItems({
     ? "w-full min-w-0 space-y-4 animate-in fade-in duration-300"
     : "w-full max-w-[min(100vw-1.5rem,112rem)] mx-auto py-8 px-3 sm:px-4 md:px-8 space-y-8 animate-in fade-in duration-500";
 
+  const showClearFilters = inventoryListFiltersActive(filters);
+  const departmentSelectValue = filters.department || "all";
+
+  const propertyName = useMemo(() => {
+    if (typeof window === "undefined") return "Property";
+    return localStorage.getItem("hotel_display_name")?.trim() || "Property";
+  }, []);
+
+  const logoUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("logo_url")?.trim() || "";
+  }, []);
+
+  const propertyTin = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("tin_number")?.trim() || "";
+  }, []);
+
   const headerBlock = (
     <div
       className={
         embedded
-          ? "flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-border/60 pb-4"
-          : "flex flex-col md:flex-row md:items-end justify-between gap-6 border-b pb-6"
+          ? "flex flex-col gap-4 border-b border-border/60 pb-4"
+          : "flex flex-col gap-6 border-b pb-6"
       }
     >
       {!embedded && (
@@ -179,45 +211,73 @@ export default function StoreItems({
         </div>
       )}
 
-      <div
-        className={`flex items-center gap-3 ${embedded ? "w-full sm:w-auto sm:ml-auto" : ""}`}
+      <ListPanelFilterBar
+        title="Filter inventory"
+        className="w-full"
+        showClear={showClearFilters}
+        onClear={() => setFilters(DEFAULT_INVENTORY_LIST_FILTERS)}
       >
-        {!embedded && <div className="h-10 w-px bg-border mx-2 hidden md:block" />}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
-            Filter by Arrival
-          </span>
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={
-                  embedded
-                    ? "w-full sm:w-56 justify-between border-dashed border-primary/25 hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm"
-                    : "w-56 justify-between border-dashed hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm"
-                }
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
+          <HotelDayPicker
+            label="Registered from"
+            id="inventory-date-from"
+            value={filters.dateFrom}
+            onChange={(v) => setFilters((f) => ({ ...f, dateFrom: v }))}
+            placeholder="Any date"
+            compact
+          />
+          <HotelDayPicker
+            label="Registered to"
+            id="inventory-date-to"
+            value={filters.dateTo}
+            onChange={(v) => setFilters((f) => ({ ...f, dateTo: v }))}
+            placeholder="Any date"
+            compact
+          />
+          <div className="space-y-1.5 min-w-0 sm:col-span-2 lg:col-span-1">
+            <Label htmlFor="inventory-department">Received by department</Label>
+            <Select
+              value={departmentSelectValue}
+              onValueChange={(value) =>
+                setFilters((f) => ({
+                  ...f,
+                  department: value === "all" ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger
+                id="inventory-department"
+                className="h-10 w-full gap-2 border-border/80 bg-background shadow-sm"
               >
-                <span className="flex items-center gap-2 font-semibold">
-                  <CalendarIcon size={14} className="text-primary" />
-                  {date ? date.toLocaleDateString() : "All Historical Data"}
-                </span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border-none shadow-2xl" align="end">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(d) => {
-                  setDate(d);
-                  setOpen(false);
-                }}
-                initialFocus
-                className="rounded-xl border bg-card"
-              />
-            </PopoverContent>
-          </Popover>
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="All departments" />
+              </SelectTrigger>
+              <SelectContent align="end" className="max-h-72">
+                <SelectItem value="all">All departments</SelectItem>
+                {REGISTRATION_RECEIVED_BY_CODES.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {departmentLabel(code)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          <InventoryListPrintActions
+            rows={filteredData}
+            filters={filters}
+            filteredCount={filteredData.length}
+            totalCount={data.length}
+            propertyName={propertyName}
+            propertyTin={propertyTin}
+            logoUrl={logoUrl}
+          />
+          <Badge variant="secondary" className="font-normal tabular-nums">
+            {filteredData.length} of {data.length}
+          </Badge>
+        </div>
+      </ListPanelFilterBar>
     </div>
   );
 

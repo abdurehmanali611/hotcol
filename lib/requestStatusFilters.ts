@@ -1,4 +1,5 @@
 import { matchesRegistrationDateRange } from "@/lib/panelFilters";
+import { departmentCodesMatch } from "@/lib/departments";
 import {
   formatVoucherDisplay,
   parseVoucherNumberInput,
@@ -83,9 +84,12 @@ export function applyRequestStatusFilters<T extends VoucherSearchRow>(
     voucherFrom?: string;
     voucherTo?: string;
     getSubmittedDate: (row: T) => string | Date | null | undefined;
-    searchQuery: string;
+    department?: string;
+    getDepartment?: (row: T) => string | null | undefined;
   },
 ): T[] {
+  const dept = String(opts.department ?? "").trim();
+
   return rows.filter((row) => {
     if (!opts.matchesApproval(row)) return false;
     if (
@@ -106,7 +110,10 @@ export function applyRequestStatusFilters<T extends VoucherSearchRow>(
     ) {
       return false;
     }
-    if (!matchesVoucherOrItemSearch(row, opts.searchQuery)) return false;
+    if (dept) {
+      const code = opts.getDepartment?.(row);
+      if (!departmentCodesMatch(code, dept)) return false;
+    }
     return true;
   });
 }

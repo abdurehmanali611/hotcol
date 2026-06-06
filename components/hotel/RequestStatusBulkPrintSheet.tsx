@@ -41,22 +41,17 @@ export function RequestStatusBulkPrintActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/50">
-        <p className="text-xs text-muted-foreground">
-          {bundles.length} authorized receipt{bundles.length !== 1 ? "s" : ""}{" "}
-          on {printPages.length} A4 sheet{printPages.length !== 1 ? "s" : ""}{" "}
-          (up to two per page; never split across pages)
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => handleBulkPrint()}
-        >
-          <Printer className="h-3.5 w-3.5" />
-          Print all filtered ({bundles.length})
-        </Button>
-      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 shrink-0"
+        title={`${bundles.length} authorized receipt${bundles.length !== 1 ? "s" : ""} on ${printPages.length} A4 sheet${printPages.length !== 1 ? "s" : ""}`}
+        onClick={() => handleBulkPrint()}
+      >
+        <Printer className="h-3.5 w-3.5" />
+        Print filtered ({bundles.length})
+      </Button>
       <div
         aria-hidden
         className="fixed left-[-9999px] top-0 w-0 h-0 overflow-hidden"
