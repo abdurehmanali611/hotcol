@@ -58,6 +58,8 @@ export type TenantSubscription = SignupPricing & {
   subscriptionPaidUntil: string | null;
   subscriptionPaymentApproved: boolean;
   paidQuartersCount: number;
+  awaitingSelfSignupSetup?: boolean;
+  paymentTransactionRef?: string | null;
 };
 
 export function isModuleComingSoon(mod: ModuleOption): boolean {

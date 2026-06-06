@@ -77,7 +77,7 @@ export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): stri
     return "Setup fee approval is pending. Sign-in is disabled until Apex verifies your payment (usually within about 30 minutes). Contact Apex on WhatsApp if you need help.";
   }
   if (status === "pending_approval") {
-    return "Your setup payment is pending Apex approval. Admin or Manager can check status on the payment portal.";
+    return "A quarterly payment is awaiting Apex approval. Admin or Manager can check status on the payment portal.";
   }
   if (status === "grace") {
     return "Quarterly renewal is required. Admin or Manager must submit payment within the grace period.";

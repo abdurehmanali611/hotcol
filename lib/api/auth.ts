@@ -167,6 +167,8 @@ export async function LoginAction(
             subscriptionPaidUntil
             subscriptionPaymentApproved
             paidQuartersCount
+            awaitingSelfSignupSetup
+            paymentTransactionRef
           }
         }
       }
@@ -225,6 +227,8 @@ export async function LoginAction(
         subscriptionPaidUntil: user.subscriptionPaidUntil ?? null,
         subscriptionPaymentApproved: Boolean(user.subscriptionPaymentApproved),
         paidQuartersCount: Number(user.paidQuartersCount) || 0,
+        awaitingSelfSignupSetup: Boolean(user.awaitingSelfSignupSetup),
+        paymentTransactionRef: user.paymentTransactionRef ?? null,
       });
 
       if (accessMode === "payment_portal") {

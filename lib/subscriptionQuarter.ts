@@ -28,7 +28,22 @@ export type SubscriptionBillingSnapshot = {
   freeTrialEndsAt: string | null;
   subscriptionPaidUntil: string | null;
   paidQuartersCount: number;
+  /** Set at login — true only for /SignUp tenants awaiting Apex setup approval. */
+  awaitingSelfSignupSetup?: boolean;
+  paymentTransactionRef?: string | null;
 };
+
+export function selfSignupAwaitingSetup(
+  snap: SubscriptionBillingSnapshot,
+): boolean {
+  if (snap.awaitingSelfSignupSetup != null) {
+    return snap.awaitingSelfSignupSetup;
+  }
+  if (snap.setupFeeApproved) return false;
+  if (snap.setupFeeETB <= 0) return false;
+  const ref = snap.paymentTransactionRef?.trim() ?? "";
+  return ref.length >= 4;
+}
 
 export function subscriptionBillingApplies(snap: SubscriptionBillingSnapshot): boolean {
   if (snap.isIllustrationTenant) return false;
@@ -84,7 +99,7 @@ export function computeSubscriptionPeriodStatus(
     return "exempt";
   }
 
-  if (snap.setupFeeETB > 0 && !snap.setupFeeApproved) {
+  if (selfSignupAwaitingSetup(snap)) {
     return "setup_pending";
   }
 
@@ -98,8 +113,7 @@ export function computeSubscriptionPeriodStatus(
 
   const paidUntil = parseSubscriptionDate(snap.subscriptionPaidUntil);
   if (!paidUntil) {
-    if (!snap.subscriptionPaymentApproved) return "pending_approval";
-    return "pending_approval";
+    return "active";
   }
 
   const daysUntilEnd = daysBetweenCalendar(now, paidUntil);

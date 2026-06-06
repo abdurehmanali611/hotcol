@@ -20,6 +20,8 @@ const FREE_TRIAL_KEY = "tenant_free_trial_ends_at";
 const PAID_UNTIL_KEY = "tenant_subscription_paid_until";
 const PAYMENT_APPROVED_KEY = "tenant_subscription_payment_approved";
 const PAID_QUARTERS_KEY = "tenant_paid_quarters_count";
+const AWAITING_SELF_SIGNUP_KEY = "tenant_awaiting_self_signup_setup";
+const PAYMENT_REF_KEY = "tenant_payment_transaction_ref";
 
 export function persistTenantSubscription(sub: TenantSubscription): void {
   if (typeof window === "undefined") return;
@@ -41,6 +43,11 @@ export function persistTenantSubscription(sub: TenantSubscription): void {
     sub.subscriptionPaymentApproved ? "1" : "0",
   );
   localStorage.setItem(PAID_QUARTERS_KEY, String(sub.paidQuartersCount ?? 0));
+  localStorage.setItem(
+    AWAITING_SELF_SIGNUP_KEY,
+    sub.awaitingSelfSignupSetup ? "1" : "0",
+  );
+  localStorage.setItem(PAYMENT_REF_KEY, sub.paymentTransactionRef ?? "");
 }
 
 export function readTenantModulesFromStorage(): ModuleOption[] {
@@ -68,6 +75,8 @@ export function readTenantBillingFromStorage(): SubscriptionBillingSnapshot {
       freeTrialEndsAt: null,
       subscriptionPaidUntil: null,
       paidQuartersCount: 0,
+      awaitingSelfSignupSetup: false,
+      paymentTransactionRef: null,
     };
   }
   return {
@@ -83,6 +92,9 @@ export function readTenantBillingFromStorage(): SubscriptionBillingSnapshot {
     freeTrialEndsAt: localStorage.getItem(FREE_TRIAL_KEY) || null,
     subscriptionPaidUntil: localStorage.getItem(PAID_UNTIL_KEY) || null,
     paidQuartersCount: Number(localStorage.getItem(PAID_QUARTERS_KEY) ?? 0) || 0,
+    awaitingSelfSignupSetup:
+      localStorage.getItem(AWAITING_SELF_SIGNUP_KEY) === "1",
+    paymentTransactionRef: localStorage.getItem(PAYMENT_REF_KEY) || null,
   };
 }
 
@@ -114,6 +126,8 @@ export function clearTenantSubscriptionStorage(): void {
     PAID_UNTIL_KEY,
     PAYMENT_APPROVED_KEY,
     PAID_QUARTERS_KEY,
+    AWAITING_SELF_SIGNUP_KEY,
+    PAYMENT_REF_KEY,
   ]) {
     localStorage.removeItem(k);
   }
