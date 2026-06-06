@@ -96,17 +96,15 @@ export function computeSubscriptionPeriodStatus(
     return "on_hold";
   }
 
-  if (!snap.subscriptionPaymentApproved) {
-    return "pending_approval";
-  }
-
   const paidUntil = parseSubscriptionDate(snap.subscriptionPaidUntil);
   if (!paidUntil) {
+    if (!snap.subscriptionPaymentApproved) return "pending_approval";
     return "pending_approval";
   }
 
   const daysUntilEnd = daysBetweenCalendar(now, paidUntil);
 
+  // Paid quarter still running — renewal is only due after quarter end.
   if (daysUntilEnd > SUBSCRIPTION_WARNING_DAYS) {
     return "active";
   }
@@ -119,6 +117,15 @@ export function computeSubscriptionPeriodStatus(
     return "grace";
   }
   return "expired";
+}
+
+export function isPastPaidQuarterEnd(
+  snap: SubscriptionBillingSnapshot,
+  now: Date = new Date(),
+): boolean {
+  const paidUntil = parseSubscriptionDate(snap.subscriptionPaidUntil);
+  if (!paidUntil) return false;
+  return daysBetweenCalendar(now, paidUntil) < 0;
 }
 
 export function subscriptionAllowsFullSystemAccess(

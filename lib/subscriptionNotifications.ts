@@ -56,7 +56,7 @@ export function buildSubscriptionNotifications(
         priority: "high",
         status,
         title: "Payment awaiting Apex approval",
-        message: `Your setup or quarterly payment is pending verification. Transfer to CBE ${APEX_SOLUTION_CBE_ACCOUNT} and contact Apex if you already paid. Access unlocks once payment is approved for the next 90-day quarter.`,
+        message: `Your setup payment is pending verification. Transfer to CBE ${APEX_SOLUTION_CBE_ACCOUNT} and contact Apex if you already paid. Access unlocks once Apex approves your registration.`,
       },
     ];
   }
@@ -73,7 +73,7 @@ export function buildSubscriptionNotifications(
         priority: "high",
         status,
         title: "Quarterly subscription ending soon",
-        message: `Your paid quarter ends ${formatSubscriptionDate(paidUntil)} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left). Pay ${quarterly} to CBE account ${APEX_SOLUTION_CBE_ACCOUNT} before the deadline to avoid interruption.`,
+        message: `Your paid quarter ends ${formatSubscriptionDate(paidUntil)} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left). After that date, submit ${quarterly} to CBE account ${APEX_SOLUTION_CBE_ACCOUNT} during the 10-day grace period.`,
       },
     ];
   }

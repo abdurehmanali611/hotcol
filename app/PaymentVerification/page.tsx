@@ -32,14 +32,14 @@ function PaymentVerificationContent() {
     paymentKind === "setup" ? sub.setupFeeETB : sub.quarterlyFeeETB;
 
   const pendingMessage = useMemo(() => {
-    if (status === "pending_approval" && sub.setupFeeApproved) {
-      return "Your payment was submitted and is awaiting Apex approval. You can submit an updated reference below if needed.";
-    }
-    if (status === "setup_pending") {
+    if (status === "pending_approval" && !sub.setupFeeApproved) {
       return "Submit your setup fee transfer reference. Staff terminals stay locked until Apex approves.";
     }
     if (status === "grace") {
-      return "You are in the post-quarter grace period (fewer than 10 days after quarter end). Submit quarterly payment now — after day 10, all logins are disabled.";
+      return "Your quarter has ended. Submit quarterly payment during this 10-day grace period — after day 10, all logins are disabled until Apex approves.";
+    }
+    if (status === "expired") {
+      return "The grace period has ended. Submit quarterly payment and contact Apex to restore access.";
     }
     return null;
   }, [status, sub.setupFeeApproved]);
