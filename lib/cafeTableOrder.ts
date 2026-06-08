@@ -312,7 +312,7 @@ export type CafeStationOrderGroup = {
   orders: Order[];
 };
 
-/** Paid-order batch: lines placed on the same table in the same second. */
+/** Paid-order batch: lines on the same table paid/placed within a short window. */
 export type CafePaidOrderBatch = {
   key: string;
   tableNo: number;
@@ -321,12 +321,16 @@ export type CafePaidOrderBatch = {
 };
 
 const CAFE_BATCH_CARD_WINDOW_MS = 15_000;
+/** Same table + orders within this window are one collapsible batch in payment-type correction. */
+export const CAFE_PAID_ORDER_BATCH_WINDOW_MS = 60_000;
 
-/** Batch key: same table number + same creation second. */
-export function cafePaidOrderBatchKey(order: Pick<Order, "tableNo" | "createdAt">): string {
-  const tableNo = normalizeOrderTableNo(order);
-  const second = Math.floor(new Date(order.createdAt).getTime() / 1000);
-  return `${tableNo}|${second}`;
+/** Stable batch key from table and member order ids. */
+export function cafePaidOrderBatchKey(
+  tableNo: number,
+  orders: Pick<Order, "id">[],
+): string {
+  const ids = orders.map((o) => o.id).sort((a, b) => a - b);
+  return `${tableNo}|${ids.join("-")}`;
 }
 
 export function formatCafeOrderBatchTime(createdAt: Date | string): string {
@@ -338,30 +342,57 @@ export function formatCafeOrderBatchTime(createdAt: Date | string): string {
 }
 
 /**
- * Groups orders submitted together: same table number and same creation time (to the second).
- * Single lines stay as batches of one for a consistent list shape.
+ * Groups paid orders on the same table when their timestamps fall within one minute.
+ * Handles slight lag between sequential payment approvals so related lines stay together.
  */
 export function groupCafePaidOrderBatches(orders: Order[]): CafePaidOrderBatch[] {
   if (orders.length === 0) return [];
 
-  const bucketMap = new Map<string, Order[]>();
-
+  const byTable = new Map<number, Order[]>();
   for (const order of orders) {
-    const key = cafePaidOrderBatchKey(order);
-    const list = bucketMap.get(key) ?? [];
+    const tableNo = normalizeOrderTableNo(order);
+    const list = byTable.get(tableNo) ?? [];
     list.push(order);
-    bucketMap.set(key, list);
+    byTable.set(tableNo, list);
   }
 
   const batches: CafePaidOrderBatch[] = [];
-  for (const [key, list] of bucketMap.entries()) {
-    const sorted = [...list].sort((a, b) => a.id - b.id);
-    batches.push({
-      key,
-      tableNo: normalizeOrderTableNo(sorted[0]),
-      createdAt: sorted[0].createdAt,
-      orders: sorted,
-    });
+
+  for (const [tableNo, tableOrders] of byTable.entries()) {
+    const sorted = [...tableOrders].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    let cluster: Order[] = [];
+    let clusterStartMs = 0;
+
+    const flushCluster = () => {
+      if (cluster.length === 0) return;
+      const clusterSorted = [...cluster].sort((a, b) => a.id - b.id);
+      batches.push({
+        key: cafePaidOrderBatchKey(tableNo, clusterSorted),
+        tableNo,
+        createdAt: clusterSorted[0].createdAt,
+        orders: clusterSorted,
+      });
+      cluster = [];
+    };
+
+    for (const order of sorted) {
+      const ts = new Date(order.createdAt).getTime();
+      if (
+        cluster.length === 0 ||
+        ts - clusterStartMs <= CAFE_PAID_ORDER_BATCH_WINDOW_MS
+      ) {
+        if (cluster.length === 0) clusterStartMs = ts;
+        cluster.push(order);
+      } else {
+        flushCluster();
+        clusterStartMs = ts;
+        cluster.push(order);
+      }
+    }
+    flushCluster();
   }
 
   return batches.sort(

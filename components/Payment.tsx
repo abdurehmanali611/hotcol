@@ -29,6 +29,7 @@ import { CorporateCreditPaymentFields } from "@/components/payment/CorporateCred
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   CheckCircle2,
   Clock,
@@ -40,6 +41,9 @@ import {
   Calendar,
   Clock1,
   ChevronDown,
+  LayoutGrid,
+  Loader2,
+  X,
 } from "lucide-react";
 import {
   Collapsible,
@@ -60,6 +64,15 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
 import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
 import { formatCafeTableDisplayFromRegistry } from "@/lib/cafeTableOrder";
+import { cn } from "@/lib/utils";
+
+type ReadyTableSummary = {
+  tableNo: number;
+  display: string;
+  orderCount: number;
+  total: number;
+  waiterName: string;
+};
 
 interface PaymentProps {
   orders: Order[];
@@ -84,10 +97,15 @@ export default function PaymentComponent({
     null,
   );
   const [processingAll, setProcessingAll] = useState<number | null>(null);
+  const [processingMultiTable, setProcessingMultiTable] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [selectedTableForAll, setSelectedTableForAll] = useState<number | null>(
     null,
+  );
+  const [multiTablePayOpen, setMultiTablePayOpen] = useState(false);
+  const [selectedReadyTables, setSelectedReadyTables] = useState<Set<number>>(
+    new Set(),
   );
   const [creditCompanies, setCreditCompanies] = useState<HotelCreditCompanyRow[]>(
     [],
@@ -236,6 +254,164 @@ export default function PaymentComponent({
       return matchesSearch;
     });
   }, [groupedOrders, searchQuery, filterType, cafeTables]);
+
+  const areAllOrdersCompleted = (tableOrders: Order[]) => {
+    return tableOrders.every((order) => order.status === "Completed");
+  };
+
+  const calculateTableTotal = (tableOrders: Order[]) => {
+    return tableOrders.reduce((total, order) => {
+      return total + order.price * order.orderAmount;
+    }, 0);
+  };
+
+  const readyTableEntries = useMemo(
+    () =>
+      filteredGroupedOrders.filter(([, tableOrders]) =>
+        areAllOrdersCompleted(tableOrders),
+      ),
+    [filteredGroupedOrders],
+  );
+
+  const allReadyTablesSelected =
+    readyTableEntries.length > 0 &&
+    readyTableEntries.every(([tableNo]) =>
+      selectedReadyTables.has(Number(tableNo)),
+    );
+
+  const readyTablesSelectionState = useMemo((): boolean | "indeterminate" => {
+    if (selectedReadyTables.size === 0) return false;
+    if (allReadyTablesSelected) return true;
+    return "indeterminate";
+  }, [selectedReadyTables.size, allReadyTablesSelected]);
+
+  const selectedReadyTablesSummary = useMemo((): ReadyTableSummary[] => {
+    return [...selectedReadyTables]
+      .sort((a, b) => a - b)
+      .flatMap((tableNo) => {
+        const tableOrders = groupedOrders[tableNo];
+        if (!tableOrders) return [];
+        const completedOrders = tableOrders.filter(
+          (order) => order.status?.toLowerCase() === "completed",
+        );
+        return [
+          {
+            tableNo,
+            display: formatCafeTableDisplayFromRegistry(
+              tableNo,
+              cafeTables,
+              tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
+            ),
+            orderCount: completedOrders.length,
+            total: calculateTableTotal(completedOrders),
+            waiterName:
+              String(tableOrders[0]?.waiterName ?? "").trim() || "Self-Service",
+          },
+        ];
+      });
+  }, [groupedOrders, selectedReadyTables, cafeTables]);
+
+  useEffect(() => {
+    setSelectedReadyTables(new Set());
+    setMultiTablePayOpen(false);
+  }, [searchQuery, filterType]);
+
+  useEffect(() => {
+    if (selectedReadyTables.size === 0) {
+      setMultiTablePayOpen(false);
+    }
+  }, [selectedReadyTables.size]);
+
+  const toggleReadyTable = (tableNo: number, checked: boolean) => {
+    setSelectedReadyTables((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(tableNo);
+      else next.delete(tableNo);
+      return next;
+    });
+  };
+
+  const toggleAllReadyTables = (checked: boolean) => {
+    if (!checked) {
+      setSelectedReadyTables(new Set());
+      return;
+    }
+    setSelectedReadyTables(
+      new Set(readyTableEntries.map(([tableNo]) => Number(tableNo))),
+    );
+  };
+
+  const selectedReadyTableOrders = useMemo(() => {
+    const orders: Order[] = [];
+    for (const tableNo of selectedReadyTables) {
+      const tableOrders = groupedOrders[tableNo];
+      if (!tableOrders) continue;
+      orders.push(
+        ...tableOrders.filter(
+          (order) => order.status?.toLowerCase() === "completed",
+        ),
+      );
+    }
+    return orders;
+  }, [groupedOrders, selectedReadyTables]);
+
+  const selectedReadyTablesTotal = useMemo(
+    () => calculateTableTotal(selectedReadyTableOrders),
+    [selectedReadyTableOrders],
+  );
+
+  const settleCompletedOrders = async (
+    completedOrders: Order[],
+    bank: boolean,
+  ): Promise<Order[]> => {
+    const updatedOrders: Order[] = [];
+    for (const order of completedOrders) {
+      const result = await onHandlePayment(
+        order.id,
+        order,
+        order.price * order.orderAmount,
+        bank,
+      );
+      updatedOrders.push({ ...order, ...result, payment: "Paid" });
+    }
+
+    const waiters = (await fetchWaiters()).filter((item) =>
+      rowHotelMatchesTenantScope(item.HotelName, hotelName),
+    );
+    const ordersByWaiter = updatedOrders.reduce(
+      (acc, order) => {
+        if (!acc[order.waiterName]) acc[order.waiterName] = [];
+        acc[order.waiterName].push(order);
+        return acc;
+      },
+      {} as Record<string, Order[]>,
+    );
+
+    for (const [waiterName, waiterOrders] of Object.entries(ordersByWaiter)) {
+      const waiter = waiters.find((item) => item.name === waiterName);
+      if (waiter) {
+        await updateWaiterPayment(
+          transformOrderDataForWaiterUpdate(waiterOrders, waiter.id),
+        );
+      }
+    }
+
+    const tables = (await fetchTables()).filter((item) =>
+      rowHotelMatchesTenantScope(item.HotelName, hotelName),
+    );
+    const tableNos = [...new Set(updatedOrders.map((o) => o.tableNo))];
+    for (const tableNo of tableNos) {
+      const table = tables.find((item) => item.tableNo === tableNo);
+      const tableOrders = updatedOrders.filter((o) => o.tableNo === tableNo);
+      if (table) {
+        await updateTablePayment(
+          transformOrderDataForTableUpdate(tableOrders, table.id, tableNo),
+        );
+      }
+    }
+
+    return updatedOrders;
+  };
 
   // Handle cash or bank payment for single order
   const handlePaymentMethod = async (
@@ -401,58 +577,7 @@ export default function PaymentComponent({
       const completedOrders = tableOrders.filter(
         (order) => order.status?.toLowerCase() === "completed",
       );
-
-      const updatedOrders: Order[] = [];
-      for (const order of completedOrders) {
-        const result = await onHandlePayment(
-          order.id,
-          order,
-          order.price * order.orderAmount,
-          bank,
-        );
-        updatedOrders.push({ ...order, ...result, payment: "Paid" });
-      }
-
-      // Update waiter records
-      const waiters = (await fetchWaiters()).filter(
-        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
-      );
-      const ordersByWaiter = updatedOrders.reduce(
-        (acc, order) => {
-          if (!acc[order.waiterName]) {
-            acc[order.waiterName] = [];
-          }
-          acc[order.waiterName].push(order);
-          return acc;
-        },
-        {} as Record<string, Order[]>,
-      );
-
-      for (const [waiterName, orders] of Object.entries(ordersByWaiter)) {
-        const waiter = waiters.find((item) => item.name === waiterName);
-        if (waiter) {
-          const waiterUpdateData = transformOrderDataForWaiterUpdate(
-            orders as Order[],
-            waiter.id,
-          );
-          await updateWaiterPayment(waiterUpdateData);
-        }
-      }
-
-      // Update table record
-      const tables = (await fetchTables()).filter(
-        (item) => rowHotelMatchesTenantScope(item.HotelName, hotelName),
-      );
-      const table = tables.find((item) => item.tableNo === tableNo);
-      if (table) {
-        const tableUpdateData = transformOrderDataForTableUpdate(
-          updatedOrders,
-          table.id,
-          tableNo,
-        );
-        await updateTablePayment(tableUpdateData);
-      }
-
+      await settleCompletedOrders(completedOrders, bank);
       toast.success(`Batch payment processed via ${bank ? "Bank" : "Cash"}`);
       await onRefresh();
     } catch (error) {
@@ -461,6 +586,66 @@ export default function PaymentComponent({
     } finally {
       setProcessingAll(null);
       setSelectedTableForAll(null);
+    }
+  };
+
+  const closeMultiTablePayDialog = () => {
+    if (processingMultiTable) return;
+    setMultiTablePayOpen(false);
+    setAllCreditActive(false);
+    resetCorporateCreditFields();
+  };
+
+  const handlePayAllForSelectedTables = async (bank: boolean) => {
+    if (selectedReadyTableOrders.length === 0) return;
+
+    setProcessingMultiTable(true);
+
+    try {
+      await settleCompletedOrders(selectedReadyTableOrders, bank);
+      toast.success(
+        `Paid ${selectedReadyTableOrders.length} order${selectedReadyTableOrders.length === 1 ? "" : "s"} across ${selectedReadyTables.size} table${selectedReadyTables.size === 1 ? "" : "s"} via ${bank ? "bank" : "cash"}`,
+      );
+      setSelectedReadyTables(new Set());
+      setMultiTablePayOpen(false);
+      await onRefresh();
+    } catch (error) {
+      console.error("Multi-table batch payment error:", error);
+      toast.error("Failed to complete multi-table batch payment");
+    } finally {
+      setProcessingMultiTable(false);
+      setAllCreditActive(false);
+      resetCorporateCreditFields();
+    }
+  };
+
+  const handleCreditAllForSelectedTables = async (totalAmount: number) => {
+    if (selectedReadyTableOrders.length === 0) return;
+
+    setProcessingMultiTable(true);
+
+    try {
+      await recordCorporateCreditAndPayOrders(
+        selectedReadyTableOrders,
+        totalAmount,
+      );
+      toast.success(
+        `Corporate credit recorded for ${selectedReadyTableOrders.length} order${selectedReadyTableOrders.length === 1 ? "" : "s"} across ${selectedReadyTables.size} table${selectedReadyTables.size === 1 ? "" : "s"}`,
+      );
+      setSelectedReadyTables(new Set());
+      setMultiTablePayOpen(false);
+      await onRefresh();
+    } catch (error) {
+      console.error("Multi-table batch credit error:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to complete multi-table batch credit",
+      );
+    } finally {
+      setProcessingMultiTable(false);
+      setAllCreditActive(false);
+      resetCorporateCreditFields();
     }
   };
 
@@ -512,16 +697,6 @@ export default function PaymentComponent({
       setSingleCreditActive(false);
       resetCorporateCreditFields();
     }
-  };
-
-  const areAllOrdersCompleted = (tableOrders: Order[]) => {
-    return tableOrders.every((order) => order.status === "Completed");
-  };
-
-  const calculateTableTotal = (tableOrders: Order[]) => {
-    return tableOrders.reduce((total, order) => {
-      return total + order.price * order.orderAmount;
-    }, 0);
   };
 
   const calculateSingleOrderTotal = (order: Order) => {
@@ -616,6 +791,298 @@ export default function PaymentComponent({
         </div>
       </div>
 
+      {readyTableEntries.length > 0 ? (
+        <div
+          className={cn(
+            "overflow-hidden rounded-xl border shadow-sm transition-colors",
+            selectedReadyTables.size > 0
+              ? "border-green-300/80 bg-linear-to-r from-green-50/90 via-emerald-50/50 to-transparent dark:from-green-950/30 dark:via-emerald-950/20"
+              : "border-border/60 bg-muted/20",
+          )}
+        >
+          <div className="h-1 bg-linear-to-r from-green-600/80 via-green-500/40 to-transparent" />
+          <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1",
+                  selectedReadyTables.size > 0
+                    ? "bg-green-100 text-green-700 ring-green-200/80 dark:bg-green-950/50 dark:text-green-300 dark:ring-green-900/60"
+                    : "bg-muted text-muted-foreground ring-border/60",
+                )}
+              >
+                <LayoutGrid className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
+                    <Checkbox
+                      checked={readyTablesSelectionState}
+                      onCheckedChange={(checked) =>
+                        toggleAllReadyTables(checked === true)
+                      }
+                      aria-label="Select all ready tables"
+                    />
+                    Batch pay ready tables
+                  </label>
+                  <Badge variant="outline" className="tabular-nums text-[11px]">
+                    {readyTableEntries.length} ready
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {selectedReadyTables.size > 0 ? (
+                    <>
+                      <span className="font-medium text-foreground tabular-nums">
+                        {selectedReadyTables.size}
+                      </span>{" "}
+                      table{selectedReadyTables.size === 1 ? "" : "s"} ·{" "}
+                      <span className="font-medium text-foreground tabular-nums">
+                        {selectedReadyTableOrders.length}
+                      </span>{" "}
+                      order
+                      {selectedReadyTableOrders.length === 1 ? "" : "s"}{" "}
+                      selected
+                    </>
+                  ) : (
+                    "Check completed tables below, then pay them together."
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              {selectedReadyTables.size > 0 ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-1.5 text-muted-foreground"
+                    disabled={processingMultiTable}
+                    onClick={() => setSelectedReadyTables(new Set())}
+                  >
+                    <X className="h-4 w-4" />
+                    Clear selection
+                  </Button>
+                  <div className="rounded-lg bg-background/80 px-3 py-2 text-right ring-1 ring-border/50">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Batch total
+                    </p>
+                    <p className="text-lg font-bold tabular-nums text-green-800 dark:text-green-200">
+                      {selectedReadyTablesTotal.toFixed(2)} ETB
+                    </p>
+                  </div>
+                  <Button
+                    className="gap-2 bg-linear-to-r from-green-600 to-emerald-600 shadow-md hover:from-green-700 hover:to-emerald-700"
+                    disabled={processingMultiTable}
+                    onClick={() => setMultiTablePayOpen(true)}
+                  >
+                    <Wallet className="h-4 w-4" />
+                    Review & pay {selectedReadyTables.size} table
+                    {selectedReadyTables.size === 1 ? "" : "s"}
+                  </Button>
+                </>
+              ) : filterType !== "ready" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setFilterType("ready")}
+                >
+                  Show ready only
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <AlertDialog
+        open={multiTablePayOpen && selectedReadyTables.size > 0}
+        onOpenChange={(open) => {
+          if (open) setMultiTablePayOpen(true);
+          else closeMultiTablePayDialog();
+        }}
+      >
+        <AlertDialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <AlertDialogHeader className="space-y-3 border-b px-6 py-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700 ring-1 ring-green-200/80 dark:bg-green-950/50 dark:text-green-300">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <AlertDialogTitle className="text-left text-xl">
+                  Pay selected tables
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-left text-sm">
+                  {selectedReadyTables.size} table
+                  {selectedReadyTables.size === 1 ? "" : "s"} ·{" "}
+                  {selectedReadyTableOrders.length} completed order
+                  {selectedReadyTableOrders.length === 1 ? "" : "s"}
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+
+          <div className="relative flex-1 overflow-y-auto px-6 py-4">
+            {processingMultiTable ? (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/85 backdrop-blur-[1px]">
+                <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+                <p className="text-sm font-medium">Processing batch payment…</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedReadyTableOrders.length} order
+                  {selectedReadyTableOrders.length === 1 ? "" : "s"} across{" "}
+                  {selectedReadyTables.size} table
+                  {selectedReadyTables.size === 1 ? "" : "s"}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border/60 bg-muted/20 p-3">
+              {selectedReadyTablesSummary.map((table) => (
+                <div
+                  key={table.tableNo}
+                  className="flex items-start justify-between gap-3 rounded-md bg-background/70 px-3 py-2.5 text-sm ring-1 ring-border/40"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">{table.display}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {table.waiterName}
+                      </span>
+                      <span>
+                        {table.orderCount} order
+                        {table.orderCount === 1 ? "" : "s"}
+                      </span>
+                    </p>
+                  </div>
+                  <span className="shrink-0 font-semibold tabular-nums">
+                    {table.total.toFixed(2)} ETB
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-green-200/80 bg-green-50/60 px-4 py-3 dark:border-green-900/50 dark:bg-green-950/20">
+              <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                Grand total
+              </span>
+              <span className="text-2xl font-bold tabular-nums text-green-800 dark:text-green-200">
+                {selectedReadyTablesTotal.toFixed(2)} ETB
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4 pb-2">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Payment method
+              </h4>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Button
+                  size="lg"
+                  className="flex h-auto cursor-pointer flex-col items-center gap-2 py-5"
+                  onClick={() => handlePayAllForSelectedTables(false)}
+                  disabled={processingMultiTable}
+                  variant="outline"
+                >
+                  <Icon
+                    icon="streamline-ultimate-color:cash-briefcase"
+                    className="text-3xl"
+                  />
+                  <div className="text-center">
+                    <p className="font-bold">Cash</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Till payment
+                    </p>
+                  </div>
+                </Button>
+                <Button
+                  size="lg"
+                  className="flex h-auto cursor-pointer flex-col items-center gap-2 py-5"
+                  onClick={() => handlePayAllForSelectedTables(true)}
+                  disabled={processingMultiTable}
+                  variant="outline"
+                >
+                  <Icon
+                    icon="streamline-kameleon-color:bank-duo"
+                    className="text-3xl"
+                  />
+                  <div className="text-center">
+                    <p className="font-bold">Bank</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Transfer
+                    </p>
+                  </div>
+                </Button>
+              </div>
+
+              <Button
+                size="lg"
+                onClick={() => setAllCreditActive(!allCreditActive)}
+                className="flex h-auto w-full cursor-pointer flex-col items-center gap-2 py-5"
+                variant="outline"
+                disabled={
+                  processingMultiTable ||
+                  authorizedCreditCompanies.length === 0
+                }
+              >
+                <Icon icon="noto:credit-card" className="text-3xl" />
+                <div className="text-center">
+                  <p className="font-bold">Corporate credit</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Company + staff
+                  </p>
+                </div>
+              </Button>
+
+              {allCreditActive ? (
+                <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+                  <CorporateCreditPaymentFields
+                    companies={authorizedCreditCompanies}
+                    parties={creditParties}
+                    companyId={creditCompanyId}
+                    onCompanyIdChange={setCreditCompanyId}
+                    staffName={creditStaffName}
+                    onStaffNameChange={setCreditStaffName}
+                    staffPhone={creditStaffPhone}
+                    onStaffPhoneChange={setCreditStaffPhone}
+                    amountETB={selectedReadyTablesTotal}
+                    ordersForDealCheck={selectedReadyTableOrders}
+                  />
+                  <Button
+                    disabled={
+                      !isCorporateCreditFormReady(
+                        creditCompanyId,
+                        creditStaffName,
+                        creditStaffPhone,
+                      ) || processingMultiTable
+                    }
+                    onClick={() =>
+                      handleCreditAllForSelectedTables(selectedReadyTablesTotal)
+                    }
+                    className="w-full gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <Wallet className="h-4 w-4" />
+                    Pay all selected with corporate credit
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t px-6 py-4">
+            <Button
+              variant="outline"
+              disabled={processingMultiTable}
+              onClick={closeMultiTablePayDialog}
+            >
+              Cancel
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {searchQuery && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -685,16 +1152,55 @@ export default function PaymentComponent({
                 defaultOpen={false}
                 className="group/table"
               >
-                <Card className="overflow-hidden border-l-4 border-l-primary hover:shadow-md transition-shadow">
+                <Card
+                  className={cn(
+                    "overflow-hidden border-l-4 transition-all hover:shadow-md",
+                    allCompleted && selectedReadyTables.has(Number(tableNo))
+                      ? "border-l-green-600 bg-green-50/30 ring-2 ring-green-200/70 shadow-md dark:bg-green-950/10 dark:ring-green-900/50"
+                      : allCompleted
+                        ? "border-l-green-500/70"
+                        : "border-l-primary",
+                  )}
+                >
                   <CollapsibleTrigger asChild>
                     <Button
                       type="button"
                       variant="ghost"
                       className="h-auto w-full cursor-pointer rounded-none px-0 py-0 hover:bg-muted/40"
                     >
-                      <CardHeader className="w-full bg-muted/30 pb-4">
+                      <CardHeader
+                        className={cn(
+                          "w-full pb-4",
+                          allCompleted && selectedReadyTables.has(Number(tableNo))
+                            ? "bg-green-50/50 dark:bg-green-950/20"
+                            : "bg-muted/30",
+                        )}
+                      >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            {allCompleted ? (
+                              <label
+                                className={cn(
+                                  "flex shrink-0 items-center rounded-md p-1 transition-colors",
+                                  selectedReadyTables.has(Number(tableNo)) &&
+                                    "bg-green-100/80 dark:bg-green-900/40",
+                                )}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Checkbox
+                                  checked={selectedReadyTables.has(
+                                    Number(tableNo),
+                                  )}
+                                  onCheckedChange={(checked) =>
+                                    toggleReadyTable(
+                                      Number(tableNo),
+                                      checked === true,
+                                    )
+                                  }
+                                  aria-label={`Select ${tableDisplay} for batch payment`}
+                                />
+                              </label>
+                            ) : null}
                             <div className="flex items-center gap-2">
                               <Badge
                                 variant="outline"
