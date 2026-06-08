@@ -62,6 +62,12 @@ import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
 import { Cashout, fetchCashout, fetchTables, type Table } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import {
+  sumBankOrderRevenueETB,
+  sumBankTipCashDeductionsETB,
+  sumCashOrderRevenueETB,
+  sumNetCashRevenueETB,
+} from "@/lib/cafeBankPayment";
 import Cashouts from "@/app/CashoutTable/page";
 
 const COLORS = [
@@ -309,6 +315,11 @@ export default function Reports({
     const paid = reportFilteredOrders.filter(
       (o: any) => String(o.payment ?? "").trim().toLowerCase() === "paid",
     );
+    const cashOrders = paid.filter((o: any) => o.withBank === false);
+    const bankOrders = paid.filter((o: any) => o.withBank === true);
+    const creditOrders = paid.filter(
+      (o: any) => o.credit === true && o.withBank === null,
+    );
     const sumOrders = (list: any[]) =>
       list.reduce(
         (total, order) =>
@@ -316,14 +327,19 @@ export default function Reports({
           (Number(order.price) || 0) * (Number(order.orderAmount) || 0),
         0,
       );
-    const cashOrders = paid.filter((o: any) => o.withBank === false);
-    const bankOrders = paid.filter((o: any) => o.withBank === true);
-    const creditOrders = paid.filter(
-      (o: any) => o.credit === true && o.withBank === null,
-    );
+    const grossCash = sumCashOrderRevenueETB(cashOrders);
+    const tipDeduction = sumBankTipCashDeductionsETB(paid);
     return {
-      cash: { count: cashOrders.length, amount: sumOrders(cashOrders) },
-      bank: { count: bankOrders.length, amount: sumOrders(bankOrders) },
+      cash: {
+        count: cashOrders.length,
+        amount: sumNetCashRevenueETB(paid),
+        grossAmount: grossCash,
+        tipCashDeduction: tipDeduction,
+      },
+      bank: {
+        count: bankOrders.length,
+        amount: sumBankOrderRevenueETB(bankOrders),
+      },
       credit: { count: creditOrders.length, amount: sumOrders(creditOrders) },
     };
   }, [reportFilteredOrders]);
@@ -537,6 +553,15 @@ export default function Reports({
                 value: reportData.netSales,
                 color: "text-emerald-500",
               },
+              ...(reportData.bankTipCashDeductions?.amount > 0
+                ? [
+                    {
+                      label: "Bank tip cash deducted",
+                      value: reportData.bankTipCashDeductions.amount,
+                      color: "text-amber-600",
+                    },
+                  ]
+                : []),
               {
                 label: "Total Orders",
                 value: reportData.orders.length,
@@ -576,6 +601,9 @@ export default function Reports({
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {livePaymentTotals.cash.count} orders
+                  {livePaymentTotals.cash.tipCashDeduction > 0
+                    ? ` · ${livePaymentTotals.cash.tipCashDeduction.toLocaleString()} ETB tip cash deducted`
+                    : ""}
                 </p>
                 <CategorySoldBreakdown
                   items={paymentCategoryBreakdown.cash}

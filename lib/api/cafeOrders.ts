@@ -43,6 +43,8 @@ export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[
           credit
           credittorName
           creditAmount
+          bankTransferAmount
+          bankTipCashDeduction
           serviceCaption
           cancelledBy
           orderRevisedAt
@@ -364,12 +366,28 @@ export async function updateOrderPayment(
   id: number,
   payment: string,
   withBank: boolean,
-  options?: { silent?: boolean },
+  options?: {
+    silent?: boolean;
+    bankTransferAmount?: number | null;
+    bankTipCashDeduction?: number | null;
+  },
 ) {
   try {
     const mutation = `
-      mutation UpdatePayment($id: Int!, $payment: String, $withBank: Boolean) {
-        UpdatePayment(id: $id, payment: $payment, withBank: $withBank) {
+      mutation UpdatePayment(
+        $id: Int!
+        $payment: String
+        $withBank: Boolean
+        $bankTransferAmount: Float
+        $bankTipCashDeduction: Float
+      ) {
+        UpdatePayment(
+          id: $id
+          payment: $payment
+          withBank: $withBank
+          bankTransferAmount: $bankTransferAmount
+          bankTipCashDeduction: $bankTipCashDeduction
+        ) {
           id
           payment
           waiterName
@@ -378,13 +396,23 @@ export async function updateOrderPayment(
           orderAmount
           price
           withBank
+          bankTransferAmount
+          bankTipCashDeduction
         }
       }
     `;
 
+    const variables: Record<string, unknown> = { id, payment, withBank };
+    if (options?.bankTransferAmount != null) {
+      variables.bankTransferAmount = options.bankTransferAmount;
+    }
+    if (options?.bankTipCashDeduction != null) {
+      variables.bankTipCashDeduction = options.bankTipCashDeduction;
+    }
+
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: { id, payment, withBank },
+      variables,
     });
 
     if (response.data.errors) {

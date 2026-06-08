@@ -48,6 +48,8 @@ export interface Order {
   credit?: boolean | null;
   credittorName?: string | null;
   creditAmount?: number | null;
+  bankTransferAmount?: number | null;
+  bankTipCashDeduction?: number | null;
   serviceCaption?: string | null;
   cancelledBy?: string | null;
   orderRevisedAt?: string | null;
@@ -214,12 +216,18 @@ export interface ReportData {
   cashPayments: {
     count: number;
     amount: number;
+    grossAmount: number;
+    tipCashDeduction: number;
     percentage: number;
   };
   bankPayments: {
     count: number;
     amount: number;
     percentage: number;
+  };
+  bankTipCashDeductions: {
+    count: number;
+    amount: number;
   };
   creditPayments: {
     count: number;

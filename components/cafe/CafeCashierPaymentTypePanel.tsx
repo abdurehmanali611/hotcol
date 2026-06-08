@@ -50,6 +50,10 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  cafeOrderLineTotalETB,
+  distributeBankTransferAcrossOrders,
+} from "@/lib/cafeBankPayment";
 
 type Props = {
   orders: Order[];
@@ -95,7 +99,7 @@ function formatAmountETB(amount: number): string {
 }
 
 function lineTotalETB(order: Order): number {
-  return (Number(order.price) || 0) * (Number(order.orderAmount) || 0);
+  return cafeOrderLineTotalETB(order);
 }
 
 function orderMatchesSearch(order: Order, query: string): boolean {
@@ -491,6 +495,7 @@ export function CafeCashierPaymentTypePanel({
   const [paymentFilter, setPaymentFilter] = useState<PaymentTypeFilter>("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [pendingChange, setPendingChange] = useState<PendingChange>(null);
+  const [bankTransferInput, setBankTransferInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -584,27 +589,105 @@ export function CafeCashierPaymentTypePanel({
   const canSetCash = selectedOrders.some((order) => !isCashPayment(order));
   const canSetBank = selectedOrders.some((order) => !isBankPayment(order));
 
-  const applyPaymentType = async (target: "cash" | "bank") => {
-    const withBank = target === "bank";
+  const ordersPendingTypeChange = useMemo(() => {
+    if (!pendingChange) return [];
+    return selectedOrders.filter((order) =>
+      pendingChange === "bank"
+        ? !isBankPayment(order)
+        : !isCashPayment(order),
+    );
+  }, [pendingChange, selectedOrders]);
+
+  const pendingOrderTotalETB = useMemo(
+    () =>
+      ordersPendingTypeChange.reduce(
+        (sum, order) => sum + lineTotalETB(order),
+        0,
+      ),
+    [ordersPendingTypeChange],
+  );
+
+  const parsedBankTransferAmount = useMemo(() => {
+    const value = Number(bankTransferInput.replace(/,/g, "").trim());
+    return Number.isFinite(value) ? value : NaN;
+  }, [bankTransferInput]);
+
+  const pendingTipCashDeduction = useMemo(() => {
+    if (!Number.isFinite(parsedBankTransferAmount)) return 0;
+    return Math.max(0, parsedBankTransferAmount - pendingOrderTotalETB);
+  }, [parsedBankTransferAmount, pendingOrderTotalETB]);
+
+  const openPendingChange = (target: "cash" | "bank") => {
     const toUpdate = selectedOrders.filter((order) =>
-      withBank ? !isBankPayment(order) : !isCashPayment(order),
+      target === "bank" ? !isBankPayment(order) : !isCashPayment(order),
     );
     if (!toUpdate.length) {
       toast.message("Selected orders already use that payment type.");
       return;
+    }
+    const orderTotal = toUpdate.reduce(
+      (sum, order) => sum + lineTotalETB(order),
+      0,
+    );
+    setBankTransferInput(orderTotal > 0 ? orderTotal.toFixed(2) : "");
+    setPendingChange(target);
+  };
+
+  const applyPaymentType = async (target: "cash" | "bank") => {
+    const withBank = target === "bank";
+    const toUpdate = ordersPendingTypeChange;
+    if (!toUpdate.length) {
+      toast.message("Selected orders already use that payment type.");
+      return;
+    }
+
+    let bankDistribution:
+      | ReturnType<typeof distributeBankTransferAcrossOrders>
+      | null = null;
+
+    if (withBank) {
+      if (!Number.isFinite(parsedBankTransferAmount)) {
+        toast.error("Enter the total amount transferred through the bank.");
+        return;
+      }
+      if (parsedBankTransferAmount < pendingOrderTotalETB) {
+        toast.error(
+          `Bank transfer must be at least ${formatAmountETB(pendingOrderTotalETB)} ETB (order total).`,
+        );
+        return;
+      }
+      bankDistribution = distributeBankTransferAcrossOrders(
+        toUpdate,
+        parsedBankTransferAmount,
+      );
     }
 
     setSaving(true);
     try {
       let updated = 0;
       for (const order of toUpdate) {
-        await updateOrderPayment(order.id, "Paid", withBank, { silent: true });
+        const distribution = bankDistribution?.find(
+          (row) => row.id === order.id,
+        );
+        await updateOrderPayment(order.id, "Paid", withBank, {
+          silent: true,
+          bankTransferAmount: withBank
+            ? (distribution?.bankTransferAmount ?? pendingOrderTotalETB)
+            : null,
+          bankTipCashDeduction: withBank
+            ? (distribution?.bankTipCashDeduction ?? 0)
+            : null,
+        });
         updated += 1;
       }
       await onRefresh();
       setSelectedIds(new Set());
+      const tipNote =
+        withBank && pendingTipCashDeduction > 0
+          ? ` ${formatAmountETB(pendingTipCashDeduction)} ETB tip deducted from cash sales.`
+          : "";
       toast.success(
-        `Updated ${updated} order${updated === 1 ? "" : "s"} to ${target === "bank" ? "bank" : "cash"}.`,
+        `Updated ${updated} order${updated === 1 ? "" : "s"} to ${target === "bank" ? "bank" : "cash"}.${tipNote}`,
       );
     } catch (error: unknown) {
       const message =
@@ -613,6 +696,7 @@ export function CafeCashierPaymentTypePanel({
     } finally {
       setSaving(false);
       setPendingChange(null);
+      setBankTransferInput("");
     }
   };
 
@@ -684,7 +768,7 @@ export function CafeCashierPaymentTypePanel({
                   variant="outline"
                   size="sm"
                   disabled={!canSetCash || saving || selectedOrders.length === 0}
-                  onClick={() => setPendingChange("cash")}
+                  onClick={() => openPendingChange("cash")}
                   className="gap-1.5 border-emerald-200/80 bg-emerald-50/50 text-emerald-900 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100 dark:hover:bg-emerald-950/50"
                 >
                   <Banknote className="h-4 w-4" />
@@ -695,7 +779,7 @@ export function CafeCashierPaymentTypePanel({
                   variant="outline"
                   size="sm"
                   disabled={!canSetBank || saving || selectedOrders.length === 0}
-                  onClick={() => setPendingChange("bank")}
+                  onClick={() => openPendingChange("bank")}
                   className="gap-1.5 border-sky-200/80 bg-sky-50/50 text-sky-900 hover:bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100 dark:hover:bg-sky-950/50"
                 >
                   <Building2 className="h-4 w-4" />
@@ -797,7 +881,10 @@ export function CafeCashierPaymentTypePanel({
       <AlertDialog
         open={pendingChange !== null}
         onOpenChange={(open) => {
-          if (!open) setPendingChange(null);
+          if (!open) {
+            setPendingChange(null);
+            setBankTransferInput("");
+          }
         }}
       >
         <AlertDialogContent>
@@ -805,24 +892,71 @@ export function CafeCashierPaymentTypePanel({
             <AlertDialogTitle>
               Change to {pendingChange === "bank" ? "bank" : "cash"}?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              This updates the payment channel on{" "}
-              {
-                selectedOrders.filter((order) =>
-                  pendingChange === "bank"
-                    ? !isBankPayment(order)
-                    : !isCashPayment(order),
-                ).length
-              }{" "}
-              selected order
-              {selectedOrders.length === 1 ? "" : "s"}. Credit payments are not
-              changed here.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  This updates the payment channel on{" "}
+                  {ordersPendingTypeChange.length} selected order
+                  {ordersPendingTypeChange.length === 1 ? "" : "s"}. Credit
+                  payments are not changed here.
+                </p>
+                {pendingChange === "bank" ? (
+                  <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3 text-foreground">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span>Order total</span>
+                      <span className="font-semibold tabular-nums">
+                        {formatAmountETB(pendingOrderTotalETB)} ETB
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="bank-transfer-amount"
+                        className="text-sm font-medium"
+                      >
+                        Total bank transfer received
+                      </label>
+                      <Input
+                        id="bank-transfer-amount"
+                        type="number"
+                        min={pendingOrderTotalETB}
+                        step="0.01"
+                        inputMode="decimal"
+                        value={bankTransferInput}
+                        onChange={(e) => setBankTransferInput(e.target.value)}
+                        placeholder="Enter amount from customer receipt"
+                        className="bg-background"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enter the full amount the customer transferred. If it
+                        includes a waiter tip, the extra is deducted from cash
+                        sales and counted in bank revenue.
+                      </p>
+                    </div>
+                    {pendingTipCashDeduction > 0 ? (
+                      <div className="rounded-md border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                        <p className="font-medium">Tip cash payout</p>
+                        <p className="mt-1 tabular-nums">
+                          {formatAmountETB(pendingTipCashDeduction)} ETB will be
+                          deducted from cash revenue and paid to the waiter from
+                          the till.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={saving || pendingChange === null}
+              disabled={
+                saving ||
+                pendingChange === null ||
+                (pendingChange === "bank" &&
+                  (!Number.isFinite(parsedBankTransferAmount) ||
+                    parsedBankTransferAmount < pendingOrderTotalETB))
+              }
               onClick={(e) => {
                 e.preventDefault();
                 if (pendingChange) void applyPaymentType(pendingChange);

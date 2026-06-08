@@ -3,6 +3,15 @@ import { toast } from "sonner";
 import { saveAs } from "file-saver";
 import { UseFormReturn } from "react-hook-form";
 import { rowHotelMatchesTenantScope } from "../tenantRowMatch";
+import {
+  getOrderBankTipCashDeduction,
+  getOrderBankTransferAmount,
+  sumBankOrderRevenueETB,
+  sumBankTipCashDeductionsETB,
+  sumCashOrderRevenueETB,
+  sumNetCashRevenueETB,
+  cafeOrderLineTotalETB,
+} from "../cafeBankPayment";
 import type {
   Order,
   ReportFilter,
@@ -15,7 +24,7 @@ import type {
 } from "./types";
 
 function calculateTotalSales(orders: Order[]): number {
-  return orders.reduce((total, order) => total + order.price * order.orderAmount, 0);
+  return orders.reduce((total, order) => total + cafeOrderLineTotalETB(order), 0);
 }
 
 
@@ -166,8 +175,13 @@ export async function generateReport(
     (order) => order.credit === true && order.withBank === null,
   );
 
-  const cashAmount = calculateTotalSales(cashOrders);
-  const bankAmount = calculateTotalSales(bankOrders);
+  const grossCashAmount = sumCashOrderRevenueETB(cashOrders);
+  const bankTipCashDeduction = sumBankTipCashDeductionsETB(filteredOrders);
+  const bankTipOrderCount = bankOrders.filter(
+    (order) => getOrderBankTipCashDeduction(order) > 0,
+  ).length;
+  const netCashAmount = sumNetCashRevenueETB(filteredOrders);
+  const bankAmount = sumBankOrderRevenueETB(bankOrders);
   const creditAmount = calculateTotalSales(creditOrders);
   const totalAmount = totalSales || 1;
 
@@ -178,13 +192,19 @@ export async function generateReport(
     totalCashouts,
     cashPayments: {
       count: cashOrders.length,
-      amount: cashAmount,
-      percentage: totalAmount > 0 ? (cashAmount / totalAmount) * 100 : 0,
+      amount: netCashAmount,
+      grossAmount: grossCashAmount,
+      tipCashDeduction: bankTipCashDeduction,
+      percentage: totalAmount > 0 ? (netCashAmount / totalAmount) * 100 : 0,
     },
     bankPayments: {
       count: bankOrders.length,
       amount: bankAmount,
       percentage: totalAmount > 0 ? (bankAmount / totalAmount) * 100 : 0,
+    },
+    bankTipCashDeductions: {
+      count: bankTipOrderCount,
+      amount: bankTipCashDeduction,
     },
     creditPayments: {
       count: creditOrders.length,
@@ -203,14 +223,17 @@ export function prepareReportExportData(
     if (order.credit === true) paymentMethod = "Credit";
     else if (order.withBank === true) paymentMethod = "Bank";
 
-    const lineTotal =
-      (Number(order.price) || 0) * (Number(order.orderAmount) || 0);
+    const lineTotal = cafeOrderLineTotalETB(order);
+    const bankTransfer = getOrderBankTransferAmount(order);
+    const tipCashDeduction = getOrderBankTipCashDeduction(order);
     return {
       "Item Name": order.title,
       Category: order.category,
       Price: order.price,
       "Order Amount": order.orderAmount,
       "Total Amount": lineTotal,
+      "Bank Transfer": paymentMethod === "Bank" ? bankTransfer : "",
+      "Tip Cash Deduction": tipCashDeduction > 0 ? tipCashDeduction : "",
       "Order Date": new Date(order.createdAt).toLocaleDateString(),
       Status: order.status || "Pending",
       Payment: order.payment,
@@ -229,6 +252,8 @@ export function prepareReportExportData(
       "Price",
       "Order Amount",
       "Total Amount",
+      "Bank Transfer",
+      "Tip Cash Deduction",
       "Order Date",
       "Status",
       "Payment",
