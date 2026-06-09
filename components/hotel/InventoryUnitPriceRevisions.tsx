@@ -83,7 +83,7 @@ export function InventoryUnitPriceRevisions({
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="any"
                   className="w-32"
                   placeholder="New unit price"
                   value={draftPrice[r.id] ?? ""}

@@ -157,7 +157,7 @@ function StockReviewEditDialogForm({
                   id="so-edit-qty"
                   type="number"
                   min={0.01}
-                  step={0.01}
+                  step="any"
                   className="h-10 tabular-nums"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}

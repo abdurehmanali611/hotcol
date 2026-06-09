@@ -378,7 +378,7 @@ export function BatchItemRegistrationForm({
                         id={`reg-qty-${l.key}`}
                         type="number"
                         min={0}
-                        step={0.01}
+                        step="any"
                         className="h-10 tabular-nums"
                         value={l.amount}
                         onChange={(e) =>
@@ -414,7 +414,7 @@ export function BatchItemRegistrationForm({
                         id={`reg-price-${l.key}`}
                         type="number"
                         min={0}
-                        step={0.01}
+                        step="any"
                         className="h-10 tabular-nums"
                         value={l.unitPrice}
                         onChange={(e) =>
@@ -448,7 +448,7 @@ export function BatchItemRegistrationForm({
                         id={`reg-paid-${l.key}`}
                         type="number"
                         min={0}
-                        step={0.01}
+                        step="any"
                         className="h-10 tabular-nums"
                         value={l.paidAmount}
                         onChange={(e) =>

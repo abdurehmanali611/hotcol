@@ -513,6 +513,8 @@ const StockOut = ({
             <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"
+              min={0.01}
+              step="any"
               value={amountDeduct}
               onChange={(e) => setAmountDeduct(Number(e.target.value))}
               placeholder="Enter amount..."
@@ -688,6 +690,8 @@ const Wastage = ({
             <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"
+              min={0.01}
+              step="any"
               value={amountDeduct}
               onChange={(e) => setAmountDeduct(Number(e.target.value))}
               placeholder="Enter amount..."
@@ -863,6 +867,8 @@ const Returned = ({
             <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"
+              min={0.01}
+              step="any"
               value={amountDeduct}
               onChange={(e) => setAmountDeduct(Number(e.target.value))}
               placeholder="Enter amount..."

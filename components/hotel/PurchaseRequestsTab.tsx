@@ -290,7 +290,7 @@ export default function PurchaseRequestsTab({
                           id={`pr-qty-${l.key}`}
                           type="number"
                           min={0.01}
-                          step={0.01}
+                          step="any"
                           value={l.quantity}
                           onChange={(e) =>
                             updateLine(l.key, {
@@ -326,7 +326,7 @@ export default function PurchaseRequestsTab({
                           id={`pr-price-${l.key}`}
                           type="number"
                           min={0}
-                          step={0.01}
+                          step="any"
                           value={l.estimatedUnitPrice}
                           onChange={(e) =>
                             updateLine(l.key, {

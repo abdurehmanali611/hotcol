@@ -109,6 +109,10 @@ interface BaseProps {
   readOnly?: boolean;
   autoFocus?: boolean;
   autoComplete?: string;
+  allowDecimal?: boolean;
+  step?: string | number;
+  min?: string | number;
+  max?: string | number;
 }
 
 interface FormConnectedProps extends BaseProps {
@@ -172,7 +176,9 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                       if (value === "") {
                         field.onChange(undefined);
                       } else {
-                        const parsed = Number.parseInt(value, 10);
+                        const parsed = props.allowDecimal
+                          ? Number(value)
+                          : Number.parseInt(value, 10);
                         field.onChange(
                           Number.isNaN(parsed) ? undefined : parsed,
                         );
@@ -219,6 +225,9 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                 readOnly={props.readOnly}
                 autoFocus={props.autoFocus}
                 autoComplete={props.autoComplete}
+                step={props.step}
+                min={props.min}
+                max={props.max}
               />
               {props.add && (
                 <div className="flex flex-col flex-wrap gap-2 max-h-24 overflow-y-auto p-2 border rounded-md">

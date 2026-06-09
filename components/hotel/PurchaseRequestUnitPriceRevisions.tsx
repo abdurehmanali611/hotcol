@@ -502,7 +502,7 @@ function PurchaseLineUnitPriceRow({
             <Input
               type="number"
               min={0}
-              step="0.01"
+              step="any"
               className="w-full sm:w-36"
               placeholder="New unit price"
               value={draftPrice[row.id] ?? ""}

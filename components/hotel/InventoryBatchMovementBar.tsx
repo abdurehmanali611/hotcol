@@ -334,7 +334,7 @@ export function InventoryBatchMovementBar({
                         id={`qty-${line.registrationId}`}
                         type="number"
                         min={0.01}
-                        step={0.01}
+                        step="any"
                         className="h-10 tabular-nums"
                         value={line.amount}
                         onChange={(e) =>

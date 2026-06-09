@@ -235,6 +235,9 @@ const UpdateStock = ({
                   fieldType={formFieldTypes.INPUT}
                   label="Amount:"
                   type="number"
+                  allowDecimal
+                  min={0}
+                  step="any"
                   inputClassName="h-fit p-2 w-56"
                 />
                 <CustomFormField
@@ -261,6 +264,9 @@ const UpdateStock = ({
                   fieldType={formFieldTypes.INPUT}
                   label="Unit Price:"
                   type="number"
+                  allowDecimal
+                  min={0}
+                  step="any"
                   inputClassName="h-fit p-2 w-56"
                 />
               </div>
@@ -394,6 +400,9 @@ const UpdateStock = ({
                 fieldType={formFieldTypes.INPUT}
                 label="Paid Amount:"
                 type="number"
+                allowDecimal
+                min={0}
+                step="any"
                 inputClassName="h-fit p-2 w-56"
               />
 
