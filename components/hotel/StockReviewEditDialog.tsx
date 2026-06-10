@@ -8,12 +8,13 @@ import { notifyApiFailure } from "@/lib/actions";
 import { updateStockOutRequestStoreDraftApi } from "@/lib/api/storeRequestDraft";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
-import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import {
   formatStockMovementDestination,
   parseStockMovementDestination,
   type StockMovementKind,
 } from "@/lib/stockMovementDraftForm";
+import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
   Dialog,
@@ -62,11 +63,7 @@ function StockReviewEditDialogForm({
   );
   const [movementType, setMovementType] = useState<StockMovementKind>(kind);
   const [amount, setAmount] = useState(String(row.amount));
-  const [stakeholder, setStakeholder] = useState<string>(
-    parsed.stakeholder ||
-      HOTEL_STORE_STOCK_OUT_STAKEHOLDERS[0] ||
-      "Kitchen",
-  );
+  const [stakeholder, setStakeholder] = useState<string>(parsed.stakeholder);
   const [customStation, setCustomStation] = useState(parsed.customStation);
   const [reason, setReason] = useState(parsed.reason);
 
@@ -180,21 +177,12 @@ function StockReviewEditDialogForm({
           >
             {movementType === "STOCK_OUT" ? (
               <div className="grid gap-4">
-                <div className="space-y-1.5">
-                  <Label>Station or destination</Label>
-                  <Select value={stakeholder} onValueChange={setStakeholder}>
-                    <SelectTrigger className="h-10 w-full">
-                      <SelectValue placeholder="Station" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HOTEL_STORE_STOCK_OUT_STAKEHOLDERS.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <DepartmentLeaderSelect
+                  label="Station or destination"
+                  value={stakeholder}
+                  onChange={setStakeholder}
+                  allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+                />
                 <div className="space-y-1.5">
                   <Label htmlFor="so-edit-custom">Custom destination (optional)</Label>
                   <Input

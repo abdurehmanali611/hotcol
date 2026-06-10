@@ -26,15 +26,18 @@ import {
   type ItemRegistration,
   type StockOutRequestRow,
 } from "@/lib/actions";
-import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
+import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import {
+  REQUESTED_BY_DEPARTMENT_CODES,
+  stockOutDestinationTextFromDepartmentCode,
+} from "@/lib/departments";
+import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import type { DataTableRef } from "@/app/StoreItems/data-table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Send } from "lucide-react";
-import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
-import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 
 type MovementKind = "STOCK_OUT" | "WASTAGE" | "RETURN_SUPPLIER";
 
@@ -45,7 +48,7 @@ type LineDraft = {
   measuredBy: string;
   movement: MovementKind;
   amount: string;
-  /** Stock-out: pick list value (may be empty if using customStation) */
+  /** Stock-out: department code (same options as requested by) */
   stakeholder: string;
   /** Stock-out: optional free-text station / destination */
   customStation: string;
@@ -67,7 +70,7 @@ function rowsToDrafts(selected: ItemRegistration[]): LineDraft[] {
     measuredBy: row.measuredBy || "Piece",
     movement: "STOCK_OUT",
     amount: defaultAmountForRow(row),
-    stakeholder: HOTEL_STORE_STOCK_OUT_STAKEHOLDERS[0] ?? "Kitchen",
+    stakeholder: "",
     customStation: "",
     reason: "",
   }));
@@ -76,7 +79,9 @@ function rowsToDrafts(selected: ItemRegistration[]): LineDraft[] {
 function stockOutDestination(line: LineDraft): string {
   const custom = line.customStation.trim();
   if (custom) return custom;
-  return line.stakeholder.trim();
+  const code = line.stakeholder.trim();
+  if (!code) return "";
+  return stockOutDestinationTextFromDepartmentCode(code);
 }
 
 export function InventoryBatchMovementBar({
@@ -93,6 +98,8 @@ export function InventoryBatchMovementBar({
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const { options: destinationOptions, loading: destinationLoading } =
+    useDepartmentLeaderSelectOptions(REQUESTED_BY_DEPARTMENT_CODES);
   const { isPending, run } = useConcurrentActions();
   const batchKey = "inventory-batch-movements";
 
@@ -349,18 +356,27 @@ export function InventoryBatchMovementBar({
                       <div className="space-y-2 sm:col-span-2">
                         <Label>Station or destination</Label>
                         <Select
-                          value={line.stakeholder}
+                          value={line.stakeholder || undefined}
                           onValueChange={(v) =>
                             updateLine(line.registrationId, { stakeholder: v })
                           }
+                          disabled={destinationLoading || destinationOptions.length === 0}
                         >
                           <SelectTrigger className="h-10 w-full">
-                            <SelectValue placeholder="Station" />
+                            <SelectValue
+                              placeholder={
+                                destinationLoading
+                                  ? "Loading departments…"
+                                  : destinationOptions.length === 0
+                                    ? "No leaders registered — ask manager to add them"
+                                    : "Select department"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {HOTEL_STORE_STOCK_OUT_STAKEHOLDERS.map((s) => (
-                              <SelectItem key={s} value={s}>
-                                {s}
+                            {destinationOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
                               </SelectItem>
                             ))}
                           </SelectContent>

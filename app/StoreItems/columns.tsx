@@ -55,7 +55,10 @@ import { cn } from "@/lib/utils";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
-import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
+import {
+  REQUESTED_BY_DEPARTMENT_CODES,
+  stockOutDestinationTextFromDepartmentCode,
+} from "@/lib/departments";
 import { ColumnDef } from "@tanstack/react-table";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
@@ -384,7 +387,7 @@ const StockOut = ({
 
   const handleStockOut = () => {
     if (!statusBy.trim()) {
-      toast.error("Select or enter where stock is going");
+      toast.error("Select the station or destination");
       return;
     }
     if (hotelStockApprovals && !requestedByDepartment.trim()) {
@@ -398,11 +401,12 @@ const StockOut = ({
     void run(actionKey, async () => {
       try {
         if (hotelStockApprovals) {
+          const destination = stockOutDestinationTextFromDepartmentCode(statusBy);
           const result = await createStockOutRequestApi({
             itemRegistrationId: data.id,
             movementType: "STOCK_OUT",
             amount: amountDeduct,
-            stakeHolderOrReason: statusBy.trim(),
+            stakeHolderOrReason: destination,
             requestedByDepartment: requestedByDepartment.trim(),
           });
           const user =
@@ -418,7 +422,7 @@ const StockOut = ({
               },
               "STOCK_OUT",
               amountDeduct,
-              statusBy.trim(),
+              destination,
               result,
               user || "—",
             ),
@@ -485,31 +489,40 @@ const StockOut = ({
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             {hotelStockApprovals ? (
-              <DepartmentLeaderSelect
-                label="Requested by"
-                value={requestedByDepartment}
-                onChange={setRequestedByDepartment}
-                allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
-              />
-            ) : null}
-            <Select
-              value={statusBy}
-              onValueChange={(value) => setStatusBy(value)}
-            >
-              <SelectTrigger className="w-full h-fit p-2">
-                <SelectValue placeholder="Select Stakeholder" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Stakeholders:</SelectLabel>
-                  {HOTEL_STORE_STOCK_OUT_STAKEHOLDERS.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              <>
+                <DepartmentLeaderSelect
+                  label="Requested by"
+                  value={requestedByDepartment}
+                  onChange={setRequestedByDepartment}
+                  allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+                />
+                <DepartmentLeaderSelect
+                  label="Station or destination"
+                  value={statusBy}
+                  onChange={setStatusBy}
+                  allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+                />
+              </>
+            ) : (
+              <Select
+                value={statusBy}
+                onValueChange={(value) => setStatusBy(value)}
+              >
+                <SelectTrigger className="w-full h-fit p-2">
+                  <SelectValue placeholder="Select Stakeholder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Stakeholders:</SelectLabel>
+                    {HOTEL_STORE_STOCK_OUT_STAKEHOLDERS.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
             <Label htmlFor="Amount">Quantity ({data.measuredBy}):</Label>
             <Input
               type="number"

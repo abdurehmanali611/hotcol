@@ -163,3 +163,47 @@ export function selectOptionsForDepartments(
     .sort((a, b) => a.label.localeCompare(b.label));
   return [...staffOption, ...departmentOptions];
 }
+
+/** Text stored on StockOutRequest.stakeHolderOrReason from a department select value. */
+export function stockOutDestinationTextFromDepartmentCode(code: string): string {
+  return departmentLabel(normalizeDepartmentCode(String(code ?? "").trim()));
+}
+
+const LEGACY_STOCK_OUT_DESTINATION_TO_DEPARTMENT: Record<string, string> = {
+  kitchen: "KITCHEN",
+  barista: "BAR",
+  bar: "BAR",
+  juicer: "FB_SERVICE",
+  "cleaning service": "HOUSE_KEEPING_PUBLIC",
+  cleaning: "HOUSE_KEEPING_PUBLIC",
+  housekeeping: "HOUSE_KEEPING_ROOM",
+  maintenance: "MAINTENANCE",
+};
+
+/** Map saved destination text or department code back to a department select value. */
+export function resolveStockOutDestinationDepartmentCode(
+  raw: string,
+): string | null {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return null;
+
+  const normalized = normalizeDepartmentCode(trimmed);
+  if (REQUESTED_BY_DEPARTMENT_CODES.includes(normalized)) {
+    return normalized;
+  }
+
+  const lower = trimmed.toLowerCase();
+  for (const code of REQUESTED_BY_DEPARTMENT_CODES) {
+    if (departmentLabel(code).toLowerCase() === lower) return code;
+  }
+
+  const legacyCode = LEGACY_STOCK_OUT_DESTINATION_TO_DEPARTMENT[lower];
+  if (
+    legacyCode &&
+    REQUESTED_BY_DEPARTMENT_CODES.includes(legacyCode)
+  ) {
+    return legacyCode;
+  }
+
+  return null;
+}

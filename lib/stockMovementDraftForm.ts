@@ -1,4 +1,8 @@
-import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
+import {
+  REQUESTED_BY_DEPARTMENT_CODES,
+  resolveStockOutDestinationDepartmentCode,
+  stockOutDestinationTextFromDepartmentCode,
+} from "@/lib/departments";
 
 export type StockMovementKind = "STOCK_OUT" | "WASTAGE" | "RETURN_SUPPLIER";
 
@@ -12,9 +16,7 @@ export function parseStockMovementDestination(
 } {
   const raw = String(stakeHolderOrReason ?? "").trim();
   if (movementType === "STOCK_OUT") {
-    const match = HOTEL_STORE_STOCK_OUT_STAKEHOLDERS.find(
-      (s) => s.toLowerCase() === raw.toLowerCase(),
-    );
+    const match = resolveStockOutDestinationDepartmentCode(raw);
     if (match) {
       return {
         stakeholder: match,
@@ -23,7 +25,7 @@ export function parseStockMovementDestination(
       };
     }
     return {
-      stakeholder: HOTEL_STORE_STOCK_OUT_STAKEHOLDERS[0] ?? "Kitchen",
+      stakeholder: "",
       customStation: raw,
       reason: "",
     };
@@ -40,7 +42,12 @@ export function formatStockMovementDestination(
   if (movementType === "STOCK_OUT") {
     const custom = customStation.trim();
     if (custom) return custom;
-    return stakeholder.trim();
+    const code = String(stakeholder ?? "").trim();
+    if (!code) return "";
+    if (REQUESTED_BY_DEPARTMENT_CODES.includes(code)) {
+      return stockOutDestinationTextFromDepartmentCode(code);
+    }
+    return code;
   }
   return reason.trim();
 }
