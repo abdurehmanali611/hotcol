@@ -11,13 +11,90 @@ import {
 import { rowHotelMatchesTenantScope, findRowByTenantScope } from "../tenantRowMatch";
 import { isBarStationOrder, isKitchenStationOrder } from "../cafeOrderStation";
 import { validateCreditUsageAmount } from "../creditLimits";
-import { isSessionExpiredError } from "../sessionExpiry";
-import { getCurrentUser } from "./auth";
+import {
+  graphqlMessageIndicatesSessionExpiry,
+  isSessionExpiredError,
+  scheduleSessionExpiredRedirect,
+  SessionExpiredError,
+} from "../sessionExpiry";
+import { isStoredAuthTokenExpired } from "../authToken";
+import { fetchMe, getCurrentUser } from "./auth";
 import { fetchPityCash, fetchCreditRegistrations } from "./cafeCredit";
 import type { Order, OrderCreationData, UpdateLiveOrderData, CreditRegistration } from "./types";
 
 
 export const CAFE_LIVE_ORDERS_POLL_MS = 8_000;
+
+function extractGraphqlErrorMessage(error: unknown, fallback: string): string {
+  if (isSessionExpiredError(error)) return "SESSION_EXPIRED";
+  const anyErr = error as {
+    response?: { data?: { errors?: Array<{ message?: string }> } };
+    message?: string;
+  };
+  return (
+    anyErr?.response?.data?.errors?.[0]?.message ||
+    anyErr?.message ||
+    fallback
+  );
+}
+
+function assertCafeOrderMutationSession(): void {
+  if (typeof window === "undefined") return;
+  if (isStoredAuthTokenExpired()) {
+    scheduleSessionExpiredRedirect();
+    throw new SessionExpiredError();
+  }
+}
+
+function formatCafeOrderMutationError(raw: string, fallback: string): string {
+  const msg = String(raw ?? "").trim();
+  if (!msg || msg === "SESSION_EXPIRED") return fallback;
+  const lower = msg.toLowerCase();
+  if (
+    lower === "not authorized" ||
+    lower.includes("not authorized to update live orders") ||
+    lower.includes("not authorized to remove this order")
+  ) {
+    return "Your session may be out of date. Sign out and sign in again, then retry.";
+  }
+  if (msg === "Order not found or not authorized") {
+    return "This order could not be updated for your property. Sign out and sign in again, then retry.";
+  }
+  if (graphqlMessageIndicatesSessionExpiry(msg)) {
+    return "Your session has expired. Please sign in again.";
+  }
+  return msg;
+}
+
+function shouldRetryCafeOrderMutation(raw: string): boolean {
+  const lower = String(raw ?? "").trim().toLowerCase();
+  return (
+    lower === "not authorized" ||
+    lower.includes("not authorized to update live orders") ||
+    lower.includes("not authorized to remove this order") ||
+    raw === "Order not found or not authorized" ||
+    lower === "not authenticated" ||
+    lower.includes("jwt expired")
+  );
+}
+
+function handleCafeOrderMutationFailure(
+  error: unknown,
+  fallback: string,
+  options?: { silent?: boolean },
+): never {
+  if (isSessionExpiredError(error)) throw error;
+  const raw = extractGraphqlErrorMessage(error, fallback);
+  if (graphqlMessageIndicatesSessionExpiry(raw)) {
+    scheduleSessionExpiredRedirect();
+    throw new SessionExpiredError();
+  }
+  const message = formatCafeOrderMutationError(raw, fallback);
+  if (!options?.silent) {
+    toast.error(message);
+  }
+  throw error instanceof Error ? error : new Error(message);
+}
 
 export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[]> {
   if (options?.fresh) {
@@ -70,70 +147,81 @@ export async function fetchLiveCafeOrders(): Promise<Order[]> {
   return fetchOrders({ fresh: true });
 }
 
+async function postUpdateLiveOrder(
+  data: UpdateLiveOrderData,
+  options?: { silent?: boolean; successMessage?: string },
+) {
+  const mutation = `
+    mutation UpdateLiveOrder(
+      $id: Int!
+      $tableNo: Int
+      $waiterName: String
+      $orderAmount: Int
+      $title: String
+    ) {
+      UpdateLiveOrder(
+        id: $id
+        tableNo: $tableNo
+        waiterName: $waiterName
+        orderAmount: $orderAmount
+        title: $title
+      ) {
+        id
+        title
+        tableNo
+        waiterName
+        orderAmount
+        status
+        payment
+        serviceCaption
+        orderRevisedAt
+        orderRevisionCount
+        createdAt
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: data,
+  });
+
+  if (response.data.errors) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to update order",
+    );
+  }
+
+  if (!options?.silent) {
+    toast.success(options?.successMessage ?? "Order updated successfully");
+  }
+  refreshCafeOrdersFeed();
+  return response.data.data.UpdateLiveOrder;
+}
+
 export async function updateLiveOrder(
   data: UpdateLiveOrderData,
   options?: { silent?: boolean; successMessage?: string },
 ) {
+  assertCafeOrderMutationSession();
+  invalidateGraphqlListCache("cafe:orders");
   try {
-    const mutation = `
-      mutation UpdateLiveOrder(
-        $id: Int!
-        $tableNo: Int
-        $waiterName: String
-        $orderAmount: Int
-        $title: String
-      ) {
-        UpdateLiveOrder(
-          id: $id
-          tableNo: $tableNo
-          waiterName: $waiterName
-          orderAmount: $orderAmount
-          title: $title
-        ) {
-          id
-          title
-          tableNo
-          waiterName
-          orderAmount
-          status
-          payment
-          serviceCaption
-          orderRevisedAt
-          orderRevisionCount
-          createdAt
-        }
+    return await postUpdateLiveOrder(data, options);
+  } catch (error: unknown) {
+    const raw = extractGraphqlErrorMessage(error, "Failed to update order");
+    if (shouldRetryCafeOrderMutation(raw)) {
+      try {
+        await fetchMe();
+        return await postUpdateLiveOrder(data, { ...options, silent: true });
+      } catch (retryError: unknown) {
+        handleCafeOrderMutationFailure(
+          retryError,
+          "Failed to update order",
+          options,
+        );
       }
-    `;
-
-    const response = await api.post(API_URL, {
-      query: mutation,
-      variables: data,
-    });
-
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to update order",
-      );
     }
-
-    if (!options?.silent) {
-      toast.success(options?.successMessage ?? "Order updated successfully");
-    }
-    refreshCafeOrdersFeed();
-    return response.data.data.UpdateLiveOrder;
-  } catch (error: any) {
-    const raw =
-      error?.response?.data?.errors?.[0]?.message ||
-      error?.message ||
-      "Failed to update order";
-    const message =
-      raw === "Order not found or not authorized"
-        ? "This order could not be updated for your property. Sign out and sign in again, then retry."
-        : raw;
-    if (!options?.silent) {
-      toast.error(message);
-    }
-    throw error;
+    handleCafeOrderMutationFailure(error, "Failed to update order", options);
   }
 }
 
@@ -328,6 +416,7 @@ export async function updateOrderStatus(
 
 /** Marks a live café order line as cancelled (cashier order-update remove). */
 export async function cancelLiveOrder(id: number) {
+  assertCafeOrderMutationSession();
   try {
     const mutation = `
       mutation UpdateStatus($id: Int!, $status: String) {
@@ -352,13 +441,8 @@ export async function cancelLiveOrder(id: number) {
     toast.success("Item removed from table order");
     refreshCafeOrdersFeed();
     return response.data.data.UpdateStatus;
-  } catch (error: any) {
-    const message =
-      error?.response?.data?.errors?.[0]?.message ||
-      error?.message ||
-      "Failed to remove item";
-    toast.error(message);
-    throw error;
+  } catch (error: unknown) {
+    handleCafeOrderMutationFailure(error, "Failed to remove item");
   }
 }
 

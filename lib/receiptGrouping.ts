@@ -20,6 +20,7 @@ import {
 import {
   departmentCodesMatch,
   formatDepartmentWithLeader,
+  formatRequestedByReceiptLabel,
   receiptDepartmentGroupKey,
 } from "@/lib/departments";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
@@ -253,10 +254,7 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
       registrationVoucher: null,
       purchaseRequestVoucher: formatVoucherRange(items),
       lines,
-      requestedByLabel: formatDepartmentWithLeader(
-        first.requestedByDepartment ?? "",
-        first.requestedByLeaderName,
-      ),
+      requestedByLabel: formatRequestedByReceiptLabel(first),
       preparedByLeaderName: first.preparedByLeaderName ?? null,
       checkedByName: first.ccActorName ?? null,
       approvedByLeaderName: first.financeDeptLeaderName ?? null,
@@ -339,10 +337,7 @@ function stockMovementBundles(
         : null,
       stockMovementVoucher: formatVoucherRange(items),
       lines,
-      requestedByLabel: formatDepartmentWithLeader(
-        first.requestedByDepartment ?? "",
-        first.requestedByLeaderName,
-      ),
+      requestedByLabel: formatRequestedByReceiptLabel(first),
       preparedByLeaderName: first.preparedByLeaderName ?? null,
       checkedByName: first.ccActorName ?? null,
       approvedByLeaderName: first.financeDeptLeaderName ?? null,

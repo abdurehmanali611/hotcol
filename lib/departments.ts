@@ -17,6 +17,9 @@ export type HotelDepartmentCode = (typeof HOTEL_DEPARTMENT_CODES)[number];
 /** @deprecated Renamed to HOUSE_KEEPING_ROOM — kept for receipt snapshots. */
 export const LEGACY_HOUSE_KEEPING_CODE = "HOUSE_KEEPING";
 
+/** Store staff submitted the request (not a department leader). */
+export const STAFF_REQUESTED_BY_CODE = "STAFF";
+
 /** Item registrations received by store, kitchen, or bar only. */
 export const REGISTRATION_RECEIVED_BY_CODES = [
   "STORE",
@@ -24,13 +27,17 @@ export const REGISTRATION_RECEIVED_BY_CODES = [
   "BAR",
 ] as const satisfies readonly HotelDepartmentCode[];
 
-/** Stock movements — all departments except Store. */
-export const REQUESTED_BY_DEPARTMENT_CODES = HOTEL_DEPARTMENT_CODES.filter(
-  (c) => c !== "STORE",
-);
+/** Stock movements — staff option plus all departments except Store. */
+export const REQUESTED_BY_DEPARTMENT_CODES = [
+  STAFF_REQUESTED_BY_CODE,
+  ...HOTEL_DEPARTMENT_CODES.filter((c) => c !== "STORE"),
+];
 
-/** Purchase requests — includes Store. */
-export const PURCHASE_REQUESTED_BY_DEPARTMENT_CODES = HOTEL_DEPARTMENT_CODES;
+/** Purchase requests — staff option plus all departments including Store. */
+export const PURCHASE_REQUESTED_BY_DEPARTMENT_CODES = [
+  STAFF_REQUESTED_BY_CODE,
+  ...HOTEL_DEPARTMENT_CODES,
+];
 
 export const DEPARTMENT_LABELS: Record<HotelDepartmentCode, string> = {
   KITCHEN: "Kitchen",
@@ -65,6 +72,7 @@ export function departmentCodesMatch(
 
 export function departmentLabel(code: string): string {
   const key = String(code ?? "").trim();
+  if (key === STAFF_REQUESTED_BY_CODE) return "Staff";
   if (LEGACY_DEPARTMENT_LABELS[key]) return LEGACY_DEPARTMENT_LABELS[key];
   const normalized = normalizeDepartmentCode(key);
   return DEPARTMENT_LABELS[normalized as HotelDepartmentCode] ?? key;
@@ -80,9 +88,22 @@ export function formatDepartmentWithLeader(
   code: string,
   leaderName?: string | null,
 ): string {
+  const normalized = normalizeDepartmentCode(String(code ?? "").trim());
+  if (normalized === STAFF_REQUESTED_BY_CODE) return "Staff";
   const label = departmentLabel(code);
   const name = String(leaderName ?? "").trim();
   return name ? `${label} (${name})` : label;
+}
+
+/** Printed receipt / voucher label for who requested a purchase or stock movement. */
+export function formatRequestedByReceiptLabel(row: {
+  requestedByDepartment?: string | null;
+  requestedByLeaderName?: string | null;
+}): string {
+  return formatDepartmentWithLeader(
+    String(row.requestedByDepartment ?? "").trim(),
+    row.requestedByLeaderName,
+  );
 }
 
 export type DepartmentLeaderRow = {
@@ -106,7 +127,10 @@ export function departmentLeaderDisplayLabel(row: {
   receivedByDepartment?: string | null;
   receivedByLeaderName?: string | null;
 }): string | null {
-  const reqDept = String(row.requestedByDepartment ?? "").trim();
+  const reqDept = normalizeDepartmentCode(
+    String(row.requestedByDepartment ?? "").trim(),
+  );
+  if (reqDept === STAFF_REQUESTED_BY_CODE) return "Staff";
   const reqLeader = String(row.requestedByLeaderName ?? "").trim();
   if (reqDept && reqLeader) {
     const deptLabel =
@@ -127,11 +151,15 @@ export function selectOptionsForDepartments(
   allowedCodes: readonly string[],
 ) {
   const allowed = new Set(allowedCodes);
-  return leaders
+  const staffOption = allowed.has(STAFF_REQUESTED_BY_CODE)
+    ? [{ value: STAFF_REQUESTED_BY_CODE, label: "Staff" }]
+    : [];
+  const departmentOptions = leaders
     .filter((r) => allowed.has(r.department) && r.leaderName.trim())
     .map((r) => ({
       value: r.department,
       label: formatDepartmentWithLeader(r.department, r.leaderName),
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
+  return [...staffOption, ...departmentOptions];
 }
