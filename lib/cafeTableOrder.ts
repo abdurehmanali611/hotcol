@@ -312,7 +312,7 @@ export type CafeStationOrderGroup = {
   orders: Order[];
 };
 
-/** Paid-order batch: lines on the same table paid/placed within a short window. */
+/** Paid-order batch: paid lines from one table occupancy session. */
 export type CafePaidOrderBatch = {
   key: string;
   tableNo: number;
@@ -320,9 +320,102 @@ export type CafePaidOrderBatch = {
   orders: Order[];
 };
 
-const CAFE_BATCH_CARD_WINDOW_MS = 15_000;
-/** Same table + orders within this window are one collapsible batch in payment-type correction. */
+/** Pending kitchen/bar lines from one submission within this window share one card. */
+export const CAFE_STATION_ORDER_BATCH_WINDOW_MS = 60_000;
+/** Same table + paid lines within this window collapse together in payment-type correction. */
 export const CAFE_PAID_ORDER_BATCH_WINDOW_MS = 60_000;
+
+function isPaidCafeOrderLine(order: Order): boolean {
+  return String(order.payment ?? "").trim().toLowerCase() === "paid";
+}
+
+function isCancelledCafeOrderLine(order: Order): boolean {
+  return String(order.status ?? "").trim().toLowerCase() === "cancelled";
+}
+
+/** Order rows that define table occupancy for session reconstruction. */
+export function cafeTableSessionOrders(
+  orders: Order[],
+  hotelName: string,
+): Order[] {
+  return orders.filter(
+    (order) =>
+      rowHotelMatchesTenantScope(order.HotelName, hotelName) &&
+      isSameCafeBusinessDay(order.createdAt) &&
+      !isCancelledCafeOrderLine(order),
+  );
+}
+
+/**
+ * True when the table was still in use immediately before the next order was placed.
+ * Uses creation order plus current payment state — no per-order paidAt required.
+ */
+export function wasCafeTableInUseBeforeOrder(
+  priorOrdersOnTable: Order[],
+  nextCreatedAt: Date | string,
+): boolean {
+  const atMs = new Date(nextCreatedAt).getTime();
+  if (!Number.isFinite(atMs) || priorOrdersOnTable.length === 0) return false;
+
+  for (const order of priorOrdersOnTable) {
+    if (!isPaidCafeOrderLine(order)) return true;
+    const orderMs = new Date(order.createdAt).getTime();
+    const hasLaterOrderPlacedBeforeNext = priorOrdersOnTable.some((other) => {
+      if (other.id === order.id) return false;
+      const otherMs = new Date(other.createdAt).getTime();
+      return otherMs > orderMs && otherMs <= atMs;
+    });
+    if (hasLaterOrderPlacedBeforeNext) return true;
+  }
+  return false;
+}
+
+/** Maps each order id to a stable session key for its table occupancy period. */
+export function assignCafeTableOrderSessionKeys(
+  orders: Order[],
+  hotelName: string,
+): Map<number, string> {
+  const sessionByOrderId = new Map<number, string>();
+  const byTable = new Map<number, Order[]>();
+
+  for (const order of cafeTableSessionOrders(orders, hotelName)) {
+    const tableNo = normalizeOrderTableNo(order);
+    const list = byTable.get(tableNo) ?? [];
+    list.push(order);
+    byTable.set(tableNo, list);
+  }
+
+  for (const [tableNo, tableOrders] of byTable.entries()) {
+    const sorted = [...tableOrders].sort((a, b) => {
+      const diff =
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return diff !== 0 ? diff : a.id - b.id;
+    });
+
+    let sessionIndex = 0;
+    let priorInSession: Order[] = [];
+
+    for (const order of sorted) {
+      if (
+        priorInSession.length > 0 &&
+        !wasCafeTableInUseBeforeOrder(priorInSession, order.createdAt)
+      ) {
+        sessionIndex += 1;
+        priorInSession = [];
+      }
+      sessionByOrderId.set(order.id, `${tableNo}|${sessionIndex}`);
+      priorInSession.push(order);
+    }
+  }
+
+  return sessionByOrderId;
+}
+
+export type GroupCafePaidOrderBatchOptions = {
+  /** All today's orders for the property — used to reconstruct table occupancy sessions. */
+  sessionSourceOrders?: Order[];
+  hotelName?: string;
+};
 
 /** Stable batch key from table and member order ids. */
 export function cafePaidOrderBatchKey(
@@ -341,11 +434,98 @@ export function formatCafeOrderBatchTime(createdAt: Date | string): string {
   });
 }
 
+/** 1-minute clusters on one table (payment-type collapsible rows). */
+function groupCafePaidOrderMinuteClusters(tableOrders: Order[]): Order[][] {
+  const sorted = [...tableOrders].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+
+  const clusters: Order[][] = [];
+  let cluster: Order[] = [];
+  let clusterStartMs = 0;
+
+  const flushCluster = () => {
+    if (cluster.length === 0) return;
+    clusters.push([...cluster].sort((a, b) => a.id - b.id));
+    cluster = [];
+  };
+
+  for (const order of sorted) {
+    const ts = new Date(order.createdAt).getTime();
+    if (
+      cluster.length === 0 ||
+      ts - clusterStartMs <= CAFE_PAID_ORDER_BATCH_WINDOW_MS
+    ) {
+      if (cluster.length === 0) clusterStartMs = ts;
+      cluster.push(order);
+    } else {
+      flushCluster();
+      clusterStartMs = ts;
+      cluster.push(order);
+    }
+  }
+  flushCluster();
+  return clusters;
+}
+
+function minuteClustersToBatches(
+  tableNo: number,
+  clusters: Order[][],
+): CafePaidOrderBatch[] {
+  return clusters.map((cluster) => ({
+    key: cafePaidOrderBatchKey(tableNo, cluster),
+    tableNo,
+    createdAt: cluster[0].createdAt,
+    orders: cluster,
+  }));
+}
+
+function mergePaidBatchesByTableSession(
+  batches: CafePaidOrderBatch[],
+  sessionKeys: Map<number, string>,
+): CafePaidOrderBatch[] {
+  const bySession = new Map<string, CafePaidOrderBatch[]>();
+
+  for (const batch of batches) {
+    const anchor = batch.orders[0];
+    const sessionKey =
+      sessionKeys.get(anchor.id) ?? `${batch.tableNo}|${anchor.id}`;
+    const list = bySession.get(sessionKey) ?? [];
+    list.push(batch);
+    bySession.set(sessionKey, list);
+  }
+
+  const merged: CafePaidOrderBatch[] = [];
+  for (const [sessionKey, sessionBatches] of bySession.entries()) {
+    if (sessionBatches.length === 1) {
+      merged.push(sessionBatches[0]);
+      continue;
+    }
+
+    const tableNo = sessionBatches[0].tableNo;
+    const orders = sessionBatches
+      .flatMap((batch) => batch.orders)
+      .sort((a, b) => a.id - b.id);
+    merged.push({
+      key: `${sessionKey}|${orders.map((o) => o.id).join("-")}`,
+      tableNo,
+      createdAt: orders[0]?.createdAt ?? new Date().toISOString(),
+      orders,
+    });
+  }
+
+  return merged;
+}
+
 /**
- * Groups paid orders on the same table when their timestamps fall within one minute.
- * Handles slight lag between sequential payment approvals so related lines stay together.
+ * Groups paid orders for payment-type correction:
+ * 1) collapse lines paid within one minute on the same table, then
+ * 2) merge those clusters when they belong to the same table in-use session.
  */
-export function groupCafePaidOrderBatches(orders: Order[]): CafePaidOrderBatch[] {
+export function groupCafePaidOrderBatches(
+  orders: Order[],
+  options?: GroupCafePaidOrderBatchOptions,
+): CafePaidOrderBatch[] {
   if (orders.length === 0) return [];
 
   const byTable = new Map<number, Order[]>();
@@ -356,43 +536,18 @@ export function groupCafePaidOrderBatches(orders: Order[]): CafePaidOrderBatch[]
     byTable.set(tableNo, list);
   }
 
-  const batches: CafePaidOrderBatch[] = [];
-
+  let batches: CafePaidOrderBatch[] = [];
   for (const [tableNo, tableOrders] of byTable.entries()) {
-    const sorted = [...tableOrders].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    const clusters = groupCafePaidOrderMinuteClusters(tableOrders);
+    batches.push(...minuteClustersToBatches(tableNo, clusters));
+  }
+
+  if (options?.sessionSourceOrders && options.hotelName) {
+    const sessionKeys = assignCafeTableOrderSessionKeys(
+      options.sessionSourceOrders,
+      options.hotelName,
     );
-
-    let cluster: Order[] = [];
-    let clusterStartMs = 0;
-
-    const flushCluster = () => {
-      if (cluster.length === 0) return;
-      const clusterSorted = [...cluster].sort((a, b) => a.id - b.id);
-      batches.push({
-        key: cafePaidOrderBatchKey(tableNo, clusterSorted),
-        tableNo,
-        createdAt: clusterSorted[0].createdAt,
-        orders: clusterSorted,
-      });
-      cluster = [];
-    };
-
-    for (const order of sorted) {
-      const ts = new Date(order.createdAt).getTime();
-      if (
-        cluster.length === 0 ||
-        ts - clusterStartMs <= CAFE_PAID_ORDER_BATCH_WINDOW_MS
-      ) {
-        if (cluster.length === 0) clusterStartMs = ts;
-        cluster.push(order);
-      } else {
-        flushCluster();
-        clusterStartMs = ts;
-        cluster.push(order);
-      }
-    }
-    flushCluster();
+    batches = mergePaidBatchesByTableSession(batches, sessionKeys);
   }
 
   return batches.sort(
@@ -400,34 +555,84 @@ export function groupCafePaidOrderBatches(orders: Order[]): CafePaidOrderBatch[]
   );
 }
 
+function stationOrderBatchKey(orders: Order[]): string {
+  return orders.length === 1
+    ? String(orders[0].id)
+    : orders.map((o) => o.id).join("-");
+}
+
+function belongsToStationOrderCluster(
+  cluster: Order[],
+  clusterStartMs: number,
+  order: Order,
+): boolean {
+  if (cluster.length === 0) return true;
+
+  const ts = new Date(order.createdAt).getTime();
+  if (ts - clusterStartMs <= CAFE_STATION_ORDER_BATCH_WINDOW_MS) {
+    return true;
+  }
+
+  const prev = cluster[cluster.length - 1];
+  const prevTs = new Date(prev.createdAt).getTime();
+  const idGap = order.id - prev.id;
+  return (
+    idGap > 0 &&
+    idGap <= 25 &&
+    ts - prevTs <= CAFE_STATION_ORDER_BATCH_WINDOW_MS
+  );
+}
+
 /**
  * Groups pending station orders so batch submissions appear as one card.
- * Single orders at the same table stay separate when placed outside the batch window.
+ * Uses a sliding time window (not fixed buckets) plus sequential id chaining
+ * so slow multi-line batch inserts still render as one batch card.
  */
 export function groupCafeStationOrderCards(orders: Order[]): CafeStationOrderGroup[] {
   if (orders.length === 0) return [];
 
-  const sorted = [...orders].sort((a, b) => a.id - b.id);
-  const bucketMap = new Map<string, Order[]>();
-
-  for (const order of sorted) {
+  const byTableWaiter = new Map<string, Order[]>();
+  for (const order of orders) {
     const tableNo = normalizeOrderTableNo(order);
     const waiter = String(order.waiterName ?? "").trim().toLowerCase();
-    const ts = Math.floor(
-      new Date(order.createdAt).getTime() / CAFE_BATCH_CARD_WINDOW_MS,
-    );
-    const bucketKey = `${tableNo}|${waiter}|${ts}`;
-    const list = bucketMap.get(bucketKey) ?? [];
+    const partitionKey = `${tableNo}|${waiter}`;
+    const list = byTableWaiter.get(partitionKey) ?? [];
     list.push(order);
-    bucketMap.set(bucketKey, list);
+    byTableWaiter.set(partitionKey, list);
   }
 
   const groups: CafeStationOrderGroup[] = [];
-  for (const list of bucketMap.values()) {
-    groups.push({
-      key: list.length === 1 ? String(list[0].id) : list.map((o) => o.id).join("-"),
-      orders: list,
+
+  for (const partitionOrders of byTableWaiter.values()) {
+    const sorted = [...partitionOrders].sort((a, b) => {
+      const diff =
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return diff !== 0 ? diff : a.id - b.id;
     });
+
+    let cluster: Order[] = [];
+    let clusterStartMs = 0;
+
+    const flushCluster = () => {
+      if (cluster.length === 0) return;
+      const clusterSorted = [...cluster].sort((a, b) => a.id - b.id);
+      groups.push({
+        key: stationOrderBatchKey(clusterSorted),
+        orders: clusterSorted,
+      });
+      cluster = [];
+    };
+
+    for (const order of sorted) {
+      if (!belongsToStationOrderCluster(cluster, clusterStartMs, order)) {
+        flushCluster();
+        clusterStartMs = new Date(order.createdAt).getTime();
+      } else if (cluster.length === 0) {
+        clusterStartMs = new Date(order.createdAt).getTime();
+      }
+      cluster.push(order);
+    }
+    flushCluster();
   }
 
   return groups.sort((a, b) => a.orders[0].id - b.orders[0].id);

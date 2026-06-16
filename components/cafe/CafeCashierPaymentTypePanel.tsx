@@ -520,8 +520,12 @@ export function CafeCashierPaymentTypePanel({
   );
 
   const paidBatches = useMemo(
-    () => groupCafePaidOrderBatches(paidOrders),
-    [paidOrders],
+    () =>
+      groupCafePaidOrderBatches(paidOrders, {
+        sessionSourceOrders: orders,
+        hotelName,
+      }),
+    [orders, paidOrders, hotelName],
   );
 
   const paymentFilterCounts = useMemo(
@@ -800,7 +804,7 @@ export function CafeCashierPaymentTypePanel({
           </div>
 
           {selectedOrders.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/[0.06] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/6 px-4 py-3">
               <p className="text-sm font-medium">
                 <span className="tabular-nums text-primary">
                   {selectedOrders.length}
