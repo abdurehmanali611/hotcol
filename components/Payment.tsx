@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import {
   Order,
@@ -64,6 +64,15 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
 import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
 import { formatCafeTableDisplayFromRegistry } from "@/lib/cafeTableOrder";
+import {
+  buildAmountTablePaymentPlan,
+  type OrderPaymentChannel,
+  type PrimaryAmountChannel,
+} from "@/lib/cafeAmountPayment";
+import {
+  CafeTablePaymentModePanel,
+  type TablePaymentMode,
+} from "@/components/cafe/CafeTablePaymentModePanel";
 import { cn } from "@/lib/utils";
 
 type ReadyTableSummary = {
@@ -81,7 +90,12 @@ interface PaymentProps {
     id: number,
     order: Order,
     sales: number,
-    bank: boolean, 
+    bank: boolean,
+    options?: {
+      bankTransferAmount?: number;
+      bankTipCashDeduction?: number;
+      silent?: boolean;
+    },
   ) => Promise<any>;
   onRefresh: () => Promise<void>;
 }
@@ -126,6 +140,24 @@ export default function PaymentComponent({
   const [filterType, setFilterType] = useState<"all" | "ready" | "pending">(
     "all",
   );
+  const [tablePaymentModes, setTablePaymentModes] = useState<
+    Record<number, TablePaymentMode>
+  >({});
+  const [tableAmountForm, setTableAmountForm] = useState<
+    Record<
+      number,
+      {
+        primaryChannel: "cash" | "bank";
+        amount: string;
+      }
+    >
+  >({});
+  const [processingAmountTable, setProcessingAmountTable] = useState<
+    number | null
+  >(null);
+  const tableAmountPrimaryChannelRef = useRef<
+    Record<number, PrimaryAmountChannel>
+  >({});
 
   // Filter unpaid orders
   useEffect(() => {
@@ -360,21 +392,16 @@ export default function PaymentComponent({
     [selectedReadyTableOrders],
   );
 
-  const settleCompletedOrders = async (
-    completedOrders: Order[],
-    bank: boolean,
-  ): Promise<Order[]> => {
-    const updatedOrders: Order[] = [];
-    for (const order of completedOrders) {
-      const result = await onHandlePayment(
-        order.id,
-        order,
-        order.price * order.orderAmount,
-        bank,
-      );
-      updatedOrders.push({ ...order, ...result, payment: "Paid" });
-    }
+  const getTablePaymentMode = (tableNo: number): TablePaymentMode =>
+    tablePaymentModes[tableNo] ?? "orders";
 
+  const getTableAmountFormState = (tableNo: number) =>
+    tableAmountForm[tableNo] ?? {
+      primaryChannel: "cash" as const,
+      amount: "",
+    };
+
+  const finalizePaidOrders = async (updatedOrders: Order[]) => {
     const waiters = (await fetchWaiters()).filter((item) =>
       rowHotelMatchesTenantScope(item.HotelName, hotelName),
     );
@@ -409,8 +436,132 @@ export default function PaymentComponent({
         );
       }
     }
+  };
 
+  const settleOrdersWithChannels = async (
+    channels: OrderPaymentChannel[],
+  ): Promise<Order[]> => {
+    const updatedOrders: Order[] = [];
+    for (const channel of channels) {
+      const {
+        order,
+        withBank,
+        bankTransferAmount,
+        bankTipCashDeduction,
+      } = channel;
+      const payWithBank = withBank === true;
+      const result = await onHandlePayment(
+        order.id,
+        order,
+        order.price * order.orderAmount,
+        payWithBank,
+        {
+          silent: true,
+          ...(payWithBank
+            ? {
+                ...(bankTransferAmount != null
+                  ? { bankTransferAmount }
+                  : {}),
+                ...(bankTipCashDeduction != null
+                  ? { bankTipCashDeduction }
+                  : {}),
+              }
+            : {}),
+        },
+      );
+      updatedOrders.push({
+        ...order,
+        ...result,
+        payment: "Paid",
+        withBank: payWithBank,
+      });
+    }
+
+    await finalizePaidOrders(updatedOrders);
     return updatedOrders;
+  };
+
+  const settleCompletedOrders = async (
+    completedOrders: Order[],
+    bank: boolean,
+  ): Promise<Order[]> => {
+    const channels: OrderPaymentChannel[] = completedOrders.map((order) => ({
+      order,
+      withBank: bank,
+    }));
+    return settleOrdersWithChannels(channels);
+  };
+
+  const handleAmountPaymentForTable = async (
+    tableNo: number,
+    submitSnapshot?: {
+      primaryChannel: PrimaryAmountChannel;
+      amount: string;
+    },
+  ) => {
+    const tableOrders = groupedOrders[tableNo];
+    if (!tableOrders) return;
+
+    if (!areAllOrdersCompleted(tableOrders)) {
+      toast.error("All table orders must be completed before amount settlement");
+      return;
+    }
+
+    const completedOrders = tableOrders.filter(
+      (order) => order.status?.toLowerCase() === "completed",
+    );
+    const form = getTableAmountFormState(tableNo);
+    const primaryChannel =
+      submitSnapshot?.primaryChannel ??
+      tableAmountPrimaryChannelRef.current[tableNo] ??
+      form.primaryChannel;
+    const amountInput = submitSnapshot?.amount ?? form.amount;
+    const amount = Number(amountInput.replace(/,/g, "").trim());
+    const tableTotal = calculateTableTotal(completedOrders);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount greater than zero");
+      return;
+    }
+    if (amount > tableTotal + 0.001) {
+      toast.error("Amount cannot exceed table total");
+      return;
+    }
+
+    setProcessingAmountTable(tableNo);
+    try {
+      if (completedOrders.length === 0) {
+        toast.error("No completed orders to settle");
+        return;
+      }
+
+      const plan = buildAmountTablePaymentPlan(
+        completedOrders,
+        amount,
+        primaryChannel,
+      );
+
+      const cashBankChannels = [...plan.cashChannels, ...plan.bankChannels];
+      if (cashBankChannels.length > 0) {
+        await settleOrdersWithChannels(cashBankChannels);
+      }
+
+      setTableAmountForm((prev) => ({
+        ...prev,
+        [tableNo]: { primaryChannel, amount: "" },
+      }));
+
+      toast.success(
+        `Table settled — cash ${plan.requestedCash.toFixed(2)} ETB, bank ${plan.requestedBank.toFixed(2)} ETB`,
+      );
+
+      await onRefresh();
+    } catch (error) {
+      console.error("Amount payment error:", error);
+      toast.error("Failed to process amount payment");
+    } finally {
+      setProcessingAmountTable(null);
+    }
   };
 
   // Handle cash or bank payment for single order
@@ -1145,6 +1296,10 @@ export default function PaymentComponent({
               cafeTables,
               tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
             );
+            const tableNoNum = Number(tableNo);
+            const tablePayMode = getTablePaymentMode(tableNoNum);
+            const tableAmountFormState = getTableAmountFormState(tableNoNum);
+            const completedTableTotal = calculateTableTotal(completedOrders);
 
             return (
               <Collapsible
@@ -1241,7 +1396,58 @@ export default function PaymentComponent({
 
                   <CollapsibleContent>
                     <CardContent className="p-6">
-                  {allCompleted && (
+                  <CafeTablePaymentModePanel
+                    tableNo={tableNoNum}
+                    completedOrders={completedOrders}
+                    tableTotal={completedTableTotal}
+                    allOrdersCompleted={allCompleted}
+                    mode={tablePayMode}
+                    onModeChange={(mode) =>
+                      setTablePaymentModes((prev) => ({
+                        ...prev,
+                        [tableNoNum]: mode,
+                      }))
+                    }
+                    primaryChannel={tableAmountFormState.primaryChannel}
+                    onPrimaryChannelChange={(primaryChannel) => {
+                      tableAmountPrimaryChannelRef.current[tableNoNum] =
+                        primaryChannel;
+                      setTableAmountForm((prev) => ({
+                        ...prev,
+                        [tableNoNum]: {
+                          ...(prev[tableNoNum] ?? {
+                            primaryChannel: "cash" as const,
+                            amount: "",
+                          }),
+                          primaryChannel,
+                        },
+                      }));
+                    }}
+                    amountInput={tableAmountFormState.amount}
+                    onAmountInputChange={(amount) =>
+                      setTableAmountForm((prev) => ({
+                        ...prev,
+                        [tableNoNum]: {
+                          ...(prev[tableNoNum] ?? {
+                            primaryChannel: "cash" as const,
+                            amount: "",
+                          }),
+                          amount,
+                        },
+                      }))
+                    }
+                    processing={processingAmountTable === tableNoNum}
+                    onSubmitAmountPayment={() =>
+                      void handleAmountPaymentForTable(tableNoNum, {
+                        primaryChannel:
+                          tableAmountPrimaryChannelRef.current[tableNoNum] ??
+                          tableAmountFormState.primaryChannel,
+                        amount: tableAmountFormState.amount,
+                      })
+                    }
+                  />
+
+                  {allCompleted && tablePayMode === "orders" && (
                     <div className="mb-6 p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex-1">
@@ -1572,6 +1778,7 @@ export default function PaymentComponent({
                           </div>
 
                           {/* Pay Now button for individual order */}
+                          {tablePayMode === "orders" ? (
                           <div className="shrink-0 self-end sm:self-center">
                             <AlertDialog
                               open={dialogOpen && selectedOrderId === order.id}
@@ -1753,6 +1960,7 @@ export default function PaymentComponent({
                               </AlertDialogContent>
                             </AlertDialog>
                           </div>
+                          ) : null}
                         </div>
                       ))}
 
@@ -1836,6 +2044,7 @@ export default function PaymentComponent({
                                   </div>
                                 </div>
 
+                                {tablePayMode === "orders" ? (
                                 <div className="shrink-0 self-end sm:self-center">
                                   <AlertDialog
                                     open={
@@ -2016,6 +2225,7 @@ export default function PaymentComponent({
                                     </AlertDialogContent>
                                   </AlertDialog>
                                 </div>
+                                ) : null}
                               </div>
                             ))}
                           </CollapsibleContent>

@@ -187,6 +187,10 @@ export function StoreComponent({
   >([]);
   const loadCoordinator = useLoadCoordinator();
   const [activeView, setActiveView] = useState<StoreView>("Register");
+  const requestStatusActive = REQUEST_STATUS_VIEWS.includes(activeView);
+  const paymentVatActive = PAYMENT_VAT_VIEWS.includes(activeView);
+  const [requestStatusOpen, setRequestStatusOpen] = useState(requestStatusActive);
+  const [paymentVatOpen, setPaymentVatOpen] = useState(paymentVatActive);
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
   const searchedParams = useSearchParams();
@@ -494,6 +498,14 @@ export function StoreComponent({
     }
   }, [activeView, hotelHasFinance, hotelInventory]);
 
+  useEffect(() => {
+    if (requestStatusActive) setRequestStatusOpen(true);
+  }, [requestStatusActive]);
+
+  useEffect(() => {
+    if (paymentVatActive) setPaymentVatOpen(true);
+  }, [paymentVatActive]);
+
   const panels =
         activeView === "Register" ? (
           <BatchItemRegistrationForm
@@ -705,7 +717,8 @@ export function StoreComponent({
 
                 {hotelInventory && hotelHasFinance ? (
                 <Collapsible
-                  defaultOpen={REQUEST_STATUS_VIEWS.includes(activeView)}
+                  open={requestStatusOpen}
+                  onOpenChange={setRequestStatusOpen}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
@@ -714,7 +727,7 @@ export function StoreComponent({
                         tooltip="Request status"
                         size="lg"
                         className="h-10 cursor-pointer text-[13px]"
-                        isActive={REQUEST_STATUS_VIEWS.includes(activeView)}
+                        isActive={requestStatusActive}
                       >
                         <ClipboardList className="opacity-80" />
                         <span>Request status</span>
@@ -725,31 +738,46 @@ export function StoreComponent({
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "PurchaseRequestStatus"}
-                            onClick={() => setActiveView("PurchaseRequestStatus")}
-                            className="cursor-pointer"
                           >
-                            Purchase requests
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("PurchaseRequestStatus")}
+                              className="w-full"
+                            >
+                              Purchase requests
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "StockMovementStatus"}
-                            onClick={() => setActiveView("StockMovementStatus")}
-                            className="cursor-pointer"
                           >
-                            Stock movements
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("StockMovementStatus")}
+                              className="w-full"
+                            >
+                              Stock movements
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "ItemRegistrationStatus"}
-                            onClick={() =>
-                              setActiveView("ItemRegistrationStatus")
-                            }
-                            className="cursor-pointer"
                           >
-                            Item registrations
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveView("ItemRegistrationStatus")
+                              }
+                              className="w-full"
+                            >
+                              Item registrations
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       </SidebarMenuSub>
@@ -760,7 +788,8 @@ export function StoreComponent({
 
                 {hotelInventory && hotelHasFinance ? (
                 <Collapsible
-                  defaultOpen={PAYMENT_VAT_VIEWS.includes(activeView)}
+                  open={paymentVatOpen}
+                  onOpenChange={setPaymentVatOpen}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
@@ -769,7 +798,7 @@ export function StoreComponent({
                         tooltip={HOTEL_INVENTORY_COPY.paymentAndTax}
                         size="lg"
                         className="h-10 cursor-pointer text-[13px]"
-                        isActive={PAYMENT_VAT_VIEWS.includes(activeView)}
+                        isActive={paymentVatActive}
                       >
                         <Receipt className="opacity-80" />
                         <span className="truncate">Payment &amp; tax</span>
@@ -780,38 +809,58 @@ export function StoreComponent({
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "PaymentCredit"}
-                            onClick={() => setActiveView("PaymentCredit")}
-                            className="cursor-pointer"
                           >
-                            Credit vouchers
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("PaymentCredit")}
+                              className="w-full"
+                            >
+                              Credit vouchers
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "PaymentPaid"}
-                            onClick={() => setActiveView("PaymentPaid")}
-                            className="cursor-pointer"
                           >
-                            Paid receiving
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("PaymentPaid")}
+                              className="w-full"
+                            >
+                              Paid receiving
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "PaymentWithVat"}
-                            onClick={() => setActiveView("PaymentWithVat")}
-                            className="cursor-pointer"
                           >
-                            With VAT
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("PaymentWithVat")}
+                              className="w-full"
+                            >
+                              With VAT
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
+                            asChild
                             isActive={activeView === "PaymentWithoutVat"}
-                            onClick={() => setActiveView("PaymentWithoutVat")}
-                            className="cursor-pointer"
                           >
-                            Without VAT
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("PaymentWithoutVat")}
+                              className="w-full"
+                            >
+                              Without VAT
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       </SidebarMenuSub>

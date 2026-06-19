@@ -13,8 +13,10 @@ import {
 } from "@/lib/actions";
 import {
   formatCafeOrderBatchTime,
+  formatCafeTableDisplayFromRegistry,
   groupCafePaidOrderBatches,
   isPaidCashOrBankCafeOrder,
+  normalizeOrderTableNo,
   sumOrderLinesETB,
   type CafePaidOrderBatch,
 } from "@/lib/cafeTableOrder";
@@ -29,6 +31,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,12 +57,18 @@ import {
   Loader2,
   Search,
   User,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   cafeOrderLineTotalETB,
   distributeBankTransferAcrossOrders,
 } from "@/lib/cafeBankPayment";
+import {
+  buildAmountTablePaymentPlan,
+  type PrimaryAmountChannel,
+} from "@/lib/cafeAmountPayment";
+import { CafePaymentAmountSplitDialog } from "@/components/cafe/CafePaymentAmountSplitDialog";
 
 type Props = {
   orders: Order[];
@@ -63,6 +78,7 @@ type Props = {
 
 type PendingChange = "cash" | "bank" | null;
 type PaymentTypeFilter = "all" | "cash" | "bank";
+type TableFilter = "all" | number;
 
 const FILTER_OPTIONS = [
   {
@@ -102,19 +118,31 @@ function lineTotalETB(order: Order): number {
   return cafeOrderLineTotalETB(order);
 }
 
-function orderMatchesSearch(order: Order, query: string): boolean {
-  const haystack = [
-    order.title,
-    order.waiterName,
-    String(order.tableNo),
-    String(order.id),
-    getPaymentMethod(order),
-    formatCafeOrderBatchTime(order.createdAt),
-    formatAmountETB(lineTotalETB(order)),
-  ]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(query);
+function batchMatchesNameSearch(batch: CafePaidOrderBatch, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return batch.orders.some((order) =>
+    String(order.title ?? "")
+      .toLowerCase()
+      .includes(q),
+  );
+}
+
+/** Full multi-item batch selected — eligible for cash + bank amount split. */
+function findFullSelectedBatch(
+  selectedIds: Set<number>,
+  batches: CafePaidOrderBatch[],
+): CafePaidOrderBatch | null {
+  if (selectedIds.size < 2) return null;
+  for (const batch of batches) {
+    if (batch.orders.length < 2) continue;
+    const batchIdSet = new Set(batch.orders.map((order) => order.id));
+    if (batchIdSet.size !== selectedIds.size) continue;
+    if ([...selectedIds].every((id) => batchIdSet.has(id))) {
+      return batch;
+    }
+  }
+  return null;
 }
 
 function orderMatchesPaymentFilter(
@@ -492,15 +520,20 @@ export function CafeCashierPaymentTypePanel({
 }: Props) {
   const [tables, setTables] = useState<Table[]>([]);
   const [search, setSearch] = useState("");
+  const [tableFilter, setTableFilter] = useState<TableFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentTypeFilter>("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [pendingChange, setPendingChange] = useState<PendingChange>(null);
   const [bankTransferInput, setBankTransferInput] = useState("");
+  const [amountSplitOpen, setAmountSplitOpen] = useState(false);
+  const [splitPrimaryChannel, setSplitPrimaryChannel] =
+    useState<PrimaryAmountChannel>("cash");
+  const [splitAmountInput, setSplitAmountInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [paymentFilter]);
+  }, [paymentFilter, tableFilter]);
 
   useEffect(() => {
     void fetchTables()
@@ -537,16 +570,33 @@ export function CafeCashierPaymentTypePanel({
     [paidOrders],
   );
 
+  const paidTableOptions = useMemo(() => {
+    const tableNos = [...new Set(paidBatches.map((batch) => batch.tableNo))].sort(
+      (a, b) => a - b,
+    );
+    return tableNos.map((tableNo) => {
+      const sampleOrder = paidOrders.find(
+        (order) => normalizeOrderTableNo(order) === tableNo,
+      );
+      return {
+        tableNo,
+        label: formatCafeTableDisplayFromRegistry(
+          tableNo,
+          tables,
+          sampleOrder?.serviceCaption,
+        ),
+      };
+    });
+  }, [paidBatches, paidOrders, tables]);
+
   const filteredBatches = useMemo(() => {
     const q = search.trim().toLowerCase();
     return paidBatches
       .map((batch) => filterBatchByPaymentType(batch, paymentFilter))
       .filter((batch): batch is CafePaidOrderBatch => batch !== null)
-      .filter((batch) => {
-        if (!q) return true;
-        return batch.orders.some((order) => orderMatchesSearch(order, q));
-      });
-  }, [paidBatches, paymentFilter, search]);
+      .filter((batch) => tableFilter === "all" || batch.tableNo === tableFilter)
+      .filter((batch) => batchMatchesNameSearch(batch, q));
+  }, [paidBatches, paymentFilter, search, tableFilter]);
 
   const filteredOrders = useMemo(
     () => filteredBatches.flatMap((batch) => batch.orders),
@@ -589,6 +639,13 @@ export function CafeCashierPaymentTypePanel({
     () => paidOrders.filter((order) => selectedIds.has(order.id)),
     [paidOrders, selectedIds],
   );
+
+  const selectedFullBatch = useMemo(
+    () => findFullSelectedBatch(selectedIds, paidBatches),
+    [selectedIds, paidBatches],
+  );
+
+  const canSplitByAmount = selectedFullBatch != null;
 
   const canSetCash = selectedOrders.some((order) => !isCashPayment(order));
   const canSetBank = selectedOrders.some((order) => !isBankPayment(order));
@@ -704,6 +761,87 @@ export function CafeCashierPaymentTypePanel({
     }
   };
 
+  const openAmountSplit = () => {
+    if (!selectedFullBatch) return;
+    setSplitPrimaryChannel("cash");
+    setSplitAmountInput("");
+    setAmountSplitOpen(true);
+  };
+
+  const applyAmountSplit = async () => {
+    if (!selectedFullBatch) return;
+
+    const batchOrders = selectedFullBatch.orders;
+    const amount = Number(splitAmountInput.replace(/,/g, "").trim());
+    const batchTotal = batchOrders.reduce(
+      (sum, order) => sum + lineTotalETB(order),
+      0,
+    );
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount greater than zero");
+      return;
+    }
+    if (amount > batchTotal + 0.001) {
+      toast.error("Amount cannot exceed batch total");
+      return;
+    }
+
+    const plan = buildAmountTablePaymentPlan(
+      batchOrders,
+      amount,
+      splitPrimaryChannel,
+    );
+    const channels = [...plan.cashChannels, ...plan.bankChannels];
+    if (channels.length === 0) {
+      toast.error("Could not build a cash and bank split for this batch");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      for (const channel of channels) {
+        const payWithBank = channel.withBank === true;
+        await updateOrderPayment(channel.order.id, "Paid", payWithBank, {
+          silent: true,
+          bankTransferAmount:
+            payWithBank && channel.bankTransferAmount != null
+              ? channel.bankTransferAmount
+              : null,
+          bankTipCashDeduction:
+            payWithBank && channel.bankTipCashDeduction != null
+              ? channel.bankTipCashDeduction
+              : null,
+        });
+      }
+      await onRefresh();
+      setSelectedIds(new Set());
+      toast.success(
+        `Updated batch — cash ${plan.requestedCash.toFixed(2)} ETB, bank ${plan.requestedBank.toFixed(2)} ETB`,
+      );
+      setAmountSplitOpen(false);
+      setSplitAmountInput("");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to apply cash and bank split";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectedFullBatchLabel = useMemo(() => {
+    if (!selectedFullBatch) return "";
+    const anchor = selectedFullBatch.orders[0];
+    return formatCafeTableDisplayFromRegistry(
+      selectedFullBatch.tableNo,
+      tables,
+      anchor?.serviceCaption,
+    );
+  }, [selectedFullBatch, tables]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <Card className="overflow-hidden border-border/60 shadow-sm">
@@ -719,7 +857,8 @@ export function CafeCashierPaymentTypePanel({
               </CardTitle>
               <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Review today&apos;s paid orders, filter by channel, and correct
-                cash or bank entries — individually or by batch.
+                cash or bank entries — per line, all to one channel, or split a
+                full table batch by amount (cash + bank).
               </p>
             </div>
             <Badge
@@ -771,6 +910,17 @@ export function CafeCashierPaymentTypePanel({
                   type="button"
                   variant="outline"
                   size="sm"
+                  disabled={!canSplitByAmount || saving}
+                  onClick={openAmountSplit}
+                  className="gap-1.5 border-violet-200/80 bg-violet-50/50 text-violet-900 hover:bg-violet-50 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100 dark:hover:bg-violet-950/50"
+                >
+                  <Wallet className="h-4 w-4" />
+                  Split cash + bank
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={!canSetCash || saving || selectedOrders.length === 0}
                   onClick={() => openPendingChange("cash")}
                   className="gap-1.5 border-emerald-200/80 bg-emerald-50/50 text-emerald-900 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100 dark:hover:bg-emerald-950/50"
@@ -792,14 +942,34 @@ export function CafeCashierPaymentTypePanel({
               </div>
             </div>
 
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search item, table, time, amount, order #…"
-                className="h-10 rounded-lg border-border/60 bg-background/80 pl-10 shadow-none"
-              />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by item name…"
+                  className="h-10 rounded-lg border-border/60 bg-background/80 pl-10 shadow-none"
+                />
+              </div>
+              <Select
+                value={tableFilter === "all" ? "all" : String(tableFilter)}
+                onValueChange={(value) =>
+                  setTableFilter(value === "all" ? "all" : parseInt(value, 10))
+                }
+              >
+                <SelectTrigger className="h-10 w-full rounded-lg border-border/60 bg-background/80 shadow-none sm:w-52">
+                  <SelectValue placeholder="All tables" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All tables</SelectItem>
+                  {paidTableOptions.map(({ tableNo, label }) => (
+                    <SelectItem key={tableNo} value={String(tableNo)}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -810,6 +980,16 @@ export function CafeCashierPaymentTypePanel({
                   {selectedOrders.length}
                 </span>{" "}
                 order{selectedOrders.length === 1 ? "" : "s"} selected
+                {canSplitByAmount ? (
+                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                    Full table batch selected — use Split cash + bank for mixed
+                    payment, or change all lines to one channel.
+                  </span>
+                ) : selectedOrders.length === 1 ? (
+                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                    Single line — use Change to cash or Change to bank.
+                  </span>
+                ) : null}
               </p>
               <Button
                 type="button"
@@ -836,7 +1016,11 @@ export function CafeCashierPaymentTypePanel({
                     ? "No cash-paid orders match your filters."
                     : paymentFilter === "bank"
                       ? "No bank-paid orders match your filters."
-                      : "Try a different search term."}
+                      : tableFilter !== "all"
+                        ? "No paid orders for this table match your filters."
+                        : search.trim()
+                          ? "No items match that name."
+                          : "Try adjusting your filters."}
               </p>
             </div>
           ) : (
@@ -978,6 +1162,25 @@ export function CafeCashierPaymentTypePanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CafePaymentAmountSplitDialog
+        open={amountSplitOpen}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setAmountSplitOpen(false);
+            setSplitAmountInput("");
+          }
+        }}
+        title="Split table batch — cash + bank"
+        description={`Reassign payment types for every line in this ${selectedFullBatchLabel || "table"} batch. Enter what the customer paid on one channel; the other is calculated automatically.`}
+        orders={selectedFullBatch?.orders ?? []}
+        primaryChannel={splitPrimaryChannel}
+        onPrimaryChannelChange={setSplitPrimaryChannel}
+        amountInput={splitAmountInput}
+        onAmountInputChange={setSplitAmountInput}
+        saving={saving}
+        onConfirm={() => void applyAmountSplit()}
+      />
     </div>
   );
 }

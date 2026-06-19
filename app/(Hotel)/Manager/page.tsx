@@ -353,7 +353,8 @@ function ManagerContent() {
   useEffect(() => {
     if (
       sidebarItems.length > 0 &&
-      !sidebarItems.some((item) => item.id === activeTab)
+      !sidebarItems.some((item) => item.id === activeTab) &&
+      !isPaymentCategorySection(activeTab)
     ) {
       setActiveTab(sidebarItems[0]!.id);
     }
@@ -1277,7 +1278,8 @@ function ManagerContent() {
               <SubscriptionAlertBanner />
               <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-6 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-8">
                 <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
-                  {sidebarItems.find((i) => i.id === activeTab)?.label}
+                  {sidebarItems.find((i) => i.id === activeTab)?.label ??
+                    PAYMENT_CATEGORY_NAV.find((n) => n.id === activeTab)?.label}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
                   {activeTab === "menu-create-item" || activeTab === "menu-update-item"

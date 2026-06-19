@@ -16,7 +16,7 @@ export function getOrderBankTransferAmount(order: Order): number {
 export function getOrderBankTipCashDeduction(order: Order): number {
   if (!isBankPayment(order)) return 0;
   const stored = Number(order.bankTipCashDeduction);
-  if (Number.isFinite(stored) && stored >= 0) return stored;
+  if (Number.isFinite(stored)) return stored;
   const lineTotal = cafeOrderLineTotalETB(order);
   const transfer = Number(order.bankTransferAmount);
   if (Number.isFinite(transfer) && transfer > lineTotal) {

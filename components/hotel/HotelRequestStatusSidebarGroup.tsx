@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   REQUEST_STATUS_NAV,
   type RequestStatusNavId,
@@ -31,17 +32,22 @@ export function HotelRequestStatusSidebarGroup({
   activeSection: string;
   onSelect: (sectionId: RequestStatusNavId) => void;
 }) {
-  const open = isRequestStatusSection(activeSection);
+  const requestActive = isRequestStatusSection(activeSection);
+  const [open, setOpen] = useState(requestActive);
+
+  useEffect(() => {
+    if (requestActive) setOpen(true);
+  }, [requestActive]);
 
   return (
-    <Collapsible defaultOpen={open} className="group/collapsible">
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
             tooltip="Request status"
             size="lg"
             className="h-10 cursor-pointer text-[13px]"
-            isActive={open}
+            isActive={requestActive}
           >
             <ClipboardList className="opacity-80" />
             <span>Request status</span>
@@ -53,11 +59,16 @@ export function HotelRequestStatusSidebarGroup({
             {REQUEST_STATUS_NAV.map(({ id, label }) => (
               <SidebarMenuSubItem key={id}>
                 <SidebarMenuSubButton
+                  asChild
                   isActive={activeSection === id}
-                  onClick={() => onSelect(id)}
-                  className="cursor-pointer"
                 >
-                  {label}
+                  <button
+                    type="button"
+                    onClick={() => onSelect(id)}
+                    className="w-full"
+                  >
+                    {label}
+                  </button>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))}

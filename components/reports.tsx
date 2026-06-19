@@ -405,6 +405,10 @@ export default function Reports({
         }))
         .sort((a, b) => b.sales - a.sales)
         .slice(0, 10),
+      totalOrderUnits: completed.reduce(
+        (sum, order: any) => sum + (Number(order.orderAmount) || 0),
+        0,
+      ),
     };
   }, [reportFilteredOrders]);
 
@@ -564,7 +568,7 @@ export default function Reports({
                 : []),
               {
                 label: "Total Orders",
-                value: reportData.orders.length,
+                value: analyticsData.totalOrderUnits,
                 isUnit: false,
               },
             ].map((stat: any, i) => (

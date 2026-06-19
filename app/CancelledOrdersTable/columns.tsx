@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image";
 import type { Table } from "@/lib/actions";
 import { cafeOrderTableColumn } from "@/lib/dataTableColumns/cafeOrderTable";
+import { normalizeCafeCancelledByLabel } from "@/lib/cafeCancelledBy";
 
 export type Order = {
   id: number;
@@ -29,10 +30,7 @@ export type Order = {
 const CANCELLED_BY_STYLES: Record<string, string> = {
   Cashier: "bg-emerald-100 text-emerald-800",
   "Chef/Kitchen": "bg-orange-100 text-orange-700",
-  Barista: "bg-blue-100 text-blue-700",
-  Admin: "bg-violet-100 text-violet-700",
-  Manager: "bg-slate-100 text-slate-700",
-  Staff: "bg-muted text-muted-foreground",
+  Bar: "bg-blue-100 text-blue-700",
 };
 
 function cancelledByBadgeClass(label: string) {
@@ -98,10 +96,7 @@ export function buildCancelledOrderColumns(
     accessorKey: "cancelledBy",
     header: "Cancelled By",
     cell: ({ row }) => {
-      const label = String(row.original.cancelledBy ?? "").trim() || "—";
-      if (label === "—") {
-        return <span className="text-sm text-muted-foreground">—</span>;
-      }
+      const label = normalizeCafeCancelledByLabel(row.original);
       return (
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${cancelledByBadgeClass(label)}`}

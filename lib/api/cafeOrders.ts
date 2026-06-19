@@ -487,10 +487,10 @@ export async function updateOrderPayment(
     `;
 
     const variables: Record<string, unknown> = { id, payment, withBank };
-    if (options?.bankTransferAmount != null) {
+    if (options?.bankTransferAmount !== undefined) {
       variables.bankTransferAmount = options.bankTransferAmount;
     }
-    if (options?.bankTipCashDeduction != null) {
+    if (options?.bankTipCashDeduction !== undefined) {
       variables.bankTipCashDeduction = options.bankTipCashDeduction;
     }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   PAYMENT_CATEGORY_NAV,
   isPaymentCategorySection,
@@ -26,17 +27,22 @@ export function HotelInventoryPaymentSidebarGroup({
   activeSection: string;
   onSelect: (sectionId: string) => void;
 }) {
-  const paymentOpen = isPaymentCategorySection(activeSection);
+  const paymentActive = isPaymentCategorySection(activeSection);
+  const [open, setOpen] = useState(paymentActive);
+
+  useEffect(() => {
+    if (paymentActive) setOpen(true);
+  }, [paymentActive]);
 
   return (
-    <Collapsible defaultOpen={paymentOpen} className="group/collapsible">
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
             tooltip={HOTEL_INVENTORY_COPY.paymentAndTax}
             size="lg"
             className="h-10 cursor-pointer text-[13px]"
-            isActive={paymentOpen}
+            isActive={paymentActive}
           >
             <Receipt className="opacity-80" />
             <span className="truncate">{HOTEL_INVENTORY_COPY.paymentAndTax}</span>
@@ -48,11 +54,16 @@ export function HotelInventoryPaymentSidebarGroup({
             {PAYMENT_CATEGORY_NAV.map(({ id, label }) => (
               <SidebarMenuSubItem key={id}>
                 <SidebarMenuSubButton
+                  asChild
                   isActive={activeSection === id}
-                  onClick={() => onSelect(id)}
-                  className="cursor-pointer"
                 >
-                  {label}
+                  <button
+                    type="button"
+                    onClick={() => onSelect(id)}
+                    className="w-full"
+                  >
+                    {label}
+                  </button>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))}

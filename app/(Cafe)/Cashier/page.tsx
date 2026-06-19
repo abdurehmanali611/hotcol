@@ -223,16 +223,43 @@ function CashierContent() {
     order: Order,
     sales: number,
     bank: boolean,
+    options?: {
+      bankTransferAmount?: number;
+      bankTipCashDeduction?: number;
+      silent?: boolean;
+    },
   ) => {
     try {
-      await updateOrderPayment(id, "Paid", bank);
-      await loadData({ refresh: true });
-      toast.success(
-        `Payment processed successfully via ${bank ? "Bank" : "Cash"}`,
-      );
-      return { id, order, sales, bank };
+      const paymentOptions: {
+        silent?: boolean;
+        bankTransferAmount?: number | null;
+        bankTipCashDeduction?: number | null;
+      } = { silent: options?.silent ?? false };
+
+      if (bank) {
+        if (options?.bankTransferAmount != null) {
+          paymentOptions.bankTransferAmount = options.bankTransferAmount;
+        }
+        if (options?.bankTipCashDeduction != null) {
+          paymentOptions.bankTipCashDeduction = options.bankTipCashDeduction;
+        }
+      } else {
+        paymentOptions.bankTransferAmount = null;
+        paymentOptions.bankTipCashDeduction = null;
+      }
+
+      const updated = await updateOrderPayment(id, "Paid", bank, paymentOptions);
+      if (!options?.silent) {
+        await loadData({ refresh: true });
+        toast.success(
+          `Payment processed successfully via ${bank ? "Bank" : "Cash"}`,
+        );
+      }
+      return { ...updated, id, order, sales, bank, withBank: bank };
     } catch (error) {
-      toast.error("Failed to process payment");
+      if (!options?.silent) {
+        toast.error("Failed to process payment");
+      }
       throw error;
     }
   };

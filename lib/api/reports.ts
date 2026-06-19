@@ -5,7 +5,6 @@ import { UseFormReturn } from "react-hook-form";
 import { rowHotelMatchesTenantScope } from "../tenantRowMatch";
 import {
   getOrderBankTipCashDeduction,
-  getOrderBankTransferAmount,
   sumBankOrderRevenueETB,
   sumBankTipCashDeductionsETB,
   sumCashOrderRevenueETB,
@@ -218,30 +217,50 @@ export function prepareReportExportData(
   orders: Order[],
   reportType: "Daily" | "Monthly",
 ): ExcelExportData {
-  const data = orders.map((order) => {
-    let paymentMethod = "Cash";
-    if (order.credit === true) paymentMethod = "Credit";
-    else if (order.withBank === true) paymentMethod = "Bank";
+  const aggregated = new Map<
+    string,
+    {
+      itemName: string;
+      category: string;
+      totalQty: number;
+      totalSales: number;
+    }
+  >();
 
+  for (const order of orders) {
+    const itemName = String(order.title ?? "").trim() || "Unknown Item";
+    const key = itemName.toLowerCase();
     const lineTotal = cafeOrderLineTotalETB(order);
-    const bankTransfer = getOrderBankTransferAmount(order);
-    const tipCashDeduction = getOrderBankTipCashDeduction(order);
-    return {
-      "Item Name": order.title,
-      Category: order.category,
-      Price: order.price,
-      "Order Amount": order.orderAmount,
-      "Total Amount": lineTotal,
-      "Bank Transfer": paymentMethod === "Bank" ? bankTransfer : "",
-      "Tip Cash Deduction": tipCashDeduction > 0 ? tipCashDeduction : "",
-      "Order Date": new Date(order.createdAt).toLocaleDateString(),
-      Status: order.status || "Pending",
-      Payment: order.payment,
-      "Payment Method": paymentMethod,
-      "Credit Customer":
-        order.credit === true ? (order.credittorName ?? "") : "",
+    const qty = Number(order.orderAmount) || 0;
+    const existing = aggregated.get(key) ?? {
+      itemName,
+      category: String(order.category ?? "").trim() || "Uncategorized",
+      totalQty: 0,
+      totalSales: 0,
     };
-  });
+    existing.totalQty += qty;
+    existing.totalSales += lineTotal;
+    if (!existing.category && order.category) {
+      existing.category = String(order.category).trim();
+    }
+    aggregated.set(key, existing);
+  }
+
+  const data = [...aggregated.values()]
+    .sort((a, b) => b.totalSales - a.totalSales || a.itemName.localeCompare(b.itemName))
+    .map((row) => {
+      const unitPrice =
+        row.totalQty > 0
+          ? Math.round((row.totalSales / row.totalQty) * 100) / 100
+          : 0;
+      return {
+        "Item Name": row.itemName,
+        Category: row.category,
+        "Unit Price": unitPrice,
+        "Total Order Amount": row.totalQty,
+        "Total Sales (ETB)": Math.round(row.totalSales * 100) / 100,
+      };
+    });
 
   return {
     sheetName: `${reportType} Report`,
@@ -249,16 +268,9 @@ export function prepareReportExportData(
     headers: [
       "Item Name",
       "Category",
-      "Price",
-      "Order Amount",
-      "Total Amount",
-      "Bank Transfer",
-      "Tip Cash Deduction",
-      "Order Date",
-      "Status",
-      "Payment",
-      "Payment Method",
-      "Credit Customer",
+      "Unit Price",
+      "Total Order Amount",
+      "Total Sales (ETB)",
     ],
   };
 }
