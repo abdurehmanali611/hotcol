@@ -189,8 +189,6 @@ export function StoreComponent({
   const [activeView, setActiveView] = useState<StoreView>("Register");
   const requestStatusActive = REQUEST_STATUS_VIEWS.includes(activeView);
   const paymentVatActive = PAYMENT_VAT_VIEWS.includes(activeView);
-  const [requestStatusOpen, setRequestStatusOpen] = useState(requestStatusActive);
-  const [paymentVatOpen, setPaymentVatOpen] = useState(paymentVatActive);
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
   const searchedParams = useSearchParams();
@@ -498,14 +496,6 @@ export function StoreComponent({
     }
   }, [activeView, hotelHasFinance, hotelInventory]);
 
-  useEffect(() => {
-    if (requestStatusActive) setRequestStatusOpen(true);
-  }, [requestStatusActive]);
-
-  useEffect(() => {
-    if (paymentVatActive) setPaymentVatOpen(true);
-  }, [paymentVatActive]);
-
   const panels =
         activeView === "Register" ? (
           <BatchItemRegistrationForm
@@ -717,8 +707,8 @@ export function StoreComponent({
 
                 {hotelInventory && hotelHasFinance ? (
                 <Collapsible
-                  open={requestStatusOpen}
-                  onOpenChange={setRequestStatusOpen}
+                  key={requestStatusActive ? "request-active" : "request-idle"}
+                  defaultOpen={requestStatusActive}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
@@ -788,8 +778,8 @@ export function StoreComponent({
 
                 {hotelInventory && hotelHasFinance ? (
                 <Collapsible
-                  open={paymentVatOpen}
-                  onOpenChange={setPaymentVatOpen}
+                  key={paymentVatActive ? "payment-active" : "payment-idle"}
+                  defaultOpen={paymentVatActive}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   PAYMENT_CATEGORY_NAV,
   isPaymentCategorySection,
@@ -28,14 +27,13 @@ export function HotelInventoryPaymentSidebarGroup({
   onSelect: (sectionId: string) => void;
 }) {
   const paymentActive = isPaymentCategorySection(activeSection);
-  const [open, setOpen] = useState(paymentActive);
-
-  useEffect(() => {
-    if (paymentActive) setOpen(true);
-  }, [paymentActive]);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
+    <Collapsible
+      key={paymentActive ? "payment-active" : "payment-idle"}
+      defaultOpen={paymentActive}
+      className="group/collapsible"
+    >
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton

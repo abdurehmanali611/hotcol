@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   REQUEST_STATUS_NAV,
   type RequestStatusNavId,
@@ -33,14 +32,13 @@ export function HotelRequestStatusSidebarGroup({
   onSelect: (sectionId: RequestStatusNavId) => void;
 }) {
   const requestActive = isRequestStatusSection(activeSection);
-  const [open, setOpen] = useState(requestActive);
-
-  useEffect(() => {
-    if (requestActive) setOpen(true);
-  }, [requestActive]);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
+    <Collapsible
+      key={requestActive ? "request-active" : "request-idle"}
+      defaultOpen={requestActive}
+      className="group/collapsible"
+    >
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton

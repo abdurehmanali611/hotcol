@@ -70,10 +70,13 @@ import {
 } from "@/lib/cafeAmountPayment";
 import { CafePaymentAmountSplitDialog } from "@/components/cafe/CafePaymentAmountSplitDialog";
 
+const DEFAULT_PAYMENT_TYPE_PAGE_SIZE = 10;
+
 type Props = {
   orders: Order[];
   hotelName: string;
   onRefresh: () => void | Promise<void>;
+  pageSize?: number;
 };
 
 type PendingChange = "cash" | "bank" | null;
@@ -517,11 +520,13 @@ export function CafeCashierPaymentTypePanel({
   orders,
   hotelName,
   onRefresh,
+  pageSize = DEFAULT_PAYMENT_TYPE_PAGE_SIZE,
 }: Props) {
   const [tables, setTables] = useState<Table[]>([]);
   const [search, setSearch] = useState("");
   const [tableFilter, setTableFilter] = useState<TableFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentTypeFilter>("all");
+  const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [pendingChange, setPendingChange] = useState<PendingChange>(null);
   const [bankTransferInput, setBankTransferInput] = useState("");
@@ -533,7 +538,12 @@ export function CafeCashierPaymentTypePanel({
 
   useEffect(() => {
     setSelectedIds(new Set());
+    setPage(0);
   }, [paymentFilter, tableFilter]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [search]);
 
   useEffect(() => {
     void fetchTables()
@@ -598,21 +608,33 @@ export function CafeCashierPaymentTypePanel({
       .filter((batch) => batchMatchesNameSearch(batch, q));
   }, [paidBatches, paymentFilter, search, tableFilter]);
 
-  const filteredOrders = useMemo(
-    () => filteredBatches.flatMap((batch) => batch.orders),
-    [filteredBatches],
+  const pageCount = Math.max(1, Math.ceil(filteredBatches.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+
+  const paginatedBatches = useMemo(() => {
+    const start = safePage * pageSize;
+    return filteredBatches.slice(start, start + pageSize);
+  }, [filteredBatches, safePage, pageSize]);
+
+  const visiblePageOrders = useMemo(
+    () => paginatedBatches.flatMap((batch) => batch.orders),
+    [paginatedBatches],
   );
 
   const allVisibleSelected =
-    filteredOrders.length > 0 &&
-    filteredOrders.every((order) => selectedIds.has(order.id));
+    visiblePageOrders.length > 0 &&
+    visiblePageOrders.every((order) => selectedIds.has(order.id));
 
   const toggleSelectAll = (checked: boolean) => {
-    if (!checked) {
-      setSelectedIds(new Set());
-      return;
-    }
-    setSelectedIds(new Set(filteredOrders.map((order) => order.id)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (!checked) {
+        for (const order of visiblePageOrders) next.delete(order.id);
+        return next;
+      }
+      for (const order of visiblePageOrders) next.add(order.id);
+      return next;
+    });
   };
 
   const toggleRow = (id: number, checked: boolean) => {
@@ -1003,7 +1025,7 @@ export function CafeCashierPaymentTypePanel({
             </div>
           ) : null}
 
-          {filteredOrders.length === 0 ? (
+          {filteredBatches.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/80 bg-linear-to-b from-muted/30 to-muted/10 px-4 py-14 text-center">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 ring-1 ring-border/60">
                 <ArrowLeftRight className="h-7 w-7 text-muted-foreground/70" />
@@ -1050,7 +1072,7 @@ export function CafeCashierPaymentTypePanel({
               </div>
 
               <ul className="space-y-0 p-1 sm:p-2">
-                {filteredBatches.map((batch) => (
+                {paginatedBatches.map((batch) => (
                   <PaymentTypeBatchBlock
                     key={batch.key}
                     batch={batch}
@@ -1061,6 +1083,42 @@ export function CafeCashierPaymentTypePanel({
                   />
                 ))}
               </ul>
+
+              {filteredBatches.length > pageSize ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
+                  <span>
+                    Showing {safePage * pageSize + 1}–
+                    {Math.min((safePage + 1) * pageSize, filteredBatches.length)}{" "}
+                    of {filteredBatches.length} batch
+                    {filteredBatches.length !== 1 ? "es" : ""}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage <= 0}
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="flex items-center px-1 tabular-nums">
+                      Page {safePage + 1} of {pageCount}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage >= pageCount - 1}
+                      onClick={() =>
+                        setPage((p) => Math.min(pageCount - 1, p + 1))
+                      }
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </CardContent>

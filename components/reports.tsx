@@ -406,7 +406,8 @@ export default function Reports({
         .sort((a, b) => b.sales - a.sales)
         .slice(0, 10),
       totalOrderUnits: completed.reduce(
-        (sum, order: any) => sum + (Number(order.orderAmount) || 0),
+        (sum: number, order: { orderAmount?: number }) =>
+          sum + (Number(order.orderAmount) || 0),
         0,
       ),
     };
