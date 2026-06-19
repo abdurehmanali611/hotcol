@@ -352,12 +352,10 @@ export type PurchaseRequestLineInput = {
 };
 
 /** Multiple purchase lines submitted together share one voucher number. */
-export async function createPurchaseRequestsBatchApi(
+async function runCreatePurchaseRequestsBatchMutation(
   lines: PurchaseRequestLineInput[],
   requestedByDepartment: string,
-  options?: { suppressSuccessToast?: boolean },
 ) {
-  if (!lines.length) throw new Error("At least one line is required");
   const mutation = `
     mutation CreatePurchaseRequestsBatch(
       $lines: [PurchaseRequestLineInput!]!
@@ -384,16 +382,75 @@ export async function createPurchaseRequestsBatchApi(
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");
   }
-  if (!options?.suppressSuccessToast) {
-    toast.success("Saved for your review — confirm under Review before send");
-  }
-  invalidateGraphqlListCache("hotel:purchaseRequests");
-  return response.data.data.createPurchaseRequestsBatch as {
+  const rows = response.data.data.createPurchaseRequestsBatch as {
     id: number;
     status: string;
     voucherNumber?: number | null;
     voucherDisplay?: string | null;
   }[];
+  if (!rows?.length) {
+    throw new Error("Purchase requests were not saved by the server");
+  }
+  return rows;
+}
+
+const STORE_DRAFT_BATCH_CHUNK_SIZE = 15;
+
+/** Only retry large store-draft batches on timeouts / infra failures — not validation errors. */
+function storeDraftBatchShouldChunkRetry(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return /expired transaction|transaction was \d+ ms|P2028|ETIMEDOUT|ECONNABORTED|timeout exceeded|network error/i.test(
+    msg,
+  );
+}
+
+async function createPurchaseRequestsBatchWithChunkFallback(
+  lines: PurchaseRequestLineInput[],
+  requestedByDepartment: string,
+) {
+  try {
+    return await runCreatePurchaseRequestsBatchMutation(
+      lines,
+      requestedByDepartment,
+    );
+  } catch (first) {
+    if (
+      lines.length <= STORE_DRAFT_BATCH_CHUNK_SIZE ||
+      !storeDraftBatchShouldChunkRetry(first)
+    ) {
+      throw first;
+    }
+    const merged: Awaited<
+      ReturnType<typeof runCreatePurchaseRequestsBatchMutation>
+    > = [];
+    for (let i = 0; i < lines.length; i += STORE_DRAFT_BATCH_CHUNK_SIZE) {
+      const chunk = lines.slice(i, i + STORE_DRAFT_BATCH_CHUNK_SIZE);
+      merged.push(
+        ...(await runCreatePurchaseRequestsBatchMutation(
+          chunk,
+          requestedByDepartment,
+        )),
+      );
+    }
+    return merged;
+  }
+}
+
+export async function createPurchaseRequestsBatchApi(
+  lines: PurchaseRequestLineInput[],
+  requestedByDepartment: string,
+  options?: { suppressSuccessToast?: boolean },
+) {
+  if (!lines.length) throw new Error("At least one line is required");
+  const rows = await createPurchaseRequestsBatchWithChunkFallback(
+    lines,
+    requestedByDepartment,
+  );
+  if (!options?.suppressSuccessToast) {
+    toast.success("Saved for your review — confirm under Review before send");
+  }
+  invalidateGraphqlListCache("hotel:purchaseRequests");
+  return rows;
 }
 
 export async function createStockOutRequestApi(
@@ -453,12 +510,10 @@ export type StockOutRequestLineInput = {
 };
 
 /** Multiple stock movements submitted together share one voucher number. */
-export async function createStockOutRequestsBatchApi(
+async function runCreateStockOutRequestsBatchMutation(
   lines: StockOutRequestLineInput[],
   requestedByDepartment: string,
-  options?: { suppressSuccessToast?: boolean },
 ) {
-  if (!lines.length) throw new Error("At least one line is required");
   const mutation = `
     mutation CreateStockOutRequestsBatch(
       $lines: [StockOutRequestLineInput!]!
@@ -485,6 +540,60 @@ export async function createStockOutRequestsBatchApi(
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");
   }
+  const rows = response.data.data.createStockOutRequestsBatch as {
+    id: number;
+    status: string;
+    voucherNumber?: number | null;
+    voucherDisplay?: string | null;
+  }[];
+  if (!rows?.length) {
+    throw new Error("Stock movement requests were not saved by the server");
+  }
+  return rows;
+}
+
+async function createStockOutRequestsBatchWithChunkFallback(
+  lines: StockOutRequestLineInput[],
+  requestedByDepartment: string,
+) {
+  try {
+    return await runCreateStockOutRequestsBatchMutation(
+      lines,
+      requestedByDepartment,
+    );
+  } catch (first) {
+    if (
+      lines.length <= STORE_DRAFT_BATCH_CHUNK_SIZE ||
+      !storeDraftBatchShouldChunkRetry(first)
+    ) {
+      throw first;
+    }
+    const merged: Awaited<
+      ReturnType<typeof runCreateStockOutRequestsBatchMutation>
+    > = [];
+    for (let i = 0; i < lines.length; i += STORE_DRAFT_BATCH_CHUNK_SIZE) {
+      const chunk = lines.slice(i, i + STORE_DRAFT_BATCH_CHUNK_SIZE);
+      merged.push(
+        ...(await runCreateStockOutRequestsBatchMutation(
+          chunk,
+          requestedByDepartment,
+        )),
+      );
+    }
+    return merged;
+  }
+}
+
+export async function createStockOutRequestsBatchApi(
+  lines: StockOutRequestLineInput[],
+  requestedByDepartment: string,
+  options?: { suppressSuccessToast?: boolean },
+) {
+  if (!lines.length) throw new Error("At least one line is required");
+  const rows = await createStockOutRequestsBatchWithChunkFallback(
+    lines,
+    requestedByDepartment,
+  );
   if (!options?.suppressSuccessToast) {
     toast.success("Saved for your review — confirm under Review before send");
   }
@@ -492,12 +601,7 @@ export async function createStockOutRequestsBatchApi(
     "hotel:stockOutRequests",
     "ItemRegistration:list",
   ]);
-  return response.data.data.createStockOutRequestsBatch as {
-    id: number;
-    status: string;
-    voucherNumber?: number | null;
-    voucherDisplay?: string | null;
-  }[];
+  return rows;
 }
 
 export async function approvePurchaseRequestCCApi(

@@ -98,6 +98,7 @@ export function InventoryBatchMovementBar({
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [defaultStockOutStation, setDefaultStockOutStation] = useState("");
   const { options: destinationOptions, loading: destinationLoading } =
     useDepartmentLeaderSelectOptions(REQUESTED_BY_DEPARTMENT_CODES);
   const { isPending, run } = useConcurrentActions();
@@ -106,6 +107,15 @@ export function InventoryBatchMovementBar({
   const updateLine = useCallback((id: number, patch: Partial<LineDraft>) => {
     setLines((prev) =>
       prev.map((l) => (l.registrationId === id ? { ...l, ...patch } : l)),
+    );
+  }, []);
+
+  const applyDefaultStationToAll = useCallback((stationCode: string) => {
+    setDefaultStockOutStation(stationCode);
+    setLines((prev) =>
+      prev.map((l) =>
+        l.movement === "STOCK_OUT" ? { ...l, stakeholder: stationCode } : l,
+      ),
     );
   }, []);
 
@@ -120,6 +130,7 @@ export function InventoryBatchMovementBar({
           ? (localStorage.getItem("user_name")?.trim() ?? "")
           : "";
       const rowById = new Map(selected.map((r) => [r.id, r]));
+      const batchSumByRegId = new Map<number, number>();
 
       for (const line of lines) {
         const row = rowById.get(line.registrationId);
@@ -127,7 +138,9 @@ export function InventoryBatchMovementBar({
         const q = Number(line.amount);
         if (line.movement === "STOCK_OUT") {
           if (!stockOutDestination(line)) {
-            toast.error(`Select or enter a station for “${line.itemName}”.`);
+            toast.error(
+              `Select or enter a station for “${line.itemName}”, or use “Apply station to all” above.`,
+            );
             return;
           }
         } else if (!line.reason.trim()) {
@@ -138,9 +151,12 @@ export function InventoryBatchMovementBar({
           toast.error(`Enter a valid quantity for “${line.itemName}”.`);
           return;
         }
-        if (q > row.amount) {
+        const regId = line.registrationId;
+        const nextSum = (batchSumByRegId.get(regId) || 0) + q;
+        batchSumByRegId.set(regId, nextSum);
+        if (nextSum > row.amount) {
           toast.error(
-            `“${line.itemName}”: quantity cannot exceed ${row.amount} on hand.`,
+            `“${line.itemName}”: total quantity cannot exceed ${row.amount} on hand.`,
           );
           return;
         }
@@ -174,6 +190,7 @@ export function InventoryBatchMovementBar({
 
       let ok = 0;
       let failed = lines.length - batchPayload.length;
+      let submitError: string | null = null;
 
       if (batchPayload.length > 0) {
         try {
@@ -210,8 +227,10 @@ export function InventoryBatchMovementBar({
             );
             ok++;
           }
-        } catch {
+        } catch (e: unknown) {
           failed += batchPayload.length;
+          submitError =
+            e instanceof Error ? e.message : "Batch stock movement request failed";
         }
       }
 
@@ -223,9 +242,10 @@ export function InventoryBatchMovementBar({
         );
       } else {
         toast.error(
-          failed
-            ? "No requests were created. Some lines could not be sent."
-            : "No requests were created.",
+          submitError ??
+            (failed
+              ? "No requests were created. Check quantities, stations, and stock on hand."
+              : "No requests were created."),
         );
       }
       tableRef.current?.resetRowSelection();
@@ -253,6 +273,7 @@ export function InventoryBatchMovementBar({
               className="gap-2 font-semibold shadow-sm"
               onClick={() => {
                 setLines(rowsToDrafts(selected));
+                setDefaultStockOutStation("");
                 setOpen(true);
               }}
             >
@@ -300,6 +321,41 @@ export function InventoryBatchMovementBar({
                 onChange={setRequestedByDepartment}
                 allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
               />
+              {lines.some((l) => l.movement === "STOCK_OUT") ? (
+                <div className="space-y-1.5 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3">
+                  <Label htmlFor="default-stock-out-station">
+                    Apply station to all stock-out lines
+                  </Label>
+                  <Select
+                    value={defaultStockOutStation || undefined}
+                    onValueChange={applyDefaultStationToAll}
+                    disabled={destinationLoading || destinationOptions.length === 0}
+                  >
+                    <SelectTrigger id="default-stock-out-station" className="h-10 w-full">
+                      <SelectValue
+                        placeholder={
+                          destinationLoading
+                            ? "Loading departments…"
+                            : destinationOptions.length === 0
+                              ? "No leaders registered"
+                              : "Select once — applies to every stock-out line"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {destinationOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Use this when sending many items to the same kitchen, bar, or
+                    department. You can still override any line below.
+                  </p>
+                </div>
+              ) : null}
               {lines.map((line) => (
                 <div
                   key={line.registrationId}

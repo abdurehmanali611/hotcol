@@ -27,6 +27,14 @@ function graphqlLooksLikeMissingBatchField(message: string): boolean {
   );
 }
 
+function graphqlLooksLikeBatchTimeout(message: string): boolean {
+  return /expired transaction|transaction was \d+ ms|P2028/i.test(
+    String(message || ""),
+  );
+}
+
+const REGISTRATION_BATCH_CHUNK_SIZE = 15;
+
 export async function CreateItemRegistration(values: createItemRegistration) {
   try {
     const mutation = `
@@ -275,13 +283,11 @@ export type ItemRegistrationLineInput = {
 };
 
 /** Multiple item lines registered together share one voucher number. */
-export async function createItemRegistrationsBatchApi(
+async function postItemRegistrationsBatch(
   lines: ItemRegistrationLineInput[],
-  hotelName: string,
   receivedByDepartment: string,
+  token: string,
 ) {
-  if (!lines.length) throw new Error("At least one line is required");
-
   const mutation = `
     mutation CreateItemRegistrationsBatch(
       $lines: [ItemRegistrationLineInput!]!
@@ -299,6 +305,47 @@ export async function createItemRegistrationsBatchApi(
       }
     }
   `;
+  const response = await api.post(
+    API_URL,
+    {
+      query: mutation,
+      variables: {
+        lines: mapLinesToBatchVariables(lines),
+        receivedByDepartment: String(receivedByDepartment).trim(),
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to register items",
+    );
+  }
+  const created = response.data.data?.createItemRegistrationsBatch as
+    | {
+        id: number;
+        approvalStatus?: string;
+        voucherNumber?: number | null;
+        voucherDisplay?: string | null;
+      }[]
+    | undefined;
+  if (!created?.length) {
+    throw new Error("Item registrations were not saved by the server");
+  }
+  return created;
+}
+
+export async function createItemRegistrationsBatchApi(
+  lines: ItemRegistrationLineInput[],
+  hotelName: string,
+  receivedByDepartment: string,
+) {
+  if (!lines.length) throw new Error("At least one line is required");
 
   const token =
     typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
@@ -306,11 +353,6 @@ export async function createItemRegistrationsBatchApi(
     toast.error("You are not logged in. Please Login again.");
     throw new Error("No authenticated token found");
   }
-
-  const variables = {
-    lines: mapLinesToBatchVariables(lines),
-    receivedByDepartment: String(receivedByDepartment).trim(),
-  };
 
   let created:
     | {
@@ -322,34 +364,11 @@ export async function createItemRegistrationsBatchApi(
     | null = null;
 
   try {
-    const response = await api.post(
-      API_URL,
-      { query: mutation, variables },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      },
+    created = await postItemRegistrationsBatch(
+      lines,
+      receivedByDepartment,
+      token,
     );
-
-    if (response.data.errors?.length) {
-      const errorMessage =
-        response.data.errors[0]?.message || "Failed to register items";
-      if (graphqlLooksLikeMissingBatchField(errorMessage)) {
-        created = await sequentialItemRegistrationsWithSharedVoucher(
-          lines,
-          hotelName,
-        );
-      } else {
-        throw new Error(errorMessage);
-      }
-    } else {
-      created = response.data.data?.createItemRegistrationsBatch;
-      if (!created?.length) {
-        throw new Error("Item registrations were not saved by the server");
-      }
-    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err ?? "");
     if (graphqlLooksLikeMissingBatchField(msg)) {
@@ -357,6 +376,22 @@ export async function createItemRegistrationsBatchApi(
         lines,
         hotelName,
       );
+    } else if (
+      graphqlLooksLikeBatchTimeout(msg) &&
+      lines.length > REGISTRATION_BATCH_CHUNK_SIZE
+    ) {
+      const merged: NonNullable<typeof created> = [];
+      for (let i = 0; i < lines.length; i += REGISTRATION_BATCH_CHUNK_SIZE) {
+        const chunk = lines.slice(i, i + REGISTRATION_BATCH_CHUNK_SIZE);
+        merged.push(
+          ...(await postItemRegistrationsBatch(
+            chunk,
+            receivedByDepartment,
+            token,
+          )),
+        );
+      }
+      created = merged;
     } else {
       throw err;
     }
