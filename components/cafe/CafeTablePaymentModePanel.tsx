@@ -331,6 +331,15 @@ export function CafeTablePaymentModePanel({
                     {formatETB(displayBank)} bank
                   </span>
                   {allocatedSplit &&
+                  completedOrders.length === 1 &&
+                  allocatedSplit.requestedCash > 0.001 &&
+                  allocatedSplit.requestedBank > 0.001 ? (
+                    <span className="block text-xs">
+                      One line split — {formatETB(allocatedSplit.requestedCash)}{" "}
+                      cash + {formatETB(allocatedSplit.requestedBank)} bank on
+                      this item
+                    </span>
+                  ) : allocatedSplit &&
                   primaryChannel === "cash" &&
                   allocatedSplit.cashLineTotal + allocatedSplit.bankLineTotal >
                     0 ? (

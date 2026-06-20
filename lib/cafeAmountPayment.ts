@@ -218,6 +218,29 @@ function buildScaledBankChannels(
   });
 }
 
+function buildSingleOrderMixedPlan(
+  order: Order,
+  requestedCash: number,
+  requestedBank: number,
+): AmountTablePaymentPlan {
+  const lineTotal = cafeOrderLineTotalETB(order);
+  return {
+    cashChannels: [],
+    bankChannels: [
+      {
+        order,
+        withBank: true,
+        bankTransferAmount: roundMoney(requestedBank),
+        bankTipCashDeduction: roundMoney(-requestedCash),
+      },
+    ],
+    requestedCash: roundMoney(requestedCash),
+    requestedBank: roundMoney(requestedBank),
+    cashLineTotal: 0,
+    bankLineTotal: roundMoney(lineTotal),
+  };
+}
+
 function buildCashFirstAmountPlan(
   completedOrders: Order[],
   enteredAmount: number,
@@ -312,6 +335,26 @@ export function buildAmountTablePaymentPlan(
   enteredAmount: number,
   primaryChannel: PrimaryAmountChannel,
 ): AmountTablePaymentPlan {
+  if (completedOrders.length === 1) {
+    const total = cafeOrderLineTotalETB(completedOrders[0]);
+    const requestedPrimary = roundMoney(
+      Math.max(0, Math.min(enteredAmount, total)),
+    );
+    const requestedSecondary = roundMoney(Math.max(0, total - requestedPrimary));
+    const requestedCash =
+      primaryChannel === "cash" ? requestedPrimary : requestedSecondary;
+    const requestedBank =
+      primaryChannel === "bank" ? requestedPrimary : requestedSecondary;
+
+    if (requestedCash > 0.001 && requestedBank > 0.001) {
+      return buildSingleOrderMixedPlan(
+        completedOrders[0],
+        requestedCash,
+        requestedBank,
+      );
+    }
+  }
+
   if (primaryChannel === "cash") {
     return buildCashFirstAmountPlan(completedOrders, enteredAmount);
   }

@@ -131,21 +131,13 @@ function batchMatchesNameSearch(batch: CafePaidOrderBatch, query: string): boole
   );
 }
 
-/** Full multi-item batch selected — eligible for cash + bank amount split. */
-function findFullSelectedBatch(
+/** Selected orders eligible for cash + bank amount split (one or more lines). */
+function ordersEligibleForAmountSplit(
   selectedIds: Set<number>,
-  batches: CafePaidOrderBatch[],
-): CafePaidOrderBatch | null {
-  if (selectedIds.size < 2) return null;
-  for (const batch of batches) {
-    if (batch.orders.length < 2) continue;
-    const batchIdSet = new Set(batch.orders.map((order) => order.id));
-    if (batchIdSet.size !== selectedIds.size) continue;
-    if ([...selectedIds].every((id) => batchIdSet.has(id))) {
-      return batch;
-    }
-  }
-  return null;
+  paidOrders: Order[],
+): Order[] {
+  if (selectedIds.size === 0) return [];
+  return paidOrders.filter((order) => selectedIds.has(order.id));
 }
 
 function orderMatchesPaymentFilter(
@@ -662,12 +654,12 @@ export function CafeCashierPaymentTypePanel({
     [paidOrders, selectedIds],
   );
 
-  const selectedFullBatch = useMemo(
-    () => findFullSelectedBatch(selectedIds, paidBatches),
-    [selectedIds, paidBatches],
+  const selectedOrdersForSplit = useMemo(
+    () => ordersEligibleForAmountSplit(selectedIds, paidOrders),
+    [selectedIds, paidOrders],
   );
 
-  const canSplitByAmount = selectedFullBatch != null;
+  const canSplitByAmount = selectedOrdersForSplit.length > 0;
 
   const canSetCash = selectedOrders.some((order) => !isCashPayment(order));
   const canSetBank = selectedOrders.some((order) => !isBankPayment(order));
@@ -784,18 +776,18 @@ export function CafeCashierPaymentTypePanel({
   };
 
   const openAmountSplit = () => {
-    if (!selectedFullBatch) return;
+    if (selectedOrdersForSplit.length === 0) return;
     setSplitPrimaryChannel("cash");
     setSplitAmountInput("");
     setAmountSplitOpen(true);
   };
 
   const applyAmountSplit = async () => {
-    if (!selectedFullBatch) return;
+    if (selectedOrdersForSplit.length === 0) return;
 
-    const batchOrders = selectedFullBatch.orders;
+    const splitOrders = selectedOrdersForSplit;
     const amount = Number(splitAmountInput.replace(/,/g, "").trim());
-    const batchTotal = batchOrders.reduce(
+    const selectionTotal = splitOrders.reduce(
       (sum, order) => sum + lineTotalETB(order),
       0,
     );
@@ -804,19 +796,19 @@ export function CafeCashierPaymentTypePanel({
       toast.error("Enter a valid amount greater than zero");
       return;
     }
-    if (amount > batchTotal + 0.001) {
-      toast.error("Amount cannot exceed batch total");
+    if (amount > selectionTotal + 0.001) {
+      toast.error("Amount cannot exceed selection total");
       return;
     }
 
     const plan = buildAmountTablePaymentPlan(
-      batchOrders,
+      splitOrders,
       amount,
       splitPrimaryChannel,
     );
     const channels = [...plan.cashChannels, ...plan.bankChannels];
     if (channels.length === 0) {
-      toast.error("Could not build a cash and bank split for this batch");
+      toast.error("Could not build a cash and bank split for this selection");
       return;
     }
 
@@ -839,7 +831,7 @@ export function CafeCashierPaymentTypePanel({
       await onRefresh();
       setSelectedIds(new Set());
       toast.success(
-        `Updated batch — cash ${plan.requestedCash.toFixed(2)} ETB, bank ${plan.requestedBank.toFixed(2)} ETB`,
+        `Updated ${splitOrders.length} order${splitOrders.length === 1 ? "" : "s"} — cash ${plan.requestedCash.toFixed(2)} ETB, bank ${plan.requestedBank.toFixed(2)} ETB`,
       );
       setAmountSplitOpen(false);
       setSplitAmountInput("");
@@ -854,15 +846,20 @@ export function CafeCashierPaymentTypePanel({
     }
   };
 
-  const selectedFullBatchLabel = useMemo(() => {
-    if (!selectedFullBatch) return "";
-    const anchor = selectedFullBatch.orders[0];
-    return formatCafeTableDisplayFromRegistry(
-      selectedFullBatch.tableNo,
+  const selectedSplitLabel = useMemo(() => {
+    if (selectedOrdersForSplit.length === 0) return "";
+    const anchor = selectedOrdersForSplit[0];
+    const tableNo = normalizeOrderTableNo(anchor);
+    const tableLabel = formatCafeTableDisplayFromRegistry(
+      tableNo,
       tables,
       anchor?.serviceCaption,
     );
-  }, [selectedFullBatch, tables]);
+    if (selectedOrdersForSplit.length === 1) {
+      return `${anchor.title ?? "Item"} · ${tableLabel}`;
+    }
+    return `${tableLabel} · ${selectedOrdersForSplit.length} items`;
+  }, [selectedOrdersForSplit, tables]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -879,8 +876,8 @@ export function CafeCashierPaymentTypePanel({
               </CardTitle>
               <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Review today&apos;s paid orders, filter by channel, and correct
-                cash or bank entries — per line, all to one channel, or split a
-                full table batch by amount (cash + bank).
+                cash or bank entries — per line, all to one channel, or split
+                selected lines by amount (cash + bank).
               </p>
             </div>
             <Badge
@@ -1004,12 +1001,8 @@ export function CafeCashierPaymentTypePanel({
                 order{selectedOrders.length === 1 ? "" : "s"} selected
                 {canSplitByAmount ? (
                   <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                    Full table batch selected — use Split cash + bank for mixed
-                    payment, or change all lines to one channel.
-                  </span>
-                ) : selectedOrders.length === 1 ? (
-                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                    Single line — use Change to cash or Change to bank.
+                    Use Split cash + bank for mixed payment, or change all
+                    selected lines to one channel.
                   </span>
                 ) : null}
               </p>
@@ -1229,9 +1222,9 @@ export function CafeCashierPaymentTypePanel({
             setSplitAmountInput("");
           }
         }}
-        title="Split table batch — cash + bank"
-        description={`Reassign payment types for every line in this ${selectedFullBatchLabel || "table"} batch. Enter what the customer paid on one channel; the other is calculated automatically.`}
-        orders={selectedFullBatch?.orders ?? []}
+        title="Split cash + bank"
+        description={`Reassign payment types for ${selectedSplitLabel || "the selected orders"}. Enter what the customer paid on one channel; the other is calculated automatically.`}
+        orders={selectedOrdersForSplit}
         primaryChannel={splitPrimaryChannel}
         onPrimaryChannelChange={setSplitPrimaryChannel}
         amountInput={splitAmountInput}

@@ -90,9 +90,6 @@ function CashierContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
-  const [focusUpdateOrderId, setFocusUpdateOrderId] = useState<number | null>(
-    null,
-  );
   const loadCoordinator = useLoadCoordinator();
 
   const tenantModules = useTenantModules();
@@ -206,10 +203,6 @@ function CashierContent() {
     try {
       const result = await createOrder(orderData);
       await loadData({ refresh: true });
-      if (result?.id != null) {
-        setFocusUpdateOrderId(Number(result.id));
-        setActiveView("order-update");
-      }
       setShowOrderModal(false);
       setSelectedItem(null);
       return result;
@@ -314,7 +307,6 @@ function CashierContent() {
         orders={orders}
         items={items}
         hotelName={tenantScope}
-        focusOrderId={focusUpdateOrderId}
         onRefresh={() => loadData({ refresh: true })}
       />
     ) : activeView === "credit" ? (

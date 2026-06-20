@@ -122,7 +122,7 @@ export function CafePaymentAmountSplitDialog({
 
               <div className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2.5 text-foreground">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Batch total
+                  Selection total
                 </p>
                 <p className="text-lg font-bold tabular-nums">
                   {formatETB(tableTotal)} ETB
@@ -189,7 +189,7 @@ export function CafePaymentAmountSplitDialog({
                     {formatETB(remainderAmount)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Batch total minus entered amount
+                    Selection total minus entered amount
                   </p>
                 </div>
               </div>
