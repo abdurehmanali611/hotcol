@@ -137,8 +137,12 @@ export function SignupPricingSummary({
               {pricing.loading
                 ? "Loading current setup and quarterly fees…"
                 : pricing.differsFromDefault
-                  ? "Current rates from Apex (setup and quarterly). These amounts are saved with your registration."
-                  : "One-time setup plus quarterly billing. Saved with your registration for HotCol monitoring."}
+                  ? isLodging
+                    ? "Current rates from Apex (setup and yearly). These amounts are saved with your registration."
+                    : "Current rates from Apex (setup and quarterly). These amounts are saved with your registration."
+                  : isLodging
+                    ? "One-time setup plus yearly billing (4× quarterly rate). Saved with your registration for HotCol monitoring."
+                    : "One-time setup plus quarterly billing. Saved with your registration for HotCol monitoring."}
             </p>
           </div>
         </div>
@@ -154,12 +158,20 @@ export function SignupPricingSummary({
           </div>
           <div className="rounded-xl border border-border/70 bg-background/80 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Quarterly fee
+              {isLodging ? "Yearly fee" : "Quarterly fee"}
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">
-              {pricing.loading ? "…" : formatETB(pricing.quarterlyFeeETB)}
+              {pricing.loading
+                ? "…"
+                : formatETB(
+                    isLodging
+                      ? pricing.quarterlyFeeETB * 4
+                      : pricing.quarterlyFeeETB,
+                  )}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Every 3 months</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {isLodging ? "Every 12 months (4× quarterly rate)" : "Every 3 months"}
+            </p>
           </div>
         </div>
       </div>

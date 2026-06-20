@@ -1,3 +1,9 @@
+import { APEX_SOLUTION_CBE_ACCOUNT, formatApexWhatsAppSupportList } from "@/lib/signupPayment";
+import {
+  isLodgingBusinessType,
+  readBusinessTypeFromStorage,
+  subscriptionRenewalAmountETB,
+} from "@/lib/subscriptionBillingPeriod";
 import { formatETB } from "@/lib/subscriptionModules";
 import {
   computeSubscriptionPeriodStatus,
@@ -7,7 +13,6 @@ import {
   type SubscriptionBillingSnapshot,
   type SubscriptionPeriodStatus,
 } from "@/lib/subscriptionQuarter";
-import { APEX_SOLUTION_CBE_ACCOUNT, formatApexWhatsAppSupportList } from "@/lib/signupPayment";
 
 export type SubscriptionNotification = {
   id: string;
@@ -23,7 +28,11 @@ export function buildSubscriptionNotifications(
   now: Date = new Date(),
 ): SubscriptionNotification[] {
   const status = computeSubscriptionPeriodStatus(snap, now);
-  const quarterly = formatETB(snap.quarterlyFeeETB);
+  const businessType = readBusinessTypeFromStorage();
+  const isYearly = isLodgingBusinessType(businessType);
+  const renewalAmount = formatETB(
+    subscriptionRenewalAmountETB(snap.quarterlyFeeETB, businessType),
+  );
   const paidUntil = parseSubscriptionDate(snap.subscriptionPaidUntil);
 
   if (
@@ -72,8 +81,12 @@ export function buildSubscriptionNotifications(
         severity: "warning",
         priority: "high",
         status,
-        title: "Quarterly subscription ending soon",
-        message: `Your paid quarter ends ${formatSubscriptionDate(paidUntil)} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left). After that date, submit ${quarterly} to CBE account ${APEX_SOLUTION_CBE_ACCOUNT} during the 10-day grace period.`,
+        title: isYearly
+          ? "Yearly subscription ending soon"
+          : "Quarterly subscription ending soon",
+        message: isYearly
+          ? `Your paid year ends ${formatSubscriptionDate(paidUntil)} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left). After that date, submit ${renewalAmount} to CBE account ${APEX_SOLUTION_CBE_ACCOUNT} during the 10-day grace period.`
+          : `Your paid quarter ends ${formatSubscriptionDate(paidUntil)} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left). After that date, submit ${renewalAmount} to CBE account ${APEX_SOLUTION_CBE_ACCOUNT} during the 10-day grace period.`,
       },
     ];
   }
@@ -94,7 +107,9 @@ export function buildSubscriptionNotifications(
         priority: "high",
         status,
         title: "Subscription grace period — renew now",
-        message: `Quarter ended ${formatSubscriptionDate(paidUntil)} (${daysPast} day${daysPast === 1 ? "" : "s"} ago). Pay ${quarterly} to CBE ${APEX_SOLUTION_CBE_ACCOUNT} within ${graceLeft} day${graceLeft === 1 ? "" : "s"} on the payment portal — after day 10 all logins are disabled until Apex approves.`,
+        message: isYearly
+          ? `Year ended ${formatSubscriptionDate(paidUntil)} (${daysPast} day${daysPast === 1 ? "" : "s"} ago). Pay ${renewalAmount} to CBE ${APEX_SOLUTION_CBE_ACCOUNT} within ${graceLeft} day${graceLeft === 1 ? "" : "s"} on the payment portal — after day 10 all logins are disabled until Apex approves.`
+          : `Quarter ended ${formatSubscriptionDate(paidUntil)} (${daysPast} day${daysPast === 1 ? "" : "s"} ago). Pay ${renewalAmount} to CBE ${APEX_SOLUTION_CBE_ACCOUNT} within ${graceLeft} day${graceLeft === 1 ? "" : "s"} on the payment portal — after day 10 all logins are disabled until Apex approves.`,
       },
     ];
   }
@@ -107,7 +122,9 @@ export function buildSubscriptionNotifications(
         priority: "high",
         status,
         title: "Subscription expired",
-        message: `Quarterly payment was not received within the 10-day grace period. Pay ${quarterly} to CBE ${APEX_SOLUTION_CBE_ACCOUNT} and contact Apex — all property logins are disabled until payment is approved.`,
+        message: isYearly
+          ? `Yearly payment was not received within the 10-day grace period. Pay ${renewalAmount} to CBE ${APEX_SOLUTION_CBE_ACCOUNT} and contact Apex — all property logins are disabled until payment is approved.`
+          : `Quarterly payment was not received within the 10-day grace period. Pay ${renewalAmount} to CBE ${APEX_SOLUTION_CBE_ACCOUNT} and contact Apex — all property logins are disabled until payment is approved.`,
       },
     ];
   }

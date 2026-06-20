@@ -14,6 +14,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { TenantPaymentVerificationForm } from "@/components/tenant/TenantPaymentVerificationForm";
 import { logoutAction, submitTenantPaymentAction } from "@/lib/actions";
+import {
+  subscriptionRenewalAmountETB,
+  readBusinessTypeFromStorage,
+  isLodgingBusinessType,
+} from "@/lib/subscriptionBillingPeriod";
 import { readTenantPaymentKind, readTenantAccessMode } from "@/lib/tenantAccessMode";
 import { readTenantSubscriptionFromStorage } from "@/lib/tenantModules";
 import { computeSubscriptionPeriodStatus } from "@/lib/subscriptionQuarter";
@@ -28,21 +33,30 @@ function PaymentVerificationContent() {
   const sub = readTenantSubscriptionFromStorage();
   const status = computeSubscriptionPeriodStatus(sub);
 
+  const businessType = readBusinessTypeFromStorage();
+  const isYearly = paymentKind === "yearly" || isLodgingBusinessType(businessType);
+
   const amountETB =
-    paymentKind === "setup" ? sub.setupFeeETB : sub.quarterlyFeeETB;
+    paymentKind === "setup"
+      ? sub.setupFeeETB
+      : subscriptionRenewalAmountETB(sub.quarterlyFeeETB, businessType);
 
   const pendingMessage = useMemo(() => {
     if (status === "pending_approval" && !sub.setupFeeApproved) {
       return "Submit your setup fee transfer reference. Staff terminals stay locked until Apex approves.";
     }
     if (status === "grace") {
-      return "Your quarter has ended. Submit quarterly payment during this 10-day grace period — after day 10, all logins are disabled until Apex approves.";
+      return isYearly
+        ? "Your yearly subscription has ended. Submit yearly payment during this 10-day grace period — after day 10, all logins are disabled until Apex approves."
+        : "Your quarter has ended. Submit quarterly payment during this 10-day grace period — after day 10, all logins are disabled until Apex approves.";
     }
     if (status === "expired") {
-      return "The grace period has ended. Submit quarterly payment and contact Apex to restore access.";
+      return isYearly
+        ? "The grace period has ended. Submit yearly payment and contact Apex to restore access."
+        : "The grace period has ended. Submit quarterly payment and contact Apex to restore access.";
     }
     return null;
-  }, [status, sub.setupFeeApproved]);
+  }, [status, sub.setupFeeApproved, isYearly]);
 
   useEffect(() => {
     if (readTenantAccessMode() !== "payment_portal") {

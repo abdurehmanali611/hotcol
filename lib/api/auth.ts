@@ -234,7 +234,11 @@ export async function LoginAction(
       if (accessMode === "payment_portal") {
         persistTenantAccessMode(
           "payment_portal",
-          (paymentKind === "setup" ? "setup" : "quarterly") as TenantPaymentKind,
+          (paymentKind === "setup"
+            ? "setup"
+            : paymentKind === "yearly"
+              ? "yearly"
+              : "quarterly") as TenantPaymentKind,
         );
       } else {
         persistTenantAccessMode("full", null);
@@ -347,7 +351,7 @@ export function logoutAction() {
 }
 
 export async function submitTenantPaymentAction(input: {
-  paymentKind: "setup" | "quarterly";
+  paymentKind: "setup" | "quarterly" | "yearly";
   paymentChannel: string;
   transactionRef: string;
 }): Promise<void> {

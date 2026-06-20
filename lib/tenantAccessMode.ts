@@ -1,7 +1,7 @@
 "use client";
 
 export type TenantAccessMode = "full" | "payment_portal";
-export type TenantPaymentKind = "setup" | "quarterly";
+export type TenantPaymentKind = "setup" | "quarterly" | "yearly";
 
 const ACCESS_MODE_KEY = "tenant_access_mode";
 const PAYMENT_KIND_KEY = "tenant_payment_kind";
@@ -28,7 +28,7 @@ export function readTenantAccessMode(): TenantAccessMode {
 export function readTenantPaymentKind(): TenantPaymentKind | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(PAYMENT_KIND_KEY);
-  if (raw === "setup" || raw === "quarterly") return raw;
+  if (raw === "setup" || raw === "quarterly" || raw === "yearly") return raw;
   return null;
 }
 

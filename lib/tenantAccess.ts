@@ -9,6 +9,10 @@ import {
 import { tenantHasModule } from "@/lib/subscriptionModules";
 import { readTenantBillingFromStorage, readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { isPaymentPortalMode } from "@/lib/tenantAccessMode";
+import {
+  isLodgingBusinessType,
+  readBusinessTypeFromStorage,
+} from "@/lib/subscriptionBillingPeriod";
 
 export const TERMINAL_PAGE_MODULES: Record<string, ModuleOption | undefined> = {
   Admin: undefined,
@@ -67,8 +71,11 @@ export function loggedInRoleMatchesTerminal(terminalRole: string): boolean {
 }
 
 export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): string {
+  const isYearly = isLodgingBusinessType(readBusinessTypeFromStorage());
   if (status === "on_hold") {
-    return "Billing has not started for this property yet (Apex hold). Quarters begin when hold is released.";
+    return isYearly
+      ? "Billing has not started for this property yet (Apex hold). Yearly subscription begins when hold is released."
+      : "Billing has not started for this property yet (Apex hold). Quarters begin when hold is released.";
   }
   if (status === "trial") {
     return "Free trial is active.";
@@ -77,13 +84,19 @@ export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): stri
     return "Setup fee approval is pending. Sign-in is disabled until Apex verifies your payment (usually within about 30 minutes). Contact Apex on WhatsApp if you need help.";
   }
   if (status === "pending_approval") {
-    return "A quarterly payment is awaiting Apex approval. Admin or Manager can check status on the payment portal.";
+    return isYearly
+      ? "A yearly payment is awaiting Apex approval. Admin or Manager can check status on the payment portal."
+      : "A quarterly payment is awaiting Apex approval. Admin or Manager can check status on the payment portal.";
   }
   if (status === "grace") {
-    return "Quarterly renewal is required. Admin or Manager must submit payment within the grace period.";
+    return isYearly
+      ? "Yearly renewal is required. Admin or Manager must submit payment within the grace period."
+      : "Quarterly renewal is required. Admin or Manager must submit payment within the grace period.";
   }
   if (status === "expired") {
-    return "Your quarterly subscription grace period has ended. Pay Apex and contact support to restore access.";
+    return isYearly
+      ? "Your yearly subscription grace period has ended. Pay Apex and contact support to restore access."
+      : "Your quarterly subscription grace period has ended. Pay Apex and contact support to restore access.";
   }
   return "Your property cannot access the system right now.";
 }

@@ -59,11 +59,15 @@ export function TenantPaymentVerificationForm({
   const title =
     paymentKind === "setup"
       ? "Setup fee verification"
-      : "Quarterly subscription payment";
+      : paymentKind === "yearly"
+        ? "Yearly subscription payment"
+        : "Quarterly subscription payment";
   const description =
     paymentKind === "setup"
       ? "Pay the one-time setup fee to Apex Solution, then submit your transfer reference for verification."
-      : "Your paid quarter has ended. Pay the quarterly fee within the grace period and submit your transfer reference.";
+      : paymentKind === "yearly"
+        ? "Your paid year has ended. Pay the yearly fee (4× quarterly rate) within the grace period and submit your transfer reference."
+        : "Your paid quarter has ended. Pay the quarterly fee within the grace period and submit your transfer reference.";
 
   return (
     <div className="space-y-6">
