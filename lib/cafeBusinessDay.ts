@@ -22,3 +22,19 @@ export function isSameCafeBusinessDay(
   const b = cafeBusinessDateYmd(ref);
   return a !== "" && a === b;
 }
+
+export function cafeBusinessYearMonth(
+  dateInput: Date | string | number,
+): string {
+  const ymd = cafeBusinessDateYmd(dateInput);
+  return ymd ? ymd.slice(0, 7) : "";
+}
+
+export function isSameCafeBusinessMonth(
+  dateInput: Date | string | number,
+  ref: Date | string | number = new Date(),
+): boolean {
+  const a = cafeBusinessYearMonth(dateInput);
+  const b = cafeBusinessYearMonth(ref);
+  return a !== "" && a === b;
+}

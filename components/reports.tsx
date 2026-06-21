@@ -60,14 +60,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
-import { Cashout, fetchCashout, fetchTables, type Table } from "@/lib/actions";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { Cashout, fetchCashout, fetchTables, type Order, type Table } from "@/lib/actions";
 import {
-  sumBankOrderRevenueETB,
-  sumBankTipCashDeductionsETB,
-  sumCashOrderRevenueETB,
-  sumNetCashRevenueETB,
-} from "@/lib/cafeBankPayment";
+  isBankPayment,
+  isCreditPayment,
+} from "@/lib/api/cafeOrders";
+import { filterCafeReportCashouts, filterCafeReportPeriodOrders } from "@/lib/cafeReportFilter";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { cafeOrderLineTotalETB } from "@/lib/cafeBankPayment";
 import Cashouts from "@/app/CashoutTable/page";
 
 const COLORS = [
@@ -123,12 +123,9 @@ function categoryIcon(name: string) {
   return Layers;
 }
 
-function paymentChannel(order: {
-  credit?: boolean | null;
-  withBank?: boolean | null;
-}): "cash" | "bank" | "credit" {
-  if (order.credit === true) return "credit";
-  if (order.withBank === true) return "bank";
+function paymentChannel(order: Order): "cash" | "bank" | "credit" {
+  if (isCreditPayment(order)) return "credit";
+  if (isBankPayment(order)) return "bank";
   return "cash";
 }
 
@@ -297,52 +294,19 @@ export default function Reports({
     loadCashouts();
   }, [hotelName]);
 
-  const reportFilteredOrders = useMemo(() => {
+  const reportRevenueOrders = useMemo(() => {
+    if (!reportData?.orders) return [];
+    return reportData.orders;
+  }, [reportData]);
+
+  const reportPeriodOrders = useMemo(() => {
     if (!reportData) return [];
-    return orders.filter((order: any) => {
-      if (!rowHotelMatchesTenantScope(order.HotelName, hotelName)) {
-        return false;
-      }
-      const orderDate = new Date(order.createdAt);
-      return reportType === "Daily"
-        ? orderDate.toDateString() === date.toDateString()
-        : orderDate.getMonth() === date.getMonth() &&
-            orderDate.getFullYear() === date.getFullYear();
+    return filterCafeReportPeriodOrders(orders, {
+      HotelName: hotelName,
+      date,
+      type: reportType,
     });
   }, [orders, reportData, date, reportType, hotelName]);
-
-  const livePaymentTotals = useMemo(() => {
-    const paid = reportFilteredOrders.filter(
-      (o: any) => String(o.payment ?? "").trim().toLowerCase() === "paid",
-    );
-    const cashOrders = paid.filter((o: any) => o.withBank === false);
-    const bankOrders = paid.filter((o: any) => o.withBank === true);
-    const creditOrders = paid.filter(
-      (o: any) => o.credit === true && o.withBank === null,
-    );
-    const sumOrders = (list: any[]) =>
-      list.reduce(
-        (total, order) =>
-          total +
-          (Number(order.price) || 0) * (Number(order.orderAmount) || 0),
-        0,
-      );
-    const grossCash = sumCashOrderRevenueETB(cashOrders);
-    const tipDeduction = sumBankTipCashDeductionsETB(paid);
-    return {
-      cash: {
-        count: cashOrders.length,
-        amount: sumNetCashRevenueETB(paid),
-        grossAmount: grossCash,
-        tipCashDeduction: tipDeduction,
-      },
-      bank: {
-        count: bankOrders.length,
-        amount: sumBankOrderRevenueETB(bankOrders),
-      },
-      credit: { count: creditOrders.length, amount: sumOrders(creditOrders) },
-    };
-  }, [reportFilteredOrders]);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -357,19 +321,13 @@ export default function Reports({
   };
 
   const analyticsData = useMemo(() => {
-    const completed = reportFilteredOrders.filter(
-      (o: any) =>
-        o.payment?.toLowerCase() === "paid" &&
-        o.status?.toLowerCase() === "completed",
-    );
-
     const categoryMap: Record<string, { val: number; amt: number }> = {};
     const typeMap: Record<string, { val: number; amt: number }> = {};
     const itemMap: Record<string, { val: number; amt: number }> = {};
 
-    completed.forEach((order: any) => {
+    reportRevenueOrders.forEach((order: any) => {
       const orderQty = Number(order.orderAmount) || 0;
-      const sales = (Number(order.price) || 0) * orderQty;
+      const sales = cafeOrderLineTotalETB(order);
 
       const cat = order.category?.trim() || "Uncategorized";
       const type = order.type?.trim() || "Others";
@@ -405,28 +363,23 @@ export default function Reports({
         }))
         .sort((a, b) => b.sales - a.sales)
         .slice(0, 10),
-      totalOrderUnits: completed.reduce(
+      totalOrderUnits: reportRevenueOrders.reduce(
         (sum: number, order: { orderAmount?: number }) =>
           sum + (Number(order.orderAmount) || 0),
         0,
       ),
+      paidLineCount: reportRevenueOrders.length,
     };
-  }, [reportFilteredOrders]);
+  }, [reportRevenueOrders]);
 
   const paymentCategoryBreakdown = useMemo(() => {
-    const sold = reportFilteredOrders.filter(
-      (o: any) =>
-        String(o.payment ?? "").toLowerCase() === "paid" &&
-        String(o.status ?? "").toLowerCase() === "completed",
-    );
-
     const byChannel = {
       cash: [] as any[],
       bank: [] as any[],
       credit: [] as any[],
     };
 
-    for (const order of sold) {
+    for (const order of reportRevenueOrders) {
       byChannel[paymentChannel(order)].push(order);
     }
 
@@ -435,37 +388,32 @@ export default function Reports({
       bank: aggregateCategoryQuantities(byChannel.bank),
       credit: aggregateCategoryQuantities(byChannel.credit),
     };
-  }, [reportFilteredOrders]);
+  }, [reportRevenueOrders]);
 
   const getCompletedOrders = () =>
-    reportFilteredOrders.filter(
+    reportPeriodOrders.filter(
       (o: any) =>
         o.payment?.toLowerCase() === "paid" &&
         o.status?.toLowerCase() === "completed",
     );
   const getCancelledOrders = () =>
-    reportFilteredOrders.filter((o: any) => o.status?.toLowerCase() === "cancelled");
+    reportPeriodOrders.filter((o: any) => o.status?.toLowerCase() === "cancelled");
   const getExpiredOrders = () =>
-    reportFilteredOrders.filter(
+    reportPeriodOrders.filter(
       (o: any) =>
-        new Date(o.createdAt).toDateString() !== new Date().toDateString() &&
         (!o.status || o.status?.toLowerCase() === "pending") &&
         o.payment?.toLowerCase() !== "paid",
     );
 
-  const filteredCashouts = cashouts.filter((c: any) => {
-    if (!c.createdAt) return false;
-    const d = new Date(c.createdAt);
-    return reportType === "Daily"
-      ? d.toDateString() === date.toDateString()
-      : d.getMonth() === date.getMonth() &&
-          d.getFullYear() === date.getFullYear();
+  const filteredCashouts = filterCafeReportCashouts(cashouts, {
+    date,
+    type: reportType,
   });
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-3 text-foreground sm:space-y-6">
       <Card className="overflow-hidden border border-border/50 bg-card shadow-sm">
-        <div className="h-0.5 bg-gradient-to-r from-primary/40 via-primary/20 to-transparent" />
+        <div className="h-0.5 bg-linear-to-r from-primary/40 via-primary/20 to-transparent" />
         <CardHeader className="px-3 pb-2 pt-4 sm:px-6">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
@@ -568,8 +516,8 @@ export default function Reports({
                   ]
                 : []),
               {
-                label: "Total Orders",
-                value: analyticsData.totalOrderUnits,
+                label: "Paid Order Lines",
+                value: analyticsData.paidLineCount,
                 isUnit: false,
               },
             ].map((stat: any, i) => (
@@ -602,12 +550,12 @@ export default function Reports({
                   <h3 className="text-sm font-semibold sm:text-base">Cash Payments</h3>
                 </div>
                 <p className="text-2xl font-bold tabular-nums sm:text-3xl">
-                  {livePaymentTotals.cash.amount.toLocaleString()} ETB
+                  {reportData.cashPayments.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {livePaymentTotals.cash.count} orders
-                  {livePaymentTotals.cash.tipCashDeduction > 0
-                    ? ` · ${livePaymentTotals.cash.tipCashDeduction.toLocaleString()} ETB tip cash deducted`
+                  {reportData.cashPayments.count} orders
+                  {reportData.cashPayments.tipCashDeduction > 0
+                    ? ` · ${reportData.cashPayments.tipCashDeduction.toLocaleString()} ETB tip cash deducted`
                     : ""}
                 </p>
                 <CategorySoldBreakdown
@@ -623,10 +571,10 @@ export default function Reports({
                   <h3 className="text-sm font-semibold sm:text-base">Bank Payments</h3>
                 </div>
                 <p className="text-2xl font-bold tabular-nums sm:text-3xl">
-                  {livePaymentTotals.bank.amount.toLocaleString()} ETB
+                  {reportData.bankPayments.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {livePaymentTotals.bank.count} orders
+                  {reportData.bankPayments.count} orders
                 </p>
                 <CategorySoldBreakdown
                   items={paymentCategoryBreakdown.bank}
@@ -641,10 +589,10 @@ export default function Reports({
                   <h3 className="text-sm font-semibold sm:text-base">Credit Payments</h3>
                 </div>
                 <p className="text-2xl font-bold tabular-nums sm:text-3xl">
-                  {livePaymentTotals.credit.amount.toLocaleString()} ETB
+                  {reportData.creditPayments.amount.toLocaleString()} ETB
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {livePaymentTotals.credit.count} orders
+                  {reportData.creditPayments.count} orders
                 </p>
                 <CategorySoldBreakdown
                   items={paymentCategoryBreakdown.credit}

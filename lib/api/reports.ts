@@ -2,7 +2,15 @@
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
 import { UseFormReturn } from "react-hook-form";
-import { rowHotelMatchesTenantScope } from "../tenantRowMatch";
+import {
+  isBankPayment,
+  isCashPayment,
+  isCreditPayment,
+} from "./cafeOrders";
+import {
+  filterCafeReportCashouts,
+  filterCafeReportRevenueOrders,
+} from "../cafeReportFilter";
 import {
   getOrderBankTipCashDeduction,
   sumBankOrderRevenueETB,
@@ -105,74 +113,29 @@ export function prepareTableExportData(tables: Table[]): ExcelExportData {
   };
 }
 
-function filterReportOrders(orders: Order[], filter: ReportFilter): Order[] {
-  return orders.filter((order) => {
-    const orderDate = new Date(order.createdAt);
-    const filterDate = filter.date;
-    const isSameHotel = rowHotelMatchesTenantScope(
-      order.HotelName,
-      filter.HotelName,
-    );
-    const isPaid =
-      String(order.payment ?? "").trim().toLowerCase() === "paid";
-
-    if (!isSameHotel || !isPaid) return false;
-
-    if (filter.type === "Daily") {
-      return (
-        orderDate.getFullYear() === filterDate.getFullYear() &&
-        orderDate.getMonth() === filterDate.getMonth() &&
-        orderDate.getDate() === filterDate.getDate()
-      );
-    } else {
-      return (
-        orderDate.getFullYear() === filterDate.getFullYear() &&
-        orderDate.getMonth() === filterDate.getMonth()
-      );
-    }
-  });
-}
-
 export async function generateReport(
   orders: Order[],
   cashouts: Cashout[],
   filter: { date: Date; type: "Daily" | "Monthly"; HotelName: string },
 ): Promise<ReportData | null> {
-  const filteredOrders = filterReportOrders(orders, {
+  const reportFilter: ReportFilter = {
     HotelName: filter.HotelName,
     date: filter.date,
     type: filter.type,
-  });
+  };
+  const filteredOrders = filterCafeReportRevenueOrders(orders, reportFilter);
 
   const totalSales = calculateTotalSales(filteredOrders);
-  const filterDate = filter.date;
-  const filteredCashouts = cashouts.filter((cashout) => {
-    const cashoutDate = new Date(cashout.createdAt);
-    if (filter.type === "Daily") {
-      return (
-        cashoutDate.getFullYear() === filterDate.getFullYear() &&
-        cashoutDate.getMonth() === filterDate.getMonth() &&
-        cashoutDate.getDate() === filterDate.getDate()
-      );
-    } else if (filter.type === "Monthly") {
-      return (
-        cashoutDate.getFullYear() === filterDate.getFullYear() &&
-        cashoutDate.getMonth() === filterDate.getMonth()
-      );
-    }
-    return false;
-  });
+  const filteredCashouts = filterCafeReportCashouts(cashouts, reportFilter);
 
   const totalCashouts = filteredCashouts.reduce(
     (sum, cashout) => sum + (Number(cashout.totalCalc) || 0),
     0,
   );
   const netSales = totalSales - totalCashouts;
-  const cashOrders = filteredOrders.filter((order) => order.withBank === false);
-  const bankOrders = filteredOrders.filter((order) => order.withBank === true);
-  const creditOrders = filteredOrders.filter(
-    (order) => order.credit === true && order.withBank === null,
-  );
+  const cashOrders = filteredOrders.filter(isCashPayment);
+  const bankOrders = filteredOrders.filter(isBankPayment);
+  const creditOrders = filteredOrders.filter(isCreditPayment);
 
   const grossCashAmount = sumCashOrderRevenueETB(cashOrders);
   const bankTipCashDeduction = sumBankTipCashDeductionsETB(filteredOrders);
