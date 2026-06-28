@@ -304,17 +304,24 @@ export function CafeCashierAddItemsDialog({
                   filteredMenu.map((item) => {
                     const inCart = cartQtyById.get(item.id) ?? 0;
                     const station = orderStationLabel(item);
+                    const suspended = !!item.isSuspended;
 
                     return (
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => addToCart(item)}
+                        disabled={suspended}
+                        aria-disabled={suspended}
+                        onClick={() => {
+                          if (!suspended) addToCart(item);
+                        }}
                         className={cn(
                           "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all",
-                          inCart > 0
-                            ? "border-primary/40 bg-primary/5 shadow-sm"
-                            : "bg-card hover:border-muted-foreground/30 hover:bg-muted/40",
+                          suspended
+                            ? "cursor-not-allowed border-dashed bg-muted/30 opacity-70"
+                            : inCart > 0
+                              ? "border-primary/40 bg-primary/5 shadow-sm"
+                              : "bg-card hover:border-muted-foreground/30 hover:bg-muted/40",
                         )}
                       >
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-border/60">
@@ -322,7 +329,10 @@ export function CafeCashierAddItemsDialog({
                             src={item.imageUrl || "/placeholder-food.jpg"}
                             alt={item.name}
                             fill
-                            className="object-cover"
+                            className={cn(
+                              "object-cover",
+                              suspended && "grayscale",
+                            )}
                             sizes="48px"
                           />
                         </div>
@@ -341,14 +351,28 @@ export function CafeCashierAddItemsDialog({
                               <StationIcon type={item.type} />
                               {station}
                             </Badge>
-                            {inCart > 0 ? (
+                            {suspended ? (
+                              <Badge
+                                variant="secondary"
+                                className="h-5 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                              >
+                                Temporarily Unavailable
+                              </Badge>
+                            ) : inCart > 0 ? (
                               <Badge className="h-5 px-1.5 text-[10px]">
                                 ×{inCart} in cart
                               </Badge>
                             ) : null}
                           </div>
                         </div>
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <div
+                          className={cn(
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                            suspended
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-primary/10 text-primary",
+                          )}
+                        >
                           <Plus className="h-4 w-4" />
                         </div>
                       </button>

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,11 +20,16 @@ import {
   GlassWater,
   AlertTriangle,
   Disc,
+  Loader2,
+  PauseCircle,
+  PlayCircle,
 } from "lucide-react";
 import UpdateScreen from "./UpdateScreen";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
+import { updateItemSuspension } from "@/lib/actions";
+import { cn } from "@/lib/utils";
 
 export default function UpdateDeleteIntro({
   items,
@@ -34,6 +40,7 @@ export default function UpdateDeleteIntro({
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deletingItem, setDeletingItem] = useState<any>(null);
   const [deletePending, setDeletePending] = useState(false);
+  const [suspendingId, setSuspendingId] = useState<number | null>(null);
 
   const filteredItems = (cat: string) =>
     items.filter((i: any) => i.category.toLowerCase() === cat.toLowerCase());
@@ -41,6 +48,24 @@ export default function UpdateDeleteIntro({
   const handleUpdateSuccess = async () => {
     setEditingItem(null);
     if (onUpdate) await onUpdate();
+  };
+
+  const handleToggleSuspension = async (item: any) => {
+    const next = !item.isSuspended;
+    setSuspendingId(item.id);
+    try {
+      await updateItemSuspension(item.id, next);
+      toast.success(
+        next
+          ? `"${item.name}" suspended — cashier can't order it until you resume it.`
+          : `"${item.name}" resumed — cashier can order it again.`,
+      );
+      if (onUpdate) await onUpdate();
+    } catch {
+      /* toast emitted in action */
+    } finally {
+      setSuspendingId(null);
+    }
   };
 
   return (
@@ -60,11 +85,48 @@ export default function UpdateDeleteIntro({
         {["Food", "Beverage", "Others"].map((cat) => (
           <TabsContent key={cat} value={cat === "Beverage" ? "beverage" : cat}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredItems(cat).map((item: any) => (
+              {filteredItems(cat).map((item: any) => {
+                const suspended = !!item.isSuspended;
+                const busy = suspendingId === item.id;
+                return (
                 <Card key={item.id} className="group overflow-hidden border-none shadow-md hover:shadow-lg transition-all">
                   <CardContent className="p-0">
                     <div className="relative aspect-video">
-                      <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        fill
+                        className={cn(
+                          "object-cover transition-all",
+                          suspended && "grayscale opacity-60",
+                        )}
+                      />
+                      <div className="absolute left-2 top-2 flex items-center gap-1">
+                        {suspended ? (
+                          <Badge variant="destructive" className="gap-1 text-[10px] shadow-md">
+                            <PauseCircle className="h-3 w-3" />
+                            Suspended
+                          </Badge>
+                        ) : null}
+                        <div className="hidden rounded-lg bg-background/90 p-0.5 shadow-md backdrop-blur-sm transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100">
+                          <Button
+                            size="icon"
+                            variant={suspended ? "default" : "secondary"}
+                            className="h-8 w-8"
+                            disabled={busy}
+                            onClick={() => handleToggleSuspension(item)}
+                            aria-label={`${suspended ? "Resume" : "Suspend"} ${item.name}`}
+                          >
+                            {busy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : suspended ? (
+                              <PlayCircle className="h-4 w-4" />
+                            ) : (
+                              <PauseCircle className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
                       <div className="absolute top-2 right-2 hidden gap-1 rounded-lg bg-background/90 p-0.5 shadow-md backdrop-blur-sm transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100">
                         <Button
                           size="icon"
@@ -104,6 +166,23 @@ export default function UpdateDeleteIntro({
                       <div className="mt-3 flex gap-2 md:hidden">
                         <Button
                           type="button"
+                          variant={suspended ? "default" : "outline"}
+                          size="sm"
+                          className="h-9 flex-1 gap-1.5"
+                          disabled={busy}
+                          onClick={() => handleToggleSuspension(item)}
+                        >
+                          {busy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : suspended ? (
+                            <PlayCircle className="h-3.5 w-3.5" />
+                          ) : (
+                            <PauseCircle className="h-3.5 w-3.5" />
+                          )}
+                          {suspended ? "Resume" : "Suspend"}
+                        </Button>
+                        <Button
+                          type="button"
                           variant="outline"
                           size="sm"
                           className="h-9 flex-1 gap-1.5"
@@ -126,7 +205,8 @@ export default function UpdateDeleteIntro({
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           </TabsContent>
         ))}

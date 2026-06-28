@@ -82,6 +82,21 @@ const CREDIT_AMOUNT_OPTIONS: { id: CreditAmountFilter; label: string }[] = [
   { id: "over_50k", label: "Over 50k ETB" },
 ];
 
+type VatFilter = "all" | "with" | "without";
+type PayFilter = "all" | "credit" | "paid";
+
+const VAT_FILTER_OPTIONS: { id: VatFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "with", label: "With VAT" },
+  { id: "without", label: "Without VAT" },
+];
+
+const PAY_FILTER_OPTIONS: { id: PayFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "paid", label: "Fully paid" },
+  { id: "credit", label: "On credit" },
+];
+
 const inventoryColumns = buildInventoryPaymentColumns();
 
 function filterRowsByMode(
@@ -110,18 +125,46 @@ export function HotelInventoryPaymentCategoryPanel({
   const [dateTo, setDateTo] = useState("");
   const [creditAmountFilter, setCreditAmountFilter] =
     useState<CreditAmountFilter>("all");
+  const [vatFilter, setVatFilter] = useState<VatFilter>("all");
+  const [payFilter, setPayFilter] = useState<PayFilter>("all");
+
+  // Credit/Paid submenus offer a VAT filter; the VAT submenus offer a supplier
+  // payment-status (fully paid / on credit) filter.
+  const showVatFilter = mode === "credit" || mode === "paid";
+  const showPayFilter = mode === "with-vat" || mode === "without-vat";
 
   const filtered = useMemo(() => {
     return filterRowsByMode(inventoryItems, mode).filter((r) => {
       if (!matchesRegistrationDateRange(r.registrationDate, dateFrom, dateTo)) {
         return false;
       }
-      if (mode === "credit") {
-        return matchesCreditAmountFilter(r, creditAmountFilter, null, null);
+      if (
+        mode === "credit" &&
+        !matchesCreditAmountFilter(r, creditAmountFilter, null, null)
+      ) {
+        return false;
+      }
+      if (showVatFilter && vatFilter !== "all") {
+        const withVat = isVatEnabled(r.purchaseWithVat);
+        if (vatFilter === "with" && !withVat) return false;
+        if (vatFilter === "without" && withVat) return false;
+      }
+      if (showPayFilter && payFilter !== "all") {
+        if (itemPaymentBucket(r) !== payFilter) return false;
       }
       return true;
     });
-  }, [inventoryItems, mode, dateFrom, dateTo, creditAmountFilter]);
+  }, [
+    inventoryItems,
+    mode,
+    dateFrom,
+    dateTo,
+    creditAmountFilter,
+    vatFilter,
+    payFilter,
+    showVatFilter,
+    showPayFilter,
+  ]);
 
   const totalValue = useMemo(
     () => filtered.reduce((s, r) => s + lineOwedETB(r), 0),
@@ -141,12 +184,16 @@ export function HotelInventoryPaymentCategoryPanel({
   const hasActiveFilters =
     dateFrom !== "" ||
     dateTo !== "" ||
-    (mode === "credit" && creditAmountFilter !== "all");
+    (mode === "credit" && creditAmountFilter !== "all") ||
+    (showVatFilter && vatFilter !== "all") ||
+    (showPayFilter && payFilter !== "all");
 
   const clearFilters = () => {
     setDateFrom("");
     setDateTo("");
     setCreditAmountFilter("all");
+    setVatFilter("all");
+    setPayFilter("all");
   };
 
   return (
@@ -218,19 +265,19 @@ export function HotelInventoryPaymentCategoryPanel({
               label="Registered from"
               value={dateFrom}
               onChange={setDateFrom}
-              className="min-w-[200px]"
+              className="min-w-[170px]"
               placeholder="Any date"
             />
             <HotelDayPicker
               label="Registered to"
               value={dateTo}
               onChange={setDateTo}
-              className="min-w-[200px]"
+              className="min-w-[170px]"
               placeholder="Any date"
             />
           </div>
           {mode === "credit" ? (
-            <div className="flex flex-col gap-1.5 min-w-[220px]">
+            <div className="flex flex-col gap-1.5 min-w-[170px]">
               <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
                 Credit amount (ETB)
               </span>
@@ -240,7 +287,7 @@ export function HotelInventoryPaymentCategoryPanel({
                   setCreditAmountFilter(v as CreditAmountFilter)
                 }
               >
-                <SelectTrigger className="h-10 w-full min-w-[220px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
                   <div className="flex items-center gap-2 min-w-0">
                     <Filter size={14} className="text-muted-foreground shrink-0" />
                     <SelectValue placeholder="All credit" />
@@ -263,6 +310,70 @@ export function HotelInventoryPaymentCategoryPanel({
               </Select>
             </div>
           ) : null}
+          {showVatFilter ? (
+            <div className="flex flex-col gap-1.5 min-w-[170px]">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
+                VAT
+              </span>
+              <Select
+                value={vatFilter}
+                onValueChange={(v) => setVatFilter(v as VatFilter)}
+              >
+                <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter size={14} className="text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="All" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-2xl">
+                  <SelectGroup>
+                    <SelectLabel>VAT recording</SelectLabel>
+                    {VAT_FILTER_OPTIONS.map((opt) => (
+                      <SelectItem
+                        key={opt.id}
+                        value={opt.id}
+                        className="cursor-pointer"
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {showPayFilter ? (
+            <div className="flex flex-col gap-1.5 min-w-[170px]">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
+                Supplier payment
+              </span>
+              <Select
+                value={payFilter}
+                onValueChange={(v) => setPayFilter(v as PayFilter)}
+              >
+                <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter size={14} className="text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="All" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-2xl">
+                  <SelectGroup>
+                    <SelectLabel>Supplier payment</SelectLabel>
+                    {PAY_FILTER_OPTIONS.map((opt) => (
+                      <SelectItem
+                        key={opt.id}
+                        value={opt.id}
+                        className="cursor-pointer"
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
       </ListPanelFilterBar>
 
@@ -272,6 +383,35 @@ export function HotelInventoryPaymentCategoryPanel({
           data={filtered}
           searchColumnId="name"
           emptyMessage="No rows match these filters."
+          footerSummary={(rows) => {
+            const total = rows.reduce((s, r) => s + lineOwedETB(r), 0);
+            const credit =
+              mode === "credit"
+                ? rows.reduce((s, r) => s + creditAmountETB(r), 0)
+                : 0;
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    Total price
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {total.toLocaleString()} ETB
+                  </span>
+                </span>
+                {mode === "credit" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs">
+                    <span className="font-medium text-amber-700 dark:text-amber-400">
+                      Outstanding credit
+                    </span>
+                    <span className="font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                      {credit.toLocaleString()} ETB
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            );
+          }}
         />
       </div>
     </div>

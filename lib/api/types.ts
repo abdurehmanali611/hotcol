@@ -67,6 +67,8 @@ export interface Item {
   imageUrl: string;
   /** When true, kitchen/bar prep summary aggregates quantity for this item. */
   showStationPrepQty?: boolean;
+  /** When true, the item is temporarily suspended and cannot be ordered by the cashier. */
+  isSuspended?: boolean;
   createdAt: Date;
 }
 

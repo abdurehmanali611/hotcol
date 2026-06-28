@@ -55,6 +55,12 @@ export interface DataTableProps<TData, TValue> {
   className?: string;
   /** Initial column sort (e.g. voucher ascending). */
   initialSorting?: SortingState;
+  /**
+   * Optional footer summary rendered next to the record count. Receives the
+   * rows currently visible after sorting/search filtering so totals stay in
+   * sync with the in-table search box.
+   */
+  footerSummary?: (filteredRows: TData[]) => React.ReactNode;
 }
 
 function DataTableInner<TData extends { id?: number }, TValue>(
@@ -70,6 +76,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     emptyMessage = "No records found for this period.",
     className,
     initialSorting,
+    footerSummary,
   }: DataTableProps<TData, TValue>,
   ref: React.ForwardedRef<DataTableRef>,
 ) {
@@ -270,13 +277,20 @@ function DataTableInner<TData extends { id?: number }, TValue>(
       </div>
 
       <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:px-2">
-        <p className="text-center text-xs text-muted-foreground sm:text-left">
-          Showing{" "}
-          <span className="font-medium text-foreground">
-            {table.getFilteredRowModel().rows.length}
-          </span>{" "}
-          records
-        </p>
+        <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <p className="text-xs text-muted-foreground">
+            Showing{" "}
+            <span className="font-medium text-foreground">
+              {table.getFilteredRowModel().rows.length}
+            </span>{" "}
+            records
+          </p>
+          {footerSummary
+            ? footerSummary(
+                table.getFilteredRowModel().rows.map((r) => r.original),
+              )
+            : null}
+        </div>
         <div className="flex items-center justify-center gap-2 sm:justify-end">
           <Button
             variant="outline"

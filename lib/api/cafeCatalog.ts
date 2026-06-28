@@ -30,6 +30,7 @@ export async function fetchItems(): Promise<Item[]> {
           type
           imageUrl
           showStationPrepQty
+          isSuspended
           createdAt
         }
       }
@@ -154,6 +155,37 @@ export async function updateItemStationPrepQty(
     return response.data.data.UpdateItemStationPrepQty;
   } catch (error: any) {
     toast.error("Unable to update prep quantity display. Please try again.");
+    throw error;
+  }
+}
+
+export async function updateItemSuspension(id: number, isSuspended: boolean) {
+  try {
+    const mutation = `
+      mutation UpdateItemSuspension($id: Int!, $isSuspended: Boolean!) {
+        UpdateItemSuspension(id: $id, isSuspended: $isSuspended) {
+          id
+          name
+          isSuspended
+        }
+      }
+    `;
+
+    const response = await api.post(API_URL, {
+      query: mutation,
+      variables: { id, isSuspended },
+    });
+
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message || "Failed to update item suspension",
+      );
+    }
+
+    invalidateGraphqlListCache("catalog:items");
+    return response.data.data.UpdateItemSuspension;
+  } catch (error: any) {
+    toast.error("Unable to update item availability. Please try again.");
     throw error;
   }
 }
