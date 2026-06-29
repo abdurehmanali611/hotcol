@@ -100,9 +100,6 @@ export default function PurchaseRequestsTab({
   const [sharedNote, setSharedNote] = useState("");
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const [purchaseWithVat, setPurchaseWithVat] = useState(true);
-  const [defaultCategory, setDefaultCategory] = useState("");
-  const [defaultSupplierName, setDefaultSupplierName] = useState("");
-  const [defaultSupplierPhone, setDefaultSupplierPhone] = useState("");
 
   const tenant = tenantScope.trim();
 
@@ -124,26 +121,6 @@ export default function PurchaseRequestsTab({
   const addLine = useCallback(() => {
     setLines((prev) => [...prev, emptyLine()]);
   }, []);
-
-  const applyCategoryToAll = useCallback((category: string) => {
-    setDefaultCategory(category);
-    setLines((prev) => prev.map((l) => ({ ...l, category })));
-  }, []);
-
-  const applySupplierToAll = useCallback(
-    (supplierName: string, supplierPhone: string) => {
-      setDefaultSupplierName(supplierName);
-      setDefaultSupplierPhone(supplierPhone);
-      setLines((prev) =>
-        prev.map((l) => ({
-          ...l,
-          supplierName,
-          supplierPhone,
-        })),
-      );
-    },
-    [],
-  );
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,9 +188,6 @@ export default function PurchaseRequestsTab({
         setSharedNote("");
         setRequestedByDepartment("");
         setPurchaseWithVat(true);
-        setDefaultCategory("");
-        setDefaultSupplierName("");
-        setDefaultSupplierPhone("");
       } else {
         toast.error(submitError ?? "Could not submit purchase requests");
       }
@@ -238,44 +212,6 @@ export default function PurchaseRequestsTab({
             title="Request lines"
             description="Each card is one purchase request. Supplier and phone are per line. Set the entrance date (when stock is expected to arrive) per line."
           >
-            <div className="mb-3 space-y-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3">
-              <p className="text-xs font-medium text-muted-foreground">
-                Batch shortcuts (applies to every line)
-              </p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="pr-default-category">Category for all lines</Label>
-                  <Select
-                    value={defaultCategory || undefined}
-                    onValueChange={applyCategoryToAll}
-                  >
-                    <SelectTrigger id="pr-default-category" className="h-10 w-full">
-                      <SelectValue placeholder="Select once — applies to all lines" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="pr-default-supplier">Supplier for all lines</Label>
-                  <Input
-                    id="pr-default-supplier"
-                    value={defaultSupplierName}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      applySupplierToAll(name, defaultSupplierPhone);
-                    }}
-                    placeholder="Type once — copies to every line"
-                    className="h-10"
-                  />
-                </div>
-              </div>
-            </div>
             <div className="space-y-3 min-w-0">
               {lines.map((l, index) => (
                 <div
