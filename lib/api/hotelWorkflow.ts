@@ -178,6 +178,85 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequestRow[]> {
   });
 }
 
+export type PurchaseRequestUpdateInput = {
+  itemName?: string;
+  quantity?: number;
+  measuredBy?: string;
+  entranceDate?: Date | string;
+  notes?: string;
+  estimatedUnitPrice?: number;
+  supplierName?: string;
+  supplierPhone?: string;
+  category?: string;
+  purchaseWithVat?: boolean;
+};
+
+/** Manager: edit an authorized purchase request (mirrors authorized item registration edit). */
+export async function updatePurchaseRequestApi(
+  id: number,
+  input: PurchaseRequestUpdateInput,
+) {
+  const response = await api.post(API_URL, {
+    query: `mutation UpdatePurchaseRequest(
+      $id: Int!
+      $itemName: String
+      $quantity: Float
+      $measuredBy: String
+      $entranceDate: DateTime
+      $notes: String
+      $estimatedUnitPrice: Float
+      $supplierName: String
+      $supplierPhone: String
+      $category: String
+      $purchaseWithVat: Boolean
+    ) {
+      updatePurchaseRequest(
+        id: $id
+        itemName: $itemName
+        quantity: $quantity
+        measuredBy: $measuredBy
+        entranceDate: $entranceDate
+        notes: $notes
+        estimatedUnitPrice: $estimatedUnitPrice
+        supplierName: $supplierName
+        supplierPhone: $supplierPhone
+        category: $category
+        purchaseWithVat: $purchaseWithVat
+      ) {
+        id
+        status
+        voucherNumber
+        voucherDisplay
+      }
+    }`,
+    variables: { id, ...input },
+  });
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to update purchase request",
+    );
+  }
+  invalidateGraphqlListCache("hotel:purchaseRequests");
+  return response.data.data.updatePurchaseRequest;
+}
+
+/** Manager: delete an authorized purchase request when no goods have been received. */
+export async function deletePurchaseRequestApi(id: number) {
+  const response = await api.post(API_URL, {
+    query: `mutation DeletePurchaseRequest($id: Int!) {
+      deletePurchaseRequest(id: $id)
+    }`,
+    variables: { id },
+  });
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message || "Failed to delete purchase request",
+    );
+  }
+  invalidateGraphqlListCache("hotel:purchaseRequests");
+  return response.data.data.deletePurchaseRequest as boolean;
+}
+
 export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
   return dedupeHotelListRead("hotel:stockOutRequests", async () => {
     const query = `

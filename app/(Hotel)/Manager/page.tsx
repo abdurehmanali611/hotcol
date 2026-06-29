@@ -95,9 +95,9 @@ import { Input } from "@/components/ui/input";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DataTable } from "@/app/StoreItems/data-table";
-import { VOUCHER_TABLE_SORT } from "@/lib/voucherSort";
 import { buildPurchaseRequestDashboardColumns } from "@/lib/dataTableColumns/purchaseRequests";
 import { buildItemStatusColumns } from "@/lib/dataTableColumns/itemStatus";
+import Inactive from "@/app/Inactive/page";
 import {
   buildKitchenBarDailyColumns,
   buildKitchenBarRollupColumns,
@@ -886,13 +886,12 @@ function ManagerContent() {
 
       case "reports-movements":
         return (
-          <div className="p-4 md:p-6 overflow-x-auto">
-            <DataTable
-              columns={itemStatusColumns}
-              data={statuses as ItemStatus[]}
-              getRowId={(row) => String(row.id)}
-              initialSorting={VOUCHER_TABLE_SORT}
-              emptyMessage="No movement lines for this period."
+          <div className="p-4 md:p-6">
+            <Inactive
+              items={statuses as ItemStatus[]}
+              stockMovements={scopedStockReqs}
+              hotelName={tenantScope || ""}
+              embedded
             />
           </div>
         );
@@ -905,6 +904,7 @@ function ManagerContent() {
               showStoreUser
               unitPriceRole="Manager"
               onRefresh={() => void loadData(true)}
+              allowAuthorizedEditDelete
               title="Purchase pipeline"
               description={`${scopedPurchases.length} purchase requests for this property.`}
               propertyName={displayName || headerLabel}

@@ -21,6 +21,7 @@ import {
   HotelFormSection,
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import { parseYmdToDate, ymdWithTimeOf } from "@/lib/hotelDateYmd";
 import { RegistrationImageUploadField } from "@/components/hotel/RegistrationImageUploadField";
 import {
   Dialog,
@@ -142,13 +143,21 @@ function RegistrationReviewEditDialogForm({
   const measuredBy = useWatch({ control: form.control, name: "measuredBy" });
 
   useEffect(() => {
-    form.setValue("registrationDate", new Date(regDateYmd), {
-      shouldValidate: true,
-    });
-  }, [regDateYmd, form]);
+    // Keep the original time-of-day so editing/opening review never resets the
+    // registration's real "initiation" time to midnight.
+    form.setValue(
+      "registrationDate",
+      ymdWithTimeOf(regDateYmd, row.registrationDate),
+      { shouldValidate: true },
+    );
+  }, [regDateYmd, form, row.registrationDate]);
 
   useEffect(() => {
-    form.setValue("expireDate", new Date(expDateYmd), { shouldValidate: true });
+    form.setValue(
+      "expireDate",
+      parseYmdToDate(expDateYmd) ?? new Date(expDateYmd),
+      { shouldValidate: true },
+    );
   }, [expDateYmd, form]);
 
   useEffect(() => {

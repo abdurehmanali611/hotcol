@@ -7,6 +7,11 @@ import { toast } from "sonner";
 import type { PurchaseRequestRow } from "@/lib/actions";
 import { notifyApiFailure } from "@/lib/actions";
 import { updatePurchaseRequestStoreDraftApi } from "@/lib/api/storeRequestDraft";
+import {
+  updatePurchaseRequestApi,
+  type PurchaseRequestUpdateInput,
+} from "@/lib/api/hotelWorkflow";
+import { ymdWithTimeOf } from "@/lib/hotelDateYmd";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import { inventoryUnitSelectValues } from "@/lib/inventoryUnits";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
@@ -62,12 +67,14 @@ function PurchaseReviewEditDialogForm({
   onDismiss,
   isPending,
   run,
+  variant = "store-draft",
 }: {
   row: PurchaseRequestRow;
   onSaved: () => void;
   onDismiss: () => void;
   isPending: (key: string) => boolean;
   run: (key: string, fn: () => Promise<void>) => void;
+  variant?: "store-draft" | "authorized";
 }) {
   const [itemName, setItemName] = useState(row.itemName);
   const [quantity, setQuantity] = useState(String(row.quantity));
@@ -108,7 +115,7 @@ function PurchaseReviewEditDialogForm({
             Voucher {voucherLabel}
           </Badge>
           <Badge variant="secondary" className="text-[10px] font-normal">
-            Store review
+            {variant === "authorized" ? "Authorized" : "Store review"}
           </Badge>
         </div>
         <div className="flex items-start gap-3">
@@ -120,8 +127,9 @@ function PurchaseReviewEditDialogForm({
               Edit purchase request line
             </DialogTitle>
             <DialogDescription className="text-pretty leading-relaxed">
-              Update item, entrance date, quantity, supplier, and notes before sending
-              to cost control.
+              {variant === "authorized"
+                ? "Correct item, supplier, quantity, or VAT details for this manager-authorized purchase line."
+                : "Update item, entrance date, quantity, supplier, and notes before sending to cost control."}
             </DialogDescription>
           </div>
         </div>
@@ -267,18 +275,26 @@ function PurchaseReviewEditDialogForm({
           onClick={() =>
             void run(`save-pr-${row.id}`, async () => {
               try {
-                await updatePurchaseRequestStoreDraftApi(row.id, {
+                const payload: PurchaseRequestUpdateInput = {
                   itemName: itemName.trim(),
                   quantity: Number(quantity),
                   measuredBy,
-                  entranceDate: new Date(entranceDate),
+                  entranceDate: ymdWithTimeOf(
+                    entranceDate,
+                    row.entranceDate || row.createdAt,
+                  ),
                   notes,
                   estimatedUnitPrice: Number(estimatedUnitPrice) || 0,
                   supplierName,
                   supplierPhone,
                   category,
                   purchaseWithVat,
-                });
+                };
+                if (variant === "authorized") {
+                  await updatePurchaseRequestApi(row.id, payload);
+                } else {
+                  await updatePurchaseRequestStoreDraftApi(row.id, payload);
+                }
                 toast.success("Purchase line updated");
                 onSaved();
               } catch (e) {
@@ -301,6 +317,7 @@ export function PurchaseReviewEditDialog({
   onSaved,
   isPending,
   run,
+  variant = "store-draft",
 }: {
   row: PurchaseRequestRow | null;
   open: boolean;
@@ -308,6 +325,7 @@ export function PurchaseReviewEditDialog({
   onSaved: () => void;
   isPending: (key: string) => boolean;
   run: (key: string, fn: () => Promise<void>) => void;
+  variant?: "store-draft" | "authorized";
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -321,6 +339,7 @@ export function PurchaseReviewEditDialog({
             onDismiss={() => onOpenChange(false)}
             isPending={isPending}
             run={run}
+            variant={variant}
           />
         ) : null}
       </DialogContent>

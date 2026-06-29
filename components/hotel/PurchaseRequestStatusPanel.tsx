@@ -2,9 +2,27 @@
 
 import { useMemo, useState } from "react";
 import type { PurchaseRequestRow } from "@/lib/actions";
+import { deletePurchaseRequestApi, notifyApiFailure } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { PendingButton } from "@/components/ui/pending-button";
+import { useConcurrentActions } from "@/hooks/useConcurrentActions";
+import { PurchaseReviewEditDialog } from "@/components/hotel/PurchaseReviewEditDialog";
+import {
+  canManageAuthorizedPurchaseRequest,
+  canPrintPurchaseRequestFromStatus,
+} from "@/lib/hotelApproval";
 import {
   formatPurchaseRejectorLine,
   formatPurchaseStatus,
@@ -22,7 +40,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Send } from "lucide-react";
+import { Send, Pencil, Trash2 } from "lucide-react";
 import {
   FilterChipGroup,
 } from "@/components/hotel/ListPanelFilterBar";
@@ -33,7 +51,6 @@ import { FIFO_TABLE_SORT, sortRowsByFifo } from "@/lib/requestOrdering";
 import { purchaseEntranceDate } from "@/lib/purchaseRequestDates";
 import { buildPurchaseEntranceDateColumn } from "@/lib/dataTableColumns/purchaseRequests";
 import { applyRequestStatusFilters } from "@/lib/requestStatusFilters";
-import { canPrintPurchaseRequestFromStatus } from "@/lib/hotelApproval";
 import { buildPurchaseRequestReceiptBundleForStatus } from "@/lib/receiptGrouping";
 import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatusReceiptColumn";
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
@@ -43,11 +60,8 @@ import {
 } from "@/lib/departments";
 import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
-import {
-  formatEtbAmount,
-  purchaseLineMoneyBreakdown,
-  purchaseVatModeLabel,
-} from "@/lib/inventoryLineTotals";
+import { formatEtbAmount, purchaseLineMoneyBreakdown, purchaseVatModeLabel } from "@/lib/inventoryLineTotals";
+import { toast } from "sonner";
 
 const PURCHASE_APPROVAL_OPTIONS: { id: PurchaseApprovalFilter; label: string }[] =
   [
@@ -88,6 +102,7 @@ export function PurchaseRequestStatusPanel({
   propertyName = "Property",
   propertyTin,
   logoUrl,
+  allowAuthorizedEditDelete = false,
 }: {
   rows: PurchaseRequestRow[];
   title?: string;
@@ -98,7 +113,12 @@ export function PurchaseRequestStatusPanel({
   propertyName?: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
+  /** Manager: edit/delete authorized purchase lines (like master inventory). */
+  allowAuthorizedEditDelete?: boolean;
 }) {
+  const { isPending, run } = useConcurrentActions();
+  const [editRow, setEditRow] = useState<PurchaseRequestRow | null>(null);
+  const [deleteRow, setDeleteRow] = useState<PurchaseRequestRow | null>(null);
   const [approvalFilter, setApprovalFilter] =
     useState<PurchaseApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -297,6 +317,44 @@ export function PurchaseRequestStatusPanel({
         openPreview,
       }),
     ];
+    if (allowAuthorizedEditDelete) {
+      cols.push({
+        id: "manage",
+        header: () => (
+          <span className="text-muted-foreground text-xs font-medium">Manage</span>
+        ),
+        enableHiding: false,
+        cell: ({ row }) => {
+          if (!canManageAuthorizedPurchaseRequest(row.original.status)) {
+            return <span className="text-muted-foreground text-xs">—</span>;
+          }
+          return (
+            <div className="flex justify-end gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => setEditRow(row.original)}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                Edit
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-destructive hover:text-destructive"
+                onClick={() => setDeleteRow(row.original)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Delete
+              </Button>
+            </div>
+          );
+        },
+      });
+    }
     if (showStoreUser) {
       cols.splice(1, 0, {
         accessorKey: "storeUserName",
@@ -309,11 +367,73 @@ export function PurchaseRequestStatusPanel({
       });
     }
     return cols;
-  }, [rows, showStoreUser, openPreview]);
+  }, [rows, showStoreUser, openPreview, allowAuthorizedEditDelete]);
+
+  const handleDeleteAuthorized = () => {
+    if (!deleteRow) return;
+    const id = deleteRow.id;
+    void run(`delete-pr-${id}`, async () => {
+      try {
+        await deletePurchaseRequestApi(id);
+        toast.success("Purchase request removed");
+        setDeleteRow(null);
+        onRefresh?.();
+      } catch (e) {
+        notifyApiFailure(e, "Could not delete purchase request");
+      }
+    });
+  };
 
   return (
     <div className="space-y-4">
       {ReceiptPreviewDialog}
+      <PurchaseReviewEditDialog
+        row={editRow}
+        open={editRow != null}
+        onOpenChange={(open) => {
+          if (!open) setEditRow(null);
+        }}
+        variant="authorized"
+        onSaved={() => {
+          setEditRow(null);
+          onRefresh?.();
+        }}
+        isPending={isPending}
+        run={run}
+      />
+      <AlertDialog
+        open={deleteRow != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteRow(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete authorized purchase request?</AlertDialogTitle>
+            <AlertDialogDescription className="text-pretty">
+              {deleteRow ? (
+                <>
+                  Remove <span className="font-medium">{deleteRow.itemName}</span>{" "}
+                  from authorized purchase records. This cannot be undone. Deletion is
+                  blocked if stock has already been received against this voucher.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending(`delete-pr-${deleteRow?.id ?? 0}`)}>
+              Keep
+            </AlertDialogCancel>
+            <PendingButton
+              variant="destructive"
+              pending={isPending(`delete-pr-${deleteRow?.id ?? 0}`)}
+              onClick={handleDeleteAuthorized}
+            >
+              Delete
+            </PendingButton>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Card className="border-border/80 bg-card/95 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">

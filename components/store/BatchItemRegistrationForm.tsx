@@ -43,6 +43,10 @@ import {
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
 import { REGISTRATION_RECEIVED_BY_CODES } from "@/lib/departments";
+import {
+  parseYmdToDate,
+  ymdToRegistrationTimestamp,
+} from "@/lib/hotelDateYmd";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -157,17 +161,33 @@ export function BatchItemRegistrationForm({
       prev.map((l) => {
         if (l.key !== key) return l;
         const next = { ...l, ...patch };
+        if (patch.paidAmount !== undefined) {
+          // Explicit manual entry: honor it and stop auto-syncing this line.
+          next.paidAmountDirty = true;
+          return next;
+        }
         const pricingChanged =
           patch.amount !== undefined ||
           patch.unitPrice !== undefined ||
           patch.purchaseWithVat !== undefined;
-        if (pricingChanged && !next.paidAmountDirty) {
+        if (pricingChanged) {
           const suggested = suggestedPaidAmount(next);
+          const prevAuto = lastAutoPaidRef.current.get(key);
+          const currentPaid = Number(l.paidAmount) || 0;
+          // Re-sync the paid amount to the full owed total whenever the line is still
+          // tracking the auto value (untouched, or matching the previous auto figure).
+          // This keeps a NON-VAT item from holding a stale VAT-inclusive paid amount
+          // (and vice-versa): flipping the VAT switch immediately corrects the paid
+          // amount, so the item's non-VAT-ness is never left looking like an unpaid
+          // (credit) balance.
+          const stillTrackingAuto =
+            !next.paidAmountDirty ||
+            (prevAuto !== undefined && Math.abs(currentPaid - prevAuto) < 0.01);
+          if (stillTrackingAuto) {
+            next.paidAmount = suggested;
+            next.paidAmountDirty = false;
+          }
           lastAutoPaidRef.current.set(key, suggested);
-          next.paidAmount = suggested;
-        }
-        if (patch.paidAmount !== undefined) {
-          next.paidAmountDirty = true;
         }
         return next;
       }),
@@ -230,8 +250,8 @@ export function BatchItemRegistrationForm({
           amount: l.amount,
           measuredBy: l.measuredBy,
           unitPrice: l.unitPrice,
-          registrationDate: new Date(l.registrationDate),
-          expireDate: new Date(l.expireDate),
+          registrationDate: ymdToRegistrationTimestamp(l.registrationDate),
+          expireDate: parseYmdToDate(l.expireDate) ?? new Date(l.expireDate),
           supplierName: supplierName.trim(),
           supplierPhone: supplierPhone.trim(),
           Address: addressPayload,
@@ -458,12 +478,33 @@ export function BatchItemRegistrationForm({
                           })
                         }
                       />
-                      {!l.paidAmountDirty ? (
-                        <p className="text-[10px] text-muted-foreground">
-                          Auto from qty × price
-                          {l.purchaseWithVat ? " (incl. VAT)" : ""}
-                        </p>
-                      ) : null}
+                      {(() => {
+                        const owed = suggestedPaidAmount(l);
+                        const paid = resolvePaidAmount(l);
+                        const outstanding = Math.max(0, owed - paid);
+                        const isCredit = outstanding > 0.01;
+                        return (
+                          <p className="text-[10px] leading-relaxed text-muted-foreground">
+                            <span className="font-medium">
+                              {l.purchaseWithVat ? "Incl. 15% VAT" : "No VAT"}
+                            </span>{" "}
+                            · Owed ETB {owed.toLocaleString()}
+                            {owed > 0 ? (
+                              isCredit ? (
+                                <span className="font-medium text-amber-600 dark:text-amber-400">
+                                  {" "}
+                                  · ETB {outstanding.toLocaleString()} on credit
+                                </span>
+                              ) : (
+                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                  {" "}
+                                  · fully paid
+                                </span>
+                              )
+                            ) : null}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
 

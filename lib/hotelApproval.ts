@@ -73,6 +73,11 @@ export function canPrintPurchaseRequestFromStatus(status: string): boolean {
   return status === "AUTHORIZED";
 }
 
+/** Manager may edit/delete authorized purchase lines (same gate as master inventory). */
+export function canManageAuthorizedPurchaseRequest(status: string): boolean {
+  return isPurchaseAuthorized(status);
+}
+
 export function canPrintStockMovementFromStatus(status: string): boolean {
   return status === "APPROVED";
 }
