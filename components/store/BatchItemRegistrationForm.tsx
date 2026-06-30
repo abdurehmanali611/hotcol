@@ -42,7 +42,10 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
-import { REGISTRATION_RECEIVED_BY_CODES } from "@/lib/departments";
+import {
+  departmentLabel,
+  REGISTRATION_RECEIVED_BY_CODES,
+} from "@/lib/departments";
 import {
   parseYmdToDate,
   ymdToRegistrationTimestamp,
@@ -357,14 +360,41 @@ export function BatchItemRegistrationForm({
                     </div>
                     {index === 0 ? (
                       <div className="col-span-2 space-y-1.5 min-w-0">
-                        <DepartmentLeaderSelect
-                          id="reg-received-by"
-                          label="Received by"
-                          compact
-                          value={receivedByDepartment}
-                          onChange={setReceivedByDepartment}
-                          allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
-                        />
+                        {hotelInventory ? (
+                          <DepartmentLeaderSelect
+                            id="reg-received-by"
+                            label="Received by"
+                            compact
+                            value={receivedByDepartment}
+                            onChange={setReceivedByDepartment}
+                            allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
+                          />
+                        ) : (
+                          <>
+                            <Label htmlFor="reg-received-by" className="text-sm">
+                              Received by
+                              <span className="text-destructive"> *</span>
+                            </Label>
+                            <Select
+                              value={receivedByDepartment || undefined}
+                              onValueChange={setReceivedByDepartment}
+                            >
+                              <SelectTrigger
+                                id="reg-received-by"
+                                className="h-10 w-full"
+                              >
+                                <SelectValue placeholder="Select destination" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {REGISTRATION_RECEIVED_BY_CODES.map((code) => (
+                                  <SelectItem key={code} value={code}>
+                                    {departmentLabel(code)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </>
+                        )}
                       </div>
                     ) : null}
                   </div>

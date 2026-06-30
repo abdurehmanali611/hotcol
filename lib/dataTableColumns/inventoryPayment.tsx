@@ -8,6 +8,7 @@ import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
+  registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import { rowRegistrationYmd } from "@/lib/panelFilters";
@@ -57,7 +58,10 @@ export function buildInventoryPaymentColumns(options?: {
       header: "Quantity",
       cell: ({ row }) => (
         <span className="tabular-nums text-muted-foreground whitespace-nowrap text-sm">
-          {formatQtyWithUnit(row.original.amount, row.original.measuredBy)}
+          {formatQtyWithUnit(
+            registeredAmountOf(row.original),
+            row.original.measuredBy,
+          )}
         </span>
       ),
     },

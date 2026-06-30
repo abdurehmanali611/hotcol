@@ -5,11 +5,40 @@ import {
   normalizeDepartmentCode,
 } from "@/lib/departments";
 
+/** Canonical stock movement type keys (empty string = all types). */
+export type StockMovementTypeFilter =
+  | ""
+  | "STOCK_OUT"
+  | "WASTAGE"
+  | "RETURN_SUPPLIER";
+
 export type InactiveItemFilters = {
   dateFrom: string;
   dateTo: string;
   department: string;
+  movementType: StockMovementTypeFilter;
 };
+
+/**
+ * Normalize an inactive row to a canonical movement-type key.
+ * Prefers the linked stock-out request's movementType, then falls back to the
+ * ItemStatus.status label (covers legacy rows created before the request workflow).
+ */
+export function inactiveRowMovementType(
+  row: InactiveItemRow,
+): StockMovementTypeFilter {
+  const mt = String(row.movementType ?? "").trim().toUpperCase();
+  if (mt === "STOCK_OUT" || mt === "WASTAGE" || mt === "RETURN_SUPPLIER") {
+    return mt;
+  }
+  const status = String(row.status ?? "").trim().toLowerCase();
+  if (status.includes("wast")) return "WASTAGE";
+  if (status.includes("return")) return "RETURN_SUPPLIER";
+  if (status.includes("stock out") || status.includes("stockout")) {
+    return "STOCK_OUT";
+  }
+  return "";
+}
 
 export type InactiveItemRow = ItemStatus & {
   movementDepartmentCode?: string;
@@ -94,6 +123,7 @@ export function filterInactiveItems(
   const from = String(filters.dateFrom ?? "").trim();
   const to = String(filters.dateTo ?? "").trim();
   const dept = String(filters.department ?? "").trim();
+  const movementType = String(filters.movementType ?? "").trim();
 
   return items
     .map((row) => enrichInactiveRow(row, stockById))
@@ -101,6 +131,10 @@ export function filterInactiveItems(
       const ymd = actionDateYmd(row.actionDate);
       if (from && (!ymd || ymd < from)) return false;
       if (to && (!ymd || ymd > to)) return false;
+
+      if (movementType && inactiveRowMovementType(row) !== movementType) {
+        return false;
+      }
 
       const isMovement = isStockMovementInactiveRow(row);
 
@@ -112,6 +146,9 @@ export function filterInactiveItems(
 
 export function inactiveFiltersActive(filters: InactiveItemFilters): boolean {
   return Boolean(
-    filters.dateFrom.trim() || filters.dateTo.trim() || filters.department.trim(),
+    filters.dateFrom.trim() ||
+      filters.dateTo.trim() ||
+      filters.department.trim() ||
+      String(filters.movementType ?? "").trim(),
   );
 }

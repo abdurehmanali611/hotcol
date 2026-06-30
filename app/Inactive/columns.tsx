@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { DeleteItemStatus } from "@/lib/actions";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import { ColumnDef } from "@tanstack/react-table";
-import { Loader2, Trash, Package, Phone, User, Receipt } from "lucide-react";
+import { Loader2, Trash, Package, Phone, User, Receipt, Sigma } from "lucide-react";
 import { toast } from "sonner";
 
 export type itemStatus = {
@@ -127,6 +127,24 @@ export const columns = (
   {
     accessorKey: "name",
     header: "Product",
+    footer: ({ table }) => {
+      const count = table.getFilteredRowModel().rows.length;
+      return (
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Sigma size={14} />
+          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+              Grand total
+            </span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {count} {count === 1 ? "record" : "records"}
+            </span>
+          </div>
+        </div>
+      );
+    },
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
         <Avatar className="h-9 w-9 border border-border/50 shadow-sm">
@@ -165,7 +183,29 @@ export const columns = (
       <div className="font-bold text-sm text-primary">
         {(row.original.amount * row.original.unitPrice).toLocaleString()} <span className="text-[10px]">ETB</span>
       </div>
-    )
+    ),
+    footer: ({ table }) => {
+      const total = table
+        .getFilteredRowModel()
+        .rows.reduce(
+          (sum, r) =>
+            sum +
+            (Number(r.original.amount) || 0) *
+              (Number(r.original.unitPrice) || 0),
+          0,
+        );
+      return (
+        <div className="flex items-baseline gap-1 font-bold text-primary">
+          <span className="text-base tabular-nums">
+            {total.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+          <span className="text-[10px] font-semibold text-primary/70">ETB</span>
+        </div>
+      );
+    },
   },
   {
     id: "supplier",

@@ -27,10 +27,12 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   REQUESTED_BY_DEPARTMENT_CODES,
   stockOutDestinationTextFromDepartmentCode,
 } from "@/lib/departments";
+import { toYmdLocal, ymdToRegistrationTimestamp } from "@/lib/hotelDateYmd";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import type { DataTableRef } from "@/app/StoreItems/data-table";
@@ -99,6 +101,7 @@ export function InventoryBatchMovementBar({
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const [defaultStockOutStation, setDefaultStockOutStation] = useState("");
+  const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { options: destinationOptions, loading: destinationLoading } =
     useDepartmentLeaderSelectOptions(REQUESTED_BY_DEPARTMENT_CODES);
   const { isPending, run } = useConcurrentActions();
@@ -124,6 +127,11 @@ export function InventoryBatchMovementBar({
       toast.error("Select the requesting department");
       return;
     }
+    if (!movementDateYmd.trim()) {
+      toast.error("Select the movement date");
+      return;
+    }
+    const movementDateIso = ymdToRegistrationTimestamp(movementDateYmd).toISOString();
     void run(batchKey, async () => {
       const user =
         typeof window !== "undefined"
@@ -201,6 +209,7 @@ export function InventoryBatchMovementBar({
                 movementType,
                 amount,
                 stakeHolderOrReason,
+                movementDate: movementDateIso,
               }),
             ),
             requestedByDepartment,
@@ -223,6 +232,7 @@ export function InventoryBatchMovementBar({
                 stakeHolderOrReason,
                 result,
                 user,
+                movementDateIso,
               ),
             );
             ok++;
@@ -274,6 +284,7 @@ export function InventoryBatchMovementBar({
               onClick={() => {
                 setLines(rowsToDrafts(selected));
                 setDefaultStockOutStation("");
+                setMovementDateYmd(toYmdLocal(new Date()));
                 setOpen(true);
               }}
             >
@@ -320,6 +331,13 @@ export function InventoryBatchMovementBar({
                 value={requestedByDepartment}
                 onChange={setRequestedByDepartment}
                 allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
+              />
+              <HotelDayPicker
+                id="batch-movement-date"
+                label="Movement date"
+                value={movementDateYmd}
+                onChange={setMovementDateYmd}
+                compact
               />
               {lines.some((l) => l.movement === "STOCK_OUT") ? (
                 <div className="space-y-1.5 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3">

@@ -19,6 +19,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -134,6 +135,23 @@ export function DataTable<TData, TValue>({
               </TableRow>
             )}
           </TableBody>
+          {table.getRowModel().rows?.length ? (
+            <TableFooter className="border-t-2 border-primary/20 bg-primary/4">
+              {table.getFooterGroups().map((footerGroup) => (
+                <TableRow key={footerGroup.id} className="hover:bg-transparent">
+                  {footerGroup.headers.map((header) => (
+                    <TableCell key={header.id} className="py-3.5 align-middle">
+                      {!header.isPlaceholder &&
+                        flexRender(
+                          header.column.columnDef.footer,
+                          header.getContext(),
+                        )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableFooter>
+          ) : null}
         </Table>
       </div>
 

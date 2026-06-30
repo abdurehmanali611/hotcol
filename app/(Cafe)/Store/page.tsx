@@ -531,6 +531,7 @@ export function StoreComponent({
               tenantScope={inventoryTenantKey}
               embedded
               showPaymentSummary={hotelInventory && hotelHasFinance}
+              aggregateInventory={false}
               onHotelStockRequestCreated={
                 hotelInventory
                   ? (row) => {

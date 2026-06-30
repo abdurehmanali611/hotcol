@@ -5,6 +5,7 @@ import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
+  registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
 import {
   formatPurchaseStatus,
@@ -110,7 +111,7 @@ export async function exportHotelInventoryWorkbook(
     const payRows = data.inventoryItems.map((r) => ({
       id: r.id,
       item_name: r.name,
-      quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
+      quantity_with_unit: formatQtyWithUnit(registeredAmountOf(r), r.measuredBy),
       line_value_etb: lineOwedETB(r),
       paid_etb: r.paidAmount,
       credit_amount_etb: creditAmountETB(r),

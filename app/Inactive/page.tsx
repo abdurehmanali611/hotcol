@@ -29,16 +29,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2 } from "lucide-react";
+import { Building2, ArrowLeftRight } from "lucide-react";
 import { InactiveAuditPrintActions } from "@/components/hotel/InactiveAuditPrintSheet";
 
 const DEFAULT_FILTERS: InactiveItemFilters = {
   dateFrom: "",
   dateTo: "",
   department: "",
+  movementType: "",
 };
 
 const DEPARTMENT_SELECT_ALL = "all";
+const MOVEMENT_SELECT_ALL = "all";
+
+const MOVEMENT_TYPE_OPTIONS: {
+  value: Exclude<InactiveItemFilters["movementType"], "">;
+  label: string;
+}[] = [
+  { value: "STOCK_OUT", label: "Stock out" },
+  { value: "WASTAGE", label: "Wastage" },
+  { value: "RETURN_SUPPLIER", label: "Returned to supplier" },
+];
 
 export default function Inactive({
   items = [],
@@ -148,6 +159,17 @@ export default function Inactive({
 
   const showClear = inactiveFiltersActive(filters);
   const departmentSelectValue = filters.department || DEPARTMENT_SELECT_ALL;
+  const movementSelectValue = filters.movementType || MOVEMENT_SELECT_ALL;
+
+  const movementTotalETB = useMemo(
+    () =>
+      filteredData.reduce(
+        (sum, row) =>
+          sum + (Number(row.amount) || 0) * (Number(row.unitPrice) || 0),
+        0,
+      ),
+    [filteredData],
+  );
 
   return (
     <div
@@ -173,7 +195,7 @@ export default function Inactive({
           showClear={showClear}
           onClear={() => setFilters(DEFAULT_FILTERS)}
         >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
             <HotelDayPicker
               label="From"
               id="inactive-date-from"
@@ -190,7 +212,40 @@ export default function Inactive({
               placeholder="Any date"
               compact
             />
-            <div className="space-y-1.5 min-w-0 sm:col-span-2 lg:col-span-1">
+            <div className="space-y-1.5 min-w-0">
+              <Label htmlFor="inactive-movement-type">Movement type</Label>
+              <Select
+                value={movementSelectValue}
+                onValueChange={(value) =>
+                  setFilters((f) => ({
+                    ...f,
+                    movementType:
+                      value === MOVEMENT_SELECT_ALL
+                        ? ""
+                        : (value as InactiveItemFilters["movementType"]),
+                  }))
+                }
+              >
+                <SelectTrigger
+                  id="inactive-movement-type"
+                  className="h-10 w-full gap-2 border-border/80 bg-background shadow-sm"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="All movements" />
+                </SelectTrigger>
+                <SelectContent align="end" className="max-h-72">
+                  <SelectItem value={MOVEMENT_SELECT_ALL}>
+                    All movements
+                  </SelectItem>
+                  {MOVEMENT_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 min-w-0">
               <Label htmlFor="inactive-department">Department</Label>
               <Select
                 value={departmentSelectValue}
@@ -225,9 +280,16 @@ export default function Inactive({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2.5">
             <p className="text-xs text-muted-foreground min-w-0">
-              {filters.department
-                ? "Department applies to stocked-out and movement lines"
-                : "Filter by action date and requesting department"}
+              {filters.movementType
+                ? `${
+                    MOVEMENT_TYPE_OPTIONS.find(
+                      (o) => o.value === filters.movementType,
+                    )?.label ?? "Selected"
+                  } total: `
+                : "Total value moved: "}
+              <span className="font-semibold text-foreground tabular-nums">
+                ETB {movementTotalETB.toLocaleString()}
+              </span>
             </p>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <Badge variant="secondary" className="font-normal tabular-nums">

@@ -8,6 +8,7 @@ import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
+  registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
 import {
   exportHotelInventoryWorkbook,
@@ -198,7 +199,10 @@ export function HotelInventoryPaymentVatPanel({
                 "Filtered",
                 filtered.map((r) => ({
                   item_name: r.name,
-                  quantity_with_unit: formatQtyWithUnit(r.amount, r.measuredBy),
+                  quantity_with_unit: formatQtyWithUnit(
+                    registeredAmountOf(r),
+                    r.measuredBy,
+                  ),
                   line_value_etb: lineOwedETB(r),
                   payment_status: itemPaymentLabel(itemPaymentBucket(r)),
                   credit_amount_etb: creditAmountETB(r),

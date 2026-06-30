@@ -631,6 +631,7 @@ function FinanceInner() {
                 embedded
                 readOnly
                 showPaymentSummary
+                aggregateInventory={false}
               />
             </section>
         )}

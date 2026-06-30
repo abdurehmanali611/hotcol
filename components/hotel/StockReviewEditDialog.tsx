@@ -14,7 +14,9 @@ import {
   type StockMovementKind,
 } from "@/lib/stockMovementDraftForm";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
+import { toYmdLocal, ymdWithTimeOf } from "@/lib/hotelDateYmd";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
   Dialog,
@@ -63,6 +65,11 @@ function StockReviewEditDialogForm({
   );
   const [movementType, setMovementType] = useState<StockMovementKind>(kind);
   const [amount, setAmount] = useState(String(row.amount));
+  const [movementDateYmd, setMovementDateYmd] = useState(() =>
+    row.movementDate
+      ? toYmdLocal(new Date(row.movementDate))
+      : toYmdLocal(new Date()),
+  );
   const [stakeholder, setStakeholder] = useState<string>(parsed.stakeholder);
   const [customStation, setCustomStation] = useState(parsed.customStation);
   const [reason, setReason] = useState(parsed.reason);
@@ -160,6 +167,15 @@ function StockReviewEditDialogForm({
                   onChange={(e) => setAmount(e.target.value)}
                 />
               </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <HotelDayPicker
+                  id="so-edit-movement-date"
+                  label="Movement date"
+                  value={movementDateYmd}
+                  onChange={setMovementDateYmd}
+                  compact
+                />
+              </div>
             </div>
           </HotelFormSection>
 
@@ -239,6 +255,10 @@ function StockReviewEditDialogForm({
                   movementType,
                   amount: Number(amount),
                   stakeHolderOrReason,
+                  movementDate: ymdWithTimeOf(
+                    movementDateYmd,
+                    row.movementDate || row.createdAt,
+                  ).toISOString(),
                 });
                 toast.success("Movement updated");
                 onSaved();

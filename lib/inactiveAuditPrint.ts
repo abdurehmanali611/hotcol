@@ -13,6 +13,7 @@ import {
   type InactiveItemRow,
 } from "@/lib/inactiveItemFilters";
 import { departmentLabel } from "@/lib/departments";
+import { formatMovementType } from "@/lib/hotelDisplayLabels";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 
 export {
@@ -28,6 +29,12 @@ export function inactiveFilterSummaryLines(
   return [
     { label: "From", value: formatPrintFilterDate(filters.dateFrom) },
     { label: "To", value: formatPrintFilterDate(filters.dateTo) },
+    {
+      label: "Movement type",
+      value: String(filters.movementType ?? "").trim()
+        ? formatMovementType(filters.movementType)
+        : "All movements",
+    },
     {
       label: "Department",
       value: filters.department.trim()

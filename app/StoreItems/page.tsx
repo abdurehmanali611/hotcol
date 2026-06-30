@@ -47,8 +47,12 @@ export default function StoreItems({
   embedded = false,
   readOnly = false,
   showPaymentSummary = false,
-  /** Merge rows with the same item name (sum qty, list suppliers). */
-  aggregateInventory = true,
+  /**
+   * Merge rows with the same item name (sum qty, list suppliers). Defaults to
+   * false so each registration stays its own row — separate registration dates,
+   * expiry, and supplier batches must remain individually visible.
+   */
+  aggregateInventory = false,
   onHotelStockRequestCreated,
 }: {
   items?: ItemRegistration[];

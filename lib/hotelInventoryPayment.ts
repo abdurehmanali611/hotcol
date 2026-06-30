@@ -63,6 +63,22 @@ export function summarizeReceiptFinancials(
   };
 }
 
+/**
+ * Quantity as originally registered (before any stock movements): current
+ * inventory + amount moved out. Falls back to the live amount when the backend
+ * does not provide a registered figure.
+ */
+export function registeredAmountOf(item: {
+  amount: number;
+  registeredAmount?: number;
+}): number {
+  const registeredAmount = Number(item.registeredAmount);
+  if (Number.isFinite(registeredAmount) && registeredAmount > 0) {
+    return registeredAmount;
+  }
+  return Number(item.amount) || 0;
+}
+
 /** Canonical inventory total: subtotal + VAT(15% when enabled). */
 export function lineOwedETB(item: {
   amount: number;

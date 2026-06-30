@@ -16,6 +16,7 @@ export function buildOptimisticStockOutRequestRow(
     voucherDisplay?: string | null;
   },
   requestedByUserName: string,
+  movementDate?: string | null,
 ): StockOutRequestRow {
   const now = new Date().toISOString();
   return {
@@ -35,5 +36,6 @@ export function buildOptimisticStockOutRequestRow(
     decidedAt: null,
     rejectionReason: null,
     createdAt: now,
+    movementDate: movementDate ?? now,
   };
 }

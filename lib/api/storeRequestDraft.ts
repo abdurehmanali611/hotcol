@@ -104,6 +104,7 @@ export async function updateStockOutRequestStoreDraftApi(
     movementType?: string;
     amount?: number;
     stakeHolderOrReason?: string;
+    movementDate?: string | Date | null;
   },
 ) {
   const data = await runMutation<{
@@ -114,12 +115,14 @@ export async function updateStockOutRequestStoreDraftApi(
       $movementType: String
       $amount: Float
       $stakeHolderOrReason: String
+      $movementDate: DateTime
     ) {
       updateStockOutRequestStoreDraft(
         id: $id
         movementType: $movementType
         amount: $amount
         stakeHolderOrReason: $stakeHolderOrReason
+        movementDate: $movementDate
       ) {
         id
         status

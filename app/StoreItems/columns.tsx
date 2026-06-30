@@ -55,10 +55,12 @@ import { cn } from "@/lib/utils";
 import { HOTEL_STORE_STOCK_OUT_STAKEHOLDERS } from "@/lib/hotelDailyStation";
 import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   REQUESTED_BY_DEPARTMENT_CODES,
   stockOutDestinationTextFromDepartmentCode,
 } from "@/lib/departments";
+import { toYmdLocal, ymdToRegistrationTimestamp } from "@/lib/hotelDateYmd";
 import { ColumnDef } from "@tanstack/react-table";
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
@@ -381,6 +383,7 @@ const StockOut = ({
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { isPending, run } = useConcurrentActions();
   const actionKey = `stock-out-${data.id}`;
   const submitting = isPending(actionKey);
@@ -392,6 +395,10 @@ const StockOut = ({
     }
     if (hotelStockApprovals && !requestedByDepartment.trim()) {
       toast.error("Select the requesting department");
+      return;
+    }
+    if (!movementDateYmd.trim()) {
+      toast.error("Select the movement date");
       return;
     }
     if (hotelStockApprovals && amountDeduct > data.amount) {
@@ -408,6 +415,7 @@ const StockOut = ({
             amount: amountDeduct,
             stakeHolderOrReason: destination,
             requestedByDepartment: requestedByDepartment.trim(),
+            movementDate: ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
           });
           const user =
             typeof window !== "undefined"
@@ -425,6 +433,7 @@ const StockOut = ({
               destination,
               result,
               user || "—",
+              ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
             ),
           );
         } else {
@@ -435,7 +444,7 @@ const StockOut = ({
             amount: amountDeduct,
             measuredBy: data.measuredBy,
             unitPrice: data.unitPrice,
-            actionDate: new Date(),
+            actionDate: ymdToRegistrationTimestamp(movementDateYmd),
             supplierName: data.supplierName,
             supplierPhone: data.supplierPhone,
             Address: data.Address,
@@ -471,6 +480,7 @@ const StockOut = ({
       open={open}
       onOpenChange={(next) => {
         if (!next && submitting) return;
+        if (next) setMovementDateYmd(toYmdLocal(new Date()));
         setOpen(next);
       }}
     >
@@ -488,6 +498,12 @@ const StockOut = ({
         </AlertDialogHeader>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
+            <HotelDayPicker
+              label="Movement date"
+              value={movementDateYmd}
+              onChange={setMovementDateYmd}
+              compact
+            />
             {hotelStockApprovals ? (
               <>
                 <DepartmentLeaderSelect
@@ -578,6 +594,7 @@ const Wastage = ({
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { isPending, run } = useConcurrentActions();
   const actionKey = `wastage-${data.id}`;
   const submitting = isPending(actionKey);
@@ -589,6 +606,10 @@ const Wastage = ({
     }
     if (hotelStockApprovals && !requestedByDepartment.trim()) {
       toast.error("Select the requesting department");
+      return;
+    }
+    if (!movementDateYmd.trim()) {
+      toast.error("Select the movement date");
       return;
     }
     if (hotelStockApprovals && amountDeduct > data.amount) {
@@ -604,6 +625,7 @@ const Wastage = ({
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
             requestedByDepartment: requestedByDepartment.trim(),
+            movementDate: ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
           });
           const user =
             typeof window !== "undefined"
@@ -621,6 +643,7 @@ const Wastage = ({
               statusBy.trim(),
               result,
               user || "—",
+              ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
             ),
           );
         } else {
@@ -631,7 +654,7 @@ const Wastage = ({
             amount: amountDeduct,
             measuredBy: data.measuredBy,
             unitPrice: data.unitPrice,
-            actionDate: new Date(),
+            actionDate: ymdToRegistrationTimestamp(movementDateYmd),
             supplierName: data.supplierName,
             supplierPhone: data.supplierPhone,
             Address: data.Address,
@@ -667,6 +690,7 @@ const Wastage = ({
       open={open}
       onOpenChange={(next) => {
         if (!next && submitting) return;
+        if (next) setMovementDateYmd(toYmdLocal(new Date()));
         setOpen(next);
       }}
     >
@@ -684,6 +708,12 @@ const Wastage = ({
         </AlertDialogHeader>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
+            <HotelDayPicker
+              label="Movement date"
+              value={movementDateYmd}
+              onChange={setMovementDateYmd}
+              compact
+            />
             {hotelStockApprovals ? (
               <DepartmentLeaderSelect
                 label="Requested by"
@@ -755,6 +785,7 @@ const Returned = ({
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { isPending, run } = useConcurrentActions();
   const actionKey = `return-${data.id}`;
   const submitting = isPending(actionKey);
@@ -766,6 +797,10 @@ const Returned = ({
     }
     if (hotelStockApprovals && !requestedByDepartment.trim()) {
       toast.error("Select the requesting department");
+      return;
+    }
+    if (!movementDateYmd.trim()) {
+      toast.error("Select the movement date");
       return;
     }
     if (hotelStockApprovals && amountDeduct > data.amount) {
@@ -781,6 +816,7 @@ const Returned = ({
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
             requestedByDepartment: requestedByDepartment.trim(),
+            movementDate: ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
           });
           const user =
             typeof window !== "undefined"
@@ -798,6 +834,7 @@ const Returned = ({
               statusBy.trim(),
               result,
               user || "—",
+              ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
             ),
           );
         } else {
@@ -808,7 +845,7 @@ const Returned = ({
             amount: amountDeduct,
             measuredBy: data.measuredBy,
             unitPrice: data.unitPrice,
-            actionDate: new Date(),
+            actionDate: ymdToRegistrationTimestamp(movementDateYmd),
             supplierName: data.supplierName,
             supplierPhone: data.supplierPhone,
             Address: data.Address,
@@ -844,6 +881,7 @@ const Returned = ({
       open={open}
       onOpenChange={(next) => {
         if (!next && submitting) return;
+        if (next) setMovementDateYmd(toYmdLocal(new Date()));
         setOpen(next);
       }}
     >
@@ -861,6 +899,12 @@ const Returned = ({
         </AlertDialogHeader>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
+            <HotelDayPicker
+              label="Movement date"
+              value={movementDateYmd}
+              onChange={setMovementDateYmd}
+              compact
+            />
             {hotelStockApprovals ? (
               <DepartmentLeaderSelect
                 label="Requested by"

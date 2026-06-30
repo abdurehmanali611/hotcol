@@ -82,6 +82,8 @@ export interface StockOutRequestRow {
   financeDeptLeaderName?: string | null;
   gmDeptLeaderName?: string | null;
   createdAt: string;
+  /** Calendar day chosen when the movement was recorded at store. */
+  movementDate?: string | null;
 }
 
 /** Fields to request after reject mutations (must match GraphQL `PurchaseRequest` type). */
@@ -289,6 +291,7 @@ export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
         financeDeptLeaderName
         gmDeptLeaderName
         createdAt
+        movementDate
       }
     }
   `;
@@ -539,6 +542,7 @@ export async function createStockOutRequestApi(
     amount: number;
     stakeHolderOrReason: string;
     requestedByDepartment: string;
+    movementDate?: string | Date;
   },
   options?: { suppressSuccessToast?: boolean },
 ) {
@@ -549,6 +553,7 @@ export async function createStockOutRequestApi(
       $amount: Float!
       $stakeHolderOrReason: String!
       $requestedByDepartment: String!
+      $movementDate: DateTime
     ) {
       createStockOutRequest(
         itemRegistrationId: $itemRegistrationId
@@ -556,6 +561,7 @@ export async function createStockOutRequestApi(
         amount: $amount
         stakeHolderOrReason: $stakeHolderOrReason
         requestedByDepartment: $requestedByDepartment
+        movementDate: $movementDate
       ) {
         id
         status
@@ -586,6 +592,7 @@ export type StockOutRequestLineInput = {
   movementType: string;
   amount: number;
   stakeHolderOrReason: string;
+  movementDate?: string | Date;
 };
 
 /** Multiple stock movements submitted together share one voucher number. */

@@ -879,7 +879,7 @@ function ManagerContent() {
               tenantScope={tenantScope}
               embedded
               showPaymentSummary
-              aggregateInventory
+              aggregateInventory={false}
             />
           </div>
         );

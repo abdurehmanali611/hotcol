@@ -1255,6 +1255,7 @@ function CostControlInner() {
                   tenantScope={tenantScope}
                   embedded
                   showPaymentSummary
+                  aggregateInventory={false}
                   onHotelStockRequestCreated={() => {
                     void refreshStockQueues({ silent: true });
                   }}
