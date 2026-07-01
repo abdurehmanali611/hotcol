@@ -20,10 +20,6 @@ import {
   filterItemStatusForInventoryChannel,
   type InventoryChannel,
 } from "@/lib/lodgingStoreContext";
-import {
-  departmentLabel,
-  REQUESTED_BY_DEPARTMENT_CODES,
-} from "@/lib/departments";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,17 +29,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight } from "lucide-react";
 import { InactiveAuditPrintActions } from "@/components/hotel/InactiveAuditPrintSheet";
 
 const DEFAULT_FILTERS: InactiveItemFilters = {
   dateFrom: "",
   dateTo: "",
-  department: "",
   movementType: "",
 };
 
-const DEPARTMENT_SELECT_ALL = "all";
 const MOVEMENT_SELECT_ALL = "all";
 
 const MOVEMENT_TYPE_OPTIONS: {
@@ -69,7 +63,7 @@ export default function Inactive({
   admin?: boolean;
   hotelName?: string | null;
   embedded?: boolean;
-  /** When omitted, stock movements are fetched for department filters on stocked-out rows. */
+  /** When omitted, stock movements are fetched to enrich movement type on rows. */
   stockMovements?: StockOutRequestRow[];
   /** Split café direct movements from hotel approval workflow history. */
   inventoryChannel?: InventoryChannel;
@@ -171,7 +165,6 @@ export default function Inactive({
   );
 
   const showClear = inactiveFiltersActive(filters);
-  const departmentSelectValue = filters.department || DEPARTMENT_SELECT_ALL;
   const movementSelectValue = filters.movementType || MOVEMENT_SELECT_ALL;
 
   const movementTotalETB = useMemo(
@@ -208,7 +201,7 @@ export default function Inactive({
           showClear={showClear}
           onClear={() => setFilters(DEFAULT_FILTERS)}
         >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
             <HotelDayPicker
               label="From"
               id="inactive-date-from"
@@ -253,37 +246,6 @@ export default function Inactive({
                   {MOVEMENT_TYPE_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 min-w-0">
-              <Label htmlFor="inactive-department">Department</Label>
-              <Select
-                value={departmentSelectValue}
-                onValueChange={(value) =>
-                  setFilters((f) => ({
-                    ...f,
-                    department:
-                      value === DEPARTMENT_SELECT_ALL ? "" : value,
-                  }))
-                }
-              >
-                <SelectTrigger
-                  id="inactive-department"
-                  className="h-10 w-full gap-2 border-border/80 bg-background shadow-sm"
-                >
-                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="All departments" />
-                </SelectTrigger>
-                <SelectContent align="end" className="max-h-72">
-                  <SelectItem value={DEPARTMENT_SELECT_ALL}>
-                    All departments
-                  </SelectItem>
-                  {REQUESTED_BY_DEPARTMENT_CODES.map((code) => (
-                    <SelectItem key={code} value={code}>
-                      {departmentLabel(code)}
                     </SelectItem>
                   ))}
                 </SelectContent>

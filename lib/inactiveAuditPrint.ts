@@ -12,7 +12,6 @@ import {
   isStockMovementInactiveRow,
   type InactiveItemRow,
 } from "@/lib/inactiveItemFilters";
-import { departmentLabel } from "@/lib/departments";
 import { formatMovementType } from "@/lib/hotelDisplayLabels";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 
@@ -34,12 +33,6 @@ export function inactiveFilterSummaryLines(
       value: String(filters.movementType ?? "").trim()
         ? formatMovementType(filters.movementType)
         : "All movements",
-    },
-    {
-      label: "Department",
-      value: filters.department.trim()
-        ? departmentLabel(filters.department)
-        : "All departments",
     },
     auditRecordsFilterLine(filteredCount, totalCount),
   ];

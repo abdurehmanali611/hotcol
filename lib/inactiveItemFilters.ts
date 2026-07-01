@@ -1,6 +1,5 @@
 import type { ItemStatus, StockOutRequestRow } from "@/lib/actions";
 import {
-  departmentCodesMatch,
   departmentLabel,
   normalizeDepartmentCode,
 } from "@/lib/departments";
@@ -15,7 +14,6 @@ export type StockMovementTypeFilter =
 export type InactiveItemFilters = {
   dateFrom: string;
   dateTo: string;
-  department: string;
   movementType: StockMovementTypeFilter;
 };
 
@@ -122,7 +120,6 @@ export function filterInactiveItems(
   const stockById = buildStockOutLookup(stocks);
   const from = String(filters.dateFrom ?? "").trim();
   const to = String(filters.dateTo ?? "").trim();
-  const dept = String(filters.department ?? "").trim();
   const movementType = String(filters.movementType ?? "").trim();
 
   return items
@@ -136,11 +133,7 @@ export function filterInactiveItems(
         return false;
       }
 
-      const isMovement = isStockMovementInactiveRow(row);
-
-      if (!dept) return true;
-      if (!isMovement) return false;
-      return departmentCodesMatch(row.movementDepartmentCode, dept);
+      return true;
     });
 }
 
@@ -148,7 +141,6 @@ export function inactiveFiltersActive(filters: InactiveItemFilters): boolean {
   return Boolean(
     filters.dateFrom.trim() ||
       filters.dateTo.trim() ||
-      filters.department.trim() ||
       String(filters.movementType ?? "").trim(),
   );
 }
