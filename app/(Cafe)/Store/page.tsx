@@ -10,6 +10,7 @@ import {
   fetchItemRegistrations,
   fetchItemStatus,
   fetchPurchaseRequests,
+  fetchPityCash,
   ItemRegistration,
   ItemStatus,
   logoutAction,
@@ -43,6 +44,7 @@ import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInve
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { StoreRequestReviewPanel } from "@/components/hotel/StoreRequestReviewPanel";
 import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
+import { StoreInventoryOverview } from "@/components/store/StoreInventoryOverview";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { toast } from "sonner";
@@ -76,8 +78,8 @@ import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import {
   effectiveTenantScopeForHotelTerminal,
   rowHotelMatchesTenantScope,
+  findRowByTenantScope,
 } from "@/lib/tenantRowMatch";
-import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { HOTEL_STORE_FINANCE_VIEWS, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
@@ -196,6 +198,7 @@ export function StoreComponent({
   const paymentVatActive = PAYMENT_VAT_VIEWS.includes(activeView);
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
+  const [pettyCashBalance, setPettyCashBalance] = useState<number | null>(null);
   const searchedParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchedParams.get("hotel"),
@@ -291,9 +294,10 @@ export function StoreComponent({
           return;
         }
 
-        const [itemData, itemStatusData] = await Promise.all([
+        const [itemData, itemStatusData, cashData] = await Promise.all([
           fetchItemRegistrations(),
           fetchItemStatus(),
+          fetchPityCash(),
         ]);
         if (isStale()) return;
         const response = itemData as ItemRegistration[];
@@ -312,6 +316,12 @@ export function StoreComponent({
               )
             : [],
         );
+        if (Array.isArray(cashData)) {
+          const row = findRowByTenantScope(cashData, inventoryTenantKey || "");
+          setPettyCashBalance(row ? Number(row.amount) || 0 : null);
+        } else {
+          setPettyCashBalance(null);
+        }
       } catch (e: unknown) {
         if (!isStale()) notifyApiFailure(e, "Failed to load data");
       } finally {
@@ -395,27 +405,6 @@ export function StoreComponent({
       ? clearInjectedPurchaseIds
       : undefined,
   });
-
-  const uniqueInventoryCount = useMemo(
-    () => countUniqueInventoryNames(storeItem),
-    [storeItem],
-  );
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
-  useEffect(() => {
-    if (!hotelInventory || requestStatusSeed === 0) return;
-    void loadData();
-  }, [hotelInventory, requestStatusSeed, loadData]);
-
-  const handleItemsRegistered = useCallback(() => {
-    void loadData();
-    if (hotelInventory) {
-      setRequestStatusSeed((n) => n + 1);
-    }
-  }, [loadData, hotelInventory]);
 
   const storeWorkspaceIntro = useMemo<
     Record<StoreView, { title: string; description: string; Icon: LucideIcon }>
@@ -507,6 +496,22 @@ export function StoreComponent({
     [hotelInventory],
   );
 
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (!hotelInventory || requestStatusSeed === 0) return;
+    void loadData();
+  }, [hotelInventory, requestStatusSeed, loadData]);
+
+  const handleItemsRegistered = useCallback(() => {
+    void loadData();
+    if (hotelInventory) {
+      setRequestStatusSeed((n) => n + 1);
+    }
+  }, [loadData, hotelInventory]);
+
   const activeIntro = storeWorkspaceIntro[activeView];
 
   const tenantModules = useTenantModules();
@@ -565,8 +570,9 @@ export function StoreComponent({
               hotelStockApprovals={hotelInventory}
               tenantScope={inventoryTenantKey}
               embedded
-              showPaymentSummary={hotelInventory && hotelHasFinance}
+              showPaymentSummary={false}
               aggregateInventory={false}
+              onExternalRefresh={handleItemsRegistered}
               onHotelStockRequestCreated={
                 hotelInventory
                   ? (row) => {
@@ -943,48 +949,12 @@ export function StoreComponent({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth [scrollbar-gutter:stable]">
                 <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-400 2xl:max-w-448">
-                  {hotelInventory ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/4 shadow-md overflow-hidden">
-                      <div className="h-0.5 bg-linear-to-r from-emerald-500/80 to-teal-400/60" />
-                      <CardHeader className="pb-2 pt-4">
-                        <div className="flex items-start gap-3">
-                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2.5">
-                            <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <div className="min-w-0 space-y-1">
-                            <CardDescription>{HOTEL_INVENTORY_COPY.inventoryItems}</CardDescription>
-                            <CardTitle className="text-3xl tabular-nums tracking-tight">
-                              {uniqueInventoryCount}
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                              Unique items ({storeItem.length} registration lines)
-                            </p>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                    <Card className="border-violet-500/20 bg-linear-to-br from-card to-violet-500/5 shadow-md overflow-hidden">
-                      <div className="h-0.5 bg-linear-to-r from-violet-500/70 to-indigo-400/50" />
-                      <CardHeader className="pb-2 pt-4">
-                        <div className="flex items-start gap-3">
-                          <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-2.5">
-                            <MinusCircle className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-                          </div>
-                          <div className="min-w-0 space-y-1">
-                            <CardDescription>Status / inactive rows</CardDescription>
-                            <CardTitle className="text-3xl tabular-nums tracking-tight">
-                              {itemStatus.length}
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                              Tracked movements & inactive lines
-                            </p>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  </div>
-                  ) : null}
+                  <StoreInventoryOverview
+                    items={storeItem}
+                    movementCount={scopedItemStatus.length}
+                    pettyCashBalance={hotelInventory ? null : pettyCashBalance}
+                    showPaymentBreakdown
+                  />
                   <StoreWorkspaceIntro
                     title={activeIntro.title}
                     description={activeIntro.description}

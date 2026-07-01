@@ -16,7 +16,7 @@ import type { DataTableRef } from "./data-table";
 import { InventoryBatchMovementBar } from "@/components/hotel/InventoryBatchMovementBar";
 import { CafeInventoryBatchMovementBar } from "@/components/cafe/CafeInventoryBatchMovementBar";
 import UpdateStock from "@/components/UpdateStock";
-import { ActiveInventoryPaymentSummary } from "@/components/hotel/ActiveInventoryPaymentSummary";
+import { StoreInventoryOverview } from "@/components/store/StoreInventoryOverview";
 import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { InventoryListPrintActions } from "@/components/hotel/InventoryListPrintActions";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
@@ -56,6 +56,9 @@ export default function StoreItems({
   aggregateInventory = false,
   adminEditDelete = false,
   onHotelStockRequestCreated,
+  onExternalRefresh,
+  movementCount,
+  pettyCashBalance,
 }: {
   items?: ItemRegistration[];
   hotelStockApprovals?: boolean;
@@ -71,6 +74,10 @@ export default function StoreItems({
   /** Admin oversight: allow edit/delete of inventory lines regardless of terminal role. */
   adminEditDelete?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
+  /** When embedded, delegate refresh to the parent to avoid duplicate fetches. */
+  onExternalRefresh?: () => void | Promise<void>;
+  movementCount?: number;
+  pettyCashBalance?: number | null;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemRegistration | null>(null);
@@ -133,6 +140,14 @@ export default function StoreItems({
     }
   }, [scopeRows]);
 
+  const refreshTable = useCallback(async () => {
+    if (embedded && onExternalRefresh) {
+      await onExternalRefresh();
+      return;
+    }
+    await refresh();
+  }, [embedded, onExternalRefresh, refresh]);
+
   useEffect(() => {
     // Embedded views get initial rows from the parent; skip remote fetch on first paint only.
     if (embedded && refreshTrigger === 0) return;
@@ -153,8 +168,12 @@ export default function StoreItems({
   };
 
   const handleUpdateSuccess = useCallback(() => {
-    setRefreshTrigger(prev => prev + 1);
-  }, []);
+    if (embedded && onExternalRefresh) {
+      void onExternalRefresh();
+      return;
+    }
+    setRefreshTrigger((prev) => prev + 1);
+  }, [embedded, onExternalRefresh]);
 
   const filteredData = useMemo(
     () => filterInventoryRegistrations(data, filters),
@@ -217,7 +236,7 @@ export default function StoreItems({
             <h1 className="text-3xl font-extrabold tracking-tight">Master Inventory</h1>
           </div>
           <p className="text-muted-foreground font-medium">
-            Live stock tracking and supplier verification for Apex Solutions.
+            Live stock tracking and supplier verification for {propertyName}.
           </p>
         </div>
       )}
@@ -303,7 +322,12 @@ export default function StoreItems({
       {headerBlock}
 
       {showPaymentSummary && (
-        <ActiveInventoryPaymentSummary items={filteredData} />
+        <StoreInventoryOverview
+          items={filteredData}
+          movementCount={movementCount}
+          pettyCashBalance={pettyCashBalance}
+          showPaymentBreakdown
+        />
       )}
 
       <div className={tableShell}>
@@ -311,7 +335,7 @@ export default function StoreItems({
           <InventoryBatchMovementBar
             selected={batchSelected}
             tableRef={tableRef}
-            refresh={refresh}
+            refresh={refreshTable}
             onHotelStockRequestCreated={onHotelStockRequestCreated}
           />
         )}
@@ -319,14 +343,14 @@ export default function StoreItems({
           <CafeInventoryBatchMovementBar
             selected={batchSelected}
             tableRef={tableRef}
-            refresh={refresh}
+            refresh={refreshTable}
           />
         )}
         <DataTableClientWrapper
           ref={tableRef}
           data={tableData}
           onEdit={handleEdit}
-          refresh={refresh}
+          refresh={refreshTable}
           hotelStockApprovals={hotelStockApprovals}
           readOnly={readOnly}
           allowEditDelete={allowEditDelete}

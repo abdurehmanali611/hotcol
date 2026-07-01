@@ -12,10 +12,10 @@ import {
 import z from "zod";
 import { pityCashSchema } from "@/lib/validations";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form } from "./ui/form";
-import CustomFormField, { formFieldTypes } from "./customFormField";
+import { Form, FormField, FormItem, FormLabel, FormMessage } from "./ui/form";
 import { Button } from "./ui/button";
 import { PendingButton } from "./ui/pending-button";
+import { Input } from "./ui/input";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -31,7 +31,7 @@ import {
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { toast } from "sonner";
-import { Trash, Wallet, ArrowUpRight, BadgeCheck } from "lucide-react";
+import { Trash, Wallet, BadgeCheck } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,8 +44,15 @@ import {
   AlertDialogTrigger,
 } from "./ui/alert-dialog";
 import StoreItems from "@/app/StoreItems/page";
+import { StoreInventoryOverview } from "@/components/store/StoreInventoryOverview";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import Inactive from "@/app/Inactive/page";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import {
+  HotelFormFieldStack,
+  HotelFormSection,
+} from "@/components/hotel/HotelTerminalInitFormLayout";
+import { parseYmdToDate, toYmdLocal } from "@/lib/hotelDateYmd";
 
 interface AdminInventoryProps {
   hotelName: string;
@@ -166,148 +173,208 @@ const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) =
         </p>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* FORM SECTION */}
-        <Card className="xl:col-span-7 border-border/40 shadow-sm bg-card/50 backdrop-blur-sm">
-          <CardHeader>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
+        <Card className="xl:col-span-7 overflow-hidden border-primary/15 bg-card/95 shadow-md h-full">
+          <div className="h-1 bg-linear-to-r from-primary/80 via-cyan-500/50 to-emerald-500/40" />
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-2 text-primary">
-              <BadgeCheck size={20} />
-              <CardTitle className="text-lg">Update Records</CardTitle>
+              <BadgeCheck className="h-5 w-5" />
+              <CardTitle className="text-lg">Petty cash settings</CardTitle>
             </div>
-            <CardDescription>
-              Adjust available cash and operational date ranges.
+            <CardDescription className="text-pretty">
+              Set the cash available for store stock-in and the active cycle dates.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-0">
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-6 flex flex-col items-center"
+                className="flex flex-col"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <CustomFormField
-                    name="startDate"
-                    control={form.control}
-                    fieldType={formFieldTypes.CALENDAR}
-                    label="Cycle Start"
-                    inputClassName="h-fit p-2 w-42"
-                  />
-                  <CustomFormField
-                    name="endDate"
-                    control={form.control}
-                    fieldType={formFieldTypes.CALENDAR}
-                    label="Cycle End"
-                    inputClassName="h-fit p-2 w-42"
-                  />
-                </div>
-                <CustomFormField
-                  name="amount"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Available Amount (ETB)"
-                  type="number"
-                  placeholder="0.00"
-                  inputClassName="h-fit p-2 w-56"
-                />
-                <PendingButton
-                  type="submit"
-                  pending={loading}
-                  className="w-full md:w-auto px-8 bg-primary hover:opacity-90 shadow-lg shadow-primary/20"
+                <HotelFormSection
+                  title="Cycle & balance"
+                  description="Store staff can only register paid stock while petty cash is active for this period."
                 >
-                  {loading
-                    ? "Syncing…"
-                    : pityCashSummary
-                      ? "Save Changes"
-                      : "Initialize Liquidity"}
-                </PendingButton>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="startDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <HotelDayPicker
+                            label="Cycle start"
+                            id="pity-cash-start"
+                            value={
+                              field.value
+                                ? toYmdLocal(new Date(field.value))
+                                : ""
+                            }
+                            onChange={(ymd) => {
+                              const next = parseYmdToDate(ymd);
+                              if (next) field.onChange(next);
+                            }}
+                            compact
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="endDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <HotelDayPicker
+                            label="Cycle end"
+                            id="pity-cash-end"
+                            value={
+                              field.value
+                                ? toYmdLocal(new Date(field.value))
+                                : ""
+                            }
+                            onChange={(ymd) => {
+                              const next = parseYmdToDate(ymd);
+                              if (next) field.onChange(next);
+                            }}
+                            compact
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <HotelFormFieldStack>
+                          <FormLabel htmlFor="pity-cash-amount">
+                            Available amount (ETB)
+                          </FormLabel>
+                          <Input
+                            id="pity-cash-amount"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="0.00"
+                            className="h-10 w-full"
+                            value={field.value}
+                            onChange={(e) =>
+                              field.onChange(Number(e.target.value) || 0)
+                            }
+                          />
+                        </HotelFormFieldStack>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </HotelFormSection>
+
+                <div className="mt-8 border-t border-border/60 pt-6 pb-6">
+                  <PendingButton
+                    type="submit"
+                    pending={loading}
+                    className="h-11 w-full text-base font-semibold shadow-md"
+                  >
+                    {loading
+                      ? "Saving…"
+                      : pityCashSummary
+                        ? "Save changes"
+                        : "Initialize petty cash"}
+                  </PendingButton>
+                </div>
               </form>
             </Form>
           </CardContent>
         </Card>
 
-        {/* CASH DISPLAY CARD */}
-        <div className="xl:col-span-5 flex flex-col gap-4">
-          <div className="relative group">
-            <div className="absolute -inset-0.5 bg-linear-to-r from-primary to-blue-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-            <div className="relative bg-zinc-950 rounded-2xl p-8 border border-white/10 overflow-hidden shadow-2xl min-h-70 flex flex-col justify-between">
-              {/* Background Pattern */}
-              <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
+        <Card className="xl:col-span-5 border-amber-500/25 bg-card/95 shadow-md overflow-hidden h-full flex flex-col">
+          <div className="h-1 bg-linear-to-r from-amber-500/80 to-orange-400/60" />
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <Wallet className="h-5 w-5 shrink-0" />
+                  <CardTitle className="text-lg">Current balance</CardTitle>
+                </div>
+                <CardDescription className="mt-1 text-pretty">
+                  {displayName}
+                </CardDescription>
+              </div>
+              {pityCashSummary ? (
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex shrink-0 items-center rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Not set
+                </span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-5 pb-6">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Total balance
+              </p>
+              <p className="text-4xl sm:text-[2.75rem] font-bold tabular-nums tracking-tight leading-none">
+                ETB {pityCashSummary?.amount?.toLocaleString() ?? "0"}
+              </p>
+              {!pityCashSummary ? (
+                <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                  Initialize petty cash on the left to enable paid stock-in at the
+                  store terminal.
+                </p>
+              ) : null}
+            </div>
 
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                      Live Liquidity
-                    </span>
-                  </div>
-                  <p className="text-zinc-400 text-sm font-medium">
-                    {displayName} Admin Card
+            <HotelFormSection
+              title="Active cycle"
+              description="Dates currently saved for this property."
+              className="flex-1"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-3">
+                  <p className="text-xs text-muted-foreground mb-1">Cycle starts</p>
+                  <p className="text-sm font-semibold tabular-nums">
+                    {formatDate(pityCashSummary?.startDate)}
                   </p>
                 </div>
-                <Wallet className="text-white/20" size={32} />
-              </div>
-
-              <div className="relative z-10 my-6">
-                <span className="text-zinc-500 text-xs font-mono mb-1 block uppercase tracking-widest">
-                  Total Balance
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-zinc-400 text-xl font-light">ETB</span>
-                  <h2 className="text-5xl font-bold tracking-tighter text-white">
-                    {pityCashSummary?.amount?.toLocaleString() ?? "0.00"}
-                  </h2>
+                <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-3">
+                  <p className="text-xs text-muted-foreground mb-1">Cycle ends</p>
+                  <p className="text-sm font-semibold tabular-nums">
+                    {formatDate(pityCashSummary?.endDate)}
+                  </p>
                 </div>
               </div>
+            </HotelFormSection>
 
-              <div className="relative z-10 pt-6 border-t border-white/5 flex justify-between items-end">
-                <div className="grid grid-cols-2 gap-8">
-                  <div>
-                    <p className="text-[9px] uppercase text-zinc-500 font-bold mb-1">
-                      Starts
-                    </p>
-                    <p className="text-sm font-medium text-zinc-200">
-                      {formatDate(pityCashSummary?.startDate)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] uppercase text-zinc-500 font-bold mb-1">
-                      Ends
-                    </p>
-                    <p className="text-sm font-medium text-zinc-200">
-                      {formatDate(pityCashSummary?.endDate)}
-                    </p>
-                  </div>
-                </div>
-
-                {pityCashSummary && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 gap-1.5 text-zinc-400 hover:bg-red-500/10 hover:text-red-400 md:h-8 md:w-8 md:px-0"
-                      >
-                        <Trash size={16} />
-                        <span className="text-xs font-medium md:sr-only">
-                          Reset
-                        </span>
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-white">
+            {pityCashSummary ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full border-destructive/35 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash className="h-4 w-4 mr-2" />
+                    Reset balance
+                  </Button>
+                </AlertDialogTrigger>
+                    <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>
-                          Are you absolutely sure?
+                          Reset petty cash balance?
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-zinc-400">
+                        <AlertDialogDescription>
                           This will wipe the current cash records for{" "}
                           {displayName}. This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel className="bg-transparent border-zinc-700 hover:bg-zinc-800">
-                          Cancel
-                        </AlertDialogCancel>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           className="bg-red-600 hover:bg-red-700 gap-2"
                           disabled={resettingBalance}
@@ -356,28 +423,26 @@ const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) =
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-background rounded-lg border shadow-sm">
-              <ArrowUpRight size={18} className="text-primary" />
-            </div>
-            <div className="text-sm">
-              <p className="font-medium">Quick Report</p>
-              <p className="text-muted-foreground text-xs italic">
-                Last sync: Just now
-              </p>
-            </div>
-          </div>
-        </div>
+              </AlertDialog>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
 
       {/* TABLE SECTION */}
-      <section className="mt-12 space-y-6">
+      <section className="mt-10 space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Inventory snapshot</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Live stock, supplier payment status, and movement history.
+          </p>
+        </div>
+        <StoreInventoryOverview
+          items={fetchedItems}
+          movementCount={fetchedItemStatus.length}
+          pettyCashBalance={null}
+          showPaymentBreakdown
+        />
         <div className="flex items-center justify-between">
           <Tabs
             value={activeTab}
@@ -420,6 +485,13 @@ const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) =
                   tenantScope={hotelName}
                   adminEditDelete
                   aggregateInventory={false}
+                  showPaymentSummary={false}
+                  movementCount={fetchedItemStatus.length}
+                  pettyCashBalance={
+                    pityCashSummary != null
+                      ? Number(pityCashSummary.amount) || 0
+                      : null
+                  }
                 />
               ) : (
                 <Inactive

@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CldUploadButton } from "next-cloudinary";
 import { ITEM_REGISTRATION_IMAGE_UPLOAD_OPTIONS } from "@/lib/cloudinaryUploadOptions";
-import { PackagePlus, Plus, Trash2, Upload } from "lucide-react";
+import { PackagePlus, Plus, Trash2, Upload, Wallet } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -30,9 +30,10 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import {
   createItemRegistrationsBatchApi,
-  checkPityCashBalance,
+  fetchPityCash,
   notifyApiFailure,
 } from "@/lib/actions";
+import { findRowByTenantScope } from "@/lib/tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { hasRegistrationImage } from "@/lib/registrationImageUrl";
 import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
@@ -141,12 +142,35 @@ export function BatchItemRegistrationForm({
   const [sharedNote, setSharedNote] = useState("");
   const [receivedByDepartment, setReceivedByDepartment] = useState("");
   const [lines, setLines] = useState<RegistrationLine[]>([emptyLine()]);
+  const [pettyCashBalance, setPettyCashBalance] = useState<number | null>(null);
   const lastAutoPaidRef = useRef<Map<string, number>>(new Map());
 
   const validLines = useMemo(
     () => lines.filter((l) => l.name.trim().length >= 2),
     [lines],
   );
+
+  const batchPaidTotalEtb = useMemo(
+    () => validLines.reduce((sum, line) => sum + resolvePaidAmount(line), 0),
+    [validLines, lines],
+  );
+
+  useEffect(() => {
+    if (hotelInventory || !hotelName.trim()) return;
+    let cancelled = false;
+    void fetchPityCash()
+      .then((rows) => {
+        if (cancelled) return;
+        const row = findRowByTenantScope(rows, hotelName);
+        setPettyCashBalance(row ? Number(row.amount) || 0 : null);
+      })
+      .catch(() => {
+        if (!cancelled) setPettyCashBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hotelInventory, hotelName]);
 
   const updateLine = useCallback((key: string, patch: Partial<RegistrationLine>) => {
     setLines((prev) =>
@@ -220,21 +244,37 @@ export function BatchItemRegistrationForm({
       const linesToSubmit: Parameters<typeof createItemRegistrationsBatchApi>[0] =
         [];
 
+      if (!hotelInventory) {
+        const cashRows = await fetchPityCash();
+        const currentPityCash = findRowByTenantScope(cashRows, hotelName);
+        if (!currentPityCash) {
+          toast.error("No petty cash found for this property");
+          return;
+        }
+        const totalRequired = validLines.reduce(
+          (sum, l) => sum + resolvePaidAmount(l),
+          0,
+        );
+        if (currentPityCash.amount < totalRequired) {
+          toast.error(
+            `Insufficient petty cash. Available: ETB ${Number(currentPityCash.amount).toLocaleString()}, required: ETB ${totalRequired.toLocaleString()}`,
+          );
+          return;
+        }
+        const now = new Date();
+        if (currentPityCash.startDate > now) {
+          toast.error("Petty cash is not yet available");
+          return;
+        }
+        if (currentPityCash.endDate < now) {
+          toast.error("Petty cash has expired");
+          return;
+        }
+        setPettyCashBalance(Number(currentPityCash.amount) || 0);
+      }
+
       for (const l of validLines) {
         const paidAmount = resolvePaidAmount(l);
-        if (!hotelInventory) {
-          try {
-            const hasCash = await checkPityCashBalance(hotelName, paidAmount);
-            if (!hasCash) {
-              toast.error(`Insufficient petty cash for ${l.name.trim()}`);
-              failed++;
-              continue;
-            }
-          } catch {
-            failed++;
-            continue;
-          }
-        }
         linesToSubmit.push({
           name: l.name.trim(),
           imageUrl: l.imageUrl.trim(),
@@ -655,6 +695,35 @@ export function BatchItemRegistrationForm({
               />
             </HotelFormFieldStack>
           </HotelFormSection>
+
+          {!hotelInventory ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Wallet className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                <span>
+                  Petty cash:{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {pettyCashBalance != null
+                      ? `ETB ${pettyCashBalance.toLocaleString()}`
+                      : "—"}
+                  </span>
+                </span>
+              </div>
+              <p className="text-muted-foreground">
+                Batch total:{" "}
+                <span className="font-semibold text-foreground tabular-nums">
+                  ETB {batchPaidTotalEtb.toLocaleString()}
+                </span>
+                {validLines.length > 0 ? (
+                  <span className="text-xs">
+                    {" "}
+                    · {validLines.length} line
+                    {validLines.length === 1 ? "" : "s"} ready
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ) : null}
 
           <PendingButton
             type="submit"
