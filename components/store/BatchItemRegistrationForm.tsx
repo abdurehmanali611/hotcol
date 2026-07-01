@@ -152,7 +152,7 @@ export function BatchItemRegistrationForm({
 
   const batchPaidTotalEtb = useMemo(
     () => validLines.reduce((sum, line) => sum + resolvePaidAmount(line), 0),
-    [validLines, lines],
+    [validLines],
   );
 
   useEffect(() => {

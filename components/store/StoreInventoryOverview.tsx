@@ -157,8 +157,8 @@ export function StoreInventoryOverview({
         className,
       )}
     >
-      {cards.map((card) => (
-        <SummaryCard key={card.key} {...card} />
+      {cards.map(({ key, ...card }) => (
+        <SummaryCard key={key} {...card} />
       ))}
     </div>
   );
