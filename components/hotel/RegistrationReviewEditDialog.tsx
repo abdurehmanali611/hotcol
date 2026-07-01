@@ -22,6 +22,10 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { parseYmdToDate, ymdWithTimeOf } from "@/lib/hotelDateYmd";
+import {
+  REGISTRATION_CATEGORIES,
+  normalizeRegistrationCategory,
+} from "@/lib/registrationFormConstants";
 import { RegistrationImageUploadField } from "@/components/hotel/RegistrationImageUploadField";
 import {
   Dialog,
@@ -65,22 +69,12 @@ const PhoneInput = dynamic(
   },
 );
 
-const REGISTRATION_CATEGORIES = [
-  "Food",
-  "Beverage",
-  "House Keeping",
-  "Maintainance",
-  "Office Supplies",
-  "Others",
-] as const;
-
 type ItemRegForm = z.infer<typeof ItemRegistrationSchema>;
 
 function normalizeCategory(
   value: string,
 ): (typeof REGISTRATION_CATEGORIES)[number] {
-  const v = String(value ?? "").trim();
-  if (v === "Maintenance") return "Maintainance";
+  const v = normalizeRegistrationCategory(value);
   if ((REGISTRATION_CATEGORIES as readonly string[]).includes(v)) {
     return v as (typeof REGISTRATION_CATEGORIES)[number];
   }

@@ -42,14 +42,12 @@ import {
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
-import {
-  departmentLabel,
-  REGISTRATION_RECEIVED_BY_CODES,
-} from "@/lib/departments";
+import { REGISTRATION_RECEIVED_BY_CODES } from "@/lib/departments";
 import {
   parseYmdToDate,
   ymdToRegistrationTimestamp,
 } from "@/lib/hotelDateYmd";
+import { REGISTRATION_CATEGORIES } from "@/lib/registrationFormConstants";
 
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
@@ -60,15 +58,6 @@ const PhoneInput = dynamic(
     ),
   },
 );
-
-const REGISTRATION_CATEGORIES = [
-  "Food",
-  "Beverage",
-  "House Keeping",
-  "Maintenance",
-  "Office Supplies",
-  "Others",
-] as const;
 
 type RegistrationLine = {
   key: string;
@@ -218,7 +207,7 @@ export function BatchItemRegistrationForm({
       toast.error("Add at least one item with a name (2+ characters)");
       return;
     }
-    if (!receivedByDepartment.trim()) {
+    if (hotelInventory && !receivedByDepartment.trim()) {
       toast.error("Select who received the goods (department leader)");
       return;
     }
@@ -269,7 +258,7 @@ export function BatchItemRegistrationForm({
           await createItemRegistrationsBatchApi(
             linesToSubmit,
             hotelName,
-            receivedByDepartment,
+            hotelInventory ? receivedByDepartment : "STORE",
           );
           ok = linesToSubmit.length;
         } catch (e: unknown) {
@@ -344,7 +333,9 @@ export function BatchItemRegistrationForm({
                   <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
                     <div
                       className={`space-y-1.5 min-w-0 ${
-                        index === 0 ? "col-span-2" : "col-span-2 sm:col-span-4"
+                        index === 0 && hotelInventory
+                          ? "col-span-2"
+                          : "col-span-2 sm:col-span-4"
                       }`}
                     >
                       <Label htmlFor={`reg-name-${l.key}`}>Item name</Label>
@@ -358,43 +349,16 @@ export function BatchItemRegistrationForm({
                         className="h-10 min-w-0"
                       />
                     </div>
-                    {index === 0 ? (
+                    {index === 0 && hotelInventory ? (
                       <div className="col-span-2 space-y-1.5 min-w-0">
-                        {hotelInventory ? (
-                          <DepartmentLeaderSelect
-                            id="reg-received-by"
-                            label="Received by"
-                            compact
-                            value={receivedByDepartment}
-                            onChange={setReceivedByDepartment}
-                            allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
-                          />
-                        ) : (
-                          <>
-                            <Label htmlFor="reg-received-by" className="text-sm">
-                              Received by
-                              <span className="text-destructive"> *</span>
-                            </Label>
-                            <Select
-                              value={receivedByDepartment || undefined}
-                              onValueChange={setReceivedByDepartment}
-                            >
-                              <SelectTrigger
-                                id="reg-received-by"
-                                className="h-10 w-full"
-                              >
-                                <SelectValue placeholder="Select destination" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {REGISTRATION_RECEIVED_BY_CODES.map((code) => (
-                                  <SelectItem key={code} value={code}>
-                                    {departmentLabel(code)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </>
-                        )}
+                        <DepartmentLeaderSelect
+                          id="reg-received-by"
+                          label="Received by"
+                          compact
+                          value={receivedByDepartment}
+                          onChange={setReceivedByDepartment}
+                          allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
+                        />
                       </div>
                     ) : null}
                   </div>

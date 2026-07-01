@@ -199,8 +199,9 @@ export function StoreItemReceiptPrinting({
       <div className="space-y-4">
         {bundles.length === 0 ? (
           <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-6 py-10 text-center">
-            No authorized receipts to show yet. They appear here after requests are
-            approved through the pipeline.
+            {isCafe
+              ? "No item receipts to show yet. They appear here once items are registered in the store."
+              : "No authorized receipts to show yet. They appear here after requests are approved through the pipeline."}
           </p>
         ) : null}
         {sectionBundles

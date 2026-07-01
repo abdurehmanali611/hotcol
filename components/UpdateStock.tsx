@@ -16,6 +16,11 @@ import { z } from "zod";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ItemRegistrationSchema } from "@/lib/validations";
+import {
+  REGISTRATION_CATEGORIES,
+  normalizeRegistrationCategory,
+  type RegistrationCategory,
+} from "@/lib/registrationFormConstants";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
 import { ImageIcon } from "lucide-react";
@@ -80,13 +85,7 @@ const UpdateStock = ({
     form.reset({
       name: item.name,
       imageUrl: item.imageUrl,
-      category: item.category as
-        | "Food"
-        | "Beverage"
-        | "House Keeping"
-        | "Maintainance"
-        | "Office Supplies"
-        | "Others",
+      category: normalizeRegistrationCategory(item.category) as RegistrationCategory,
       amount: item.amount,
       measuredBy: item.measuredBy,
       unitPrice: item.unitPrice,
@@ -216,14 +215,10 @@ const UpdateStock = ({
                   fieldType={formFieldTypes.SELECT}
                   label="Category:"
                   placeholder="Choose Category"
-                  listdisplay={[
-                    { id: 1, name: "Food" },
-                    { id: 2, name: "Beverage" },
-                    { id: 3, name: "House Keeping" },
-                    { id: 4, name: "Maintainance" },
-                    { id: 5, name: "Office Supplies" },
-                    { id: 6, name: "Others" },
-                  ]}
+                  listdisplay={REGISTRATION_CATEGORIES.map((name, index) => ({
+                    id: index + 1,
+                    name,
+                  }))}
                   inputClassName="h-fit p-2 w-56"
                 />
               </div>

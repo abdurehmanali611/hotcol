@@ -126,6 +126,7 @@ function AdminDashboardContent() {
   );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [inventoryRefreshKey, setInventoryRefreshKey] = useState(0);
   const loadedRef = useRef(new Set<AdminDatasetKey>());
   const loadCoordinator = useLoadCoordinator();
 
@@ -198,6 +199,7 @@ function AdminDashboardContent() {
         if (isRefresh) {
           setRefreshing(true);
           loadedRef.current.clear();
+          setInventoryRefreshKey((n) => n + 1);
         } else {
           setLoading(true);
         }
@@ -484,7 +486,10 @@ function AdminDashboardContent() {
         return (
           <div className="space-y-3 p-3 sm:space-y-4 sm:p-5 md:p-6">
             <div className="rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
-              <AdminInventory hotelName={tenantScope} />
+              <AdminInventory
+                hotelName={tenantScope}
+                refreshSignal={inventoryRefreshKey}
+              />
             </div>
           </div>
         );

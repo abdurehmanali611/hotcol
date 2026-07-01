@@ -168,14 +168,20 @@ export async function CreateItemRegistration(values: createItemRegistration) {
           pityCashList,
           values.HotelName,
         );
-        const totalCalc = computeInventoryPaidAmountETB(
-            values.amount,
-            values.unitPrice,
-            values.purchaseWithVat,
-          );
+        // Petty cash only covers what was actually paid out at registration.
+        // Credit / partial purchases keep the unpaid balance in petty cash.
+        const owed = computeInventoryPaidAmountETB(
+          values.amount,
+          values.unitPrice,
+          values.purchaseWithVat,
+        );
+        const paidFromPettyCash = Math.min(
+          Math.max(0, Number(values.paidAmount) || 0),
+          owed,
+        );
 
         if (currentPityCash) {
-          const newAmount = currentPityCash.amount - totalCalc;
+          const newAmount = currentPityCash.amount - paidFromPettyCash;
 
           try {
             await UpdatePityDeduction(currentPityCash.id, newAmount);
@@ -417,12 +423,18 @@ export async function createItemRegistrationsBatchApi(
       if (currentPityCash) {
         let runningBalance = currentPityCash.amount;
         for (const line of lines) {
-          const totalCalc = computeInventoryPaidAmountETB(
+          // Deduct only the cash actually paid out (capped at the owed total);
+          // any credit balance stays in petty cash until later settlement.
+          const owed = computeInventoryPaidAmountETB(
             line.amount,
             line.unitPrice,
             line.purchaseWithVat,
           );
-          runningBalance -= totalCalc;
+          const paidFromPettyCash = Math.min(
+            Math.max(0, Number(line.paidAmount) || 0),
+            owed,
+          );
+          runningBalance -= paidFromPettyCash;
         }
         try {
           await UpdatePityDeduction(currentPityCash.id, runningBalance);

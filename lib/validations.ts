@@ -18,6 +18,10 @@ import {
   signupPaymentRequired,
 } from "@/lib/signupPayment";
 import { isValidSelectedCafeTableNo } from "@/lib/cafeTableOrder";
+import {
+  REGISTRATION_CATEGORIES,
+  normalizeRegistrationCategory,
+} from "@/lib/registrationFormConstants";
 
 export const login = z.object({
   UserName: z.string().trim().min(2, "Username must be at least 2 characters long"),
@@ -550,7 +554,10 @@ export const creditRegistrationSchemaUpdate = creditRegistrationSchema.extend({
 
 export const ItemRegistrationSchema = z.object({
   name: z.string().min(2, "Item name is required"),
-  category: z.enum(["Food", "Beverage", "House Keeping", "Maintainance", "Office Supplies", "Others"], {message: "Category must be selected"}),
+  category: z.preprocess(
+    normalizeRegistrationCategory,
+    z.enum(REGISTRATION_CATEGORIES, { message: "Category must be selected" }),
+  ),
   amount: z.number().min(0, "Amount must be positive"),
   measuredBy: z.string().min(2, "Please Enter the expression for the amount"),
   unitPrice: z.number().min(0, "Please Enter the unit price of the item"),

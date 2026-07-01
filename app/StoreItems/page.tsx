@@ -14,6 +14,7 @@ import {
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
 import type { DataTableRef } from "./data-table";
 import { InventoryBatchMovementBar } from "@/components/hotel/InventoryBatchMovementBar";
+import { CafeInventoryBatchMovementBar } from "@/components/cafe/CafeInventoryBatchMovementBar";
 import UpdateStock from "@/components/UpdateStock";
 import { ActiveInventoryPaymentSummary } from "@/components/hotel/ActiveInventoryPaymentSummary";
 import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
@@ -53,6 +54,7 @@ export default function StoreItems({
    * expiry, and supplier batches must remain individually visible.
    */
   aggregateInventory = false,
+  adminEditDelete = false,
   onHotelStockRequestCreated,
 }: {
   items?: ItemRegistration[];
@@ -66,6 +68,8 @@ export default function StoreItems({
   /** Show paid vs on-credit counts above the table. */
   showPaymentSummary?: boolean;
   aggregateInventory?: boolean;
+  /** Admin oversight: allow edit/delete of inventory lines regardless of terminal role. */
+  adminEditDelete?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -96,7 +100,10 @@ export default function StoreItems({
   /** Café store (non-hotel) keeps edit/delete on the store terminal. */
   const showStoreEditDelete =
     !readOnly && isStoreTerminalUser && !hotelStockApprovals;
-  const allowEditDelete = showManagerEditDelete || showStoreEditDelete;
+  /** Admin dashboard oversight: edit/delete granted by the parent, not by role. */
+  const showAdminEditDelete = !readOnly && adminEditDelete;
+  const allowEditDelete =
+    showManagerEditDelete || showStoreEditDelete || showAdminEditDelete;
 
   const scopeRows = useCallback(
     (rows: ItemRegistration[]) => {
@@ -238,34 +245,36 @@ export default function StoreItems({
             placeholder="Any date"
             compact
           />
-          <div className="space-y-1.5 min-w-0 sm:col-span-2 lg:col-span-1">
-            <Label htmlFor="inventory-department">Received by department</Label>
-            <Select
-              value={departmentSelectValue}
-              onValueChange={(value) =>
-                setFilters((f) => ({
-                  ...f,
-                  department: value === "all" ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger
-                id="inventory-department"
-                className="h-10 w-full gap-2 border-border/80 bg-background shadow-sm"
+          {hotelStockApprovals && (
+            <div className="space-y-1.5 min-w-0 sm:col-span-2 lg:col-span-1">
+              <Label htmlFor="inventory-department">Received by department</Label>
+              <Select
+                value={departmentSelectValue}
+                onValueChange={(value) =>
+                  setFilters((f) => ({
+                    ...f,
+                    department: value === "all" ? "" : value,
+                  }))
+                }
               >
-                <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <SelectValue placeholder="All departments" />
-              </SelectTrigger>
-              <SelectContent align="end" className="max-h-72">
-                <SelectItem value="all">All departments</SelectItem>
-                {REGISTRATION_RECEIVED_BY_CODES.map((code) => (
-                  <SelectItem key={code} value={code}>
-                    {departmentLabel(code)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                <SelectTrigger
+                  id="inventory-department"
+                  className="h-10 w-full gap-2 border-border/80 bg-background shadow-sm"
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent align="end" className="max-h-72">
+                  <SelectItem value="all">All departments</SelectItem>
+                  {REGISTRATION_RECEIVED_BY_CODES.map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {departmentLabel(code)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
           <InventoryListPrintActions
@@ -306,6 +315,13 @@ export default function StoreItems({
             onHotelStockRequestCreated={onHotelStockRequestCreated}
           />
         )}
+        {!hotelStockApprovals && showStoreMovementActions && (
+          <CafeInventoryBatchMovementBar
+            selected={batchSelected}
+            tableRef={tableRef}
+            refresh={refresh}
+          />
+        )}
         <DataTableClientWrapper
           ref={tableRef}
           data={tableData}
@@ -317,9 +333,9 @@ export default function StoreItems({
           showStoreMovementActions={showStoreMovementActions}
           aggregateInventory={aggregateInventory}
           onHotelStockRequestCreated={onHotelStockRequestCreated}
-          enableRowSelection={hotelStockApprovals && showStoreMovementActions}
+          enableRowSelection={showStoreMovementActions}
           onRowSelectionChange={
-            hotelStockApprovals && showStoreMovementActions
+            showStoreMovementActions
               ? (rows) => setBatchSelected(expandSelection(rows))
               : undefined
           }

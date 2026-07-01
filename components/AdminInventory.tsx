@@ -43,15 +43,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "./ui/alert-dialog";
-import Suppliers from "@/app/Suppliers/page";
+import StoreItems from "@/app/StoreItems/page";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import Inactive from "@/app/Inactive/page";
 
 interface AdminInventoryProps {
   hotelName: string;
+  refreshSignal?: number;
 }
 
-const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
+const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) => {
   const [displayName, setDisplayName] = useState(hotelName);
   const [loading, setLoading] = useState(false);
   const [resettingBalance, setResettingBalance] = useState(false);
@@ -113,7 +114,7 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
 
   useEffect(() => {
     loadData();
-  }, [hotelName, form]);
+  }, [hotelName, form, refreshSignal]);
 
   useEffect(() => {
     const d = localStorage.getItem("hotel_display_name")?.trim();
@@ -328,6 +329,17 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
                               } else {
                                 setPityCashSummary(null);
                               }
+                              form.reset({
+                                amount: 0,
+                                startDate: new Date(),
+                                endDate: new Date(),
+                                HotelName: hotelName,
+                              });
+                              toast.success("Petty cash balance reset");
+                            } catch (error: any) {
+                              toast.error(
+                                error?.message || "Failed to reset balance",
+                              );
                             } finally {
                               setResettingBalance(false);
                             }
@@ -402,7 +414,13 @@ const AdminInventory = ({ hotelName }: AdminInventoryProps) => {
 
             <div className="mt-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
               {activeTab === "Items" ? (
-                <Suppliers items={fetchedItems} />
+                <StoreItems
+                  items={fetchedItems}
+                  embedded
+                  tenantScope={hotelName}
+                  adminEditDelete
+                  aggregateInventory={false}
+                />
               ) : (
                 <Inactive
                   items={fetchedItemStatus}
