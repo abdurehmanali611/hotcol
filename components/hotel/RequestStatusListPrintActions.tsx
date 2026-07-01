@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import type {
   ItemRegistration,
+  ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
@@ -26,6 +27,7 @@ type RequestStatusListPrintActionsProps = {
   propertyTin?: string | null;
   logoUrl?: string | null;
   linkedInventory?: ItemRegistration[];
+  itemStatusHistory?: ItemStatus[];
 };
 
 export function RequestStatusListPrintActions(
@@ -45,6 +47,7 @@ export function RequestStatusListPrintActions(
     variant: "stock";
     rows: StockOutRequestRow[];
     linkedInventory?: ItemRegistration[];
+    itemStatusHistory?: ItemStatus[];
   },
 ): ReactElement;
 export function RequestStatusListPrintActions({
@@ -57,6 +60,7 @@ export function RequestStatusListPrintActions({
   propertyTin,
   logoUrl,
   linkedInventory = [],
+  itemStatusHistory = [],
 }: RequestStatusListPrintActionsProps & {
   variant: RequestStatusListPrintVariant;
   rows: ItemRegistration[] | PurchaseRequestRow[] | StockOutRequestRow[];
@@ -117,6 +121,7 @@ export function RequestStatusListPrintActions({
     filters,
     filteredCount,
     totalCount,
+    itemStatusHistory,
   );
 
   return (

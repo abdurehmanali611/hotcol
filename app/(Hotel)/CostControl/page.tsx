@@ -41,6 +41,7 @@ import {
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { filterItemStatusForInventoryChannel } from "@/lib/lodgingStoreContext";
 import {
   Card,
   CardContent,
@@ -436,7 +437,17 @@ function CostControlInner() {
         ? stats.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
         : stats;
       setInventoryRows(inv);
-      setStatusRows(st);
+      setStatusRows(filterItemStatusForInventoryChannel(st, "lodging"));
+    },
+    [tenantScope],
+  );
+
+  const scopeStockRows = useCallback(
+    (rows: StockOutRequestRow[]) => {
+      const t = String(tenantScope ?? "").trim();
+      return t
+        ? rows.filter((r) => rowHotelMatchesTenantScope(r.HotelName, t))
+        : rows;
     },
     [tenantScope],
   );
@@ -474,7 +485,7 @@ function CostControlInner() {
                 }
                 case "stocks": {
                   const so = await fetchStockOutRequests();
-                  if (!isStale()) setStocks(so);
+                  if (!isStale()) setStocks(scopeStockRows(so));
                   break;
                 }
                 case "kb": {
@@ -513,7 +524,7 @@ function CostControlInner() {
         }
       });
     },
-    [applyInventoryScope, loadCoordinator, sectionSlices],
+    [applyInventoryScope, loadCoordinator, scopeStockRows, sectionSlices],
   );
 
   const load = useCallback(
@@ -547,7 +558,7 @@ function CostControlInner() {
           if (isStale()) return;
           setProfiles(p);
           setPurchases(pr);
-          setStocks(so);
+          setStocks(scopeStockRows(so));
           setBeginnings(kb);
           if (snapsMaybe !== null) setMonthlySnapshots(snapsMaybe);
           applyInventoryScope(regs as ItemRegistration[], stats as ItemStatus[]);
@@ -569,7 +580,7 @@ function CostControlInner() {
         }
       });
     },
-    [applyInventoryScope, loadCoordinator],
+    [applyInventoryScope, loadCoordinator, scopeStockRows],
   );
 
   const refreshPurchaseQueues = useCallback(
@@ -607,7 +618,7 @@ function CostControlInner() {
             fetchItemRegistrations(),
           ]);
           if (isStale()) return;
-          setStocks(so);
+          setStocks(scopeStockRows(so));
           applyInventoryScope(regs as ItemRegistration[], statusRows);
         } catch (e: unknown) {
           if (!isStale()) {
@@ -618,7 +629,7 @@ function CostControlInner() {
         }
       });
     },
-    [applyInventoryScope, loadCoordinator, statusRows],
+    [applyInventoryScope, loadCoordinator, scopeStockRows, statusRows],
   );
 
   const handleEditBeginning = useCallback((b: KitchenBarBeginningRow) => {
@@ -1525,6 +1536,7 @@ function CostControlInner() {
                   propertyName={displayName || "Property"}
                   logoUrl={logoUrl}
                   linkedInventory={inventoryRows}
+                  itemStatusHistory={statusRows}
                   description={`${propertyRequestStatus.stocks.length} movement requests for this property.`}
                 />
               )}
@@ -1565,6 +1577,7 @@ function CostControlInner() {
               items={inventoryRows}
               purchaseRequests={purchases}
               stockMovements={stocks}
+              itemStatusHistory={statusRows}
               propertyName={displayName || "Property"}
               logoUrl={logoUrl}
             />
@@ -1695,6 +1708,7 @@ function CostControlInner() {
                       columns={monthlyRollupColumns}
                       data={monthlySnapshots}
                       getRowId={(row) => String(row.id)}
+                      searchColumnId="itemName"
                       emptyMessage={`No stored roll-ups for ${rollupRangeLabel}. Adjust From / To or run Sync Monthly Data.`}
                     />
                   </>
@@ -2001,6 +2015,7 @@ function CostControlInner() {
                   columns={dailyKitchenColumns}
                   data={visibleBeginnings}
                   getRowId={(row) => String(row.id)}
+                  searchColumnId="itemName"
                   emptyMessage={`No daily rows for ${selectedDailyDate}. Add a row above or pick another date.`}
                 />
               </div>

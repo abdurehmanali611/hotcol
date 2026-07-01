@@ -17,6 +17,10 @@ import {
   type InactiveItemFilters,
 } from "@/lib/inactiveItemFilters";
 import {
+  filterItemStatusForInventoryChannel,
+  type InventoryChannel,
+} from "@/lib/lodgingStoreContext";
+import {
   departmentLabel,
   REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
@@ -57,6 +61,7 @@ export default function Inactive({
   hotelName = null,
   embedded = false,
   stockMovements,
+  inventoryChannel,
   logoUrl: logoUrlProp,
   propertyTin: propertyTinProp,
 }: {
@@ -66,6 +71,8 @@ export default function Inactive({
   embedded?: boolean;
   /** When omitted, stock movements are fetched for department filters on stocked-out rows. */
   stockMovements?: StockOutRequestRow[];
+  /** Split café direct movements from hotel approval workflow history. */
+  inventoryChannel?: InventoryChannel;
   logoUrl?: string | null;
   propertyTin?: string | null;
 }) {
@@ -73,10 +80,12 @@ export default function Inactive({
   const [fetchedStocks, setFetchedStocks] = useState<StockOutRequestRow[]>([]);
   const [filters, setFilters] = useState<InactiveItemFilters>(DEFAULT_FILTERS);
 
-  const data = useMemo(
-    () => refreshedData ?? items ?? [],
-    [refreshedData, items],
-  );
+  const data = useMemo(() => {
+    const base = refreshedData ?? items ?? [];
+    return inventoryChannel
+      ? filterItemStatusForInventoryChannel(base, inventoryChannel)
+      : base;
+  }, [refreshedData, items, inventoryChannel]);
   const stocks = stockMovements ?? fetchedStocks;
 
   const displayName = useMemo(() => {
@@ -138,7 +147,11 @@ export default function Inactive({
         const hotelItems = statusResponse.filter((item) =>
           rowHotelMatchesTenantScope(item.HotelName, hotelName ?? ""),
         );
-        setRefreshedData(hotelItems);
+        setRefreshedData(
+          inventoryChannel
+            ? filterItemStatusForInventoryChannel(hotelItems, inventoryChannel)
+            : hotelItems,
+        );
       }
       if (stockMovements == null && Array.isArray(stockResponse)) {
         setFetchedStocks(
@@ -150,7 +163,7 @@ export default function Inactive({
     } catch (error) {
       console.error("Error fetching data:", error);
     }
-  }, [hotelName, stockMovements, fetchedStocks]);
+  }, [hotelName, stockMovements, fetchedStocks, inventoryChannel]);
 
   const filteredData = useMemo(
     () => filterInactiveItems(data, stocks, filters),

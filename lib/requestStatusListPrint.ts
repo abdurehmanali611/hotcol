@@ -1,5 +1,6 @@
 import type {
   ItemRegistration,
+  ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
@@ -29,6 +30,7 @@ import {
   registrationLineTotalETB,
   stockLineTotalETB,
   unitPriceByRegistrationIdFromInventory,
+  unitPriceByStockOutRequestIdFromItemStatus,
 } from "@/lib/inventoryLineTotals";
 import type { InventoryListFilters } from "@/lib/inventoryListFilters";
 import { purchaseEntranceDate } from "@/lib/purchaseRequestDates";
@@ -270,19 +272,22 @@ export function buildStockListPrintConfig(
   filters: RequestStatusListPrintFilters,
   filteredCount: number,
   totalCount: number,
+  itemStatusHistory: ItemStatus[] = [],
 ) {
   const lookup = unitPriceByRegistrationIdFromInventory(linkedInventory);
+  const statusLookup = unitPriceByStockOutRequestIdFromItemStatus(itemStatusHistory);
   const measuredByById = new Map<number, string>();
   for (const item of linkedInventory) {
-    if (item.id) {
-      measuredByById.set(item.id, item.measuredBy);
+    const id = Math.floor(Number(item.id));
+    if (Number.isFinite(id) && id > 0) {
+      measuredByById.set(id, item.measuredBy);
     }
   }
   let movementTotal = 0;
   let pricedLines = 0;
 
   for (const row of rows) {
-    const total = stockLineTotalETB(row, lookup);
+    const total = stockLineTotalETB(row, lookup, statusLookup);
     if (total != null) {
       movementTotal += total;
       pricedLines += 1;
@@ -327,7 +332,7 @@ export function buildStockListPrintConfig(
       header: "Line total",
       className: "tabular-nums",
       cell: (row) => {
-        const total = stockLineTotalETB(row, lookup);
+        const total = stockLineTotalETB(row, lookup, statusLookup);
         return total == null ? "—" : formatPrintEtbLabel(total);
       },
     },

@@ -17,6 +17,7 @@ import { sortRowsByFifo } from "@/lib/requestOrdering";
 import { matchesStoreOwner } from "@/lib/storeDraftOwner";
 import { isItemRegVoid } from "@/lib/hotelApproval";
 import { fetchMe } from "@/lib/api/auth";
+import { invalidateGraphqlListCache } from "@/lib/api/client";
 import { toast } from "sonner";
 
 function mergeStockOutRows(
@@ -47,6 +48,7 @@ function mergePurchaseRows(
 
 export function useStoreRequestStatusData({
   enabled = true,
+  tenantScope = null,
   refreshSignal = 0,
   injectedStockRows,
   onClearInjectedStockIds,
@@ -55,6 +57,8 @@ export function useStoreRequestStatusData({
 }: {
   /** When false, skips network load until a status/receipt view is opened. */
   enabled?: boolean;
+  /** Property scope from URL / parent terminal (preferred over localStorage alone). */
+  tenantScope?: string | null;
   refreshSignal?: number;
   injectedStockRows?: StockOutRequestRow[];
   onClearInjectedStockIds?: (ids: number[]) => void;
@@ -73,6 +77,14 @@ export function useStoreRequestStatusData({
   const load = useCallback(async () => {
     if (!enabled) return;
     try {
+      if (refreshSignal > 0) {
+        invalidateGraphqlListCache([
+          "hotel:stockOutRequests",
+          "hotel:purchaseRequests",
+          "ItemStatus:list",
+          "ItemRegistration:list",
+        ]);
+      }
       const storedName =
         typeof window !== "undefined"
           ? (localStorage.getItem("user_name")?.trim() ?? "")
@@ -88,7 +100,7 @@ export function useStoreRequestStatusData({
         fetchStockOutRequests(),
         fetchItemRegistrations(),
       ]);
-      const tenant = resolveCanonicalTenantKey();
+      const tenant = resolveCanonicalTenantKey(tenantScope);
       setPurchases(
         pr.filter((p) => rowHotelMatchesTenantScope(p.HotelName, tenant)),
       );
@@ -105,7 +117,7 @@ export function useStoreRequestStatusData({
         e instanceof Error ? e.message : "Could not load request status";
       toast.error(msg);
     }
-  }, [enabled]);
+  }, [enabled, tenantScope, refreshSignal]);
 
   useEffect(() => {
     if (!enabled) return;

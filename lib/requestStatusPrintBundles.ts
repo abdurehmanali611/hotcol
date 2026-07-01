@@ -1,4 +1,9 @@
-import type { ItemRegistration, PurchaseRequestRow, StockOutRequestRow } from "@/lib/actions";
+import type {
+  ItemRegistration,
+  ItemStatus,
+  PurchaseRequestRow,
+  StockOutRequestRow,
+} from "@/lib/actions";
 import {
   buildPurchaseRequestReceiptBundleForStatus,
   buildRegistrationReceiptBundleForStatus,
@@ -76,6 +81,7 @@ export function stockPrintBundlesFromFiltered(
   filtered: readonly StockOutRequestRow[],
   pool: readonly StockOutRequestRow[],
   linkedInventory: readonly ItemRegistration[],
+  itemStatusHistory: readonly ItemStatus[] = [],
 ): ReceiptBundle[] {
   const seen = new Set<string>();
   const bundles: ReceiptBundle[] = [];
@@ -88,6 +94,7 @@ export function stockPrintBundlesFromFiltered(
       row,
       [...pool],
       [...linkedInventory],
+      [...itemStatusHistory],
     );
     if (bundle) bundles.push(bundleItemsToPrint(bundle));
   }

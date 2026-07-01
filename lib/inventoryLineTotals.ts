@@ -1,4 +1,9 @@
-import type { ItemRegistration, PurchaseRequestRow, StockOutRequestRow } from "@/lib/actions";
+import type {
+  ItemRegistration,
+  ItemStatus,
+  PurchaseRequestRow,
+  StockOutRequestRow,
+} from "@/lib/actions";
 import {
   computeInventoryPaidAmountETB,
   computeInventoryVatETB,
@@ -44,8 +49,9 @@ export function unitPriceByRegistrationIdFromInventory(
 ): RegistrationUnitPriceLookup {
   const map: RegistrationUnitPriceLookup = new Map();
   for (const item of items) {
-    if (!item.id) continue;
-    map.set(item.id, {
+    const id = Math.floor(Number(item.id));
+    if (!Number.isFinite(id) || id <= 0) continue;
+    map.set(id, {
       unitPrice: Number(item.unitPrice) || 0,
       purchaseWithVat: item.purchaseWithVat,
     });
@@ -53,16 +59,88 @@ export function unitPriceByRegistrationIdFromInventory(
   return map;
 }
 
-export function stockLineTotalETB(
-  row: Pick<StockOutRequestRow, "amount" | "itemRegistrationId">,
+/** Snapshot from inactive/history rows created when stock is applied. */
+export type StockMovementStatusSnapshot = {
+  unitPrice: number;
+  purchaseWithVat?: unknown;
+  measuredBy: string;
+  name: string;
+  category: string;
+  imageUrl: string;
+  supplierName: string;
+  supplierPhone: string;
+  Address: string;
+  supplierTinNumber?: string;
+};
+
+export function unitPriceByStockOutRequestIdFromItemStatus(
+  items: Iterable<ItemStatus>,
+): Map<number, StockMovementStatusSnapshot> {
+  const map = new Map<number, StockMovementStatusSnapshot>();
+  for (const row of items) {
+    const id = Math.floor(Number(row.stockOutRequestId));
+    if (!Number.isFinite(id) || id <= 0) continue;
+    map.set(id, {
+      unitPrice: Number(row.unitPrice) || 0,
+      purchaseWithVat: row.purchaseWithVat,
+      measuredBy: String(row.measuredBy || "").trim() || "units",
+      name: String(row.name || "").trim(),
+      category: String(row.category || "").trim(),
+      imageUrl: String(row.imageUrl || "").trim(),
+      supplierName: String(row.supplierName || "").trim(),
+      supplierPhone: String(row.supplierPhone || "").trim(),
+      Address: String(row.Address || "").trim(),
+      supplierTinNumber: row.supplierTinNumber,
+    });
+  }
+  return map;
+}
+
+export function stockLineUnitPriceLookup(
+  row: Pick<
+    StockOutRequestRow,
+    | "itemRegistrationId"
+    | "id"
+    | "unitPriceSnapshot"
+    | "purchaseWithVatSnapshot"
+  >,
   lookup?: RegistrationUnitPriceLookup,
+  statusLookup?: Map<number, StockMovementStatusSnapshot>,
+): { unitPrice: number; purchaseWithVat?: unknown } | null {
+  if (row.unitPriceSnapshot != null && Number.isFinite(Number(row.unitPriceSnapshot))) {
+    return {
+      unitPrice: Number(row.unitPriceSnapshot) || 0,
+      purchaseWithVat: row.purchaseWithVatSnapshot,
+    };
+  }
+  const regId = Math.floor(Number(row.itemRegistrationId));
+  const linked = Number.isFinite(regId) && regId > 0 ? lookup?.get(regId) : undefined;
+  if (linked) {
+    return { unitPrice: linked.unitPrice, purchaseWithVat: linked.purchaseWithVat };
+  }
+  const snap = statusLookup?.get(row.id);
+  if (!snap) return null;
+  return { unitPrice: snap.unitPrice, purchaseWithVat: snap.purchaseWithVat };
+}
+
+export function stockLineTotalETB(
+  row: Pick<
+    StockOutRequestRow,
+    | "amount"
+    | "itemRegistrationId"
+    | "id"
+    | "unitPriceSnapshot"
+    | "purchaseWithVatSnapshot"
+  >,
+  lookup?: RegistrationUnitPriceLookup,
+  statusLookup?: Map<number, StockMovementStatusSnapshot>,
 ): number | null {
-  const linked = lookup?.get(row.itemRegistrationId);
-  if (!linked) return null;
+  const pricing = stockLineUnitPriceLookup(row, lookup, statusLookup);
+  if (!pricing) return null;
   return computeInventoryPaidAmountETB(
     row.amount,
-    linked.unitPrice,
-    linked.purchaseWithVat,
+    pricing.unitPrice,
+    pricing.purchaseWithVat,
   );
 }
 
@@ -114,10 +192,11 @@ export function formatPurchaseMoneyDetail(row: PurchaseRequestRow): string {
 export function formatStockMoneyDetail(
   row: StockOutRequestRow,
   lookup?: RegistrationUnitPriceLookup,
+  statusLookup?: Map<number, StockMovementStatusSnapshot>,
 ): string | null {
-  const linked = lookup?.get(row.itemRegistrationId);
-  if (!linked) return null;
-  const total = stockLineTotalETB(row, lookup);
+  const pricing = stockLineUnitPriceLookup(row, lookup, statusLookup);
+  if (!pricing) return null;
+  const total = stockLineTotalETB(row, lookup, statusLookup);
   if (total == null) return null;
-  return formatUnitAndTotalDetail(linked.unitPrice, total);
+  return formatUnitAndTotalDetail(pricing.unitPrice, total);
 }

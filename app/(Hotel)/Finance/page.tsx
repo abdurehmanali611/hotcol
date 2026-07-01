@@ -12,17 +12,20 @@ import { DataTable } from "@/app/StoreItems/data-table";
 import { useSearchParams } from "next/navigation";
 import {
   fetchItemRegistrations,
+  fetchItemStatus,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
   notifyApiFailure,
   type ItemRegistration,
+  type ItemStatus,
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { filterItemStatusForInventoryChannel } from "@/lib/lodgingStoreContext";
 import StoreItems from "@/app/StoreItems/page";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -198,6 +201,7 @@ function FinanceInner() {
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [stockRows, setStockRows] = useState<StockOutRequestRow[]>([]);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
+  const [itemStatusRows, setItemStatusRows] = useState<ItemStatus[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
   const loadCoordinator = useLoadCoordinator();
 
@@ -207,22 +211,40 @@ function FinanceInner() {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
         try {
-          const [all, regs, stocks] = await Promise.all([
+          const [all, regs, stats, stocks] = await Promise.all([
             fetchPurchaseRequests(),
             fetchItemRegistrations(),
+            fetchItemStatus(),
             fetchStockOutRequests(),
           ]);
           if (isStale()) return;
           setRows(all);
-          setStockRows(stocks);
           const t = String(tenantScope ?? "").trim();
           const regList = regs as ItemRegistration[];
+          const statusList = stats as ItemStatus[];
+          setStockRows(
+            t
+              ? (stocks as StockOutRequestRow[]).filter((r) =>
+                  rowHotelMatchesTenantScope(r.HotelName, t),
+                )
+              : stocks,
+          );
           setInventoryRows(
             t
               ? regList.filter((it) =>
                   rowHotelMatchesTenantScope(it.HotelName, t),
                 )
               : regList,
+          );
+          setItemStatusRows(
+            filterItemStatusForInventoryChannel(
+              t
+                ? statusList.filter((it) =>
+                    rowHotelMatchesTenantScope(it.HotelName, t),
+                  )
+                : statusList,
+              "lodging",
+            ),
           );
         } catch (e: unknown) {
           if (!isStale()) notifyApiFailure(e, "Failed to load finance data");
@@ -543,6 +565,7 @@ function FinanceInner() {
               propertyName={displayName || "Property"}
               logoUrl={logoUrl}
               linkedInventory={inventoryRows}
+              itemStatusHistory={itemStatusRows}
             />
           </section>
         )}
@@ -672,6 +695,7 @@ function FinanceInner() {
             stockMovements={stockRows.filter((r) =>
               rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
             )}
+            itemStatusHistory={itemStatusRows}
             propertyName={displayName || "Property"}
             logoUrl={logoUrl}
           />

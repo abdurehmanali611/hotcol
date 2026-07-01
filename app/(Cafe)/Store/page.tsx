@@ -17,7 +17,7 @@ import {
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -81,6 +81,10 @@ import { countUniqueInventoryNames } from "@/lib/inventoryAggregation";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { HOTEL_STORE_FINANCE_VIEWS, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import {
+  filterItemStatusForInventoryChannel,
+  isLodgingStoreSession,
+} from "@/lib/lodgingStoreContext";
 import type { LucideIcon } from "lucide-react";
 
 function StoreWorkspaceIntro({
@@ -175,6 +179,7 @@ export function StoreComponent({
   hotelInventory?: boolean;
 }) {
   useTenantRouteGuard({ role: "Store" });
+  const router = useRouter();
   const [fetching, setFetching] = useState(false);
   const [requestStatusSeed, setRequestStatusSeed] = useState(0);
   const [reviewSeed, setReviewSeed] = useState(0);
@@ -204,6 +209,30 @@ export function StoreComponent({
   );
   const displayLabel = displayName || "Store Management";
   const logoUrl = searchedParams.get("logo");
+
+  useEffect(() => {
+    const lodging = isLodgingStoreSession();
+    const query = searchedParams.toString();
+    const suffix = query ? `?${query}` : "";
+    if (hotelInventory && !lodging) {
+      toast.error("Hotel store is only for hotel, resort, and pension accounts.");
+      router.replace(`/Store${suffix}`);
+      return;
+    }
+    if (!hotelInventory && lodging) {
+      toast.message("Opening hotel store terminal for your property.");
+      router.replace(`/HotelStore${suffix}`);
+    }
+  }, [hotelInventory, router, searchedParams]);
+
+  const scopedItemStatus = useMemo(
+    () =>
+      filterItemStatusForInventoryChannel(
+        itemStatus,
+        hotelInventory ? "lodging" : "cafe",
+      ),
+    [itemStatus, hotelInventory],
+  );
 
   const loadData = useCallback(async () => {
     await loadCoordinator.run(async (isStale) => {
@@ -357,6 +386,7 @@ export function StoreComponent({
 
   const requestStatusData = useStoreRequestStatusData({
     enabled: statusDataEnabled,
+    tenantScope: inventoryTenantKey,
     refreshSignal: requestStatusSeed,
     injectedStockRows: hotelInventory ? pendingLocalStockRows : undefined,
     onClearInjectedStockIds: hotelInventory ? clearInjectedStockIds : undefined,
@@ -374,6 +404,11 @@ export function StoreComponent({
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!hotelInventory || requestStatusSeed === 0) return;
+    void loadData();
+  }, [hotelInventory, requestStatusSeed, loadData]);
 
   const handleItemsRegistered = useCallback(() => {
     void loadData();
@@ -560,6 +595,7 @@ export function StoreComponent({
               stockMovements={
                 hotelInventory ? requestStatusData.myStocks : undefined
               }
+              itemStatusHistory={hotelInventory ? itemStatus : undefined}
               propertyName={displayLabel}
               logoUrl={logoUrl}
               variant={hotelInventory ? "hotel" : "cafe-store"}
@@ -593,6 +629,7 @@ export function StoreComponent({
                 propertyName={displayLabel}
                 logoUrl={logoUrl}
                 linkedInventory={storeItem}
+                itemStatusHistory={itemStatus}
               />
             )}
           </div>
@@ -647,9 +684,10 @@ export function StoreComponent({
         ) : activeView === "Inactive" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
             <Inactive
-              items={itemStatus}
+              items={scopedItemStatus}
               admin={false}
               hotelName={hotelInventory ? inventoryTenantKey : tenantScope}
+              inventoryChannel={hotelInventory ? "lodging" : "cafe"}
               logoUrl={logoUrl}
             />
           </div>

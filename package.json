@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
     "backend:build": "npm run build --prefix BackEnd",
-    "validate": "npm run lint && npm run build && npm run backend:build"
+    "validate": "npm run lint && npm run typecheck && npm run build && npm run backend:build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -201,6 +201,7 @@ export function HotelCreditorUsageReportPanel({
       <DataTable
         columns={columns}
         data={filtered}
+        hideToolbar
         emptyMessage="No report rows for current filters."
         getRowId={(r) => String(r.id)}
       />

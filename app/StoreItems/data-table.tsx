@@ -48,7 +48,7 @@ export interface DataTableProps<TData, TValue> {
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   /** Hide search bar and column visibility controls */
   hideToolbar?: boolean;
-  /** Column id used for the toolbar search filter */
+  /** Column id used for the toolbar search filter (auto-detected when omitted). */
   searchColumnId?: string;
   searchPlaceholder?: string;
   emptyMessage?: string;
@@ -71,7 +71,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     getRowId = (row) => String(row.id ?? ""),
     onRowSelectionChange,
     hideToolbar = false,
-    searchColumnId = "name",
+    searchColumnId,
     searchPlaceholder = "Search…",
     emptyMessage = "No records found for this period.",
     className,
@@ -176,9 +176,48 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     [onRowSelectionChange],
   );
 
-  const searchColumn = searchColumnId
-    ? table.getColumn(searchColumnId)
-    : undefined;
+  const searchColumn = React.useMemo(() => {
+    if (hideToolbar) return undefined;
+
+    const all = table.getAllColumns();
+    const byId = (id: string) => all.find((c) => c.id === id);
+
+    if (searchColumnId) {
+      const explicit = byId(searchColumnId);
+      if (explicit) return explicit;
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          `[DataTable] searchColumnId "${searchColumnId}" not found; using fallback. Columns: ${all.map((c) => c.id).join(", ")}`,
+        );
+      }
+    }
+
+    for (const candidate of [
+      searchColumnId,
+      "name",
+      "itemName",
+      "staff",
+      "displayName",
+    ]) {
+      if (!candidate) continue;
+      const col = byId(candidate);
+      if (col) return col;
+    }
+
+    const firstAccessor = columns.find(
+      (c) =>
+        "accessorKey" in c &&
+        typeof c.accessorKey === "string" &&
+        c.id !== "select" &&
+        c.id !== "actions",
+    );
+    if (firstAccessor && "accessorKey" in firstAccessor) {
+      const col = byId(String(firstAccessor.accessorKey));
+      if (col) return col;
+    }
+
+    return all.find((c) => c.id !== "select" && c.id !== "actions");
+  }, [hideToolbar, searchColumnId, table, columns]);
 
   return (
     <div className={cn("space-y-4", className)}>

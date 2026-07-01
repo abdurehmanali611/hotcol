@@ -109,7 +109,7 @@ import StoreItems from "@/app/StoreItems/page";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
 import type { PaymentCategoryMode } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
-import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
+import { filterItemStatusForInventoryChannel } from "@/lib/lodgingStoreContext";
 import {
   HotelPurchaseManagerQueue,
   HotelRegistrationApprovalsBlock,
@@ -127,6 +127,7 @@ import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
+import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
 
 type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
@@ -304,7 +305,11 @@ function ManagerContent() {
             ),
           );
           setPurchases(pr);
-          setStockReqs(so);
+          setStockReqs(
+            (so as StockOutRequestRow[]).filter((s) =>
+              rowHotelMatchesTenantScope(s.HotelName, tenantScope),
+            ),
+          );
           setBeginnings(kb);
           setCcProfiles(ccp);
           setMenuItems(
@@ -726,6 +731,7 @@ function ManagerContent() {
                   columns={recentPurchaseColumns}
                   data={recentPurchases}
                   getRowId={(row) => String(row.id)}
+                  searchColumnId="itemName"
                   emptyMessage="No purchase requests yet."
                 />
               </CardContent>
@@ -940,7 +946,7 @@ function ManagerContent() {
           <div className="p-4 md:p-6">
             <HotelStockWorkflowQueue
               role="Manager"
-              stocks={stockReqs}
+              stocks={scopedStockReqs}
               inventoryItems={items}
               profiles={ccProfiles}
               onPatch={(id, status) =>
@@ -985,7 +991,11 @@ function ManagerContent() {
             <HotelItemReceiptsSection
               items={items}
               purchaseRequests={purchases}
-              stockMovements={stockReqs}
+              stockMovements={scopedStockReqs}
+              itemStatusHistory={filterItemStatusForInventoryChannel(
+                statuses as ItemStatus[],
+                "lodging",
+              )}
               propertyName={displayName || headerLabel}
               propertyTin={propertyTin}
               logoUrl={logoUrl}
@@ -1075,6 +1085,7 @@ function ManagerContent() {
                   columns={managerRollupColumns}
                   data={managerRollupFromDailyRows}
                   getRowId={(row) => String(row.id)}
+                  searchColumnId="itemName"
                   emptyMessage={`No daily rows in range ${rollupRangeLabel} yet. Enter counts in Cost Control for those days, adjust the dates, or click Reload data.`}
                 />
               </CardContent>
@@ -1118,6 +1129,7 @@ function ManagerContent() {
                       columns={managerDailyColumns}
                       data={visibleManagerDailyRows}
                       getRowId={(row) => String(row.id)}
+                      searchColumnId="itemName"
                       emptyMessage={`No daily rows for ${managerDailyReportDate}. Enter counts in Cost Control for this day, or pick another date.`}
                     />
                   </div>
@@ -1259,7 +1271,7 @@ function ManagerContent() {
               audience="hotel-manager"
               items={items}
               purchaseRequests={purchases as PurchaseRequestRow[]}
-              stockMovements={stockReqs as StockOutRequestRow[]}
+              stockMovements={scopedStockReqs as StockOutRequestRow[]}
               hotelLodging
             />
             <RefreshIconButton

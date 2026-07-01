@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ItemRegistration, StockOutRequestRow } from "@/lib/actions";
+import type { ItemRegistration, ItemStatus, StockOutRequestRow } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +80,7 @@ export function StockMovementStatusPanel({
   propertyTin,
   logoUrl,
   linkedInventory = [],
+  itemStatusHistory = [],
 }: {
   rows: StockOutRequestRow[];
   title?: string;
@@ -89,6 +90,7 @@ export function StockMovementStatusPanel({
   propertyTin?: string | null;
   logoUrl?: string | null;
   linkedInventory?: ItemRegistration[];
+  itemStatusHistory?: ItemStatus[];
 }) {
   const [approvalFilter, setApprovalFilter] = useState<StockApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -270,7 +272,12 @@ export function StockMovementStatusPanel({
         pool: rows,
         canPrintRow: (r) => canPrintStockMovementFromStatus(r.status),
         buildBundle: (r, pool) =>
-          buildStockMovementReceiptBundleForStatus(r, pool, linkedInventory),
+          buildStockMovementReceiptBundleForStatus(
+            r,
+            pool,
+            linkedInventory,
+            itemStatusHistory,
+          ),
         openPreview,
       }),
     ];
@@ -286,7 +293,7 @@ export function StockMovementStatusPanel({
       });
     }
     return cols;
-  }, [rows, showRequestedBy, linkedInventory, openPreview]);
+  }, [rows, showRequestedBy, linkedInventory, itemStatusHistory, openPreview]);
 
   return (
     <div className="space-y-4">
@@ -338,6 +345,7 @@ export function StockMovementStatusPanel({
             variant="stock"
             rows={printScope.rows}
             linkedInventory={linkedInventory}
+            itemStatusHistory={itemStatusHistory}
             filters={printScope.filters}
             filteredCount={printScope.filteredCount}
             totalCount={printScope.totalCount}

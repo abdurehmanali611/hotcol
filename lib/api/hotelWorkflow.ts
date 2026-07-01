@@ -59,6 +59,10 @@ export interface StockOutRequestRow {
   itemRegistrationId: number;
   /** From inventory registration; empty if row deleted */
   itemName: string;
+  /** Frozen at request creation — used for receipts after stock is applied. */
+  unitPriceSnapshot?: number | null;
+  purchaseWithVatSnapshot?: boolean | null;
+  measuredBySnapshot?: string | null;
   movementType: string;
   amount: number;
   stakeHolderOrReason: string;
@@ -268,6 +272,9 @@ export async function fetchStockOutRequests(): Promise<StockOutRequestRow[]> {
         HotelName
         itemRegistrationId
         itemName
+        unitPriceSnapshot
+        purchaseWithVatSnapshot
+        measuredBySnapshot
         movementType
         amount
         stakeHolderOrReason

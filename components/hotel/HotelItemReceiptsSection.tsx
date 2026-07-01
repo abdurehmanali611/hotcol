@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type {
   ItemRegistration,
+  ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
@@ -25,6 +26,7 @@ export function HotelItemReceiptsSection({
   items,
   purchaseRequests = [],
   stockMovements = [],
+  itemStatusHistory = [],
   propertyName,
   propertyTin,
   logoUrl,
@@ -32,6 +34,7 @@ export function HotelItemReceiptsSection({
   items: ItemRegistration[];
   purchaseRequests?: PurchaseRequestRow[];
   stockMovements?: StockOutRequestRow[];
+  itemStatusHistory?: ItemStatus[];
   propertyName: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
@@ -68,11 +71,12 @@ export function HotelItemReceiptsSection({
           voucher, then print from the preview when you are ready.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         <StoreItemReceiptPrinting
           items={authorizedItems}
           purchaseRequests={authorizedPurchases}
           stockMovements={approvedStockMovements}
+          itemStatusHistory={itemStatusHistory}
           propertyName={propertyName}
           propertyTin={tin}
           logoUrl={logoUrl}

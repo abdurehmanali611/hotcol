@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type {
   ItemRegistration,
+  ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
 } from "@/lib/actions";
@@ -97,6 +98,7 @@ export function StoreItemReceiptPrinting({
   logoUrl,
   purchaseRequests = [],
   stockMovements = [],
+  itemStatusHistory = [],
   variant = "hotel",
 }: {
   items: ItemRegistration[];
@@ -105,6 +107,8 @@ export function StoreItemReceiptPrinting({
   logoUrl?: string | null;
   purchaseRequests?: PurchaseRequestRow[];
   stockMovements?: StockOutRequestRow[];
+  /** Inactive rows for stock-out unit price when inventory registration was removed. */
+  itemStatusHistory?: ItemStatus[];
   /** Café store: registration receipts only (no PR / stock movement). */
   variant?: "hotel" | "cafe-store";
 }) {
@@ -129,8 +133,9 @@ export function StoreItemReceiptPrinting({
     () =>
       groupRegistrationsForReceipt(items, purchaseRequests, stockMovements, {
         registrationsOnly: isCafe,
+        itemStatusHistory,
       }),
-    [items, purchaseRequests, stockMovements, isCafe],
+    [items, purchaseRequests, stockMovements, isCafe, itemStatusHistory],
   );
 
   const lineCount = useMemo(

@@ -1586,6 +1586,7 @@ export function HotelCashierDashboard({
                           <DataTable
                             columns={reportColumns}
                             data={visibleReportRows}
+                            hideToolbar
                             emptyMessage="No usage rows match your filters."
                           />
                         </div>
