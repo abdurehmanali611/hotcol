@@ -433,6 +433,25 @@ export interface ItemStatus {
   stockOutRequestId?: number | null;
 }
 
+/** Archived pricing when kitchen-received inventory is fully stocked out. */
+export interface FreshBazaarRow {
+  id: number;
+  HotelName: string;
+  itemRegistrationId: number;
+  stockOutRequestId?: number | null;
+  name: string;
+  imageUrl: string;
+  category: string;
+  measuredBy: string;
+  unitPrice: number;
+  purchaseWithVat?: boolean;
+  supplierName: string;
+  supplierPhone: string;
+  Address: string;
+  supplierTinNumber?: string;
+  archivedAt: Date | string;
+}
+
 export interface CreatingItemStatus {
   name: string;
   imageUrl: string;

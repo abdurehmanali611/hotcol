@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ItemRegistration, ItemStatus, StockOutRequestRow } from "@/lib/actions";
+import type {
+  FreshBazaarRow,
+  ItemRegistration,
+  ItemStatus,
+  StockOutRequestRow,
+} from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +86,7 @@ export function StockMovementStatusPanel({
   logoUrl,
   linkedInventory = [],
   itemStatusHistory = [],
+  freshBazaarArchives = [],
 }: {
   rows: StockOutRequestRow[];
   title?: string;
@@ -91,6 +97,7 @@ export function StockMovementStatusPanel({
   logoUrl?: string | null;
   linkedInventory?: ItemRegistration[];
   itemStatusHistory?: ItemStatus[];
+  freshBazaarArchives?: FreshBazaarRow[];
 }) {
   const [approvalFilter, setApprovalFilter] = useState<StockApprovalFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -277,6 +284,7 @@ export function StockMovementStatusPanel({
             pool,
             linkedInventory,
             itemStatusHistory,
+            freshBazaarArchives,
           ),
         openPreview,
       }),
@@ -293,7 +301,7 @@ export function StockMovementStatusPanel({
       });
     }
     return cols;
-  }, [rows, showRequestedBy, linkedInventory, itemStatusHistory, openPreview]);
+  }, [rows, showRequestedBy, linkedInventory, itemStatusHistory, freshBazaarArchives, openPreview]);
 
   return (
     <div className="space-y-4">
@@ -346,6 +354,7 @@ export function StockMovementStatusPanel({
             rows={printScope.rows}
             linkedInventory={linkedInventory}
             itemStatusHistory={itemStatusHistory}
+            freshBazaarArchives={freshBazaarArchives}
             filters={printScope.filters}
             filteredCount={printScope.filteredCount}
             totalCount={printScope.totalCount}

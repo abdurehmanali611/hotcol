@@ -33,5 +33,6 @@ export {
   DeleteItemRegistration,
   CreateItemStatus,
   fetchItemStatus,
+  fetchFreshBazaarArchives,
   DeleteItemStatus,
 } from "./hotelInventory";

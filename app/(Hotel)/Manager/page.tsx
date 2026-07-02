@@ -18,6 +18,7 @@ import {
   fetchCredentials,
   fetchItemRegistrations,
   fetchItemStatus,
+  fetchFreshBazaarArchives,
   fetchItems,
   fetchKitchenBarBeginnings,
   fetchPurchaseRequests,
@@ -31,6 +32,7 @@ import {
   type Item,
   type ItemRegistration,
   type ItemStatus,
+  type FreshBazaarRow,
   type KitchenBarBeginningRow,
   type KitchenBarMonthlySnapshotRow,
   type PurchaseRequestRow,
@@ -226,6 +228,7 @@ function ManagerContent() {
   const [credentials, setCredentials] = useState<any[]>([]);
   const [items, setItems] = useState<ItemRegistration[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
+  const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [stockReqs, setStockReqs] = useState<any[]>([]);
   const [beginnings, setBeginnings] = useState<KitchenBarBeginningRow[]>([]);
@@ -277,6 +280,7 @@ function ManagerContent() {
             creds,
             regs,
             stat,
+            freshArchives,
             pr,
             so,
             kb,
@@ -286,6 +290,7 @@ function ManagerContent() {
             fetchCredentials(),
             fetchItemRegistrations(),
             fetchItemStatus(),
+            fetchFreshBazaarArchives(),
             fetchPurchaseRequests(),
             fetchStockOutRequests(),
             fetchKitchenBarBeginnings(),
@@ -301,6 +306,11 @@ function ManagerContent() {
           );
           setStatuses(
             (stat as any[]).filter((r) =>
+              rowHotelMatchesTenantScope(r.HotelName, tenantScope),
+            ),
+          );
+          setFreshBazaarArchives(
+            (freshArchives as FreshBazaarRow[]).filter((r) =>
               rowHotelMatchesTenantScope(r.HotelName, tenantScope),
             ),
           );
@@ -996,6 +1006,7 @@ function ManagerContent() {
                 statuses as ItemStatus[],
                 "lodging",
               )}
+              freshBazaarArchives={freshBazaarArchives}
               propertyName={displayName || headerLabel}
               propertyTin={propertyTin}
               logoUrl={logoUrl}

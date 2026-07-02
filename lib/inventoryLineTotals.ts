@@ -3,6 +3,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import {
   computeInventoryPaidAmountETB,
@@ -59,6 +60,22 @@ export function unitPriceByRegistrationIdFromInventory(
   return map;
 }
 
+/** Kitchen fresh-bazaar archives keyed by deleted registration id. */
+export function unitPriceByRegistrationIdFromFreshBazaar(
+  items: Iterable<FreshBazaarRow>,
+): RegistrationUnitPriceLookup {
+  const map: RegistrationUnitPriceLookup = new Map();
+  for (const row of items) {
+    const id = Math.floor(Number(row.itemRegistrationId));
+    if (!Number.isFinite(id) || id <= 0) continue;
+    map.set(id, {
+      unitPrice: Number(row.unitPrice) || 0,
+      purchaseWithVat: row.purchaseWithVat,
+    });
+  }
+  return map;
+}
+
 /** Snapshot from inactive/history rows created when stock is applied. */
 export type StockMovementStatusSnapshot = {
   unitPrice: number;
@@ -106,6 +123,7 @@ export function stockLineUnitPriceLookup(
   >,
   lookup?: RegistrationUnitPriceLookup,
   statusLookup?: Map<number, StockMovementStatusSnapshot>,
+  freshBazaarLookup?: RegistrationUnitPriceLookup,
 ): { unitPrice: number; purchaseWithVat?: unknown } | null {
   if (row.unitPriceSnapshot != null && Number.isFinite(Number(row.unitPriceSnapshot))) {
     return {
@@ -119,8 +137,18 @@ export function stockLineUnitPriceLookup(
     return { unitPrice: linked.unitPrice, purchaseWithVat: linked.purchaseWithVat };
   }
   const snap = statusLookup?.get(row.id);
-  if (!snap) return null;
-  return { unitPrice: snap.unitPrice, purchaseWithVat: snap.purchaseWithVat };
+  if (snap) {
+    return { unitPrice: snap.unitPrice, purchaseWithVat: snap.purchaseWithVat };
+  }
+  const archived =
+    Number.isFinite(regId) && regId > 0 ? freshBazaarLookup?.get(regId) : undefined;
+  if (archived) {
+    return {
+      unitPrice: archived.unitPrice,
+      purchaseWithVat: archived.purchaseWithVat,
+    };
+  }
+  return null;
 }
 
 export function stockLineTotalETB(
@@ -134,8 +162,14 @@ export function stockLineTotalETB(
   >,
   lookup?: RegistrationUnitPriceLookup,
   statusLookup?: Map<number, StockMovementStatusSnapshot>,
+  freshBazaarLookup?: RegistrationUnitPriceLookup,
 ): number | null {
-  const pricing = stockLineUnitPriceLookup(row, lookup, statusLookup);
+  const pricing = stockLineUnitPriceLookup(
+    row,
+    lookup,
+    statusLookup,
+    freshBazaarLookup,
+  );
   if (!pricing) return null;
   return computeInventoryPaidAmountETB(
     row.amount,

@@ -3,6 +3,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import {
   buildPurchaseRequestReceiptBundleForStatus,
@@ -82,6 +83,7 @@ export function stockPrintBundlesFromFiltered(
   pool: readonly StockOutRequestRow[],
   linkedInventory: readonly ItemRegistration[],
   itemStatusHistory: readonly ItemStatus[] = [],
+  freshBazaarArchives: readonly FreshBazaarRow[] = [],
 ): ReceiptBundle[] {
   const seen = new Set<string>();
   const bundles: ReceiptBundle[] = [];
@@ -95,6 +97,7 @@ export function stockPrintBundlesFromFiltered(
       [...pool],
       [...linkedInventory],
       [...itemStatusHistory],
+      [...freshBazaarArchives],
     );
     if (bundle) bundles.push(bundleItemsToPrint(bundle));
   }

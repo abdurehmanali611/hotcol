@@ -9,10 +9,12 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchItemRegistrations,
   fetchItemStatus,
+  fetchFreshBazaarArchives,
   fetchPurchaseRequests,
   fetchPityCash,
   ItemRegistration,
   ItemStatus,
+  type FreshBazaarRow,
   logoutAction,
   notifyApiFailure,
   type PurchaseRequestRow,
@@ -198,6 +200,7 @@ export function StoreComponent({
   const paymentVatActive = PAYMENT_VAT_VIEWS.includes(activeView);
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
+  const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
   const [pettyCashBalance, setPettyCashBalance] = useState<number | null>(null);
   const searchedParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
@@ -245,9 +248,11 @@ export function StoreComponent({
       });
       try {
         if (hotelInventory) {
-          const [itemResult, statusResult, prResult] = await Promise.allSettled([
+          const [itemResult, statusResult, freshResult, prResult] =
+            await Promise.allSettled([
             fetchItemRegistrations(),
             fetchItemStatus(),
+            fetchFreshBazaarArchives(),
             fetchPurchaseRequests(),
           ]);
           if (isStale()) return;
@@ -283,6 +288,19 @@ export function StoreComponent({
               statusResult.reason,
               "Could not load movement history",
             );
+          }
+
+          if (freshResult.status === "fulfilled") {
+            const freshResponse = freshResult.value as FreshBazaarRow[];
+            setFreshBazaarArchives(
+              Array.isArray(freshResponse)
+                ? freshResponse.filter((item) =>
+                    rowHotelMatchesTenantScope(item.HotelName, tenantEff),
+                  )
+                : [],
+            );
+          } else {
+            setFreshBazaarArchives([]);
           }
 
           if (prResult.status === "rejected") {
@@ -601,7 +619,8 @@ export function StoreComponent({
               stockMovements={
                 hotelInventory ? requestStatusData.myStocks : undefined
               }
-              itemStatusHistory={hotelInventory ? itemStatus : undefined}
+              itemStatusHistory={hotelInventory ? scopedItemStatus : undefined}
+              freshBazaarArchives={hotelInventory ? freshBazaarArchives : undefined}
               propertyName={displayLabel}
               logoUrl={logoUrl}
               variant={hotelInventory ? "hotel" : "cafe-store"}
@@ -635,7 +654,8 @@ export function StoreComponent({
                 propertyName={displayLabel}
                 logoUrl={logoUrl}
                 linkedInventory={storeItem}
-                itemStatusHistory={itemStatus}
+                itemStatusHistory={scopedItemStatus}
+                freshBazaarArchives={freshBazaarArchives}
               />
             )}
           </div>

@@ -13,12 +13,14 @@ import { useSearchParams } from "next/navigation";
 import {
   fetchItemRegistrations,
   fetchItemStatus,
+  fetchFreshBazaarArchives,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   logoutAction,
   notifyApiFailure,
   type ItemRegistration,
   type ItemStatus,
+  type FreshBazaarRow,
   type PurchaseRequestRow,
   type StockOutRequestRow,
 } from "@/lib/actions";
@@ -202,6 +204,7 @@ function FinanceInner() {
   const [stockRows, setStockRows] = useState<StockOutRequestRow[]>([]);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const [itemStatusRows, setItemStatusRows] = useState<ItemStatus[]>([]);
+  const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
   const loadCoordinator = useLoadCoordinator();
 
@@ -211,10 +214,11 @@ function FinanceInner() {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
         try {
-          const [all, regs, stats, stocks] = await Promise.all([
+          const [all, regs, stats, freshArchives, stocks] = await Promise.all([
             fetchPurchaseRequests(),
             fetchItemRegistrations(),
             fetchItemStatus(),
+            fetchFreshBazaarArchives(),
             fetchStockOutRequests(),
           ]);
           if (isStale()) return;
@@ -222,6 +226,7 @@ function FinanceInner() {
           const t = String(tenantScope ?? "").trim();
           const regList = regs as ItemRegistration[];
           const statusList = stats as ItemStatus[];
+          const freshList = freshArchives as FreshBazaarRow[];
           setStockRows(
             t
               ? (stocks as StockOutRequestRow[]).filter((r) =>
@@ -245,6 +250,13 @@ function FinanceInner() {
                 : statusList,
               "lodging",
             ),
+          );
+          setFreshBazaarArchives(
+            t
+              ? freshList.filter((it) =>
+                  rowHotelMatchesTenantScope(it.HotelName, t),
+                )
+              : freshList,
           );
         } catch (e: unknown) {
           if (!isStale()) notifyApiFailure(e, "Failed to load finance data");
@@ -566,6 +578,7 @@ function FinanceInner() {
               logoUrl={logoUrl}
               linkedInventory={inventoryRows}
               itemStatusHistory={itemStatusRows}
+              freshBazaarArchives={freshBazaarArchives}
             />
           </section>
         )}
@@ -696,6 +709,7 @@ function FinanceInner() {
               rowHotelMatchesTenantScope(r.HotelName, tenantScope || ""),
             )}
             itemStatusHistory={itemStatusRows}
+            freshBazaarArchives={freshBazaarArchives}
             propertyName={displayName || "Property"}
             logoUrl={logoUrl}
           />

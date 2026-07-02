@@ -6,6 +6,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import {
   filterInventoryListRegistrations,
@@ -27,6 +28,7 @@ export function HotelItemReceiptsSection({
   purchaseRequests = [],
   stockMovements = [],
   itemStatusHistory = [],
+  freshBazaarArchives = [],
   propertyName,
   propertyTin,
   logoUrl,
@@ -35,6 +37,7 @@ export function HotelItemReceiptsSection({
   purchaseRequests?: PurchaseRequestRow[];
   stockMovements?: StockOutRequestRow[];
   itemStatusHistory?: ItemStatus[];
+  freshBazaarArchives?: FreshBazaarRow[];
   propertyName: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
@@ -77,6 +80,7 @@ export function HotelItemReceiptsSection({
           purchaseRequests={authorizedPurchases}
           stockMovements={approvedStockMovements}
           itemStatusHistory={itemStatusHistory}
+          freshBazaarArchives={freshBazaarArchives}
           propertyName={propertyName}
           propertyTin={tin}
           logoUrl={logoUrl}

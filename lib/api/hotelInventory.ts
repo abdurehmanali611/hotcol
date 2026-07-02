@@ -733,6 +733,45 @@ export async function fetchItemStatus() {
   }
 }
 
+export async function fetchFreshBazaarArchives() {
+  try {
+    return await dedupeHotelListRead("freshBazaarArchives:list", async () => {
+      const query = `
+      query {
+        freshBazaarArchives {
+          id
+          HotelName
+          itemRegistrationId
+          stockOutRequestId
+          name
+          imageUrl
+          category
+          measuredBy
+          unitPrice
+          purchaseWithVat
+          supplierName
+          supplierPhone
+          Address
+          supplierTinNumber
+          archivedAt
+        }
+      }
+      `;
+      const response = await api.post(API_URL, { query });
+      if (response.data.errors) {
+        throw new Error(
+          response.data.errors[0]?.message ||
+            "Failed to fetch fresh bazaar archives",
+        );
+      }
+      return response.data.data.freshBazaarArchives || [];
+    });
+  } catch (error: any) {
+    toast.error("Failed to fetch fresh bazaar archives");
+    throw error;
+  }
+}
+
 export async function DeleteItemStatus(id: number) {
   try {
     const mutation = `mutation DeleteItemStatus($id: Int!) {

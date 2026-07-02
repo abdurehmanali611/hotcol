@@ -3,6 +3,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import {
   formatMovementType,
@@ -33,6 +34,7 @@ import {
 import {
   stockLineTotalETB,
   stockLineUnitPriceLookup,
+  unitPriceByRegistrationIdFromFreshBazaar,
   unitPriceByRegistrationIdFromInventory,
   unitPriceByStockOutRequestIdFromItemStatus,
   type StockMovementStatusSnapshot,
@@ -271,12 +273,40 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
   });
 }
 
+function freshBazaarSnapshotByRegistrationId(
+  items: Iterable<FreshBazaarRow>,
+): Map<number, StockMovementStatusSnapshot> {
+  const map = new Map<number, StockMovementStatusSnapshot>();
+  for (const row of items) {
+    const id = Math.floor(Number(row.itemRegistrationId));
+    if (!Number.isFinite(id) || id <= 0) continue;
+    map.set(id, {
+      unitPrice: Number(row.unitPrice) || 0,
+      purchaseWithVat: row.purchaseWithVat,
+      measuredBy: String(row.measuredBy || "").trim() || "units",
+      name: String(row.name || "").trim(),
+      category: String(row.category || "").trim(),
+      imageUrl: String(row.imageUrl || "").trim(),
+      supplierName: String(row.supplierName || "").trim(),
+      supplierPhone: String(row.supplierPhone || "").trim(),
+      Address: String(row.Address || "").trim(),
+      supplierTinNumber: row.supplierTinNumber,
+    });
+  }
+  return map;
+}
+
 function stockMovementBundles(
   rows: StockOutRequestRow[],
   itemById: Map<number, ItemRegistration>,
   statusByStockOutId: Map<number, StockMovementStatusSnapshot>,
+  freshBazaarArchives: FreshBazaarRow[] = [],
 ): ReceiptBundle[] {
   const priceByRegId = unitPriceByRegistrationIdFromInventory(itemById.values());
+  const freshBazaarPriceByRegId =
+    unitPriceByRegistrationIdFromFreshBazaar(freshBazaarArchives);
+  const freshBazaarByRegId =
+    freshBazaarSnapshotByRegistrationId(freshBazaarArchives);
   const map = new Map<string, StockOutRequestRow[]>();
   for (const row of rows) {
     const day = dateKey(row.createdAt);
@@ -295,15 +325,23 @@ function stockMovementBundles(
     const first = items[0];
     const linkedFirst = itemById.get(Math.floor(Number(first.itemRegistrationId)));
     const firstStatusSnap = statusByStockOutId.get(first.id);
+    const firstFreshSnap = freshBazaarByRegId.get(
+      Math.floor(Number(first.itemRegistrationId)),
+    );
     const lines: ReceiptLine[] = items.map((row) => {
       const regId = Math.floor(Number(row.itemRegistrationId));
       const linkedItem =
         Number.isFinite(regId) && regId > 0 ? itemById.get(regId) : undefined;
       const statusSnap = statusByStockOutId.get(row.id);
+      const freshSnap =
+        Number.isFinite(regId) && regId > 0
+          ? freshBazaarByRegId.get(regId)
+          : undefined;
       const pricing = stockLineUnitPriceLookup(
         row,
         priceByRegId,
         statusByStockOutId,
+        freshBazaarPriceByRegId,
       );
       return {
         id: `stock-movement-${row.id}`,
@@ -315,17 +353,26 @@ function stockMovementBundles(
           String(row.itemName || "").trim() ||
           String(linkedItem?.name || "").trim() ||
           String(statusSnap?.name || "").trim() ||
+          String(freshSnap?.name || "").trim() ||
           "Unknown item",
         quantity: Number(row.amount) || 0,
         measuredBy:
           String(row.measuredBySnapshot || "").trim() ||
           linkedItem?.measuredBy ||
           statusSnap?.measuredBy ||
+          freshSnap?.measuredBy ||
           "units",
         unitPrice: pricing?.unitPrice ?? null,
-        lineTotal: stockLineTotalETB(row, priceByRegId, statusByStockOutId),
-        category: linkedItem?.category ?? statusSnap?.category ?? null,
-        imageUrl: linkedItem?.imageUrl ?? statusSnap?.imageUrl ?? null,
+        lineTotal: stockLineTotalETB(
+          row,
+          priceByRegId,
+          statusByStockOutId,
+          freshBazaarPriceByRegId,
+        ),
+        category:
+          linkedItem?.category ?? statusSnap?.category ?? freshSnap?.category ?? null,
+        imageUrl:
+          linkedItem?.imageUrl ?? statusSnap?.imageUrl ?? freshSnap?.imageUrl ?? null,
         notes: row.stakeHolderOrReason,
         movementLabel: formatMovementType(row.movementType),
         purchaseWithVat:
@@ -345,14 +392,26 @@ function stockMovementBundles(
       date: dateKey(first.createdAt),
       dateLabel: displayDate(first.createdAt),
       supplierName:
-        String(linkedFirst?.supplierName || firstStatusSnap?.supplierName || "")
-          .trim() || "-",
+        String(
+          linkedFirst?.supplierName ||
+            firstStatusSnap?.supplierName ||
+            firstFreshSnap?.supplierName ||
+            "",
+        ).trim() || "-",
       supplierPhone:
-        linkedFirst?.supplierPhone ?? firstStatusSnap?.supplierPhone ?? null,
-      supplierAddress: linkedFirst?.Address ?? firstStatusSnap?.Address ?? null,
+        linkedFirst?.supplierPhone ??
+        firstStatusSnap?.supplierPhone ??
+        firstFreshSnap?.supplierPhone ??
+        null,
+      supplierAddress:
+        linkedFirst?.Address ??
+        firstStatusSnap?.Address ??
+        firstFreshSnap?.Address ??
+        null,
       supplierTinNumber:
         linkedFirst?.supplierTinNumber ??
         firstStatusSnap?.supplierTinNumber ??
+        firstFreshSnap?.supplierTinNumber ??
         null,
       totalETB: lines.reduce((sum, line) => sum + (line.lineTotal || 0), 0),
       paymentLabel: linkedFirst
@@ -380,6 +439,8 @@ export type ReceiptGroupingOptions = {
   registrationsOnly?: boolean;
   /** Inactive rows snapshotted when stock movements are applied (unit price fallback). */
   itemStatusHistory?: ItemStatus[];
+  /** Kitchen fresh-bazaar archives when inventory registration was removed. */
+  freshBazaarArchives?: FreshBazaarRow[];
 };
 
 export function groupRegistrationsForReceipt(
@@ -430,7 +491,12 @@ export function groupRegistrationsForReceipt(
     ...registrationBundles(directRegistrations, prById),
     ...registrationBundles(receivedItems, prById),
     ...purchaseRequestBundles(standalonePurchaseRequests),
-    ...stockMovementBundles(printableStock, itemById, statusByStockOutId),
+    ...stockMovementBundles(
+      printableStock,
+      itemById,
+      statusByStockOutId,
+      options?.freshBazaarArchives ?? [],
+    ),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
@@ -495,11 +561,17 @@ export function buildStockMovementReceiptBundle(
   rows: StockOutRequestRow[],
   linkedItems: ItemRegistration[] = [],
   itemStatusHistory: ItemStatus[] = [],
+  freshBazaarArchives: FreshBazaarRow[] = [],
 ): ReceiptBundle | null {
   const itemById = mapItemById(linkedItems);
   const statusByStockOutId =
     unitPriceByStockOutRequestIdFromItemStatus(itemStatusHistory);
-  const bundles = stockMovementBundles(rows, itemById, statusByStockOutId);
+  const bundles = stockMovementBundles(
+    rows,
+    itemById,
+    statusByStockOutId,
+    freshBazaarArchives,
+  );
   return bundles[0] ?? null;
 }
 
@@ -551,6 +623,7 @@ export function buildStockMovementReceiptBundleForStatus(
   pool: StockOutRequestRow[],
   linkedItems: ItemRegistration[] = [],
   itemStatusHistory: ItemStatus[] = [],
+  freshBazaarArchives: FreshBazaarRow[] = [],
 ): ReceiptBundle | null {
   const siblings = pool.filter((row) => {
     const n = Math.floor(Number(anchor.voucherNumber) || 0);
@@ -568,7 +641,12 @@ export function buildStockMovementReceiptBundleForStatus(
   const itemById = mapItemById(linkedItems);
   const statusByStockOutId =
     unitPriceByStockOutRequestIdFromItemStatus(itemStatusHistory);
-  const bundles = stockMovementBundles(siblings, itemById, statusByStockOutId);
+  const bundles = stockMovementBundles(
+    siblings,
+    itemById,
+    statusByStockOutId,
+    freshBazaarArchives,
+  );
   const merged = mergeReceiptBundles(bundles);
   if (!merged) return null;
   return {

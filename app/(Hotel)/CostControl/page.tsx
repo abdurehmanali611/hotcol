@@ -19,6 +19,7 @@ import {
   fetchCostControllerProfiles,
   fetchItemRegistrations,
   fetchItemStatus,
+  fetchFreshBazaarArchives,
   fetchPurchaseRequests,
   fetchStockOutRequests,
   fetchKitchenBarBeginnings,
@@ -32,6 +33,7 @@ import {
   invalidateGraphqlListCache,
   type ItemRegistration,
   type ItemStatus,
+  type FreshBazaarRow,
   type KitchenBarBeginningRow,
   type KitchenBarMonthlySnapshotRow,
   type PurchaseRequestRow,
@@ -210,6 +212,7 @@ function CostControlInner() {
     [inventoryRows],
   );
   const [statusRows, setStatusRows] = useState<ItemStatus[]>([]);
+  const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
   type CostSection =
     | "purchases"
     | "inventory"
@@ -428,7 +431,11 @@ function CostControlInner() {
   );
 
   const applyInventoryScope = useCallback(
-    (regs: ItemRegistration[], stats: ItemStatus[]) => {
+    (
+      regs: ItemRegistration[],
+      stats: ItemStatus[],
+      freshArchives?: FreshBazaarRow[],
+    ) => {
       const t = String(tenantScope ?? "").trim();
       const inv = t
         ? regs.filter((it) => rowHotelMatchesTenantScope(it.HotelName, t))
@@ -438,6 +445,14 @@ function CostControlInner() {
         : stats;
       setInventoryRows(inv);
       setStatusRows(filterItemStatusForInventoryChannel(st, "lodging"));
+      if (freshArchives !== undefined) {
+        const fresh = t
+          ? freshArchives.filter((it) =>
+              rowHotelMatchesTenantScope(it.HotelName, t),
+            )
+          : freshArchives;
+        setFreshBazaarArchives(fresh);
+      }
     },
     [tenantScope],
   );
@@ -500,14 +515,16 @@ function CostControlInner() {
             }),
             invPending
               ? (async () => {
-                  const [regs, stats] = await Promise.all([
+                  const [regs, stats, freshArchives] = await Promise.all([
                     fetchItemRegistrations(),
                     fetchItemStatus(),
+                    fetchFreshBazaarArchives(),
                   ]);
                   if (!isStale()) {
                     applyInventoryScope(
                       regs as ItemRegistration[],
                       stats as ItemStatus[],
+                      freshArchives as FreshBazaarRow[],
                     );
                     loadedSlicesRef.current.add("regs");
                     loadedSlicesRef.current.add("stats");
@@ -546,13 +563,14 @@ function CostControlInner() {
                   }
                 })()
               : Promise.resolve(null);
-          const [p, pr, so, kb, regs, stats, snapsMaybe] = await Promise.all([
+          const [p, pr, so, kb, regs, stats, freshArchives, snapsMaybe] = await Promise.all([
             fetchCostControllerProfiles(),
             fetchPurchaseRequests(),
             fetchStockOutRequests(),
             fetchKitchenBarBeginnings(),
             fetchItemRegistrations(),
             fetchItemStatus(),
+            fetchFreshBazaarArchives(),
             snapP,
           ]);
           if (isStale()) return;
@@ -561,7 +579,11 @@ function CostControlInner() {
           setStocks(scopeStockRows(so));
           setBeginnings(kb);
           if (snapsMaybe !== null) setMonthlySnapshots(snapsMaybe);
-          applyInventoryScope(regs as ItemRegistration[], stats as ItemStatus[]);
+          applyInventoryScope(
+            regs as ItemRegistration[],
+            stats as ItemStatus[],
+            freshArchives as FreshBazaarRow[],
+          );
           loadedSlicesRef.current = new Set([
             "profiles",
             "purchases",
@@ -1537,6 +1559,7 @@ function CostControlInner() {
                   logoUrl={logoUrl}
                   linkedInventory={inventoryRows}
                   itemStatusHistory={statusRows}
+                  freshBazaarArchives={freshBazaarArchives}
                   description={`${propertyRequestStatus.stocks.length} movement requests for this property.`}
                 />
               )}
@@ -1578,6 +1601,7 @@ function CostControlInner() {
               purchaseRequests={purchases}
               stockMovements={stocks}
               itemStatusHistory={statusRows}
+              freshBazaarArchives={freshBazaarArchives}
               propertyName={displayName || "Property"}
               logoUrl={logoUrl}
             />

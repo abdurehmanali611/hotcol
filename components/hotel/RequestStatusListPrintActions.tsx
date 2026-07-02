@@ -6,6 +6,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import { BrandedAuditListPrintActions } from "@/components/hotel/BrandedAuditListPrint";
 import {
@@ -28,6 +29,7 @@ type RequestStatusListPrintActionsProps = {
   logoUrl?: string | null;
   linkedInventory?: ItemRegistration[];
   itemStatusHistory?: ItemStatus[];
+  freshBazaarArchives?: FreshBazaarRow[];
 };
 
 export function RequestStatusListPrintActions(
@@ -48,6 +50,7 @@ export function RequestStatusListPrintActions(
     rows: StockOutRequestRow[];
     linkedInventory?: ItemRegistration[];
     itemStatusHistory?: ItemStatus[];
+    freshBazaarArchives?: FreshBazaarRow[];
   },
 ): ReactElement;
 export function RequestStatusListPrintActions({
@@ -61,6 +64,7 @@ export function RequestStatusListPrintActions({
   logoUrl,
   linkedInventory = [],
   itemStatusHistory = [],
+  freshBazaarArchives = [],
 }: RequestStatusListPrintActionsProps & {
   variant: RequestStatusListPrintVariant;
   rows: ItemRegistration[] | PurchaseRequestRow[] | StockOutRequestRow[];
@@ -122,6 +126,7 @@ export function RequestStatusListPrintActions({
     filteredCount,
     totalCount,
     itemStatusHistory,
+    freshBazaarArchives,
   );
 
   return (

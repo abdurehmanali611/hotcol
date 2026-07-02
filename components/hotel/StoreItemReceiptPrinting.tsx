@@ -6,6 +6,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +100,7 @@ export function StoreItemReceiptPrinting({
   purchaseRequests = [],
   stockMovements = [],
   itemStatusHistory = [],
+  freshBazaarArchives = [],
   variant = "hotel",
 }: {
   items: ItemRegistration[];
@@ -109,6 +111,8 @@ export function StoreItemReceiptPrinting({
   stockMovements?: StockOutRequestRow[];
   /** Inactive rows for stock-out unit price when inventory registration was removed. */
   itemStatusHistory?: ItemStatus[];
+  /** Kitchen fresh-bazaar archives when inventory registration was removed. */
+  freshBazaarArchives?: FreshBazaarRow[];
   /** Café store: registration receipts only (no PR / stock movement). */
   variant?: "hotel" | "cafe-store";
 }) {
@@ -134,8 +138,9 @@ export function StoreItemReceiptPrinting({
       groupRegistrationsForReceipt(items, purchaseRequests, stockMovements, {
         registrationsOnly: isCafe,
         itemStatusHistory,
+        freshBazaarArchives,
       }),
-    [items, purchaseRequests, stockMovements, isCafe, itemStatusHistory],
+    [items, purchaseRequests, stockMovements, isCafe, itemStatusHistory, freshBazaarArchives],
   );
 
   const lineCount = useMemo(

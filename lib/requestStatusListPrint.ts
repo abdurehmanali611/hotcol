@@ -3,6 +3,7 @@ import type {
   ItemStatus,
   PurchaseRequestRow,
   StockOutRequestRow,
+  FreshBazaarRow,
 } from "@/lib/actions";
 import type { AuditPrintColumn } from "@/components/hotel/BrandedAuditListPrint";
 import type {
@@ -29,6 +30,7 @@ import {
   purchaseLineMoneyBreakdown,
   registrationLineTotalETB,
   stockLineTotalETB,
+  unitPriceByRegistrationIdFromFreshBazaar,
   unitPriceByRegistrationIdFromInventory,
   unitPriceByStockOutRequestIdFromItemStatus,
 } from "@/lib/inventoryLineTotals";
@@ -273,9 +275,12 @@ export function buildStockListPrintConfig(
   filteredCount: number,
   totalCount: number,
   itemStatusHistory: ItemStatus[] = [],
+  freshBazaarArchives: FreshBazaarRow[] = [],
 ) {
   const lookup = unitPriceByRegistrationIdFromInventory(linkedInventory);
   const statusLookup = unitPriceByStockOutRequestIdFromItemStatus(itemStatusHistory);
+  const freshBazaarLookup =
+    unitPriceByRegistrationIdFromFreshBazaar(freshBazaarArchives);
   const measuredByById = new Map<number, string>();
   for (const item of linkedInventory) {
     const id = Math.floor(Number(item.id));
@@ -287,7 +292,7 @@ export function buildStockListPrintConfig(
   let pricedLines = 0;
 
   for (const row of rows) {
-    const total = stockLineTotalETB(row, lookup, statusLookup);
+    const total = stockLineTotalETB(row, lookup, statusLookup, freshBazaarLookup);
     if (total != null) {
       movementTotal += total;
       pricedLines += 1;
@@ -332,7 +337,7 @@ export function buildStockListPrintConfig(
       header: "Line total",
       className: "tabular-nums",
       cell: (row) => {
-        const total = stockLineTotalETB(row, lookup, statusLookup);
+        const total = stockLineTotalETB(row, lookup, statusLookup, freshBazaarLookup);
         return total == null ? "—" : formatPrintEtbLabel(total);
       },
     },
