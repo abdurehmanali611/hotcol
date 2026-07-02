@@ -151,15 +151,16 @@ export function StoreInventoryOverview({
   ];
 
   return (
-    <div
-      className={cn(
-        "grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-3",
-        className,
-      )}
-    >
-      {cards.map(({ key, ...card }) => (
-        <SummaryCard key={key} {...card} />
-      ))}
+    <div className={cn("w-full min-w-0", className)}>
+      <div
+        className="-mx-1 flex gap-4 overflow-x-auto overflow-y-visible px-1 pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:thin]"
+        role="list"
+        aria-label="Inventory summary"
+      >
+        {cards.map(({ key, ...card }) => (
+          <SummaryCard key={key} {...card} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -187,8 +188,9 @@ function SummaryCard({
 }) {
   return (
     <Card
+      role="listitem"
       className={cn(
-        "bg-card/95 shadow-sm overflow-hidden h-full",
+        "bg-card/95 shadow-sm overflow-hidden h-full min-w-[240px] max-w-[280px] shrink-0 snap-start",
         border,
       )}
     >
