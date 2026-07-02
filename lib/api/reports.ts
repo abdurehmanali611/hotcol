@@ -19,6 +19,11 @@ import {
   sumNetCashRevenueETB,
   cafeOrderLineTotalETB,
 } from "../cafeBankPayment";
+import {
+  findItemRecipeByTitle,
+  orderLineIngredientCost,
+  orderLineProfitETB,
+} from "../cafeRecipe";
 import type {
   Order,
   ReportFilter,
@@ -28,6 +33,7 @@ import type {
   ReportData,
   cloudinarySuccessResult,
   Cashout,
+  Item,
 } from "./types";
 
 function calculateTotalSales(orders: Order[]): number {
@@ -179,6 +185,7 @@ export async function generateReport(
 export function prepareReportExportData(
   orders: Order[],
   reportType: "Daily" | "Monthly",
+  items: Pick<Item, "name" | "recipeJson">[] = [],
 ): ExcelExportData {
   const aggregated = new Map<
     string,
@@ -187,6 +194,8 @@ export function prepareReportExportData(
       category: string;
       totalQty: number;
       totalSales: number;
+      ingredientCost: number;
+      profit: number;
     }
   >();
 
@@ -195,14 +204,23 @@ export function prepareReportExportData(
     const key = itemName.toLowerCase();
     const lineTotal = cafeOrderLineTotalETB(order);
     const qty = Number(order.orderAmount) || 0;
+    const recipe = findItemRecipeByTitle(items, order.title);
+    const ingredientCost = recipe
+      ? orderLineIngredientCost(recipe, order.orderAmount)
+      : 0;
+    const profit = orderLineProfitETB(order, recipe) ?? 0;
     const existing = aggregated.get(key) ?? {
       itemName,
       category: String(order.category ?? "").trim() || "Uncategorized",
       totalQty: 0,
       totalSales: 0,
+      ingredientCost: 0,
+      profit: 0,
     };
     existing.totalQty += qty;
     existing.totalSales += lineTotal;
+    existing.ingredientCost += ingredientCost;
+    existing.profit += profit;
     if (!existing.category && order.category) {
       existing.category = String(order.category).trim();
     }
@@ -221,7 +239,10 @@ export function prepareReportExportData(
         Category: row.category,
         "Unit Price": unitPrice,
         "Total Order Amount": row.totalQty,
+        "Ingredient Cost (ETB)":
+          Math.round(row.ingredientCost * 100) / 100,
         "Total Sales (ETB)": Math.round(row.totalSales * 100) / 100,
+        "Profit (ETB)": Math.round(row.profit * 100) / 100,
       };
     });
 
@@ -233,7 +254,9 @@ export function prepareReportExportData(
       "Category",
       "Unit Price",
       "Total Order Amount",
+      "Ingredient Cost (ETB)",
       "Total Sales (ETB)",
+      "Profit (ETB)",
     ],
   };
 }

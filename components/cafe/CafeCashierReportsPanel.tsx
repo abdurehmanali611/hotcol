@@ -8,14 +8,17 @@ import {
   prepareReportExportData,
   type Order,
 } from "@/lib/actions";
+import type { Item } from "@/lib/api/types";
 import { toast } from "sonner";
 
 export function CafeCashierReportsPanel({
   orders,
   hotelName,
+  items = [],
 }: {
   orders: Order[];
   hotelName: string;
+  items?: Pick<Item, "name" | "recipeJson">[];
 }) {
   return (
     <div className="w-full p-4 md:p-6">
@@ -52,6 +55,7 @@ export function CafeCashierReportsPanel({
             const exportData = prepareReportExportData(
               data.orders ?? [],
               reportType,
+              items,
             );
             await exportToExcel(exportData);
           } catch (error: unknown) {

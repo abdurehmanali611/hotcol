@@ -160,6 +160,20 @@ export const SignUpSchema = z
     }
   });
 
+export const menuRecipeIngredientSchema = z.object({
+  name: z.string().min(1),
+  amount: z.number().min(0),
+  measuredBy: z.string(),
+  unitPrice: z.number().min(0),
+});
+
+export const menuRecipeSchema = z
+  .object({
+    ingredients: z.array(menuRecipeIngredientSchema),
+  })
+  .nullable()
+  .optional();
+
 export const createItemSchema = z.object({
   name: z.string().min(1, "Item name is required").max(100, "Name is too long"),
   price: z
@@ -172,6 +186,7 @@ export const createItemSchema = z.object({
   imageUrl: z.string().min(2, "Valid image URL is required"),
   HotelName: z.string().min(1, "Hotel name is required"),
   type: z.string().min(2, "Select Items Specific Category"),
+  recipeJson: menuRecipeSchema,
 });
 
 export const updateItemSchema = createItemSchema.extend({

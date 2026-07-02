@@ -31,6 +31,7 @@ export async function fetchItems(): Promise<Item[]> {
           imageUrl
           showStationPrepQty
           isSuspended
+          recipeJson
           createdAt
         }
       }
@@ -55,8 +56,8 @@ export async function fetchItems(): Promise<Item[]> {
 export async function createItem(itemData: CreateItemData) {
   try {
     const mutation = `
-      mutation CreateItem($name: String!, $price: Float!, $category: String!, $imageUrl: String!, $type: String!) {
-        CreateItem(name: $name, price: $price, category: $category, imageUrl: $imageUrl, type: $type) {
+      mutation CreateItem($name: String!, $price: Float!, $category: String!, $imageUrl: String!, $type: String!, $recipeJson: JSON) {
+        CreateItem(name: $name, price: $price, category: $category, imageUrl: $imageUrl, type: $type, recipeJson: $recipeJson) {
           id
           name
           price
@@ -64,6 +65,7 @@ export async function createItem(itemData: CreateItemData) {
           type
           HotelName
           imageUrl
+          recipeJson
           createdAt
         }
       }
@@ -94,8 +96,8 @@ export async function createItem(itemData: CreateItemData) {
 export async function updateItem(itemData: UpdateItemData) {
   try {
     const mutation = `
-      mutation UpdateItem($id: Int!, $name: String!, $price: Float!, $category: String!, $imageUrl: String!, $type: String!) {
-        UpdateItem(id: $id, name: $name, price: $price, category: $category, imageUrl: $imageUrl, type: $type) {
+      mutation UpdateItem($id: Int!, $name: String!, $price: Float!, $category: String!, $imageUrl: String!, $type: String!, $recipeJson: JSON) {
+        UpdateItem(id: $id, name: $name, price: $price, category: $category, imageUrl: $imageUrl, type: $type, recipeJson: $recipeJson) {
           id
           name
           price
@@ -103,6 +105,7 @@ export async function updateItem(itemData: UpdateItemData) {
           type
           category
           imageUrl
+          recipeJson
         }
       }
     `;
@@ -117,6 +120,7 @@ export async function updateItem(itemData: UpdateItemData) {
       );
     }
 
+    invalidateGraphqlListCache("catalog:items");
     return response.data;
   } catch (error: any) {
     toast.error("Unable to update item. Please try again.");

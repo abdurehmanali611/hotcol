@@ -345,7 +345,7 @@ function AdminDashboardContent() {
 
             <div className="relative">
               <div
-                className="absolute inset-x-0 -top-3 hidden h-px bg-gradient-to-r from-transparent via-border to-transparent sm:block"
+                className="absolute inset-x-0 -top-3 hidden h-px bg-linear-to-r from-transparent via-border to-transparent sm:block"
                 aria-hidden
               />
               <p className="mb-3 hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 sm:block">
@@ -356,6 +356,7 @@ function AdminDashboardContent() {
             <Reports
               orders={orders}
               hotelName={tenantScope}
+              items={items}
               onGenerateReport={async ({
               date,
               type,
@@ -383,6 +384,7 @@ function AdminDashboardContent() {
                 const exportData = prepareReportExportData(
                   reportData.orders,
                   reportType,
+                  items,
                 );
                 await exportToExcel(exportData);
               } catch (error: any) {

@@ -213,18 +213,44 @@ export default function UpdateDeleteIntro({
       </Tabs>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className={`${responsiveFormDialogClassName} md:max-w-2xl`}>
-          <DialogHeader>
-            <DialogTitle>Update Menu Item</DialogTitle>
-            <DialogDescription>Modify details for {editingItem?.name}</DialogDescription>
+        <DialogContent
+          className={`${responsiveFormDialogClassName} flex max-h-[min(92dvh,800px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-2xl lg:max-w-3xl`}
+        >
+          <DialogHeader className="shrink-0 space-y-3 border-b bg-muted/20 px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
+            <div className="flex items-start gap-3">
+              {editingItem?.imageUrl ? (
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border bg-muted shadow-sm">
+                  <Image
+                    src={editingItem.imageUrl}
+                    alt=""
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              ) : null}
+              <div className="min-w-0 flex-1 space-y-1">
+                <DialogTitle className="text-left text-lg leading-tight">
+                  Update menu item
+                </DialogTitle>
+                <DialogDescription className="text-left text-pretty">
+                  Edit details, recipe ingredients, or photo for{" "}
+                  <span className="font-medium text-foreground">
+                    {editingItem?.name}
+                  </span>
+                  .
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          {editingItem && (
-            <UpdateScreen 
-              item={editingItem} 
-              hotelName={hotelName} 
-              onUpdateSuccess={handleUpdateSuccess} 
-            />
-          )}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            {editingItem && (
+              <UpdateScreen
+                item={editingItem}
+                hotelName={hotelName}
+                onUpdateSuccess={handleUpdateSuccess}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

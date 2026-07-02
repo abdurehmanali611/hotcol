@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Image from "next/image";
 import { PendingButton } from "@/components/ui/pending-button";
 import {
   Card,
@@ -12,12 +13,14 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
-import { Coffee, ImageIcon, PlusCircle, Tag } from "lucide-react";
+import { Coffee, ImageIcon, PlusCircle, Tag, UploadCloud } from "lucide-react";
 import { createItemSchema } from "@/lib/validations";
-import { uploadImage } from "@/lib/actions";
 import { Label } from "@/components/ui/label";
+import { RecipeIngredientEditor } from "@/components/cafe/RecipeIngredientEditor";
+import { menuRecipeToJson, type MenuRecipe } from "@/lib/cafeRecipe";
 
 interface ItemCreationFormProps {
   hotelName: string;
@@ -51,6 +54,8 @@ export default function ItemCreationForm({
 }: ItemCreationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [recipe, setRecipe] = useState<MenuRecipe | null>(null);
+  const [recipeEditorKey, setRecipeEditorKey] = useState(0);
 
   const form = useForm<z.infer<typeof createItemSchema>>({
     resolver: zodResolver(createItemSchema),
@@ -67,11 +72,51 @@ export default function ItemCreationForm({
   const handleSubmit = async (values: z.infer<typeof createItemSchema>) => {
     setIsSubmitting(true);
     try {
-      await onSubmit(values);
+      await onSubmit({
+        ...values,
+        recipeJson: menuRecipeToJson(recipe),
+      });
       form.reset();
       setImagePreview(null);
+      setRecipe(null);
+      setRecipeEditorKey((k) => k + 1);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append(
+        "upload_preset",
+        process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME || "",
+      );
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      const data = await response.json();
+      const imageUrl = data.secure_url;
+      form.setValue("imageUrl", imageUrl);
+      setImagePreview(imageUrl);
+    } catch (error) {
+      console.error("Image upload failed", error);
+    } finally {
+      e.target.value = "";
     }
   };
 
@@ -146,22 +191,50 @@ export default function ItemCreationForm({
                 </div>
               </div>
 
+              <RecipeIngredientEditor
+                key={recipeEditorKey}
+                value={recipe}
+                onChange={setRecipe}
+                itemName={form.watch("name")}
+              />
+
               <div className="rounded-xl border border-border/70 bg-muted/20 p-4 sm:p-5 space-y-3">
                 <Label className="flex items-center gap-2 text-sm font-semibold">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                   Photo
                 </Label>
-                <CustomFormField
-                  control={form.control}
-                  name="imageUrl"
-                  fieldType={formFieldTypes.IMAGE_UPLOADER}
-                  label=""
-                  placeholder="Upload menu image"
-                  previewUrl={imagePreview}
-                  handleCloudinary={(result) =>
-                    uploadImage(result, form, setImagePreview, "imageUrl")
-                  }
-                />
+                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/70 bg-background/60 p-4">
+                  {imagePreview ? (
+                    <div className="relative h-28 w-28 overflow-hidden rounded-xl border bg-muted shadow-sm">
+                      <Image
+                        src={imagePreview}
+                        alt="Menu preview"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-28 w-28 items-center justify-center rounded-xl border border-dashed bg-muted/40">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/60" />
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 gap-2"
+                    onClick={() => document.getElementById("create-item-image-upload")?.click()}
+                  >
+                    <UploadCloud className="h-4 w-4" />
+                    {imagePreview ? "Change image" : "Upload image"}
+                  </Button>
+                  <input
+                    id="create-item-image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                </div>
               </div>
 
               <PendingButton

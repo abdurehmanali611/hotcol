@@ -12,6 +12,7 @@ import {
   XCircle,
   Wallet,
   History,
+  Hourglass,
   BarChart3,
   PieChart as PieChartIcon,
   CreditCard,
@@ -60,7 +61,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
+import PendingPaymentOrders from "@/components/cafe/PendingPaymentOrders";
 import { Cashout, fetchCashout, fetchTables, type Order, type Table } from "@/lib/actions";
+import type { Item } from "@/lib/api/types";
 import {
   isBankPayment,
   isCreditPayment,
@@ -68,6 +71,7 @@ import {
 import { filterCafeReportCashouts, filterCafeReportPeriodOrders } from "@/lib/cafeReportFilter";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { cafeOrderLineTotalETB } from "@/lib/cafeBankPayment";
+import { findItemRecipeByTitle, orderLineProfitETB } from "@/lib/cafeRecipe";
 import Cashouts from "@/app/CashoutTable/page";
 
 const COLORS = [
@@ -228,6 +232,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
     const displayValue = data.value ?? data.sales ?? 0;
     const displayAmount = data.totalAmount ?? 0;
+    const displayProfit = data.profit ?? 0;
 
     return (
       <div className="bg-slate-950 border border-slate-800 p-3 rounded-lg shadow-xl">
@@ -244,6 +249,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           <p className="text-sm font-bold text-emerald-400 flex justify-between gap-4">
             Revenue: <span>{displayValue.toLocaleString()} ETB</span>
           </p>
+          <p className="text-sm font-bold text-sky-400 flex justify-between gap-4">
+            Profit: <span>{displayProfit.toLocaleString()} ETB</span>
+          </p>
         </div>
       </div>
     );
@@ -256,7 +264,14 @@ export default function Reports({
   onExportReport,
   orders,
   hotelName,
-}: any) {
+  items = [],
+}: {
+  onGenerateReport: (opts: { date: Date; type: "Daily" | "Monthly" }) => Promise<any>;
+  onExportReport: (reportData: any, reportType: "Daily" | "Monthly") => Promise<void>;
+  orders: Order[];
+  hotelName: string;
+  items?: Pick<Item, "name" | "recipeJson">[];
+}) {
   const [displayName, setDisplayName] = useState(hotelName);
   const [date, setDate] = useState<Date>(new Date());
   const [reportType, setReportType] = useState<"Daily" | "Monthly">("Daily");
@@ -321,34 +336,42 @@ export default function Reports({
   };
 
   const analyticsData = useMemo(() => {
-    const categoryMap: Record<string, { val: number; amt: number }> = {};
-    const typeMap: Record<string, { val: number; amt: number }> = {};
-    const itemMap: Record<string, { val: number; amt: number }> = {};
+    const categoryMap: Record<string, { val: number; amt: number; profit: number }> = {};
+    const typeMap: Record<string, { val: number; amt: number; profit: number }> = {};
+    const itemMap: Record<string, { val: number; amt: number; profit: number }> = {};
+    let totalProfit = 0;
 
     reportRevenueOrders.forEach((order: any) => {
       const orderQty = Number(order.orderAmount) || 0;
       const sales = cafeOrderLineTotalETB(order);
+      const recipe = findItemRecipeByTitle(items, order.title);
+      const profit = orderLineProfitETB(order, recipe) ?? 0;
 
       const cat = order.category?.trim() || "Uncategorized";
       const type = order.type?.trim() || "Others";
       const title = order.title?.trim() || "Unknown Item";
 
       const updateMap = (map: any, key: string) => {
-        if (!map[key]) map[key] = { val: 0, amt: 0 };
+        if (!map[key]) map[key] = { val: 0, amt: 0, profit: 0 };
         map[key].val += sales;
         map[key].amt += orderQty;
+        map[key].profit += profit;
       };
 
       updateMap(categoryMap, cat);
       updateMap(typeMap, type);
       updateMap(itemMap, title);
+      totalProfit += profit;
     });
 
-    const formatData = (map: Record<string, { val: number; amt: number }>) =>
+    const formatData = (
+      map: Record<string, { val: number; amt: number; profit: number }>,
+    ) =>
       Object.entries(map).map(([name, data]) => ({
         name: `${name} (${data.amt})`,
         value: data.val,
         totalAmount: data.amt,
+        profit: data.profit,
       }));
 
     return {
@@ -360,9 +383,11 @@ export default function Reports({
           name,
           sales: data.val,
           totalAmount: data.amt,
+          profit: data.profit,
         }))
         .sort((a, b) => b.sales - a.sales)
         .slice(0, 10),
+      totalProfit,
       totalOrderUnits: reportRevenueOrders.reduce(
         (sum: number, order: { orderAmount?: number }) =>
           sum + (Number(order.orderAmount) || 0),
@@ -370,7 +395,7 @@ export default function Reports({
       ),
       paidLineCount: reportRevenueOrders.length,
     };
-  }, [reportRevenueOrders]);
+  }, [items, reportRevenueOrders]);
 
   const paymentCategoryBreakdown = useMemo(() => {
     const byChannel = {
@@ -402,6 +427,12 @@ export default function Reports({
     reportPeriodOrders.filter(
       (o: any) =>
         (!o.status || o.status?.toLowerCase() === "pending") &&
+        o.payment?.toLowerCase() !== "paid",
+    );
+  const getPendingPaymentOrders = () =>
+    reportPeriodOrders.filter(
+      (o: any) =>
+        o.status?.toLowerCase() === "completed" &&
         o.payment?.toLowerCase() !== "paid",
     );
 
@@ -493,7 +524,7 @@ export default function Reports({
 
       {reportData && (
         <div className="space-y-6 animate-in fade-in duration-500">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {[
               { label: "Total Sales", value: reportData.totalSales },
               {
@@ -505,6 +536,14 @@ export default function Reports({
                 label: "Net Sales",
                 value: reportData.netSales,
                 color: "text-emerald-500",
+              },
+              {
+                label:
+                  reportType === "Daily"
+                    ? "Total Profit Today"
+                    : "Total Profit This Month",
+                value: analyticsData.totalProfit,
+                color: "text-sky-500",
               },
               ...(reportData.bankTipCashDeductions?.amount > 0
                 ? [
@@ -681,6 +720,7 @@ export default function Reports({
                     data={analyticsData.items}
                     layout="vertical"
                     margin={{ left: 20, right: 30, top: 10, bottom: 10 }}
+                    barCategoryGap={10}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
@@ -699,11 +739,20 @@ export default function Reports({
                       content={<CustomTooltip />}
                       cursor={{ fill: "#ffffff10" }}
                     />
+                    <Legend wrapperStyle={{ fontSize: "11px" }} />
                     <Bar
                       dataKey="sales"
                       fill="#10b981"
                       radius={[0, 4, 4, 0]}
-                      barSize={24}
+                      barSize={14}
+                      name="Sales"
+                    />
+                    <Bar
+                      dataKey="profit"
+                      fill="#38bdf8"
+                      radius={[0, 4, 4, 0]}
+                      barSize={14}
+                      name="Profit"
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -729,6 +778,10 @@ export default function Reports({
                   <TabsTrigger value="cashout" className="py-4 px-6 gap-2">
                     <Wallet className="h-4 w-4 text-orange-500" /> Cashouts
                   </TabsTrigger>
+                  <TabsTrigger value="pending-payment" className="py-4 px-6 gap-2">
+                    <Hourglass className="h-4 w-4 text-amber-500" /> Pending
+                    payment
+                  </TabsTrigger>
                   <TabsTrigger value="Expired" className="py-4 px-6 gap-2">
                     <History className="h-4 w-4 text-muted-foreground" />{" "}
                     Expired
@@ -739,6 +792,7 @@ export default function Reports({
                     <CompletedOrders
                       orders={getCompletedOrders()}
                       tables={cafeTables}
+                      items={items}
                     />
                   </TabsContent>
                   <TabsContent value="cancelled" className="mt-0">
@@ -749,6 +803,13 @@ export default function Reports({
                   </TabsContent>
                   <TabsContent value="cashout" className="mt-0">
                     <Cashouts cashout={filteredCashouts} />
+                  </TabsContent>
+                  <TabsContent value="pending-payment" className="mt-0">
+                    <PendingPaymentOrders
+                      orders={getPendingPaymentOrders()}
+                      tables={cafeTables}
+                      items={items}
+                    />
                   </TabsContent>
                   <TabsContent value="Expired" className="mt-0 space-y-4">
                     <ExpiredOrdersTable

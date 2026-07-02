@@ -57,6 +57,17 @@ export interface Order {
   createdAt: Date;
 }
 
+export type MenuRecipeIngredient = {
+  name: string;
+  amount: number;
+  measuredBy: string;
+  unitPrice: number;
+};
+
+export type MenuRecipe = {
+  ingredients: MenuRecipeIngredient[];
+};
+
 export interface Item {
   id: number;
   name: string;
@@ -69,6 +80,8 @@ export interface Item {
   showStationPrepQty?: boolean;
   /** When true, the item is temporarily suspended and cannot be ordered by the cashier. */
   isSuspended?: boolean;
+  /** Optional recipe for ingredient cost / profit: { ingredients: [...] } */
+  recipeJson?: MenuRecipe | null;
   createdAt: Date;
 }
 
@@ -124,6 +137,7 @@ export interface CreateItemData {
   category: string;
   type: string;
   imageUrl: string;
+  recipeJson?: MenuRecipe | null;
 }
 
 export interface UpdateItemData extends CreateItemData {
