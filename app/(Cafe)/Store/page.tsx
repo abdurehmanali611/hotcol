@@ -46,7 +46,7 @@ import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInve
 import { useStoreRequestStatusData } from "@/components/hotel/useStoreRequestStatusData";
 import { StoreRequestReviewPanel } from "@/components/hotel/StoreRequestReviewPanel";
 import { BatchItemRegistrationForm } from "@/components/store/BatchItemRegistrationForm";
-import { StoreInventoryOverview } from "@/components/store/StoreInventoryOverview";
+import { StoreInventorySummaryRow } from "@/components/store/StoreInventorySummaryRow";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { toast } from "sonner";
@@ -969,11 +969,10 @@ export function StoreComponent({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/60 bg-muted/20">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-2 py-5 sm:px-3 md:px-5 lg:px-6 md:py-6 scroll-smooth [scrollbar-gutter:stable]">
                 <div className="mx-auto w-full max-w-none min-w-0 space-y-10 pb-10 xl:max-w-400 2xl:max-w-448">
-                  <StoreInventoryOverview
+                  <StoreInventorySummaryRow
                     items={storeItem}
                     movementCount={scopedItemStatus.length}
-                    pettyCashBalance={hotelInventory ? null : pettyCashBalance}
-                    showPaymentBreakdown
+                    inventoryLabel={HOTEL_INVENTORY_COPY.inventoryItems}
                   />
                   <StoreWorkspaceIntro
                     title={activeIntro.title}

@@ -44,7 +44,7 @@ import {
   AlertDialogTrigger,
 } from "./ui/alert-dialog";
 import StoreItems from "@/app/StoreItems/page";
-import { StoreInventoryOverview } from "@/components/store/StoreInventoryOverview";
+import { StoreInventorySummaryRow } from "@/components/store/StoreInventorySummaryRow";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import Inactive from "@/app/Inactive/page";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
@@ -434,14 +434,12 @@ const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) =
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Inventory snapshot</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Live stock, supplier payment status, and movement history.
+            Live stock and movement history for this property.
           </p>
         </div>
-        <StoreInventoryOverview
+        <StoreInventorySummaryRow
           items={fetchedItems}
           movementCount={fetchedItemStatus.length}
-          pettyCashBalance={null}
-          showPaymentBreakdown
         />
         <div className="flex items-center justify-between">
           <Tabs
