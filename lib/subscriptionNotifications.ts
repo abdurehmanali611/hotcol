@@ -8,8 +8,11 @@ import { formatETB } from "@/lib/subscriptionModules";
 import {
   computeSubscriptionPeriodStatus,
   formatSubscriptionDate,
+  freeTrialDaysRemaining,
   parseSubscriptionDate,
   SUBSCRIPTION_GRACE_DAYS,
+  TRIAL_PAYMENT_WINDOW_DAYS,
+  trialPaymentDeadline,
   type SubscriptionBillingSnapshot,
   type SubscriptionPeriodStatus,
 } from "@/lib/subscriptionQuarter";
@@ -42,6 +45,37 @@ export function buildSubscriptionNotifications(
     status === "active"
   ) {
     return [];
+  }
+
+  if (status === "trial_ending") {
+    const daysLeft = freeTrialDaysRemaining(snap, now) ?? 0;
+    const deadline = trialPaymentDeadline(snap);
+    const deadlineStr = deadline ? formatSubscriptionDate(deadline) : "";
+    return [
+      {
+        id: "sub-trial-ending",
+        severity: "warning" as const,
+        priority: "high" as const,
+        status,
+        title: `Free trial ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+        message: `Your free trial is ending soon. Submit the setup fee payment to CBE ${APEX_SOLUTION_CBE_ACCOUNT} before the trial ends to avoid service interruption. After the trial, you have ${TRIAL_PAYMENT_WINDOW_DAYS} days (until ${deadlineStr}) to complete payment before all logins are disabled.`,
+      },
+    ];
+  }
+
+  if (status === "trial_expired") {
+    const deadline = trialPaymentDeadline(snap);
+    const deadlineStr = deadline ? ` before ${formatSubscriptionDate(deadline)}` : "";
+    return [
+      {
+        id: "sub-trial-expired",
+        severity: "critical" as const,
+        priority: "high" as const,
+        status,
+        title: "Free trial ended — setup payment required",
+        message: `Your free trial has ended. Submit the setup fee${deadlineStr} to CBE ${APEX_SOLUTION_CBE_ACCOUNT}. Staff logins are disabled until Apex approves the payment. For help, WhatsApp ${formatApexWhatsAppSupportList()}.`,
+      },
+    ];
   }
 
   if (status === "setup_pending") {

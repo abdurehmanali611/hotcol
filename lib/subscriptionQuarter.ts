@@ -4,11 +4,14 @@ export const SUBSCRIPTION_QUARTER_DAYS = 90;
 /** Notify before quarter end and grace days after. */
 export const SUBSCRIPTION_WARNING_DAYS = 10;
 export const SUBSCRIPTION_GRACE_DAYS = 10;
+export const TRIAL_PAYMENT_WINDOW_DAYS = 5;
 
 export type SubscriptionPeriodStatus =
   | "exempt"
   | "on_hold"
   | "trial"
+  | "trial_ending"
+  | "trial_expired"
   | "setup_pending"
   | "pending_approval"
   | "active"
@@ -65,6 +68,29 @@ export function isFreeTrialActive(
   return now.getTime() < end.getTime();
 }
 
+export function freeTrialDaysRemaining(
+  snap: SubscriptionBillingSnapshot,
+  now: Date = new Date(),
+): number | null {
+  const end = parseSubscriptionDate(snap.freeTrialEndsAt);
+  if (!end) return null;
+  return daysBetweenCalendar(now, end);
+}
+
+export function hadFreeTrial(snap: SubscriptionBillingSnapshot): boolean {
+  return parseSubscriptionDate(snap.freeTrialEndsAt) !== null;
+}
+
+export function trialPaymentDeadline(
+  snap: SubscriptionBillingSnapshot,
+): Date | null {
+  const end = parseSubscriptionDate(snap.freeTrialEndsAt);
+  if (!end) return null;
+  const deadline = new Date(end.getTime());
+  deadline.setDate(deadline.getDate() + TRIAL_PAYMENT_WINDOW_DAYS);
+  return deadline;
+}
+
 /** Quarter anchor — billingStartedAt after hold release, else createdAt. */
 export function resolveBillingAnchor(snap: SubscriptionBillingSnapshot): Date | null {
   if (snap.billingHold) return null;
@@ -104,7 +130,15 @@ export function computeSubscriptionPeriodStatus(
   }
 
   if (isFreeTrialActive(snap, now)) {
+    const daysLeft = freeTrialDaysRemaining(snap, now);
+    if (daysLeft !== null && daysLeft <= TRIAL_PAYMENT_WINDOW_DAYS && !snap.setupFeeApproved) {
+      return "trial_ending";
+    }
     return "trial";
+  }
+
+  if (hadFreeTrial(snap) && !snap.setupFeeApproved) {
+    return "trial_expired";
   }
 
   if (!resolveBillingAnchor(snap)) {
@@ -118,7 +152,6 @@ export function computeSubscriptionPeriodStatus(
 
   const daysUntilEnd = daysBetweenCalendar(now, paidUntil);
 
-  // Paid quarter still running — renewal is only due after quarter end.
   if (daysUntilEnd > SUBSCRIPTION_WARNING_DAYS) {
     return "active";
   }
@@ -149,6 +182,7 @@ export function subscriptionAllowsFullSystemAccess(
     status === "exempt" ||
     status === "on_hold" ||
     status === "trial" ||
+    status === "trial_ending" ||
     status === "active" ||
     status === "warning"
   );

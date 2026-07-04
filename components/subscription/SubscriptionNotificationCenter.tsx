@@ -92,7 +92,11 @@ export function SubscriptionNotificationCenter({
             </li>
           ))}
         </ul>
-        {status === "grace" || status === "warning" ? (
+        {status === "trial_ending" || status === "trial_expired" ? (
+          <p className="border-t px-4 py-2 text-[11px] text-muted-foreground">
+            Submit the setup fee to Apex. Once approved, your subscription activates and all staff can log in.
+          </p>
+        ) : status === "grace" || status === "warning" ? (
           <p className="border-t px-4 py-2 text-[11px] text-muted-foreground">
             After Apex approves your quarterly payment, access continues for the
             next 90-day quarter from your registration date.

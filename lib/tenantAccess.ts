@@ -80,6 +80,12 @@ export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): stri
   if (status === "trial") {
     return "Free trial is active.";
   }
+  if (status === "trial_ending") {
+    return "Free trial is ending soon. Submit the setup fee to continue using the system after the trial ends.";
+  }
+  if (status === "trial_expired") {
+    return "Free trial has ended. Login is disabled until Admin or Manager submits the setup payment and Apex approves.";
+  }
   if (status === "setup_pending") {
     return "Setup fee approval is pending. Sign-in is disabled until Apex verifies your payment (usually within about 30 minutes). Contact Apex on WhatsApp if you need help.";
   }
