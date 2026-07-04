@@ -52,6 +52,7 @@ import {
   SubscriptionAlertBanner,
   SubscriptionNotificationCenter,
 } from "@/components/subscription/SubscriptionNotificationCenter";
+import { TrialBillingButton } from "@/components/subscription/TrialBillingButton";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
@@ -1276,6 +1277,7 @@ function ManagerContent() {
                 {headerLabel}
               </h1>
             </div>
+            <TrialBillingButton />
             <SubscriptionNotificationCenter />
             <TenantFeedbackCenter />
             <InventoryNotificationCenter

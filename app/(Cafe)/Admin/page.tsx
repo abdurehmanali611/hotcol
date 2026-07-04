@@ -77,6 +77,7 @@ import {
   SubscriptionAlertBanner,
   SubscriptionNotificationCenter,
 } from "@/components/subscription/SubscriptionNotificationCenter";
+import { TrialBillingButton } from "@/components/subscription/TrialBillingButton";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
@@ -573,6 +574,7 @@ function AdminDashboardContent() {
               </h1>
             </div>
             <div className="flex shrink-0 items-center gap-0 sm:gap-0.5 md:gap-1">
+              <TrialBillingButton />
               <SubscriptionNotificationCenter />
               <TenantFeedbackCenter />
               <InventoryNotificationCenter
