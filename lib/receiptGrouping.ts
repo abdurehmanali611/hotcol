@@ -309,7 +309,7 @@ function stockMovementBundles(
     freshBazaarSnapshotByRegistrationId(freshBazaarArchives);
   const map = new Map<string, StockOutRequestRow[]>();
   for (const row of rows) {
-    const day = dateKey(row.createdAt);
+    const day = dateKey(row.movementDate ?? row.createdAt);
     const dept = receiptDepartmentGroupKey(row.requestedByDepartment);
     const voucher =
       Math.floor(Number(row.voucherNumber) || 0) > 0
@@ -389,8 +389,8 @@ function stockMovementBundles(
       title: receiptTitle("stock_movement", {
         movementType: first.movementType,
       }),
-      date: dateKey(first.createdAt),
-      dateLabel: displayDate(first.createdAt),
+      date: dateKey(first.movementDate ?? first.createdAt),
+      dateLabel: displayDate(first.movementDate ?? first.createdAt),
       supplierName:
         String(
           linkedFirst?.supplierName ||
