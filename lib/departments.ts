@@ -84,6 +84,77 @@ export function receiptDepartmentGroupKey(code: string | null | undefined): stri
   return normalized || "unknown";
 }
 
+/** First accountable leader name, lowercased (empty if none). */
+export function accountableLeaderKey(leaderName?: string | null): string {
+  return (splitLeaderNames(String(leaderName ?? ""))[0] ?? "").toLowerCase();
+}
+
+/**
+ * Group key that keeps each selected leader separate
+ * (e.g. Kitchen+Abebe vs Kitchen+Kebede).
+ */
+export function accountabilityGroupKey(
+  department?: string | null,
+  leaderName?: string | null,
+): string {
+  const dept = receiptDepartmentGroupKey(department);
+  const leader = accountableLeaderKey(leaderName);
+  return leader ? `${dept}|${leader}` : dept;
+}
+
+export function accountabilityMatches(
+  aDepartment?: string | null,
+  aLeaderName?: string | null,
+  bDepartment?: string | null,
+  bLeaderName?: string | null,
+): boolean {
+  return (
+    departmentCodesMatch(aDepartment, bDepartment) &&
+    accountableLeaderKey(aLeaderName) === accountableLeaderKey(bLeaderName)
+  );
+}
+
+/**
+ * Filter value may be a department code or encoded dept+leader.
+ * When a leader is included, only that leader matches.
+ */
+export function matchesDepartmentLeaderFilter(
+  rowDepartment: string | null | undefined,
+  rowLeaderName: string | null | undefined,
+  filterValue: string,
+): boolean {
+  const filter = String(filterValue ?? "").trim();
+  if (!filter) return true;
+  const { department, leaderName } = parseDepartmentLeaderValue(filter);
+  const dept = department || filter;
+  if (!departmentCodesMatch(rowDepartment, dept)) return false;
+  if (!leaderName) return true;
+  return accountableLeaderKey(rowLeaderName) === accountableLeaderKey(leaderName);
+}
+
+/** Human label for a department filter value (possibly encoded with a leader). */
+export function formatDepartmentFilterLabel(filterValue: string): string {
+  const raw = String(filterValue ?? "").trim();
+  if (!raw) return "";
+  const { department, leaderName } = parseDepartmentLeaderValue(raw);
+  if (leaderName) return formatDepartmentWithLeader(department, leaderName);
+  return departmentLabel(department || raw);
+}
+
+/**
+ * Expand comma-separated registry names into separate signature lines
+ * so each leader signs / is listed individually.
+ */
+export function expandLeaderSignatureBlocks(
+  label: string,
+  namesRaw: string | null | undefined,
+): { label: string; name: string }[] {
+  const names = splitLeaderNames(String(namesRaw ?? ""));
+  if (!names.length) return [{ label, name: "" }];
+  if (names.length === 1) return [{ label, name: names[0]! }];
+  return names.map((name) => ({ label, name }));
+}
+
 export function formatDepartmentWithLeader(
   code: string,
   leaderName?: string | null,
@@ -91,8 +162,21 @@ export function formatDepartmentWithLeader(
   const normalized = normalizeDepartmentCode(String(code ?? "").trim());
   if (normalized === STAFF_REQUESTED_BY_CODE) return "Staff";
   const label = departmentLabel(code);
-  const name = normalizeLeaderNames(String(leaderName ?? ""));
+  // Display a single accountable leader (not the full comma-separated registry).
+  const names = splitLeaderNames(String(leaderName ?? ""));
+  const name = names[0] ?? "";
   return name ? `${label} (${name})` : label;
+}
+
+/**
+ * Split a department leader field into individual names.
+ * Manager may store multiple leaders as comma-separated values.
+ */
+export function splitLeaderNames(raw: string): string[] {
+  return String(raw ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -100,11 +184,38 @@ export function formatDepartmentWithLeader(
  * drop empties, rejoin with ", ". Supports multiple leaders per department.
  */
 export function normalizeLeaderNames(raw: string): string {
-  return String(raw ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(", ");
+  return splitLeaderNames(raw).join(", ");
+}
+
+/** Separator for select values that encode department + one accountable leader. */
+export const DEPARTMENT_LEADER_VALUE_SEP = "\u001f";
+
+export function encodeDepartmentLeaderValue(
+  department: string,
+  leaderName = "",
+): string {
+  const dept = normalizeDepartmentCode(String(department ?? "").trim());
+  if (!dept || dept === STAFF_REQUESTED_BY_CODE) return dept || "";
+  const leader = String(leaderName ?? "").trim();
+  return leader ? `${dept}${DEPARTMENT_LEADER_VALUE_SEP}${leader}` : dept;
+}
+
+export function parseDepartmentLeaderValue(value: string): {
+  department: string;
+  leaderName: string;
+} {
+  const raw = String(value ?? "");
+  const sep = raw.indexOf(DEPARTMENT_LEADER_VALUE_SEP);
+  if (sep < 0) {
+    return {
+      department: normalizeDepartmentCode(raw.trim()),
+      leaderName: "",
+    };
+  }
+  return {
+    department: normalizeDepartmentCode(raw.slice(0, sep).trim()),
+    leaderName: raw.slice(sep + DEPARTMENT_LEADER_VALUE_SEP.length).trim(),
+  };
 }
 
 /** Printed receipt / voucher label for who requested a purchase or stock movement. */
@@ -148,7 +259,9 @@ export function departmentLeaderDisplayLabel(row: {
     const deptLabel =
       String(row.requestedByDepartmentLabel ?? "").trim() ||
       departmentLabel(reqDept);
-    return `${deptLabel} (${reqLeader})`;
+    // Prefer the single selected accountable leader on the row.
+    const one = splitLeaderNames(reqLeader)[0] || reqLeader;
+    return `${deptLabel} (${one})`;
   }
   const recvDept = String(row.receivedByDepartment ?? "").trim();
   const recvLeader = String(row.receivedByLeaderName ?? "").trim();
@@ -158,27 +271,100 @@ export function departmentLeaderDisplayLabel(row: {
   return null;
 }
 
+export type DepartmentLeaderSelectOption = {
+  value: string;
+  label: string;
+  department: string;
+  leaderName: string;
+};
+
+/**
+ * Build selector options. When `perLeader` is true (accountability selects),
+ * each registered leader becomes its own option: "Kitchen (Abebe)", "Kitchen (Kebede)".
+ * When false (destination-only), one option per department.
+ */
 export function selectOptionsForDepartments(
   leaders: DepartmentLeaderRow[],
   allowedCodes: readonly string[],
-) {
+  opts?: { perLeader?: boolean },
+): DepartmentLeaderSelectOption[] {
+  const perLeader = opts?.perLeader !== false;
   const allowed = new Set(allowedCodes);
-  const staffOption = allowed.has(STAFF_REQUESTED_BY_CODE)
-    ? [{ value: STAFF_REQUESTED_BY_CODE, label: "Staff" }]
+  const staffOption: DepartmentLeaderSelectOption[] = allowed.has(
+    STAFF_REQUESTED_BY_CODE,
+  )
+    ? [
+        {
+          value: STAFF_REQUESTED_BY_CODE,
+          label: "Staff",
+          department: STAFF_REQUESTED_BY_CODE,
+          leaderName: "",
+        },
+      ]
     : [];
-  const departmentOptions = leaders
-    .filter((r) => allowed.has(r.department) && r.leaderName.trim())
-    .map((r) => ({
-      value: r.department,
-      label: formatDepartmentWithLeader(r.department, r.leaderName),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const departmentOptions: DepartmentLeaderSelectOption[] = [];
+  for (const r of leaders) {
+    if (!allowed.has(r.department)) continue;
+    const names = splitLeaderNames(r.leaderName);
+    if (!names.length) continue;
+    if (!perLeader) {
+      departmentOptions.push({
+        value: r.department,
+        label: departmentLabel(r.department),
+        department: r.department,
+        leaderName: "",
+      });
+      continue;
+    }
+    for (const name of names) {
+      departmentOptions.push({
+        value: encodeDepartmentLeaderValue(r.department, name),
+        label: formatDepartmentWithLeader(r.department, name),
+        department: r.department,
+        leaderName: name,
+      });
+    }
+  }
+  departmentOptions.sort((a, b) => a.label.localeCompare(b.label));
   return [...staffOption, ...departmentOptions];
+}
+
+/**
+ * Merge registry select options with accountability pairs found on rows
+ * (so historical leaders still appear in filters).
+ */
+export function mergeAccountabilityFilterOptions(
+  registryOptions: readonly DepartmentLeaderSelectOption[],
+  rowPairs: readonly {
+    department?: string | null;
+    leaderName?: string | null;
+  }[],
+): DepartmentLeaderSelectOption[] {
+  const map = new Map<string, DepartmentLeaderSelectOption>();
+  for (const opt of registryOptions) {
+    map.set(opt.value, opt);
+  }
+  for (const pair of rowPairs) {
+    const dept = normalizeDepartmentCode(String(pair.department ?? "").trim());
+    if (!dept) continue;
+    const leader = splitLeaderNames(String(pair.leaderName ?? ""))[0] ?? "";
+    const value = encodeDepartmentLeaderValue(dept, leader);
+    if (!value || map.has(value)) continue;
+    map.set(value, {
+      value,
+      label: formatDepartmentWithLeader(dept, leader),
+      department: dept,
+      leaderName: leader,
+    });
+  }
+  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /** Text stored on StockOutRequest.stakeHolderOrReason from a department select value. */
 export function stockOutDestinationTextFromDepartmentCode(code: string): string {
-  return departmentLabel(normalizeDepartmentCode(String(code ?? "").trim()));
+  const { department } = parseDepartmentLeaderValue(String(code ?? "").trim());
+  return departmentLabel(department || String(code ?? "").trim());
 }
 
 const LEGACY_STOCK_OUT_DESTINATION_TO_DEPARTMENT: Record<string, string> = {

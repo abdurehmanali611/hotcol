@@ -99,6 +99,7 @@ export default function PurchaseRequestsTab({
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [sharedNote, setSharedNote] = useState("");
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [requestedByLeaderName, setRequestedByLeaderName] = useState("");
   const [purchaseWithVat, setPurchaseWithVat] = useState(true);
 
   const tenant = tenantScope.trim();
@@ -157,7 +158,10 @@ export default function PurchaseRequestsTab({
         const results = await createPurchaseRequestsBatchApi(
           batchLines,
           requestedByDepartment,
-          { suppressSuccessToast: true },
+          {
+            suppressSuccessToast: true,
+            requestedByLeaderName,
+          },
         );
         for (let i = 0; i < results.length; i++) {
           const result = results[i];
@@ -168,6 +172,10 @@ export default function PurchaseRequestsTab({
               result,
               user,
               tenant,
+              {
+                requestedByDepartment,
+                requestedByLeaderName,
+              },
             ),
           );
           ok++;
@@ -187,6 +195,7 @@ export default function PurchaseRequestsTab({
         setLines([emptyLine()]);
         setSharedNote("");
         setRequestedByDepartment("");
+        setRequestedByLeaderName("");
         setPurchaseWithVat(true);
       } else {
         toast.error(submitError ?? "Could not submit purchase requests");
@@ -257,10 +266,14 @@ export default function PurchaseRequestsTab({
                           <DepartmentLeaderSelect
                             id="pr-requested-by"
                             label="Requested by"
-                            description="House Keeping (Room) and House Keeping (Public) are listed separately when both leaders are registered."
+                            description="House Keeping (Room) and House Keeping (Public) are listed separately when both leaders are registered. When a department has multiple leaders, pick the accountable one."
                             compact
                             value={requestedByDepartment}
-                            onChange={setRequestedByDepartment}
+                            leaderName={requestedByLeaderName}
+                            onChange={(dept, leader) => {
+                              setRequestedByDepartment(dept);
+                              setRequestedByLeaderName(leader);
+                            }}
                             allowedDepartments={PURCHASE_REQUESTED_BY_DEPARTMENT_CODES}
                           />
                         </div>

@@ -210,9 +210,9 @@ export function BrandedAuditListPrintActions<T>({
                   Signatures
                 </p>
                 <div className="inactive-audit-print-signatures-grid">
-                  {signatureBlocks.map((entry) => (
+                  {signatureBlocks.map((entry, index) => (
                     <div
-                      key={entry.label}
+                      key={`${entry.label}-${entry.name ?? ""}-${index}`}
                       className="inactive-audit-print-signature-item"
                     >
                       <div className="inactive-audit-print-signature-meta">

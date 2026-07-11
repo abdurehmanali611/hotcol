@@ -12,7 +12,7 @@ import {
   bundleItemsToPrint,
   type ReceiptBundle,
 } from "@/lib/receiptGrouping";
-import { receiptDepartmentGroupKey } from "@/lib/departments";
+import { accountabilityGroupKey } from "@/lib/departments";
 import {
   canPrintItemRegistrationFromStatus,
   canPrintPurchaseRequestFromStatus,
@@ -33,10 +33,28 @@ function purchaseOrStockPrintKey(row: {
   voucherNumber?: number | null;
   voucherDisplay?: string | null;
   requestedByDepartment?: string | null;
+  requestedByLeaderName?: string | null;
 }): string {
   const voucher = voucherKey(row);
   if (!voucher) return "";
-  return `${voucher}|${receiptDepartmentGroupKey(row.requestedByDepartment)}`;
+  return `${voucher}|${accountabilityGroupKey(
+    row.requestedByDepartment,
+    row.requestedByLeaderName,
+  )}`;
+}
+
+function registrationPrintKey(row: {
+  voucherNumber?: number | null;
+  voucherDisplay?: string | null;
+  receivedByDepartment?: string | null;
+  receivedByLeaderName?: string | null;
+}): string {
+  const voucher = voucherKey(row);
+  if (!voucher) return "";
+  return `${voucher}|${accountabilityGroupKey(
+    row.receivedByDepartment,
+    row.receivedByLeaderName,
+  )}`;
 }
 
 export function registrationPrintBundlesFromFiltered(
@@ -48,7 +66,7 @@ export function registrationPrintBundlesFromFiltered(
   const bundles: ReceiptBundle[] = [];
   for (const row of filtered) {
     if (!canPrintItemRegistrationFromStatus(row.approvalStatus)) continue;
-    const key = voucherKey(row);
+    const key = registrationPrintKey(row);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const bundle = buildRegistrationReceiptBundleForStatus(

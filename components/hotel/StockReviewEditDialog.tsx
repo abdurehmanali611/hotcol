@@ -196,7 +196,8 @@ function StockReviewEditDialogForm({
                 <DepartmentLeaderSelect
                   label="Station or destination"
                   value={stakeholder}
-                  onChange={setStakeholder}
+                  onChange={(dept) => setStakeholder(dept)}
+                  expandLeaders={false}
                   allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
                 />
                 <div className="space-y-1.5">

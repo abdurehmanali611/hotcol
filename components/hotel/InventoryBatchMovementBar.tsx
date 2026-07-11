@@ -100,10 +100,13 @@ export function InventoryBatchMovementBar({
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [requestedByLeaderName, setRequestedByLeaderName] = useState("");
   const [defaultStockOutStation, setDefaultStockOutStation] = useState("");
   const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { options: destinationOptions, loading: destinationLoading } =
-    useDepartmentLeaderSelectOptions(REQUESTED_BY_DEPARTMENT_CODES);
+    useDepartmentLeaderSelectOptions(REQUESTED_BY_DEPARTMENT_CODES, {
+      perLeader: false,
+    });
   const { isPending, run } = useConcurrentActions();
   const batchKey = "inventory-batch-movements";
 
@@ -213,7 +216,10 @@ export function InventoryBatchMovementBar({
               }),
             ),
             requestedByDepartment,
-            { suppressSuccessToast: true },
+            {
+              suppressSuccessToast: true,
+              requestedByLeaderName,
+            },
           );
           for (let i = 0; i < results.length; i++) {
             const { row, amount, stakeHolderOrReason, movementType } =
@@ -233,6 +239,10 @@ export function InventoryBatchMovementBar({
                 result,
                 user,
                 movementDateIso,
+                {
+                  requestedByDepartment,
+                  requestedByLeaderName,
+                },
               ),
             );
             ok++;
@@ -327,9 +337,13 @@ export function InventoryBatchMovementBar({
               <DepartmentLeaderSelect
                 id="stock-requested-by"
                 label="Requested by"
-                description="House Keeping (Room) and House Keeping (Public) are separate departments. Register both leaders under Manager → Department leaders."
+                description="House Keeping (Room) and House Keeping (Public) are separate departments. When a department has multiple leaders, pick the accountable one — receipts print that name."
                 value={requestedByDepartment}
-                onChange={setRequestedByDepartment}
+                leaderName={requestedByLeaderName}
+                onChange={(dept, leader) => {
+                  setRequestedByDepartment(dept);
+                  setRequestedByLeaderName(leader);
+                }}
                 allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
               />
               <HotelDayPicker

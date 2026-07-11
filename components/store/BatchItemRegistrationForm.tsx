@@ -141,6 +141,7 @@ export function BatchItemRegistrationForm({
   const [supplierTinNumber, setSupplierTinNumber] = useState("");
   const [sharedNote, setSharedNote] = useState("");
   const [receivedByDepartment, setReceivedByDepartment] = useState("");
+  const [receivedByLeaderName, setReceivedByLeaderName] = useState("");
   const [lines, setLines] = useState<RegistrationLine[]>([emptyLine()]);
   const [pettyCashBalance, setPettyCashBalance] = useState<number | null>(null);
   const lastAutoPaidRef = useRef<Map<string, number>>(new Map());
@@ -299,6 +300,7 @@ export function BatchItemRegistrationForm({
             linesToSubmit,
             hotelName,
             hotelInventory ? receivedByDepartment : "STORE",
+            hotelInventory ? receivedByLeaderName : "",
           );
           ok = linesToSubmit.length;
         } catch (e: unknown) {
@@ -315,6 +317,8 @@ export function BatchItemRegistrationForm({
         if (hotelInventory) onSubmittedForReview?.();
         setLines([emptyLine()]);
         setSharedNote("");
+        setReceivedByDepartment("");
+        setReceivedByLeaderName("");
         lastAutoPaidRef.current.clear();
         await onRegistered?.();
       } else if (failed === 0) {
@@ -396,7 +400,11 @@ export function BatchItemRegistrationForm({
                           label="Received by"
                           compact
                           value={receivedByDepartment}
-                          onChange={setReceivedByDepartment}
+                          leaderName={receivedByLeaderName}
+                          onChange={(dept, leader) => {
+                            setReceivedByDepartment(dept);
+                            setReceivedByLeaderName(leader);
+                          }}
                           allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
                         />
                       </div>

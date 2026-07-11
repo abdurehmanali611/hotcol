@@ -20,10 +20,10 @@ import {
   lineOwedETB,
 } from "@/lib/hotelInventoryPayment";
 import {
-  departmentCodesMatch,
+  accountabilityGroupKey,
+  accountabilityMatches,
   formatDepartmentWithLeader,
   formatRequestedByReceiptLabel,
-  receiptDepartmentGroupKey,
 } from "@/lib/departments";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { formatVoucherDisplay, formatVoucherRange } from "@/lib/voucherFormat";
@@ -143,11 +143,15 @@ function registrationBundles(
     const supplier = groupSupplierKey(row.supplierName);
     const payment = itemPaymentBucket(row);
     const kind: ReceiptKind = "registration";
+    const recv = accountabilityGroupKey(
+      row.receivedByDepartment,
+      row.receivedByLeaderName,
+    );
     const voucher =
       Math.floor(Number(row.voucherNumber) || 0) > 0
         ? String(Math.floor(Number(row.voucherNumber)))
         : String(row.voucherDisplay ?? "").trim() || `id:${row.id}`;
-    const key = `${kind}|${voucher}|${supplier}|${day}|${payment}`;
+    const key = `${kind}|${voucher}|${supplier}|${day}|${payment}|${recv}`;
     const bucket = map.get(key) ?? [];
     bucket.push(row);
     map.set(key, bucket);
@@ -217,7 +221,10 @@ function purchaseRequestBundles(rows: PurchaseRequestRow[]): ReceiptBundle[] {
   for (const row of rows) {
     const day = dateKey(purchaseEntranceDate(row));
     const supplier = groupSupplierKey(row.supplierName);
-    const dept = receiptDepartmentGroupKey(row.requestedByDepartment);
+    const dept = accountabilityGroupKey(
+      row.requestedByDepartment,
+      row.requestedByLeaderName,
+    );
     const voucher =
       Math.floor(Number(row.voucherNumber) || 0) > 0
         ? String(Math.floor(Number(row.voucherNumber)))
@@ -310,7 +317,10 @@ function stockMovementBundles(
   const map = new Map<string, StockOutRequestRow[]>();
   for (const row of rows) {
     const day = dateKey(row.movementDate ?? row.createdAt);
-    const dept = receiptDepartmentGroupKey(row.requestedByDepartment);
+    const dept = accountabilityGroupKey(
+      row.requestedByDepartment,
+      row.requestedByLeaderName,
+    );
     const voucher =
       Math.floor(Number(row.voucherNumber) || 0) > 0
         ? String(Math.floor(Number(row.voucherNumber)))
@@ -542,9 +552,11 @@ export function buildPurchaseRequestReceiptBundleForStatus(
     const voucherMatch =
       (n > 0 && rn === n) || (d && rd && d === rd);
     if (!voucherMatch) return false;
-    return departmentCodesMatch(
+    return accountabilityMatches(
       row.requestedByDepartment,
+      row.requestedByLeaderName,
       anchor.requestedByDepartment,
+      anchor.requestedByLeaderName,
     );
   });
   if (!siblings.length) return null;
@@ -598,9 +610,15 @@ export function buildRegistrationReceiptBundleForStatus(
     const d = String(anchor.voucherDisplay ?? "").trim();
     const rn = Math.floor(Number(row.voucherNumber) || 0);
     const rd = String(row.voucherDisplay ?? "").trim();
-    if (n > 0 && rn === n) return true;
-    if (d && rd && d === rd) return true;
-    return false;
+    const voucherMatch =
+      (n > 0 && rn === n) || (d && rd && d === rd);
+    if (!voucherMatch) return false;
+    return accountabilityMatches(
+      row.receivedByDepartment,
+      row.receivedByLeaderName,
+      anchor.receivedByDepartment,
+      anchor.receivedByLeaderName,
+    );
   });
   if (!siblings.length) return null;
   const prById = new Map(
@@ -633,9 +651,11 @@ export function buildStockMovementReceiptBundleForStatus(
     const voucherMatch =
       (n > 0 && rn === n) || (d && rd && d === rd);
     if (!voucherMatch) return false;
-    return departmentCodesMatch(
+    return accountabilityMatches(
       row.requestedByDepartment,
+      row.requestedByLeaderName,
       anchor.requestedByDepartment,
+      anchor.requestedByLeaderName,
     );
   });
   const itemById = mapItemById(linkedItems);

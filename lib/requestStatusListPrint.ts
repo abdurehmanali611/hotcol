@@ -17,7 +17,11 @@ import {
   formatPrintFilterDate,
   formatPrintVoucherRange,
 } from "@/lib/brandedListPrint";
-import { departmentLabel } from "@/lib/departments";
+import {
+  formatDepartmentFilterLabel,
+  formatDepartmentWithLeader,
+  formatRequestedByReceiptLabel,
+} from "@/lib/departments";
 import {
   formatItemRegistrationStatus,
   formatMovementType,
@@ -67,7 +71,7 @@ export function requestStatusFilterSummaryLines(
     {
       label: filters.departmentLabelText ?? "Department",
       value: filters.department.trim()
-        ? departmentLabel(filters.department)
+        ? formatDepartmentFilterLabel(filters.department)
         : "All departments",
     },
     {
@@ -104,7 +108,7 @@ export function inventoryFilterSummaryLines(
     {
       label: "Received by department",
       value: filters.department.trim()
-        ? departmentLabel(filters.department)
+        ? formatDepartmentFilterLabel(filters.department)
         : "All departments",
     },
     auditRecordsFilterLine(filteredCount, totalCount),
@@ -145,7 +149,10 @@ export function buildRegistrationListPrintConfig(
       header: "Received by",
       cell: (row) =>
         row.receivedByDepartment
-          ? departmentLabel(row.receivedByDepartment)
+          ? formatDepartmentWithLeader(
+              row.receivedByDepartment,
+              row.receivedByLeaderName,
+            )
           : "—",
     },
     {
@@ -217,7 +224,7 @@ export function buildPurchaseListPrintConfig(
       header: "Requested by",
       cell: (row) =>
         row.requestedByDepartment
-          ? departmentLabel(row.requestedByDepartment)
+          ? formatRequestedByReceiptLabel(row)
           : "—",
     },
     {
@@ -326,7 +333,7 @@ export function buildStockListPrintConfig(
       header: "Requested by",
       cell: (row) =>
         row.requestedByDepartment
-          ? departmentLabel(row.requestedByDepartment)
+          ? formatRequestedByReceiptLabel(row)
           : "—",
     },
     {
@@ -415,7 +422,10 @@ export function buildInventoryListPrintConfig(
       header: "Department",
       cell: (row) =>
         row.receivedByDepartment
-          ? departmentLabel(row.receivedByDepartment)
+          ? formatDepartmentWithLeader(
+              row.receivedByDepartment,
+              row.receivedByLeaderName,
+            )
           : "—",
     },
   ];

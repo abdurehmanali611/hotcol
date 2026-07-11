@@ -5,15 +5,18 @@ import { fetchDepartmentLeaders } from "@/lib/api/departmentLeaders";
 import {
   selectOptionsForDepartments,
   type DepartmentLeaderRow,
+  type DepartmentLeaderSelectOption,
 } from "@/lib/departments";
 
-export type DepartmentSelectOption = { value: string; label: string };
+export type DepartmentSelectOption = DepartmentLeaderSelectOption;
 
 export function useDepartmentLeaderSelectOptions(
   allowedDepartments: readonly string[],
+  opts?: { perLeader?: boolean },
 ) {
   const [leaders, setLeaders] = useState<DepartmentLeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const perLeader = opts?.perLeader !== false;
 
   useEffect(() => {
     let cancelled = false;
@@ -33,8 +36,9 @@ export function useDepartmentLeaderSelectOptions(
   }, []);
 
   const options = useMemo(
-    () => selectOptionsForDepartments(leaders, allowedDepartments),
-    [leaders, allowedDepartments],
+    () =>
+      selectOptionsForDepartments(leaders, allowedDepartments, { perLeader }),
+    [leaders, allowedDepartments, perLeader],
   );
 
   return { options, loading };

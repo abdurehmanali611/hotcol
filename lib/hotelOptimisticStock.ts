@@ -17,6 +17,10 @@ export function buildOptimisticStockOutRequestRow(
   },
   requestedByUserName: string,
   movementDate?: string | null,
+  accountability?: {
+    requestedByDepartment?: string | null;
+    requestedByLeaderName?: string | null;
+  },
 ): StockOutRequestRow {
   const now = new Date().toISOString();
   return {
@@ -37,5 +41,7 @@ export function buildOptimisticStockOutRequestRow(
     rejectionReason: null,
     createdAt: now,
     movementDate: movementDate ?? now,
+    requestedByDepartment: accountability?.requestedByDepartment ?? null,
+    requestedByLeaderName: accountability?.requestedByLeaderName ?? null,
   };
 }

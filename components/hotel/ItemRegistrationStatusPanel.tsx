@@ -37,7 +37,12 @@ import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatu
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
-import { REGISTRATION_RECEIVED_BY_CODES } from "@/lib/departments";
+import {
+  departmentLeaderDisplayLabel,
+  mergeAccountabilityFilterOptions,
+  REGISTRATION_RECEIVED_BY_CODES,
+} from "@/lib/departments";
+import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
 
 const REG_APPROVAL_OPTIONS: {
   id: RegistrationApprovalFilter;
@@ -103,6 +108,21 @@ export function ItemRegistrationStatusPanel({
       logoUrl,
     });
 
+  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+    REGISTRATION_RECEIVED_BY_CODES,
+  );
+  const departmentOptions = useMemo(
+    () =>
+      mergeAccountabilityFilterOptions(
+        registryDeptOptions,
+        rows.map((r) => ({
+          department: r.receivedByDepartment,
+          leaderName: r.receivedByLeaderName,
+        })),
+      ),
+    [registryDeptOptions, rows],
+  );
+
   const filtered = useMemo(() => {
     return sortRowsByFifo(
       applyRequestStatusFilters(rows, {
@@ -115,6 +135,7 @@ export function ItemRegistrationStatusPanel({
         getSubmittedDate: (r) => r.registrationDate,
         department,
         getDepartment: (r) => r.receivedByDepartment,
+        getLeaderName: (r) => r.receivedByLeaderName,
       }),
     );
   }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, department]);
@@ -203,6 +224,15 @@ export function ItemRegistrationStatusPanel({
         ),
       },
       {
+        id: "receivedBy",
+        header: "Received by",
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {departmentLeaderDisplayLabel(row.original) || "—"}
+          </span>
+        ),
+      },
+      {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
@@ -276,16 +306,16 @@ export function ItemRegistrationStatusPanel({
         onVoucherToChange={setVoucherTo}
         department={department}
         onDepartmentChange={setDepartment}
-        departmentCodes={REGISTRATION_RECEIVED_BY_CODES}
-        departmentLabelText="Received by department"
+        departmentOptions={departmentOptions}
+        departmentLabelText="Received by"
         dateFromLabel="Registered from"
         dateToLabel="Registered to"
         filteredCount={filtered.length}
         totalCount={rows.length}
         helperText={
           department
-            ? "Showing registrations received by the selected department."
-            : "Filter by registration date, voucher range, and receiving department."
+            ? "Showing registrations for the selected department leader."
+            : "Filter by registration date, voucher range, and receiving department leader."
         }
         showClear={hasActiveFilters}
         onClear={clearFilters}

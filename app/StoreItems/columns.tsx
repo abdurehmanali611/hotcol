@@ -383,6 +383,7 @@ const StockOut = ({
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [requestedByLeaderName, setRequestedByLeaderName] = useState("");
   const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { isPending, run } = useConcurrentActions();
   const actionKey = `stock-out-${data.id}`;
@@ -415,6 +416,7 @@ const StockOut = ({
             amount: amountDeduct,
             stakeHolderOrReason: destination,
             requestedByDepartment: requestedByDepartment.trim(),
+            requestedByLeaderName: requestedByLeaderName.trim(),
             movementDate: ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
           });
           const user =
@@ -434,6 +436,10 @@ const StockOut = ({
               result,
               user || "—",
               ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
+              {
+                requestedByDepartment: requestedByDepartment.trim(),
+                requestedByLeaderName: requestedByLeaderName.trim(),
+              },
             ),
           );
         } else {
@@ -509,13 +515,18 @@ const StockOut = ({
                 <DepartmentLeaderSelect
                   label="Requested by"
                   value={requestedByDepartment}
-                  onChange={setRequestedByDepartment}
+                  leaderName={requestedByLeaderName}
+                  onChange={(dept, leader) => {
+                    setRequestedByDepartment(dept);
+                    setRequestedByLeaderName(leader);
+                  }}
                   allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
                 />
                 <DepartmentLeaderSelect
                   label="Station or destination"
                   value={statusBy}
-                  onChange={setStatusBy}
+                  onChange={(dept) => setStatusBy(dept)}
+                  expandLeaders={false}
                   allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
                 />
               </>
@@ -594,6 +605,7 @@ const Wastage = ({
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [requestedByLeaderName, setRequestedByLeaderName] = useState("");
   const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { isPending, run } = useConcurrentActions();
   const actionKey = `wastage-${data.id}`;
@@ -625,6 +637,7 @@ const Wastage = ({
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
             requestedByDepartment: requestedByDepartment.trim(),
+            requestedByLeaderName: requestedByLeaderName.trim(),
             movementDate: ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
           });
           const user =
@@ -644,6 +657,10 @@ const Wastage = ({
               result,
               user || "—",
               ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
+              {
+                requestedByDepartment: requestedByDepartment.trim(),
+                requestedByLeaderName: requestedByLeaderName.trim(),
+              },
             ),
           );
         } else {
@@ -718,7 +735,11 @@ const Wastage = ({
               <DepartmentLeaderSelect
                 label="Requested by"
                 value={requestedByDepartment}
-                onChange={setRequestedByDepartment}
+                leaderName={requestedByLeaderName}
+                onChange={(dept, leader) => {
+                  setRequestedByDepartment(dept);
+                  setRequestedByLeaderName(leader);
+                }}
                 allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
               />
             ) : null}
@@ -785,6 +806,7 @@ const Returned = ({
   const [statusBy, setStatusBy] = useState<string>("");
   const [amountDeduct, setAmountDeduct] = useState<number>(0);
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
+  const [requestedByLeaderName, setRequestedByLeaderName] = useState("");
   const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
   const { isPending, run } = useConcurrentActions();
   const actionKey = `return-${data.id}`;
@@ -816,6 +838,7 @@ const Returned = ({
             amount: amountDeduct,
             stakeHolderOrReason: statusBy.trim(),
             requestedByDepartment: requestedByDepartment.trim(),
+            requestedByLeaderName: requestedByLeaderName.trim(),
             movementDate: ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
           });
           const user =
@@ -835,6 +858,10 @@ const Returned = ({
               result,
               user || "—",
               ymdToRegistrationTimestamp(movementDateYmd).toISOString(),
+              {
+                requestedByDepartment: requestedByDepartment.trim(),
+                requestedByLeaderName: requestedByLeaderName.trim(),
+              },
             ),
           );
         } else {
@@ -909,7 +936,11 @@ const Returned = ({
               <DepartmentLeaderSelect
                 label="Requested by"
                 value={requestedByDepartment}
-                onChange={setRequestedByDepartment}
+                leaderName={requestedByLeaderName}
+                onChange={(dept, leader) => {
+                  setRequestedByDepartment(dept);
+                  setRequestedByLeaderName(leader);
+                }}
                 allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
               />
             ) : null}

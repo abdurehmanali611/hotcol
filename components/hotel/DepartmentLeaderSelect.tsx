@@ -10,13 +10,17 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
+import { encodeDepartmentLeaderValue } from "@/lib/departments";
 
 export function DepartmentLeaderSelect({
   label,
   description,
   value,
+  leaderName = "",
   onChange,
   allowedDepartments,
+  /** When true (default), each registered leader is its own option for accountability. */
+  expandLeaders = true,
   required = true,
   disabled = false,
   id,
@@ -25,9 +29,13 @@ export function DepartmentLeaderSelect({
 }: {
   label: string;
   description?: string;
+  /** Department code (e.g. KITCHEN). */
   value: string;
-  onChange: (departmentCode: string) => void;
+  /** Selected accountable leader when expandLeaders is true. */
+  leaderName?: string;
+  onChange: (departmentCode: string, leaderName: string) => void;
   allowedDepartments: readonly string[];
+  expandLeaders?: boolean;
   required?: boolean;
   disabled?: boolean;
   id?: string;
@@ -37,12 +45,17 @@ export function DepartmentLeaderSelect({
 }) {
   const { options, loading } = useDepartmentLeaderSelectOptions(
     allowedDepartments,
+    { perLeader: expandLeaders },
   );
 
+  const selectValue = expandLeaders
+    ? encodeDepartmentLeaderValue(value, leaderName) || undefined
+    : value || undefined;
+
   useEffect(() => {
-    if (!value && options.length === 1) {
-      onChange(options[0]!.value);
-    }
+    if (value || options.length !== 1) return;
+    const only = options[0]!;
+    onChange(only.department, only.leaderName);
   }, [value, options, onChange]);
 
   const controlId = id ?? `dept-select-${label.replace(/\s+/g, "-").toLowerCase()}`;
@@ -57,8 +70,15 @@ export function DepartmentLeaderSelect({
         <p className="text-xs text-muted-foreground">{description}</p>
       ) : null}
       <Select
-        value={value || undefined}
-        onValueChange={onChange}
+        value={selectValue}
+        onValueChange={(raw) => {
+          const opt = options.find((o) => o.value === raw);
+          if (opt) {
+            onChange(opt.department, opt.leaderName);
+            return;
+          }
+          onChange(raw, "");
+        }}
         disabled={disabled || loading || options.length === 0}
       >
         <SelectTrigger id={controlId} className="h-10 w-full">
@@ -68,7 +88,9 @@ export function DepartmentLeaderSelect({
                 ? "Loading departments…"
                 : options.length === 0
                   ? "No leaders registered — ask manager to add them"
-                  : "Select department"
+                  : expandLeaders
+                    ? "Select department leader"
+                    : "Select department"
             }
           />
         </SelectTrigger>

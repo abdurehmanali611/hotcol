@@ -14,11 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { departmentLabel } from "@/lib/departments";
+import { departmentLabel, formatDepartmentFilterLabel } from "@/lib/departments";
 import { cn } from "@/lib/utils";
 import { Building2, Hash } from "lucide-react";
 
 const DEPARTMENT_SELECT_ALL = "all";
+
+export type RequestStatusDepartmentOption = {
+  value: string;
+  label: string;
+};
 
 export function RequestStatusFilterBar({
   dateFrom,
@@ -28,6 +33,7 @@ export function RequestStatusFilterBar({
   department = "",
   onDepartmentChange,
   departmentCodes = [],
+  departmentOptions,
   voucherFrom = "",
   voucherTo = "",
   onVoucherFromChange,
@@ -51,7 +57,10 @@ export function RequestStatusFilterBar({
   onDateToChange: (v: string) => void;
   department?: string;
   onDepartmentChange?: (v: string) => void;
+  /** @deprecated Prefer departmentOptions for per-leader filters. */
   departmentCodes?: readonly string[];
+  /** Prefer this: each leader is its own filter option when applicable. */
+  departmentOptions?: readonly RequestStatusDepartmentOption[];
   voucherFrom?: string;
   voucherTo?: string;
   onVoucherFromChange?: (v: string) => void;
@@ -75,6 +84,13 @@ export function RequestStatusFilterBar({
   const departmentSelectValue = department || DEPARTMENT_SELECT_ALL;
   const showCounts =
     typeof filteredCount === "number" && typeof totalCount === "number";
+  const resolvedOptions: RequestStatusDepartmentOption[] =
+    departmentOptions && departmentOptions.length > 0
+      ? [...departmentOptions]
+      : departmentCodes.map((code) => ({
+          value: code,
+          label: departmentLabel(code),
+        }));
 
   return (
     <ListPanelFilterBar
@@ -121,9 +137,9 @@ export function RequestStatusFilterBar({
                   <SelectItem value={DEPARTMENT_SELECT_ALL}>
                     All departments
                   </SelectItem>
-                  {departmentCodes.map((code) => (
-                    <SelectItem key={code} value={code}>
-                      {departmentLabel(code)}
+                  {resolvedOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -187,3 +203,6 @@ export function RequestStatusFilterBar({
     </ListPanelFilterBar>
   );
 }
+
+/** Kept for callers that format filter chips elsewhere. */
+export { formatDepartmentFilterLabel };

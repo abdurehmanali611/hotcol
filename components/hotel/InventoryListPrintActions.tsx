@@ -13,7 +13,10 @@ import {
 } from "@/lib/requestStatusListPrint";
 import { fetchDepartmentLeaders } from "@/lib/api/departmentLeaders";
 import { fetchCostControllerProfiles } from "@/lib/api/hotelWorkflow";
-import { leadersByDepartment, normalizeLeaderNames } from "@/lib/departments";
+import {
+  expandLeaderSignatureBlocks,
+  leadersByDepartment,
+} from "@/lib/departments";
 
 export function InventoryListPrintActions({
   rows,
@@ -57,24 +60,28 @@ export function InventoryListPrintActions({
         ]);
         if (cancelled) return;
         const byDept = leadersByDepartment(leaders);
-        const store = normalizeLeaderNames(
-          byDept.get("STORE")?.leaderName ?? "",
-        );
-        const finance = normalizeLeaderNames(
-          byDept.get("FINANCE")?.leaderName ?? "",
-        );
-        const manager = normalizeLeaderNames(
-          byDept.get("GM")?.leaderName ?? "",
-        );
         const costControllers = ccProfiles
           .map((p) => String(p.displayName ?? "").trim())
-          .filter(Boolean)
-          .join(", ");
+          .filter(Boolean);
         setSignatureBlocks([
-          { label: "Store", name: store },
-          { label: "Cost Controller", name: costControllers },
-          { label: "Finance", name: finance },
-          { label: "Manager", name: manager },
+          ...expandLeaderSignatureBlocks(
+            "Store",
+            byDept.get("STORE")?.leaderName ?? "",
+          ),
+          ...(costControllers.length
+            ? costControllers.map((name) => ({
+                label: "Cost Controller",
+                name,
+              }))
+            : [{ label: "Cost Controller", name: "" }]),
+          ...expandLeaderSignatureBlocks(
+            "Finance",
+            byDept.get("FINANCE")?.leaderName ?? "",
+          ),
+          ...expandLeaderSignatureBlocks(
+            "Manager",
+            byDept.get("GM")?.leaderName ?? "",
+          ),
         ]);
       } catch {
         /* keep blank signature lines */

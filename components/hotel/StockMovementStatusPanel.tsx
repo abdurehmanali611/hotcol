@@ -46,8 +46,10 @@ import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusL
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import {
   departmentLeaderDisplayLabel,
+  mergeAccountabilityFilterOptions,
   REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
+import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -112,6 +114,21 @@ export function StockMovementStatusPanel({
       logoUrl,
     });
 
+  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+    REQUESTED_BY_DEPARTMENT_CODES,
+  );
+  const departmentOptions = useMemo(
+    () =>
+      mergeAccountabilityFilterOptions(
+        registryDeptOptions,
+        rows.map((r) => ({
+          department: r.requestedByDepartment,
+          leaderName: r.requestedByLeaderName,
+        })),
+      ),
+    [registryDeptOptions, rows],
+  );
+
   const filtered = useMemo(() => {
     return sortRowsByFifo(
       applyRequestStatusFilters(rows, {
@@ -123,6 +140,7 @@ export function StockMovementStatusPanel({
         getSubmittedDate: (r) => r.createdAt,
         department,
         getDepartment: (r) => r.requestedByDepartment,
+        getLeaderName: (r) => r.requestedByLeaderName,
       }),
     );
   }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, department]);
@@ -337,14 +355,14 @@ export function StockMovementStatusPanel({
         onVoucherToChange={setVoucherTo}
         department={department}
         onDepartmentChange={setDepartment}
-        departmentCodes={REQUESTED_BY_DEPARTMENT_CODES}
-        departmentLabelText="Requested by department"
+        departmentOptions={departmentOptions}
+        departmentLabelText="Requested by"
         filteredCount={filtered.length}
         totalCount={rows.length}
         helperText={
           department
-            ? "Showing stock movements requested by the selected department."
-            : "Filter by submission date, voucher range, and requesting department."
+            ? "Showing stock movements for the selected department leader."
+            : "Filter by submission date, voucher range, and requesting department leader."
         }
         showClear={hasActiveFilters}
         onClear={clearFilters}

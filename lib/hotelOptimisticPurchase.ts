@@ -16,6 +16,10 @@ export function buildOptimisticPurchaseRequestRow(
   created: { id: number; status: string; voucherNumber?: number | null; voucherDisplay?: string | null },
   storeUserName: string,
   hotelName: string,
+  accountability?: {
+    requestedByDepartment?: string | null;
+    requestedByLeaderName?: string | null;
+  },
 ): PurchaseRequestRow {
   const now = new Date().toISOString();
   return {
@@ -44,5 +48,7 @@ export function buildOptimisticPurchaseRequestRow(
     createdAt: now,
     voucherNumber: created.voucherNumber ?? null,
     voucherDisplay: created.voucherDisplay ?? null,
+    requestedByDepartment: accountability?.requestedByDepartment ?? null,
+    requestedByLeaderName: accountability?.requestedByLeaderName ?? null,
   };
 }

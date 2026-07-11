@@ -4,7 +4,7 @@ import Image from "next/image";
 import { APEX_SOLUTION, HOTCOL_SYSTEM } from "@/constants/branding";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import type { ItemRegistration } from "@/lib/actions";
-import { formatDepartmentWithLeader } from "@/lib/departments";
+import { formatDepartmentWithLeader, expandLeaderSignatureBlocks } from "@/lib/departments";
 import {
   itemPaymentBucket,
   itemPaymentLabel,
@@ -42,16 +42,22 @@ function receiptSignatureBlocks(bundle: ReceiptBundle): { label: string; name: s
     return [
       { label: "Received by", name: bundle.receivedByLabel },
       { label: "Checked by", name: bundle.checkedByName },
-      { label: "Approved by", name: bundle.approvedByLeaderName },
-      { label: "Authorized by", name: bundle.authorizedByLeaderName },
+      ...expandLeaderSignatureBlocks("Approved by", bundle.approvedByLeaderName),
+      ...expandLeaderSignatureBlocks(
+        "Authorized by",
+        bundle.authorizedByLeaderName,
+      ),
     ];
   }
   return [
     { label: "Requested by", name: bundle.requestedByLabel },
-    { label: "Prepared by", name: bundle.preparedByLeaderName },
+    ...expandLeaderSignatureBlocks("Prepared by", bundle.preparedByLeaderName),
     { label: "Checked by", name: bundle.checkedByName },
-    { label: "Approved by", name: bundle.approvedByLeaderName },
-    { label: "Authorized by", name: bundle.authorizedByLeaderName },
+    ...expandLeaderSignatureBlocks("Approved by", bundle.approvedByLeaderName),
+    ...expandLeaderSignatureBlocks(
+      "Authorized by",
+      bundle.authorizedByLeaderName,
+    ),
   ];
 }
 
@@ -436,8 +442,11 @@ export function StoreItemRegistrationReceipt({
             signatureGridClass,
           )}
         >
-          {signatureBlocks.map((entry) => (
-            <div key={entry.label} className="flex items-end gap-3 min-w-0">
+          {signatureBlocks.map((entry, index) => (
+            <div
+              key={`${entry.label}-${entry.name ?? ""}-${index}`}
+              className="flex items-end gap-3 min-w-0"
+            >
               <div className="shrink-0 min-w-22 max-w-36 space-y-0.5">
                 <p
                   className={cn(

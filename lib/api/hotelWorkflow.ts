@@ -444,15 +444,18 @@ export type PurchaseRequestLineInput = {
 async function runCreatePurchaseRequestsBatchMutation(
   lines: PurchaseRequestLineInput[],
   requestedByDepartment: string,
+  requestedByLeaderName = "",
 ) {
   const mutation = `
     mutation CreatePurchaseRequestsBatch(
       $lines: [PurchaseRequestLineInput!]!
       $requestedByDepartment: String!
+      $requestedByLeaderName: String
     ) {
       createPurchaseRequestsBatch(
         lines: $lines
         requestedByDepartment: $requestedByDepartment
+        requestedByLeaderName: $requestedByLeaderName
       ) {
         id
         status
@@ -466,6 +469,7 @@ async function runCreatePurchaseRequestsBatchMutation(
     variables: {
       lines,
       requestedByDepartment: String(requestedByDepartment).trim(),
+      requestedByLeaderName: String(requestedByLeaderName ?? "").trim() || null,
     },
   });
   if (response.data.errors) {
@@ -496,11 +500,13 @@ function storeDraftBatchShouldChunkRetry(e: unknown): boolean {
 async function createPurchaseRequestsBatchWithChunkFallback(
   lines: PurchaseRequestLineInput[],
   requestedByDepartment: string,
+  requestedByLeaderName = "",
 ) {
   try {
     return await runCreatePurchaseRequestsBatchMutation(
       lines,
       requestedByDepartment,
+      requestedByLeaderName,
     );
   } catch (first) {
     if (
@@ -518,6 +524,7 @@ async function createPurchaseRequestsBatchWithChunkFallback(
         ...(await runCreatePurchaseRequestsBatchMutation(
           chunk,
           requestedByDepartment,
+          requestedByLeaderName,
         )),
       );
     }
@@ -528,12 +535,13 @@ async function createPurchaseRequestsBatchWithChunkFallback(
 export async function createPurchaseRequestsBatchApi(
   lines: PurchaseRequestLineInput[],
   requestedByDepartment: string,
-  options?: { suppressSuccessToast?: boolean },
+  options?: { suppressSuccessToast?: boolean; requestedByLeaderName?: string },
 ) {
   if (!lines.length) throw new Error("At least one line is required");
   const rows = await createPurchaseRequestsBatchWithChunkFallback(
     lines,
     requestedByDepartment,
+    options?.requestedByLeaderName ?? "",
   );
   if (!options?.suppressSuccessToast) {
     toast.success("Saved for your review — confirm under Review before send");
@@ -549,6 +557,7 @@ export async function createStockOutRequestApi(
     amount: number;
     stakeHolderOrReason: string;
     requestedByDepartment: string;
+    requestedByLeaderName?: string;
     movementDate?: string | Date;
   },
   options?: { suppressSuccessToast?: boolean },
@@ -560,6 +569,7 @@ export async function createStockOutRequestApi(
       $amount: Float!
       $stakeHolderOrReason: String!
       $requestedByDepartment: String!
+      $requestedByLeaderName: String
       $movementDate: DateTime
     ) {
       createStockOutRequest(
@@ -568,6 +578,7 @@ export async function createStockOutRequestApi(
         amount: $amount
         stakeHolderOrReason: $stakeHolderOrReason
         requestedByDepartment: $requestedByDepartment
+        requestedByLeaderName: $requestedByLeaderName
         movementDate: $movementDate
       ) {
         id
@@ -579,7 +590,11 @@ export async function createStockOutRequestApi(
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: input,
+    variables: {
+      ...input,
+      requestedByLeaderName:
+        String(input.requestedByLeaderName ?? "").trim() || null,
+    },
   });
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Request failed");
@@ -606,15 +621,18 @@ export type StockOutRequestLineInput = {
 async function runCreateStockOutRequestsBatchMutation(
   lines: StockOutRequestLineInput[],
   requestedByDepartment: string,
+  requestedByLeaderName = "",
 ) {
   const mutation = `
     mutation CreateStockOutRequestsBatch(
       $lines: [StockOutRequestLineInput!]!
       $requestedByDepartment: String!
+      $requestedByLeaderName: String
     ) {
       createStockOutRequestsBatch(
         lines: $lines
         requestedByDepartment: $requestedByDepartment
+        requestedByLeaderName: $requestedByLeaderName
       ) {
         id
         status
@@ -628,6 +646,7 @@ async function runCreateStockOutRequestsBatchMutation(
     variables: {
       lines,
       requestedByDepartment: String(requestedByDepartment).trim(),
+      requestedByLeaderName: String(requestedByLeaderName ?? "").trim() || null,
     },
   });
   if (response.data.errors) {
@@ -648,11 +667,13 @@ async function runCreateStockOutRequestsBatchMutation(
 async function createStockOutRequestsBatchWithChunkFallback(
   lines: StockOutRequestLineInput[],
   requestedByDepartment: string,
+  requestedByLeaderName = "",
 ) {
   try {
     return await runCreateStockOutRequestsBatchMutation(
       lines,
       requestedByDepartment,
+      requestedByLeaderName,
     );
   } catch (first) {
     if (
@@ -670,6 +691,7 @@ async function createStockOutRequestsBatchWithChunkFallback(
         ...(await runCreateStockOutRequestsBatchMutation(
           chunk,
           requestedByDepartment,
+          requestedByLeaderName,
         )),
       );
     }
@@ -680,12 +702,13 @@ async function createStockOutRequestsBatchWithChunkFallback(
 export async function createStockOutRequestsBatchApi(
   lines: StockOutRequestLineInput[],
   requestedByDepartment: string,
-  options?: { suppressSuccessToast?: boolean },
+  options?: { suppressSuccessToast?: boolean; requestedByLeaderName?: string },
 ) {
   if (!lines.length) throw new Error("At least one line is required");
   const rows = await createStockOutRequestsBatchWithChunkFallback(
     lines,
     requestedByDepartment,
+    options?.requestedByLeaderName ?? "",
   );
   if (!options?.suppressSuccessToast) {
     toast.success("Saved for your review — confirm under Review before send");

@@ -36,9 +36,10 @@ import {
   type InventoryListFilters,
 } from "@/lib/inventoryListFilters";
 import {
-  departmentLabel,
+  mergeAccountabilityFilterOptions,
   REGISTRATION_RECEIVED_BY_CODES,
 } from "@/lib/departments";
+import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
 import { Building2, LayoutGrid } from "lucide-react";
 
 export default function StoreItems({
@@ -180,6 +181,21 @@ export default function StoreItems({
     [data, filters],
   );
 
+  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+    REGISTRATION_RECEIVED_BY_CODES,
+  );
+  const departmentFilterOptions = useMemo(
+    () =>
+      mergeAccountabilityFilterOptions(
+        registryDeptOptions,
+        data.map((r) => ({
+          department: r.receivedByDepartment,
+          leaderName: r.receivedByLeaderName,
+        })),
+      ),
+    [registryDeptOptions, data],
+  );
+
   const tableData = useMemo(() => {
     const rows = filteredData as items[];
     if (!aggregateInventory) return rows;
@@ -266,7 +282,7 @@ export default function StoreItems({
           />
           {hotelStockApprovals && (
             <div className="space-y-1.5 min-w-0 sm:col-span-2 lg:col-span-1">
-              <Label htmlFor="inventory-department">Received by department</Label>
+              <Label htmlFor="inventory-department">Received by</Label>
               <Select
                 value={departmentSelectValue}
                 onValueChange={(value) =>
@@ -285,9 +301,9 @@ export default function StoreItems({
                 </SelectTrigger>
                 <SelectContent align="end" className="max-h-72">
                   <SelectItem value="all">All departments</SelectItem>
-                  {REGISTRATION_RECEIVED_BY_CODES.map((code) => (
-                    <SelectItem key={code} value={code}>
-                      {departmentLabel(code)}
+                  {departmentFilterOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

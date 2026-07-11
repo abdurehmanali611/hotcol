@@ -292,16 +292,19 @@ export type ItemRegistrationLineInput = {
 async function postItemRegistrationsBatch(
   lines: ItemRegistrationLineInput[],
   receivedByDepartment: string,
+  receivedByLeaderName: string,
   token: string,
 ) {
   const mutation = `
     mutation CreateItemRegistrationsBatch(
       $lines: [ItemRegistrationLineInput!]!
       $receivedByDepartment: String!
+      $receivedByLeaderName: String
     ) {
       createItemRegistrationsBatch(
         lines: $lines
         receivedByDepartment: $receivedByDepartment
+        receivedByLeaderName: $receivedByLeaderName
       ) {
         id
         name
@@ -318,6 +321,7 @@ async function postItemRegistrationsBatch(
       variables: {
         lines: mapLinesToBatchVariables(lines),
         receivedByDepartment: String(receivedByDepartment).trim(),
+        receivedByLeaderName: String(receivedByLeaderName ?? "").trim() || null,
       },
     },
     {
@@ -350,6 +354,7 @@ export async function createItemRegistrationsBatchApi(
   lines: ItemRegistrationLineInput[],
   hotelName: string,
   receivedByDepartment: string,
+  receivedByLeaderName = "",
 ) {
   if (!lines.length) throw new Error("At least one line is required");
 
@@ -373,6 +378,7 @@ export async function createItemRegistrationsBatchApi(
     created = await postItemRegistrationsBatch(
       lines,
       receivedByDepartment,
+      receivedByLeaderName,
       token,
     );
   } catch (err: unknown) {
@@ -393,6 +399,7 @@ export async function createItemRegistrationsBatchApi(
           ...(await postItemRegistrationsBatch(
             chunk,
             receivedByDepartment,
+            receivedByLeaderName,
             token,
           )),
         );

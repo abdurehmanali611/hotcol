@@ -56,8 +56,10 @@ import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatu
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 import {
   departmentLeaderDisplayLabel,
+  mergeAccountabilityFilterOptions,
   PURCHASE_REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
+import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
 import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import { formatEtbAmount, purchaseLineMoneyBreakdown, purchaseVatModeLabel } from "@/lib/inventoryLineTotals";
@@ -133,6 +135,21 @@ export function PurchaseRequestStatusPanel({
       logoUrl,
     });
 
+  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+    PURCHASE_REQUESTED_BY_DEPARTMENT_CODES,
+  );
+  const departmentOptions = useMemo(
+    () =>
+      mergeAccountabilityFilterOptions(
+        registryDeptOptions,
+        rows.map((r) => ({
+          department: r.requestedByDepartment,
+          leaderName: r.requestedByLeaderName,
+        })),
+      ),
+    [registryDeptOptions, rows],
+  );
+
   const filtered = useMemo(() => {
     return sortRowsByFifo(
       applyRequestStatusFilters(rows, {
@@ -145,6 +162,7 @@ export function PurchaseRequestStatusPanel({
         getSubmittedDate: (r) => purchaseEntranceDate(r),
         department,
         getDepartment: (r) => r.requestedByDepartment,
+        getLeaderName: (r) => r.requestedByLeaderName,
       }),
     );
   }, [rows, approvalFilter, dateFrom, dateTo, voucherFrom, voucherTo, department]);
@@ -475,14 +493,14 @@ export function PurchaseRequestStatusPanel({
         onVoucherToChange={setVoucherTo}
         department={department}
         onDepartmentChange={setDepartment}
-        departmentCodes={PURCHASE_REQUESTED_BY_DEPARTMENT_CODES}
-        departmentLabelText="Requested by department"
+        departmentOptions={departmentOptions}
+        departmentLabelText="Requested by"
         filteredCount={filtered.length}
         totalCount={rows.length}
         helperText={
           department
-            ? "Showing purchase requests from the selected department."
-            : "Filter by entrance date, voucher range, and requesting department."
+            ? "Showing purchase requests for the selected department leader."
+            : "Filter by entrance date, voucher range, and requesting department leader."
         }
         showClear={hasActiveFilters}
         onClear={clearFilters}

@@ -1,10 +1,11 @@
 import type { ItemRegistration } from "@/lib/actions";
-import { departmentCodesMatch } from "@/lib/departments";
+import { matchesDepartmentLeaderFilter } from "@/lib/departments";
 import { matchesRegistrationDateRange } from "@/lib/panelFilters";
 
 export type InventoryListFilters = {
   dateFrom: string;
   dateTo: string;
+  /** Department code or encoded department+leader value. */
   department: string;
 };
 
@@ -15,7 +16,10 @@ export const DEFAULT_INVENTORY_LIST_FILTERS: InventoryListFilters = {
 };
 
 export function filterInventoryRegistrations<
-  T extends Pick<ItemRegistration, "registrationDate" | "receivedByDepartment">,
+  T extends Pick<
+    ItemRegistration,
+    "registrationDate" | "receivedByDepartment" | "receivedByLeaderName"
+  >,
 >(items: readonly T[], filters: InventoryListFilters): T[] {
   const from = String(filters.dateFrom ?? "").trim();
   const to = String(filters.dateTo ?? "").trim();
@@ -26,7 +30,11 @@ export function filterInventoryRegistrations<
       return false;
     }
     if (!dept) return true;
-    return departmentCodesMatch(row.receivedByDepartment, dept);
+    return matchesDepartmentLeaderFilter(
+      row.receivedByDepartment,
+      row.receivedByLeaderName,
+      dept,
+    );
   });
 }
 
