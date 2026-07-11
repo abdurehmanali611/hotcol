@@ -187,8 +187,11 @@ export function freshBazaarToPaymentRow(
   const registrationDate = (row.registrationDate ||
     row.archivedAt ||
     new Date()) as Date;
+  // Use a stable synthetic id so DataTable keys never collide with live store rows
+  // if MySQL ever reuses an itemRegistrationId after delete.
+  const syntheticId = -(Number(row.id) || row.itemRegistrationId || 0);
   return {
-    id: row.itemRegistrationId,
+    id: syntheticId !== 0 ? syntheticId : -row.itemRegistrationId,
     name: row.name,
     imageUrl: row.imageUrl || "",
     category: row.category || "",
@@ -217,18 +220,19 @@ export function freshBazaarToPaymentRow(
 
 /**
  * Live authorized store lines plus fully stocked-out kitchen (fresh bazaar) archives.
- * Fresh bazaar rows whose registration id is still in the store list are skipped.
+ * Always include fresh bazaar rows (use archive id for uniqueness vs live store ids).
  */
 export function mergeInventoryPaymentRows(
   inventoryItems: readonly ItemRegistration[],
   freshBazaarArchives: readonly FreshBazaarRow[] = [],
 ): InventoryPaymentRow[] {
-  const storeIds = new Set(inventoryItems.map((r) => r.id));
   const storeRows: InventoryPaymentRow[] = inventoryItems.map((r) => ({
     ...r,
     paymentSource: "store" as const,
   }));
+  const storeIds = new Set(inventoryItems.map((r) => r.id));
   const freshRows = freshBazaarArchives
+    // Skip only when the same registration is still live in store (partial stock).
     .filter((f) => !storeIds.has(f.itemRegistrationId))
     .map(freshBazaarToPaymentRow);
   return [...storeRows, ...freshRows];
