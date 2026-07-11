@@ -124,6 +124,8 @@ import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorU
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
+import { filterCostControlSectionId } from "@/lib/subscriptionModules";
+import { useTenantModules } from "@/hooks/useTenantModules";
 import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
@@ -230,6 +232,7 @@ function CostControlInner() {
     | "registrations"
     | "item-receipts";
   const [activeSection, setActiveSection] = useState<CostSection>("purchases");
+  const tenantModules = useTenantModules();
   const [rollupSyncPending, setRollupSyncPending] = useState(false);
   const { isPending: isCcPending, run: runCcAction } = useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
@@ -756,36 +759,52 @@ function CostControlInner() {
     setSelectedSoBatchIds((prev) => prev.filter((id) => allow.has(id)));
   }, [stocks]);
 
-  const costNavItems = [
-    { section: "purchases" as const, label: "Purchase requests", icon: Send },
-    { section: "inventory" as const, label: "Inventory", icon: ShoppingCart },
-    { section: "inactive" as const, label: "Inactive", icon: MinusCircle },
-    {
-      section: "stock" as const,
-      label: "Stock / wastage / returns",
-      icon: Package,
-    },
-    {
-      section: "beginnings" as const,
-      label: "Daily chef & bar counts",
-      icon: LayoutGrid,
-    },
-    {
-      section: "registrations" as const,
-      label: "Registration checks",
-      icon: ClipboardList,
-    },
-    {
-      section: "item-receipts" as const,
-      label: "Item receipts",
-      icon: Receipt,
-    },
-    {
-      section: "creditor-usage" as const,
-      label: "Creditor staff usage report",
-      icon: Table2,
-    },
-  ];
+  const costNavItems = useMemo(
+    () =>
+      [
+        { section: "purchases" as const, label: "Purchase requests", icon: Send },
+        {
+          section: "inventory" as const,
+          label: "Inventory",
+          icon: ShoppingCart,
+        },
+        { section: "inactive" as const, label: "Inactive", icon: MinusCircle },
+        {
+          section: "stock" as const,
+          label: "Stock / wastage / returns",
+          icon: Package,
+        },
+        {
+          section: "beginnings" as const,
+          label: "Daily chef & bar counts",
+          icon: LayoutGrid,
+        },
+        {
+          section: "registrations" as const,
+          label: "Registration checks",
+          icon: ClipboardList,
+        },
+        {
+          section: "item-receipts" as const,
+          label: "Item receipts",
+          icon: Receipt,
+        },
+        {
+          section: "creditor-usage" as const,
+          label: "Creditor staff usage report",
+          icon: Table2,
+        },
+      ].filter((item) =>
+        filterCostControlSectionId(item.section, tenantModules),
+      ),
+    [tenantModules],
+  );
+
+  useEffect(() => {
+    if (!filterCostControlSectionId(activeSection, tenantModules)) {
+      setActiveSection("purchases");
+    }
+  }, [activeSection, tenantModules]);
 
   const workspaceIntro: Record<
     CostSection,
@@ -1614,6 +1633,7 @@ function CostControlInner() {
                 tenantLabel={displayName || "Property"}
                 inventoryItems={activeInventoryRows}
                 freshBazaarArchives={freshBazaarArchives}
+                stockOutMovements={stocks}
               />
             </div>
           )}

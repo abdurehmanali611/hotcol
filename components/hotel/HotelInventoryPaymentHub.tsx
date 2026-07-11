@@ -21,11 +21,17 @@ export function HotelInventoryPaymentHub({
   tenantLabel,
   inventoryItems,
   freshBazaarArchives = [],
+  stockOutMovements = [],
   initialMode = "all",
 }: {
   tenantLabel: string;
   inventoryItems: ItemRegistration[];
   freshBazaarArchives?: FreshBazaarRow[];
+  stockOutMovements?: {
+    itemRegistrationId: number;
+    amount: number;
+    status: string;
+  }[];
   initialMode?: PaymentCategoryMode;
 }) {
   const [mode, setMode] = useState<PaymentCategoryMode>(initialMode);
@@ -59,6 +65,7 @@ export function HotelInventoryPaymentHub({
         tenantLabel={tenantLabel}
         inventoryItems={inventoryItems}
         freshBazaarArchives={freshBazaarArchives}
+        stockOutMovements={stockOutMovements}
       />
     </div>
   );

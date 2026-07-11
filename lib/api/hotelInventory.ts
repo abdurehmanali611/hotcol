@@ -755,6 +755,7 @@ export async function fetchFreshBazaarArchives() {
           supplierPhone
           Address
           supplierTinNumber
+          receivedByDepartment
           registrationDate
           archivedAt
         }

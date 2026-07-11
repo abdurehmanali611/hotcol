@@ -58,6 +58,7 @@ import {
   filterManagerServiceTabId,
   filterManagerTabId,
   tenantHasModule,
+  tenantHasServiceModuleGroup,
 } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { readTenantModulesFromStorage } from "@/lib/tenantModules";
@@ -1459,6 +1460,7 @@ function ManagerContent() {
                 tenantLabel={displayName || headerLabel}
                 inventoryItems={activeInventoryRows}
                 freshBazaarArchives={freshBazaarArchives}
+                stockOutMovements={scopedStockReqs}
               />
             </div>
           );
@@ -1506,7 +1508,8 @@ function ManagerContent() {
                 />
               </ManagerCollapsibleSidebarGroup>
 
-              {serviceSidebarItems.length > 0 ? (
+              {serviceSidebarItems.length > 0 &&
+              tenantHasServiceModuleGroup(tenantModules) ? (
                 <ManagerCollapsibleSidebarGroup
                   label="Cafe & Restaurant / Credit"
                   icon={Building2}

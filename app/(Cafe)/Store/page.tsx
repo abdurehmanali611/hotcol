@@ -412,6 +412,7 @@ export function StoreComponent({
   const statusDataEnabled =
     hotelInventory &&
     (REQUEST_STATUS_VIEWS.includes(activeView) ||
+      PAYMENT_VAT_VIEWS.includes(activeView) ||
       activeView === "ReceiptPrinting");
 
   const requestStatusData = useStoreRequestStatusData({
@@ -690,6 +691,7 @@ export function StoreComponent({
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
               freshBazaarArchives={freshBazaarArchives}
+              stockOutMovements={requestStatusData.myStocks}
             />
           </div>
         ) : activeView === "PaymentCredit" && hotelInventory ? (
@@ -699,6 +701,7 @@ export function StoreComponent({
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
               freshBazaarArchives={freshBazaarArchives}
+              stockOutMovements={requestStatusData.myStocks}
             />
           </div>
         ) : activeView === "PaymentPaid" && hotelInventory ? (
@@ -708,6 +711,7 @@ export function StoreComponent({
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
               freshBazaarArchives={freshBazaarArchives}
+              stockOutMovements={requestStatusData.myStocks}
             />
           </div>
         ) : activeView === "PaymentWithVat" && hotelInventory ? (
@@ -717,6 +721,7 @@ export function StoreComponent({
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
               freshBazaarArchives={freshBazaarArchives}
+              stockOutMovements={requestStatusData.myStocks}
             />
           </div>
         ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
@@ -726,6 +731,7 @@ export function StoreComponent({
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
               freshBazaarArchives={freshBazaarArchives}
+              stockOutMovements={requestStatusData.myStocks}
             />
           </div>
         ) : activeView === "Inactive" ? (

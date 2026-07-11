@@ -172,10 +172,65 @@ export function summarizeInventoryPayment<T>(
   return { paid, credit, none, total: rows.length, creditAmount };
 }
 
-/** Row shown in Inventory payment & tax (live store + fresh bazaar archives). */
+/** Row shown in Inventory payment & tax (live store + archives). */
+export type InventoryPaymentSource = "store" | "fresh_bazaar" | "depleted";
+
 export type InventoryPaymentRow = ItemRegistration & {
-  paymentSource?: "store" | "fresh_bazaar";
+  paymentSource?: InventoryPaymentSource;
+  /** On-hand qty for store lines (before adding stock-outs into registeredAmount). */
+  onHandAmount?: number;
 };
+
+/**
+ * True fresh-bazaar archives: stocked in (received) as Kitchen or Bar, then
+ * fully stocked out — not Store-received depletes.
+ */
+export function isKitchenFreshBazaarArchive(row: {
+  name?: string | null;
+  receivedByDepartment?: string | null;
+}): boolean {
+  const name = String(row.name ?? "").toLowerCase();
+  // Staff-meal style names are not fresh-bazaar format for payment labeling.
+  if (/\(staff\)/.test(name)) return false;
+  const dept = String(row.receivedByDepartment ?? "")
+    .trim()
+    .toUpperCase();
+  if (dept === "STORE") return false;
+  if (dept === "KITCHEN" || dept === "BAR") return true;
+  // Legacy archives with empty dept defaulted to kitchen — treat as fresh bazaar.
+  return !dept;
+}
+
+/**
+ * Ensure each live registration uses original qty = on-hand + approved stock-outs.
+ * Prefers server `registeredAmount` when present; otherwise reconstructs from movements.
+ */
+export function applyRegisteredAmountsFromStockOuts(
+  items: readonly ItemRegistration[],
+  stockOuts: readonly {
+    itemRegistrationId: number;
+    amount: number;
+    status: string;
+  }[] = [],
+): ItemRegistration[] {
+  const deducted = new Map<number, number>();
+  for (const s of stockOuts) {
+    if (String(s.status ?? "").toUpperCase() !== "APPROVED") continue;
+    const id = Number(s.itemRegistrationId);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    deducted.set(id, (deducted.get(id) || 0) + (Number(s.amount) || 0));
+  }
+  return items.map((item) => {
+    const onHand = Number(item.amount) || 0;
+    const fromMoves = deducted.get(item.id) || 0;
+    const existing = Number(item.registeredAmount);
+    const registeredAmount =
+      Number.isFinite(existing) && existing > 0
+        ? Math.max(existing, onHand + fromMoves)
+        : onHand + fromMoves;
+    return { ...item, registeredAmount };
+  });
+}
 
 /** Map a FreshBazaar archive into a payment-table row. */
 export function freshBazaarToPaymentRow(
@@ -190,6 +245,9 @@ export function freshBazaarToPaymentRow(
   // Use a stable synthetic id so DataTable keys never collide with live store rows
   // if MySQL ever reuses an itemRegistrationId after delete.
   const syntheticId = -(Number(row.id) || row.itemRegistrationId || 0);
+  const paymentSource: InventoryPaymentSource = isKitchenFreshBazaarArchive(row)
+    ? "fresh_bazaar"
+    : "depleted";
   return {
     id: syntheticId !== 0 ? syntheticId : -row.itemRegistrationId,
     name: row.name,
@@ -214,26 +272,40 @@ export function freshBazaarToPaymentRow(
     ),
     HotelName: row.HotelName,
     approvalStatus: "AUTHORIZED",
-    paymentSource: "fresh_bazaar",
+    paymentSource,
+    onHandAmount: 0,
   };
 }
 
 /**
- * Live authorized store lines plus fully stocked-out kitchen (fresh bazaar) archives.
- * Always include fresh bazaar rows (use archive id for uniqueness vs live store ids).
+ * Live store lines (qty = original registered = on-hand + stocked out) plus
+ * kitchen/bar fresh-bazaar archives. Store-received fully depleted archives stay
+ * in the list without the Fresh bazaar tag (`depleted`) so payment still shows
+ * them as one line — never split into remaining inventory + stocked-out separately.
  */
 export function mergeInventoryPaymentRows(
   inventoryItems: readonly ItemRegistration[],
   freshBazaarArchives: readonly FreshBazaarRow[] = [],
+  stockOuts: readonly {
+    itemRegistrationId: number;
+    amount: number;
+    status: string;
+  }[] = [],
 ): InventoryPaymentRow[] {
-  const storeRows: InventoryPaymentRow[] = inventoryItems.map((r) => ({
+  const withRegistered = applyRegisteredAmountsFromStockOuts(
+    inventoryItems,
+    stockOuts,
+  );
+  const storeRows: InventoryPaymentRow[] = withRegistered.map((r) => ({
     ...r,
+    // Payment math uses registeredAmount (on-hand + out); keep amount as on-hand.
     paymentSource: "store" as const,
+    onHandAmount: Number(r.amount) || 0,
   }));
-  const storeIds = new Set(inventoryItems.map((r) => r.id));
-  const freshRows = freshBazaarArchives
-    // Skip only when the same registration is still live in store (partial stock).
+  const storeIds = new Set(withRegistered.map((r) => r.id));
+  const archiveRows = freshBazaarArchives
+    // Skip when the same registration is still live (partial stock — one summed store line).
     .filter((f) => !storeIds.has(f.itemRegistrationId))
     .map(freshBazaarToPaymentRow);
-  return [...storeRows, ...freshRows];
+  return [...storeRows, ...archiveRows];
 }

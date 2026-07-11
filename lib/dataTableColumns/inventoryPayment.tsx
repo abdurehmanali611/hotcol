@@ -44,6 +44,13 @@ export function buildInventoryPaymentColumns(options?: {
             >
               Fresh bazaar
             </Badge>
+          ) : row.original.paymentSource === "depleted" ? (
+            <Badge
+              variant="outline"
+              className="w-fit text-[9px] font-normal border-border/70 bg-muted/40 text-muted-foreground"
+            >
+              Stocked out
+            </Badge>
           ) : null}
         </div>
       ),
@@ -64,14 +71,17 @@ export function buildInventoryPaymentColumns(options?: {
     {
       id: "qty",
       header: "Quantity",
-      cell: ({ row }) => (
-        <span className="tabular-nums text-muted-foreground whitespace-nowrap text-sm">
-          {formatQtyWithUnit(
-            registeredAmountOf(row.original),
-            row.original.measuredBy,
-          )}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const registered = registeredAmountOf(row.original);
+        const unit = row.original.measuredBy;
+        // One quantity: original registered (on-hand + stocked out). Do not split
+        // store remaining vs stocked-out into separate payment lines.
+        return (
+          <div className="text-sm tabular-nums text-muted-foreground whitespace-nowrap">
+            {formatQtyWithUnit(registered, unit)}
+          </div>
+        );
+      },
     },
     {
       id: "lineValue",

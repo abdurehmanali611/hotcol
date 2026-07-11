@@ -238,7 +238,7 @@ export const MANAGER_SERVICE_TAB_MODULES: Partial<
   "menu-update-item": "Cafe and Restaurant",
   "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
-  "cafe-item-receipts": "Inventory",
+  "cafe-item-receipts": "Cafe and Restaurant",
   "credit-registrations": "Credit Management",
 };
 
@@ -277,6 +277,35 @@ export const HOTEL_STORE_FINANCE_VIEWS = new Set([
   "PaymentWithoutVat",
 ]);
 
+/** Finance terminal sections that require a subscribed module. */
+export const FINANCE_SECTION_MODULES: Partial<Record<string, ModuleOption>> = {
+  "creditor-usage": "Credit Management",
+};
+
+/** Cost Control terminal sections that require a subscribed module. */
+export const COST_CONTROL_SECTION_MODULES: Partial<
+  Record<string, ModuleOption>
+> = {
+  "creditor-usage": "Credit Management",
+};
+
+export function filterFinanceSectionId(
+  sectionId: string,
+  modules: readonly ModuleOption[],
+): boolean {
+  const required = FINANCE_SECTION_MODULES[sectionId];
+  if (!required) return true;
+  return tenantHasModule(modules, required);
+}
+
+export function filterCostControlSectionId(
+  sectionId: string,
+  modules: readonly ModuleOption[],
+): boolean {
+  const required = COST_CONTROL_SECTION_MODULES[sectionId];
+  if (!required) return true;
+  return tenantHasModule(modules, required);
+}
 export const CAFE_CASHIER_NAV_MODULES: Partial<
   Record<
     | "order"

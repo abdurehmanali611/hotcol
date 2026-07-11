@@ -50,6 +50,10 @@ import { InventoryNotificationCenter } from "@/components/inventory/InventoryNot
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { ItemRegistrationStatusPanel } from "@/components/hotel/ItemRegistrationStatusPanel";
 import {
+  filterFinanceSectionId,
+} from "@/lib/subscriptionModules";
+import { useTenantModules } from "@/hooks/useTenantModules";
+import {
   Card,
   CardDescription,
   CardHeader,
@@ -206,6 +210,7 @@ function FinanceInner() {
   const [itemStatusRows, setItemStatusRows] = useState<ItemStatus[]>([]);
   const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
   const [financeSection, setFinanceSection] = useState<FinanceSection>("queue");
+  const tenantModules = useTenantModules();
   const loadCoordinator = useLoadCoordinator();
 
   const load = useCallback(
@@ -329,6 +334,52 @@ function FinanceInner() {
   const historyColumns = useMemo(() => buildFinanceHistoryColumns(), []);
   const historySlice = useMemo(() => history.slice(0, 40), [history]);
 
+  const financeNavItems = useMemo(
+    () =>
+      (
+        [
+          { section: "queue" as const, label: "Payment queue", icon: Inbox },
+          {
+            section: "stock-queue" as const,
+            label: "Stock movements",
+            icon: Receipt,
+          },
+          {
+            section: "registrations" as const,
+            label: "Registration approvals",
+            icon: Receipt,
+          },
+          {
+            section: "item-receipts" as const,
+            label: "Item receipts",
+            icon: Receipt,
+          },
+          { section: "history" as const, label: "History", icon: History },
+          {
+            section: "inventory" as const,
+            label: HOTEL_INVENTORY_COPY.inventoryItems,
+            icon: LayoutGrid,
+          },
+          {
+            section: "creditor-usage" as const,
+            label: "Creditor staff usage report",
+            icon: Table2,
+          },
+        ] as {
+          section: FinanceSection;
+          label: string;
+          icon: typeof Inbox;
+        }[]
+      ).filter((item) => filterFinanceSectionId(item.section, tenantModules)),
+    [tenantModules],
+  );
+
+  useEffect(() => {
+    if (!filterFinanceSectionId(financeSection, tenantModules)) {
+      setFinanceSection("queue");
+    }
+  }, [financeSection, tenantModules]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-linear-to-b from-background via-muted/15 to-muted/40">
@@ -337,28 +388,6 @@ function FinanceInner() {
       </div>
     );
   }
-
-  const financeNavItems: {
-    section: FinanceSection;
-    label: string;
-    icon: typeof Inbox;
-  }[] = [
-    { section: "queue", label: "Payment queue", icon: Inbox },
-    { section: "stock-queue", label: "Stock movements", icon: Receipt },
-    { section: "registrations", label: "Registration approvals", icon: Receipt },
-    { section: "item-receipts", label: "Item receipts", icon: Receipt },
-    { section: "history", label: "History", icon: History },
-    {
-      section: "inventory",
-      label: HOTEL_INVENTORY_COPY.inventoryItems,
-      icon: LayoutGrid,
-    },
-    {
-      section: "creditor-usage",
-      label: "Creditor staff usage report",
-      icon: Table2,
-    },
-  ];
 
   return (
     <SidebarProvider>
@@ -722,6 +751,7 @@ function FinanceInner() {
               tenantLabel={displayName || "Property"}
               inventoryItems={activeInventoryRows}
               freshBazaarArchives={freshBazaarArchives}
+              stockOutMovements={stockRows}
             />
           </section>
         )}

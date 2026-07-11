@@ -64,7 +64,7 @@ const COPY: Record<
   credit: {
     title: "Credit receiving vouchers",
     description:
-      "Store inventory and fresh bazaar (fully stocked-out kitchen) lines received on supplier credit — full or partial payment recorded.",
+      "Store inventory and fresh bazaar (fully stocked-out kitchen/bar) lines received on supplier credit — full or partial payment recorded.",
     sheet: "Credit_vouchers",
   },
   paid: {
@@ -112,8 +112,8 @@ const PAY_FILTER_OPTIONS: { id: PayFilter; label: string }[] = [
 
 const SOURCE_FILTER_OPTIONS: { id: SourceFilter; label: string }[] = [
   { id: "all", label: "Store + fresh bazaar" },
-  { id: "store", label: "Store only" },
-  { id: "fresh_bazaar", label: "Fresh bazaar only" },
+  { id: "store", label: "Store / stocked out (non-fresh)" },
+  { id: "fresh_bazaar", label: "Fresh bazaar only (kitchen/bar)" },
 ];
 
 const inventoryColumns = buildInventoryPaymentColumns();
@@ -140,12 +140,19 @@ export function HotelInventoryPaymentCategoryPanel({
   tenantLabel,
   inventoryItems,
   freshBazaarArchives = [],
+  stockOutMovements = [],
 }: {
   mode: PaymentCategoryMode;
   tenantLabel: string;
   inventoryItems: ItemRegistration[];
-  /** Fully stocked-out kitchen-received lines archived as fresh bazaar. */
+  /** Fully stocked-out kitchen/bar-received lines archived as fresh bazaar. */
   freshBazaarArchives?: FreshBazaarRow[];
+  /** Approved stock movements — used to sum original registered qty on store lines. */
+  stockOutMovements?: {
+    itemRegistrationId: number;
+    amount: number;
+    status: string;
+  }[];
 }) {
   const meta = COPY[mode];
   const [dateFrom, setDateFrom] = useState("");
@@ -159,8 +166,13 @@ export function HotelInventoryPaymentCategoryPanel({
   const [supplierQuery, setSupplierQuery] = useState("");
 
   const paymentRows = useMemo(
-    () => mergeInventoryPaymentRows(inventoryItems, freshBazaarArchives),
-    [inventoryItems, freshBazaarArchives],
+    () =>
+      mergeInventoryPaymentRows(
+        inventoryItems,
+        freshBazaarArchives,
+        stockOutMovements,
+      ),
+    [inventoryItems, freshBazaarArchives, stockOutMovements],
   );
 
   const supplierOptions = useMemo(() => {
@@ -184,15 +196,23 @@ export function HotelInventoryPaymentCategoryPanel({
   const sourceCounts = useMemo(() => {
     let store = 0;
     let fresh = 0;
+    let depleted = 0;
     const freshSuppliers = new Set<string>();
     for (const r of paymentRows) {
       if (r.paymentSource === "fresh_bazaar") {
         fresh += 1;
         const s = supplierKey(r.supplierName);
         if (s) freshSuppliers.add(s);
+      } else if (r.paymentSource === "depleted") {
+        depleted += 1;
       } else store += 1;
     }
-    return { store, fresh, freshSupplierCount: freshSuppliers.size };
+    return {
+      store,
+      fresh,
+      depleted,
+      freshSupplierCount: freshSuppliers.size,
+    };
   }, [paymentRows]);
 
   // Credit/Paid submenus offer a VAT filter; the VAT submenus offer a supplier
@@ -208,7 +228,10 @@ export function HotelInventoryPaymentCategoryPanel({
         if (sourceFilter === "store" && r.paymentSource === "fresh_bazaar") {
           return false;
         }
-        if (sourceFilter === "fresh_bazaar" && r.paymentSource !== "fresh_bazaar") {
+        if (
+          sourceFilter === "fresh_bazaar" &&
+          r.paymentSource !== "fresh_bazaar"
+        ) {
           return false;
         }
         if (
@@ -313,8 +336,11 @@ export function HotelInventoryPaymentCategoryPanel({
               </CardDescription>
               <p className="text-xs text-muted-foreground pt-1 tabular-nums">
                 Loaded: {sourceCounts.store} store · {sourceCounts.fresh} fresh
-                bazaar across {sourceCounts.freshSupplierCount} supplier
-                {sourceCounts.freshSupplierCount !== 1 ? "s" : ""}
+                bazaar ({sourceCounts.freshSupplierCount} supplier
+                {sourceCounts.freshSupplierCount !== 1 ? "s" : ""})
+                {sourceCounts.depleted > 0
+                  ? ` · ${sourceCounts.depleted} stocked out (non-fresh)`
+                  : ""}
               </p>
             </div>
           </div>
@@ -345,7 +371,9 @@ export function HotelInventoryPaymentCategoryPanel({
                   source:
                     r.paymentSource === "fresh_bazaar"
                       ? "Fresh bazaar"
-                      : "Store",
+                      : r.paymentSource === "depleted"
+                        ? "Stocked out"
+                        : "Store",
                   quantity_with_unit: formatQtyWithUnit(
                     registeredAmountOf(r),
                     r.measuredBy,
