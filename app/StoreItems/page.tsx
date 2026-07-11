@@ -9,6 +9,7 @@ import { fetchItemRegistrations, ItemRegistration, type StockOutRequestRow } fro
 import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import {
   effectiveTenantScopeForHotelTerminal,
+  rowHotelMatchesCanonicalTenantScope,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
 import { DataTableClientWrapper } from "./DataTableClientWrapper";
@@ -189,7 +190,7 @@ export default function StoreItems({
       mergeAccountabilityFilterOptions(
         registryDeptOptions,
         data
-          .filter((r) => rowHotelMatchesTenantScope(r.HotelName, null))
+          .filter((r) => rowHotelMatchesCanonicalTenantScope(r.HotelName, null))
           .map((r) => ({
             department: r.receivedByDepartment,
             leaderName: r.receivedByLeaderName,

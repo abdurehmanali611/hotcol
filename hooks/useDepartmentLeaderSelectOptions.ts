@@ -7,7 +7,7 @@ import {
   type DepartmentLeaderRow,
   type DepartmentLeaderSelectOption,
 } from "@/lib/departments";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 
 export type DepartmentSelectOption = DepartmentLeaderSelectOption;
 
@@ -26,7 +26,9 @@ export function useDepartmentLeaderSelectOptions(
         if (cancelled) return;
         // Defense in depth: never surface another property's leaders.
         setLeaders(
-          rows.filter((row) => rowHotelMatchesTenantScope(row.HotelName, null)),
+          rows.filter((row) =>
+            rowHotelMatchesCanonicalTenantScope(row.HotelName, null),
+          ),
         );
       })
       .catch(() => {

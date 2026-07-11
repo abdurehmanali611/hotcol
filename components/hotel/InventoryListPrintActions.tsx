@@ -17,7 +17,7 @@ import {
   expandLeaderSignatureBlocks,
   leadersByDepartment,
 } from "@/lib/departments";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 
 export function InventoryListPrintActions({
   rows,
@@ -62,7 +62,7 @@ export function InventoryListPrintActions({
         if (cancelled) return;
         const byDept = leadersByDepartment(
           leaders.filter((row) =>
-            rowHotelMatchesTenantScope(row.HotelName, null),
+            rowHotelMatchesCanonicalTenantScope(row.HotelName, null),
           ),
         );
         const costControllers = ccProfiles

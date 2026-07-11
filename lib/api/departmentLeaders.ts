@@ -1,14 +1,14 @@
 import { toast } from "sonner";
 import { api, API_URL, dedupeHotelListRead, invalidateGraphqlListCache } from "./client";
 import type { DepartmentLeaderRow } from "@/lib/departments";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 
 /** Drop leaders that do not belong to the signed-in property (SaaS isolation). */
 function leadersForCurrentTenant(
   rows: DepartmentLeaderRow[],
 ): DepartmentLeaderRow[] {
   return (rows ?? []).filter((row) =>
-    rowHotelMatchesTenantScope(row.HotelName, null),
+    rowHotelMatchesCanonicalTenantScope(row.HotelName, null),
   );
 }
 

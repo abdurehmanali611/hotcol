@@ -6,6 +6,7 @@
 /** All identifiers that may appear in row `HotelName` for the signed-in property. */
 export function collectTenantIdentifiers(
   preferredScope?: string | null,
+  opts?: { includeDisplayName?: boolean },
 ): string[] {
   const seen = new Set<string>();
   const ids: string[] = [];
@@ -20,9 +21,23 @@ export function collectTenantIdentifiers(
   if (typeof window !== "undefined") {
     add(localStorage.getItem("tin_number"));
     add(localStorage.getItem("hotel_name"));
-    add(localStorage.getItem("hotel_display_name"));
+    // Display names are NOT unique across SaaS tenants — only include when
+    // matching legacy inventory rows that still store the marketing name.
+    if (opts?.includeDisplayName !== false) {
+      add(localStorage.getItem("hotel_display_name"));
+    }
   }
   return ids;
+}
+
+/**
+ * Canonical tenant keys only (TIN / hotel_name). Never include
+ * `hotel_display_name` — shared brand names would match another property.
+ */
+export function collectCanonicalTenantIdentifiers(
+  preferredScope?: string | null,
+): string[] {
+  return collectTenantIdentifiers(preferredScope, { includeDisplayName: false });
 }
 
 /** Preferred tenant key for writes (TIN when available). */
@@ -44,6 +59,19 @@ export function rowHotelMatchesTenantScope(
   const row = String(rowHotelName ?? "").trim();
   if (!row) return false;
   return collectTenantIdentifiers(tenantScope).some((id) => row === id);
+}
+
+/**
+ * Match registry rows (department leaders, cost controllers) to this property only.
+ * Must NOT use display name — that is how leaders leaked across tenants.
+ */
+export function rowHotelMatchesCanonicalTenantScope(
+  rowHotelName: string | null | undefined,
+  tenantScope?: string | null | undefined,
+): boolean {
+  const row = String(rowHotelName ?? "").trim();
+  if (!row) return false;
+  return collectCanonicalTenantIdentifiers(tenantScope).some((id) => row === id);
 }
 
 /** Compare inventory item names (trim + case-insensitive). */

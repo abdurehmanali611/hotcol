@@ -60,7 +60,7 @@ import {
   PURCHASE_REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
-import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import { formatEtbAmount, purchaseLineMoneyBreakdown, purchaseVatModeLabel } from "@/lib/inventoryLineTotals";
@@ -144,7 +144,7 @@ export function PurchaseRequestStatusPanel({
       mergeAccountabilityFilterOptions(
         registryDeptOptions,
         rows
-          .filter((r) => rowHotelMatchesTenantScope(r.HotelName, null))
+          .filter((r) => rowHotelMatchesCanonicalTenantScope(r.HotelName, null))
           .map((r) => ({
             department: r.requestedByDepartment,
             leaderName: r.requestedByLeaderName,
