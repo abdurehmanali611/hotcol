@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -16,6 +16,7 @@ import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import { rowRegistrationYmd } from "@/lib/panelFilters";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { InventoryPaymentGroupDetailTrigger } from "@/components/hotel/InventoryPaymentGroupDetailTrigger";
 
 function paymentBadgeClass(
   bucket: ReturnType<typeof itemPaymentBucket> | "mixed",
@@ -48,18 +49,26 @@ export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentI
         const g = row.original;
         const breakdown = formatPaymentSourceBreakdown(g);
         return (
-          <div className="flex flex-col gap-0.5 max-w-[260px]">
-            <span className="font-medium truncate">{g.name}</span>
-            <span className="text-[10px] leading-snug text-muted-foreground">
-              {breakdown}
-              {g.lineCount > 1 ? (
-                <span className="text-muted-foreground/80">
-                  {" "}
-                  · {g.lineCount} lines
-                </span>
-              ) : null}
-            </span>
-          </div>
+          <InventoryPaymentGroupDetailTrigger
+            group={g}
+            openFocus="lines"
+            className="px-1 py-0.5 -mx-1"
+          >
+            <div className="flex flex-col gap-0.5 max-w-[240px]">
+              <span className="font-medium truncate underline-offset-2 group-hover/detail:underline">
+                {g.name}
+              </span>
+              <span className="text-[10px] leading-snug text-muted-foreground">
+                {breakdown}
+                {g.lineCount > 1 ? (
+                  <span className="text-muted-foreground/80">
+                    {" "}
+                    · {g.lineCount} lines
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          </InventoryPaymentGroupDetailTrigger>
         );
       },
     },
@@ -69,7 +78,8 @@ export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentI
       cell: ({ row }) => {
         const from = rowRegistrationYmd(row.original.registrationFrom);
         const to = rowRegistrationYmd(row.original.registrationTo);
-        if (!from && !to) return <span className="text-xs text-muted-foreground">—</span>;
+        if (!from && !to)
+          return <span className="text-xs text-muted-foreground">—</span>;
         if (from && to && from !== to) {
           return (
             <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
@@ -156,11 +166,20 @@ export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentI
     {
       accessorKey: "supplierLabel",
       header: "Supplier",
-      cell: ({ row }) => (
-        <span className="text-sm max-w-[180px] truncate block">
-          {row.original.supplierLabel}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const g = row.original;
+        return (
+          <InventoryPaymentGroupDetailTrigger
+            group={g}
+            openFocus="suppliers"
+            className="px-1 py-0.5 -mx-1 max-w-[180px]"
+          >
+            <span className="text-sm truncate block underline-offset-2 group-hover/detail:underline">
+              {g.supplierLabel}
+            </span>
+          </InventoryPaymentGroupDetailTrigger>
+        );
+      },
     },
   ];
 }

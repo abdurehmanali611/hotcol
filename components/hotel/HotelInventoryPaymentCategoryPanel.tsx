@@ -61,7 +61,7 @@ const COPY: Record<
   all: {
     title: "All inventory payment & tax lines",
     description:
-      "Items rolled into one row each — fresh bazaar, stocked-out, and in-store counts show under the name. Filter by source or supplier as needed.",
+      "Items rolled into one row each — fresh bazaar, stocked-out, and in-store counts show under the name. Hover or click the item or supplier for line-level detail.",
     sheet: "All_payment_tax",
   },
   credit: {
