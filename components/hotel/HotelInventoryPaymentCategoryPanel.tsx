@@ -23,15 +23,18 @@ import {
 } from "@/components/ui/card";
 import {
   creditAmountETB,
+  formatPaymentSourceBreakdown,
+  groupInventoryPaymentRowsByItem,
   isVatEnabled,
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
   mergeInventoryPaymentRows,
+  normalizePaymentItemGroupKey,
   registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
 import type { InventoryPaymentRow } from "@/lib/hotelInventoryPayment";
-import { buildInventoryPaymentColumns } from "@/lib/dataTableColumns/inventoryPayment";
+import { buildInventoryPaymentGroupColumns } from "@/lib/dataTableColumns/inventoryPayment";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import {
@@ -58,7 +61,7 @@ const COPY: Record<
   all: {
     title: "All inventory payment & tax lines",
     description:
-      "Every store and fresh bazaar line — all suppliers — with payment status and VAT. Use the filters below to narrow by source or supplier.",
+      "Items rolled into one row each — fresh bazaar, stocked-out, and in-store counts show under the name. Filter by source or supplier as needed.",
     sheet: "All_payment_tax",
   },
   credit: {
@@ -116,7 +119,7 @@ const SOURCE_FILTER_OPTIONS: { id: SourceFilter; label: string }[] = [
   { id: "fresh_bazaar", label: "Fresh bazaar only (kitchen/bar)" },
 ];
 
-const inventoryColumns = buildInventoryPaymentColumns();
+const inventoryGroupColumns = buildInventoryPaymentGroupColumns();
 
 function filterRowsByMode(
   items: InventoryPaymentRow[],
@@ -323,6 +326,11 @@ export function HotelInventoryPaymentCategoryPanel({
       storeQty,
     };
   }, [filtered]);
+
+  const grouped = useMemo(
+    () => groupInventoryPaymentRowsByItem(filtered),
+    [filtered],
+  );
   const totalCredit = useMemo(
     () => filtered.reduce((s, r) => s + creditAmountETB(r), 0),
     [filtered],
@@ -380,8 +388,9 @@ export function HotelInventoryPaymentCategoryPanel({
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-0">
           <p className="text-sm tabular-nums">
-            <span className="font-semibold">{filtered.length}</span> of{" "}
-            {modeCount} line{modeCount !== 1 ? "s" : ""} shown
+            <span className="font-semibold">{grouped.length}</span> item
+            {grouped.length !== 1 ? "s" : ""} · {filtered.length} of {modeCount}{" "}
+            line{modeCount !== 1 ? "s" : ""}
             <span className="text-muted-foreground">
               {" "}
               · {totalValue.toLocaleString()} ETB line value
@@ -392,24 +401,12 @@ export function HotelInventoryPaymentCategoryPanel({
             filteredBreakdown.depletedLines > 0 ||
             filteredBreakdown.storeLines > 0) && (
             <p className="w-full text-xs text-muted-foreground tabular-nums">
-              In this view:{" "}
-              {filteredBreakdown.freshLines > 0 ? (
-                <>
-                  <span className="font-medium text-foreground">
-                    {filteredBreakdown.freshLines} fresh bazaar
-                  </span>
-                  {" "}
-                  ({filteredBreakdown.freshQty.toLocaleString()} units)
-                </>
-              ) : (
-                "0 fresh bazaar"
-              )}
-              {filteredBreakdown.depletedLines > 0
-                ? ` · ${filteredBreakdown.depletedLines} stocked out (non-fresh, ${filteredBreakdown.depletedQty.toLocaleString()} units)`
-                : ""}
-              {filteredBreakdown.storeLines > 0
-                ? ` · ${filteredBreakdown.storeLines} still in store (${filteredBreakdown.storeQty.toLocaleString()} units)`
-                : ""}
+              Across lines:{" "}
+              {formatPaymentSourceBreakdown({
+                freshBazaarLines: filteredBreakdown.freshLines,
+                depletedLines: filteredBreakdown.depletedLines,
+                storeLines: filteredBreakdown.storeLines,
+              })}
             </p>
           )}
           <Button
@@ -425,6 +422,7 @@ export function HotelInventoryPaymentCategoryPanel({
                 filtered.map((r) => ({
                   id: r.id,
                   item_name: r.name,
+                  item_group: normalizePaymentItemGroupKey(r.name),
                   source:
                     r.paymentSource === "fresh_bazaar"
                       ? "Fresh bazaar"
@@ -632,15 +630,16 @@ export function HotelInventoryPaymentCategoryPanel({
 
       <div className="rounded-xl border bg-card shadow-md overflow-hidden">
         <DataTable
-          columns={inventoryColumns}
-          data={filtered}
+          columns={inventoryGroupColumns}
+          data={grouped}
+          getRowId={(row) => row.groupKey}
           searchColumnId="name"
           searchPlaceholder="Search item name…"
           pageSize={50}
           emptyMessage="No rows match these filters."
           footerSummary={(rows) => {
-            const total = rows.reduce((s, r) => s + lineOwedETB(r), 0);
-            const credit = rows.reduce((s, r) => s + creditAmountETB(r), 0);
+            const total = rows.reduce((s, r) => s + r.totalLineValue, 0);
+            const credit = rows.reduce((s, r) => s + r.totalCredit, 0);
             return (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">

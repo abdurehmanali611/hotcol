@@ -368,3 +368,226 @@ export function mergeInventoryPaymentRows(
     );
   return [...storeRows, ...archiveRows];
 }
+
+/**
+ * Group key for payment & tax item rollups: case-insensitive, collapses
+ * whitespace, and folds `(staff)` variants into the same product.
+ */
+export function normalizePaymentItemGroupKey(name: string): string {
+  return String(name ?? "")
+    .toLowerCase()
+    .replace(/\(staff\)/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Human display name for a group (strips staff suffix noise). */
+export function paymentItemGroupDisplayName(name: string): string {
+  const cleaned = String(name ?? "")
+    .replace(/\(staff\)/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || "Item";
+}
+
+export type InventoryPaymentItemGroup = {
+  id: number;
+  groupKey: string;
+  name: string;
+  measuredBy: string;
+  totalQty: number;
+  totalLineValue: number;
+  totalCredit: number;
+  totalPaid: number;
+  lineCount: number;
+  freshBazaarLines: number;
+  freshBazaarQty: number;
+  depletedLines: number;
+  depletedQty: number;
+  storeLines: number;
+  storeQty: number;
+  paymentBucket: InventoryPaymentBucket | "mixed";
+  vatMode: "with" | "without" | "mixed";
+  supplierLabel: string;
+  supplierCount: number;
+  registrationFrom: Date | string | null;
+  registrationTo: Date | string | null;
+  lines: InventoryPaymentRow[];
+};
+
+export function formatPaymentSourceBreakdown(group: {
+  freshBazaarLines: number;
+  depletedLines: number;
+  storeLines: number;
+}): string {
+  const parts: string[] = [];
+  if (group.freshBazaarLines > 0) {
+    parts.push(
+      `${group.freshBazaarLines} fresh bazaar${group.freshBazaarLines === 1 ? "" : "s"}`,
+    );
+  }
+  if (group.depletedLines > 0) {
+    parts.push(`${group.depletedLines} stocked out`);
+  }
+  if (group.storeLines > 0) {
+    parts.push(`${group.storeLines} in store`);
+  }
+  return parts.join(" · ") || "—";
+}
+
+function stableNegativeIdFromKey(key: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const n = h | 0;
+  return n === 0 ? -1 : n > 0 ? -n : n;
+}
+
+/**
+ * Roll payment lines into one row per item (general rule for any product name).
+ * Underlying registration lines stay on `group.lines` for export / drill-down.
+ */
+export function groupInventoryPaymentRowsByItem(
+  rows: readonly InventoryPaymentRow[],
+): InventoryPaymentItemGroup[] {
+  const buckets = new Map<string, InventoryPaymentRow[]>();
+  for (const row of rows) {
+    const key = normalizePaymentItemGroupKey(row.name) || `id:${row.id}`;
+    const list = buckets.get(key);
+    if (list) list.push(row);
+    else buckets.set(key, [row]);
+  }
+
+  const groups: InventoryPaymentItemGroup[] = [];
+  for (const [groupKey, lines] of buckets) {
+    lines.sort((a, b) => {
+      const da = new Date(a.registrationDate).getTime();
+      const db = new Date(b.registrationDate).getTime();
+      if (Number.isFinite(da) && Number.isFinite(db) && da !== db) return da - db;
+      return String(a.supplierName).localeCompare(String(b.supplierName));
+    });
+
+    let freshBazaarLines = 0;
+    let freshBazaarQty = 0;
+    let depletedLines = 0;
+    let depletedQty = 0;
+    let storeLines = 0;
+    let storeQty = 0;
+    let totalQty = 0;
+    let totalLineValue = 0;
+    let totalCredit = 0;
+    let totalPaid = 0;
+    const nameVotes = new Map<string, number>();
+    const units = new Set<string>();
+    const suppliers = new Set<string>();
+    const bucketsSeen = new Set<InventoryPaymentBucket>();
+    const vatSeen = new Set<"with" | "without">();
+    let registrationFrom: Date | string | null = null;
+    let registrationTo: Date | string | null = null;
+
+    for (const line of lines) {
+      const qty = registeredAmountOf(line);
+      totalQty += qty;
+      totalLineValue += lineOwedETB(line);
+      totalCredit += creditAmountETB(line);
+      totalPaid += Number(line.paidAmount) || 0;
+      bucketsSeen.add(itemPaymentBucket(line));
+      vatSeen.add(isVatEnabled(line.purchaseWithVat) ? "with" : "without");
+      const unit = String(line.measuredBy ?? "").trim();
+      if (unit) units.add(unit);
+      const sup = String(line.supplierName ?? "").trim();
+      if (sup) suppliers.add(sup);
+
+      const display = paymentItemGroupDisplayName(line.name);
+      nameVotes.set(display, (nameVotes.get(display) || 0) + 1);
+
+      const src = line.paymentSource ?? "store";
+      if (src === "fresh_bazaar") {
+        freshBazaarLines += 1;
+        freshBazaarQty += qty;
+      } else if (src === "depleted") {
+        depletedLines += 1;
+        depletedQty += qty;
+      } else {
+        storeLines += 1;
+        storeQty += qty;
+      }
+
+      const rd = line.registrationDate;
+      if (rd) {
+        const t = new Date(rd).getTime();
+        if (Number.isFinite(t)) {
+          if (
+            registrationFrom == null ||
+            t < new Date(registrationFrom).getTime()
+          ) {
+            registrationFrom = rd;
+          }
+          if (
+            registrationTo == null ||
+            t > new Date(registrationTo).getTime()
+          ) {
+            registrationTo = rd;
+          }
+        }
+      }
+    }
+
+    let bestName = paymentItemGroupDisplayName(lines[0]?.name ?? groupKey);
+    let bestVotes = 0;
+    for (const [n, v] of nameVotes) {
+      if (v > bestVotes) {
+        bestVotes = v;
+        bestName = n;
+      }
+    }
+
+    const paymentBucket: InventoryPaymentBucket | "mixed" =
+      bucketsSeen.size === 1
+        ? [...bucketsSeen][0]!
+        : bucketsSeen.size === 0
+          ? "none"
+          : "mixed";
+    const vatMode: "with" | "without" | "mixed" =
+      vatSeen.size === 1 ? [...vatSeen][0]! : "mixed";
+
+    const supplierList = [...suppliers].sort((a, b) => a.localeCompare(b));
+    const supplierLabel =
+      supplierList.length === 0
+        ? "—"
+        : supplierList.length === 1
+          ? supplierList[0]!
+          : `${supplierList.length} suppliers`;
+
+    groups.push({
+      id: stableNegativeIdFromKey(groupKey),
+      groupKey,
+      name: bestName,
+      measuredBy: units.size === 1 ? [...units][0]! : units.size > 1 ? "mixed" : "",
+      totalQty,
+      totalLineValue,
+      totalCredit,
+      totalPaid,
+      lineCount: lines.length,
+      freshBazaarLines,
+      freshBazaarQty,
+      depletedLines,
+      depletedQty,
+      storeLines,
+      storeQty,
+      paymentBucket,
+      vatMode,
+      supplierLabel,
+      supplierCount: supplierList.length,
+      registrationFrom,
+      registrationTo,
+      lines,
+    });
+  }
+
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+  return groups;
+}
+

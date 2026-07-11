@@ -3,11 +3,13 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   creditAmountETB,
+  formatPaymentSourceBreakdown,
   isVatEnabled,
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
   registeredAmountOf,
+  type InventoryPaymentItemGroup,
   type InventoryPaymentRow,
 } from "@/lib/hotelInventoryPayment";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
@@ -15,14 +17,152 @@ import { rowRegistrationYmd } from "@/lib/panelFilters";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-function paymentBadgeClass(bucket: ReturnType<typeof itemPaymentBucket>) {
+function paymentBadgeClass(
+  bucket: ReturnType<typeof itemPaymentBucket> | "mixed",
+) {
   if (bucket === "paid")
     return "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
   if (bucket === "credit")
     return "border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200";
+  if (bucket === "mixed")
+    return "border-sky-500/30 bg-sky-500/10 text-sky-900 dark:text-sky-200";
   if (bucket === "none")
     return "border-border/70 bg-muted/50 text-muted-foreground";
   return "font-normal";
+}
+
+function paymentGroupLabel(
+  bucket: InventoryPaymentItemGroup["paymentBucket"],
+): string {
+  if (bucket === "mixed") return "Mixed payment";
+  return itemPaymentLabel(bucket);
+}
+
+/** One row per item name, with source breakdown under the title. */
+export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentItemGroup>[] {
+  return [
+    {
+      accessorKey: "name",
+      header: "Item",
+      cell: ({ row }) => {
+        const g = row.original;
+        const breakdown = formatPaymentSourceBreakdown(g);
+        return (
+          <div className="flex flex-col gap-0.5 max-w-[260px]">
+            <span className="font-medium truncate">{g.name}</span>
+            <span className="text-[10px] leading-snug text-muted-foreground">
+              {breakdown}
+              {g.lineCount > 1 ? (
+                <span className="text-muted-foreground/80">
+                  {" "}
+                  · {g.lineCount} lines
+                </span>
+              ) : null}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "registered",
+      header: "Registered",
+      cell: ({ row }) => {
+        const from = rowRegistrationYmd(row.original.registrationFrom);
+        const to = rowRegistrationYmd(row.original.registrationTo);
+        if (!from && !to) return <span className="text-xs text-muted-foreground">—</span>;
+        if (from && to && from !== to) {
+          return (
+            <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+              {from} – {to}
+            </span>
+          );
+        }
+        return (
+          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+            {from || to}
+          </span>
+        );
+      },
+    },
+    {
+      id: "qty",
+      header: "Quantity",
+      cell: ({ row }) => (
+        <div className="text-sm tabular-nums text-muted-foreground whitespace-nowrap">
+          {formatQtyWithUnit(row.original.totalQty, row.original.measuredBy)}
+        </div>
+      ),
+    },
+    {
+      id: "lineValue",
+      header: () => (
+        <span className="block text-right w-full">Line value (ETB)</span>
+      ),
+      cell: ({ row }) => (
+        <span className="block text-right font-semibold tabular-nums text-sm">
+          {row.original.totalLineValue.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      id: "payment",
+      header: "Payment",
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={cn(
+            "font-normal text-[10px]",
+            paymentBadgeClass(row.original.paymentBucket),
+          )}
+        >
+          {paymentGroupLabel(row.original.paymentBucket)}
+        </Badge>
+      ),
+    },
+    {
+      id: "credit",
+      header: () => (
+        <span className="block text-right w-full">Credit (ETB)</span>
+      ),
+      cell: ({ row }) => (
+        <span className="block text-right tabular-nums text-sm font-medium">
+          {row.original.totalCredit.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      id: "vat",
+      header: "VAT",
+      cell: ({ row }) => {
+        const mode = row.original.vatMode;
+        const withVat = mode === "with";
+        const mixed = mode === "mixed";
+        return (
+          <Badge
+            variant={withVat || mixed ? "secondary" : "outline"}
+            className={cn(
+              "text-[10px] font-normal",
+              withVat &&
+                "bg-violet-500/10 text-violet-800 dark:text-violet-200 border-violet-500/25",
+              mixed &&
+                "bg-sky-500/10 text-sky-900 dark:text-sky-200 border-sky-500/25",
+            )}
+          >
+            {mixed ? "Mixed VAT" : withVat ? "With VAT" : "Without VAT"}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "supplierLabel",
+      header: "Supplier",
+      cell: ({ row }) => (
+        <span className="text-sm max-w-[180px] truncate block">
+          {row.original.supplierLabel}
+        </span>
+      ),
+    },
+  ];
 }
 
 export function buildInventoryPaymentColumns(options?: {
@@ -74,8 +214,6 @@ export function buildInventoryPaymentColumns(options?: {
       cell: ({ row }) => {
         const registered = registeredAmountOf(row.original);
         const unit = row.original.measuredBy;
-        // One quantity: original registered (on-hand + stocked out). Do not split
-        // store remaining vs stocked-out into separate payment lines.
         return (
           <div className="text-sm tabular-nums text-muted-foreground whitespace-nowrap">
             {formatQtyWithUnit(registered, unit)}
