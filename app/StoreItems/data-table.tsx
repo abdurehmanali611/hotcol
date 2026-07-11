@@ -55,6 +55,8 @@ export interface DataTableProps<TData, TValue> {
   className?: string;
   /** Initial column sort (e.g. voucher ascending). */
   initialSorting?: SortingState;
+  /** Rows per page (TanStack default is 10). */
+  pageSize?: number;
   /**
    * Optional footer summary rendered next to the record count. Receives the
    * rows currently visible after sorting/search filtering so totals stay in
@@ -76,6 +78,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     emptyMessage = "No records found for this period.",
     className,
     initialSorting,
+    pageSize = 10,
     footerSummary,
   }: DataTableProps<TData, TValue>,
   ref: React.ForwardedRef<DataTableRef>,
@@ -139,6 +142,9 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     getFilteredRowModel: getFilteredRowModel(),
     enableRowSelection,
     getRowId,
+    initialState: {
+      pagination: { pageSize },
+    },
   });
 
   React.useEffect(() => {

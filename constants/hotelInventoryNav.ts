@@ -5,6 +5,7 @@ export const PAYMENT_CATEGORY_NAV: {
   mode: PaymentCategoryMode;
   label: string;
 }[] = [
+  { id: "payment-all", mode: "all", label: "All lines" },
   { id: "payment-credit", mode: "credit", label: "Credit vouchers" },
   { id: "payment-paid", mode: "paid", label: "Paid receiving" },
   { id: "payment-with-vat", mode: "with-vat", label: "With VAT" },

@@ -133,6 +133,7 @@ type StoreView =
   | "PurchaseRequestStatus"
   | "StockMovementStatus"
   | "ItemRegistrationStatus"
+  | "PaymentAll"
   | "PaymentCredit"
   | "PaymentPaid"
   | "PaymentWithVat"
@@ -171,6 +172,7 @@ const REQUEST_STATUS_VIEWS: StoreView[] = [
 ];
 
 const PAYMENT_VAT_VIEWS: StoreView[] = [
+  "PaymentAll",
   "PaymentCredit",
   "PaymentPaid",
   "PaymentWithVat",
@@ -489,6 +491,12 @@ export function StoreComponent({
         "Track item registrations you submitted through the approval pipeline.",
       Icon: PackagePlus,
     },
+    PaymentAll: {
+      title: "All payment & tax lines",
+      description:
+        "Store and fresh bazaar lines for every supplier — filter by source or supplier as needed.",
+      Icon: Receipt,
+    },
     PaymentCredit: {
       title: "Credit receiving vouchers",
       description:
@@ -674,6 +682,15 @@ export function StoreComponent({
                 logoUrl={logoUrl}
               />
             )}
+          </div>
+        ) : activeView === "PaymentAll" && hotelInventory ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
+            <HotelInventoryPaymentCategoryPanel
+              mode="all"
+              tenantLabel={displayLabel}
+              inventoryItems={storeItem}
+              freshBazaarArchives={freshBazaarArchives}
+            />
           </div>
         ) : activeView === "PaymentCredit" && hotelInventory ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
@@ -866,6 +883,20 @@ export function StoreComponent({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={activeView === "PaymentAll"}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setActiveView("PaymentAll")}
+                              className="w-full"
+                            >
+                              All lines
+                            </button>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
                             asChild

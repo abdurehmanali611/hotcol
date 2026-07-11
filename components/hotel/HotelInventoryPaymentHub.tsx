@@ -21,7 +21,7 @@ export function HotelInventoryPaymentHub({
   tenantLabel,
   inventoryItems,
   freshBazaarArchives = [],
-  initialMode = "credit",
+  initialMode = "all",
 }: {
   tenantLabel: string;
   inventoryItems: ItemRegistration[];
