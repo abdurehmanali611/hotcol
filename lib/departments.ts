@@ -333,6 +333,7 @@ export function selectOptionsForDepartments(
 /**
  * Merge registry select options with accountability pairs found on rows
  * (so historical leaders still appear in filters).
+ * Callers must only pass rows already scoped to the current tenant.
  */
 export function mergeAccountabilityFilterOptions(
   registryOptions: readonly DepartmentLeaderSelectOption[],

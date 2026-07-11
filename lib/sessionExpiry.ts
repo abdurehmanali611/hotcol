@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { clearAuthTokenMetadata, readAuthToken } from "./authToken";
 import { clearTenantSubscriptionStorage } from "./tenantModules";
 import { clearTenantAccessModeStorage } from "./tenantAccessMode";
+import { invalidateGraphqlListCache } from "./graphqlListCache";
 
 /** Matches `app/page.tsx` (login is the home route). */
 const LOGIN_PATH = "/";
@@ -48,6 +49,7 @@ export function scheduleSessionExpiredRedirect(): void {
     duration: 8000,
   });
   clearAuthStorage();
+  invalidateGraphqlListCache();
   window.setTimeout(() => {
     window.location.href = LOGIN_PATH;
   }, 1600);

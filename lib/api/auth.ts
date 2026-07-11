@@ -199,7 +199,8 @@ export async function LoginAction(
     const tenantId = tin || String(user.HotelName || "").trim();
 
     if (typeof window !== "undefined") {
-      invalidateGraphqlListCache("cafe:orders");
+      // Drop every cached list so the new tenant never sees prior property data.
+      invalidateGraphqlListCache();
       persistAuthToken(token);
       resetSessionExpiryGuard();
       localStorage.setItem("user_role", user.Role);
@@ -349,6 +350,7 @@ export async function LoginAction(
 
 export function logoutAction() {
   if (typeof window !== "undefined") {
+    invalidateGraphqlListCache();
     clearAuthStorage();
     window.location.href = "/";
   }

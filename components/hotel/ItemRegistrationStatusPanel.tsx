@@ -43,6 +43,7 @@ import {
   REGISTRATION_RECEIVED_BY_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 
 const REG_APPROVAL_OPTIONS: {
   id: RegistrationApprovalFilter;
@@ -115,10 +116,12 @@ export function ItemRegistrationStatusPanel({
     () =>
       mergeAccountabilityFilterOptions(
         registryDeptOptions,
-        rows.map((r) => ({
-          department: r.receivedByDepartment,
-          leaderName: r.receivedByLeaderName,
-        })),
+        rows
+          .filter((r) => rowHotelMatchesTenantScope(r.HotelName, null))
+          .map((r) => ({
+            department: r.receivedByDepartment,
+            leaderName: r.receivedByLeaderName,
+          })),
       ),
     [registryDeptOptions, rows],
   );

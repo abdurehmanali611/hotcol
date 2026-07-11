@@ -11,6 +11,7 @@ import {
   invalidateGraphqlListCache,
   readListCache,
   writeListCache,
+  tenantScopedGraphqlListKey,
 } from "../graphqlListCache";
 import { bumpCafeOrdersFeed } from "../cafeOrdersSync";
 import { toast } from "sonner";
@@ -96,10 +97,12 @@ const hotelListReadInflight = new Map<string, Promise<unknown>>();
 
 /** When several surfaces request the same list read at once, share one HTTP round-trip. */
 function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> {
-  const cached = readListCache<T>(key);
+  // Always isolate by signed-in tenant — never reuse another property's list.
+  const scopedKey = tenantScopedGraphqlListKey(key);
+  const cached = readListCache<T>(scopedKey);
   if (cached != null) return Promise.resolve(cached);
 
-  const existing = hotelListReadInflight.get(key);
+  const existing = hotelListReadInflight.get(scopedKey);
   if (existing) return existing as Promise<T>;
   const startedAt =
     GRAPHQL_SLOW_FETCH_LOG_MS >= 0 && typeof performance !== "undefined"
@@ -108,10 +111,10 @@ function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> 
   const p = (async () => {
     try {
       const result = await run();
-      writeListCache(key, result);
+      writeListCache(scopedKey, result);
       return result;
     } finally {
-      hotelListReadInflight.delete(key);
+      hotelListReadInflight.delete(scopedKey);
       if (
         startedAt != null &&
         GRAPHQL_SLOW_FETCH_LOG_MS >= 0 &&
@@ -119,12 +122,12 @@ function dedupeHotelListRead<T>(key: string, run: () => Promise<T>): Promise<T> 
       ) {
         const ms = Math.round(performance.now() - startedAt);
         if (ms >= GRAPHQL_SLOW_FETCH_LOG_MS) {
-          console.info(`[hotcol][graphql] ${key} ${ms}ms`);
+          console.info(`[hotcol][graphql] ${scopedKey} ${ms}ms`);
         }
       }
     }
   })();
-  hotelListReadInflight.set(key, p);
+  hotelListReadInflight.set(scopedKey, p);
   return p;
 }
 

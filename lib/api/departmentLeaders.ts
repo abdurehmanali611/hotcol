@@ -1,6 +1,16 @@
 import { toast } from "sonner";
 import { api, API_URL, dedupeHotelListRead, invalidateGraphqlListCache } from "./client";
 import type { DepartmentLeaderRow } from "@/lib/departments";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+
+/** Drop leaders that do not belong to the signed-in property (SaaS isolation). */
+function leadersForCurrentTenant(
+  rows: DepartmentLeaderRow[],
+): DepartmentLeaderRow[] {
+  return (rows ?? []).filter((row) =>
+    rowHotelMatchesTenantScope(row.HotelName, null),
+  );
+}
 
 export async function fetchDepartmentLeaders(): Promise<DepartmentLeaderRow[]> {
   return dedupeHotelListRead("hotel:departmentLeaders", async () => {
@@ -21,7 +31,9 @@ export async function fetchDepartmentLeaders(): Promise<DepartmentLeaderRow[]> {
         response.data.errors[0]?.message || "Failed to load department leaders",
       );
     }
-    return response.data.data.departmentLeaders ?? [];
+    return leadersForCurrentTenant(
+      (response.data.data.departmentLeaders ?? []) as DepartmentLeaderRow[],
+    );
   });
 }
 

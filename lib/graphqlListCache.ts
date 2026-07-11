@@ -17,6 +17,28 @@ function resolveListCacheTtlMs(): number {
 
 const LIST_CACHE_TTL_MS = resolveListCacheTtlMs();
 
+/**
+ * Scope list-cache keys to the signed-in tenant so one property never reuses
+ * another property's cached GraphQL list (SaaS isolation).
+ */
+export function tenantScopedGraphqlListKey(baseKey: string): string {
+  const base = String(baseKey ?? "").trim();
+  if (typeof window === "undefined") return base;
+  const tenant =
+    localStorage.getItem("tin_number")?.trim() ||
+    localStorage.getItem("hotel_name")?.trim() ||
+    "";
+  return tenant ? `${tenant}::${base}` : base;
+}
+
+function cacheKeyMatchesTarget(cacheKey: string, target: string): boolean {
+  if (cacheKey === target) return true;
+  if (cacheKey.startsWith(target)) return true;
+  // Tenant-scoped keys look like `${tenant}::${baseKey}`.
+  if (cacheKey.endsWith(`::${target}`)) return true;
+  return false;
+}
+
 export function readListCache<T>(key: string): T | null {
   if (LIST_CACHE_TTL_MS <= 0) return null;
   const entry = listCache.get(key);
@@ -44,7 +66,7 @@ export function invalidateGraphqlListCache(keys?: string | string[]): void {
   }
   const targets = Array.isArray(keys) ? keys : [keys];
   for (const key of listCache.keys()) {
-    if (targets.some((t) => key === t || key.startsWith(t))) {
+    if (targets.some((t) => cacheKeyMatchesTarget(key, t))) {
       listCache.delete(key);
     }
   }

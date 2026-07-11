@@ -188,10 +188,12 @@ export default function StoreItems({
     () =>
       mergeAccountabilityFilterOptions(
         registryDeptOptions,
-        data.map((r) => ({
-          department: r.receivedByDepartment,
-          leaderName: r.receivedByLeaderName,
-        })),
+        data
+          .filter((r) => rowHotelMatchesTenantScope(r.HotelName, null))
+          .map((r) => ({
+            department: r.receivedByDepartment,
+            leaderName: r.receivedByLeaderName,
+          })),
       ),
     [registryDeptOptions, data],
   );
