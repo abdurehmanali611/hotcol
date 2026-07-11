@@ -147,11 +147,14 @@ export function HotelInventoryPaymentCategoryPanel({
   inventoryItems: ItemRegistration[];
   /** Fully stocked-out kitchen/bar-received lines archived as fresh bazaar. */
   freshBazaarArchives?: FreshBazaarRow[];
-  /** Approved stock movements — used to sum original registered qty on store lines. */
+  /** Approved stock movements — used to sum registered qty and classify fresh bazaar. */
   stockOutMovements?: {
     itemRegistrationId: number;
     amount: number;
     status: string;
+    movementType?: string | null;
+    requestedByDepartment?: string | null;
+    stakeHolderOrReason?: string | null;
   }[];
 }) {
   const meta = COPY[mode];
@@ -290,6 +293,36 @@ export function HotelInventoryPaymentCategoryPanel({
     () => filtered.reduce((s, r) => s + lineOwedETB(r), 0),
     [filtered],
   );
+
+  const filteredBreakdown = useMemo(() => {
+    let freshLines = 0;
+    let freshQty = 0;
+    let depletedLines = 0;
+    let depletedQty = 0;
+    let storeLines = 0;
+    let storeQty = 0;
+    for (const r of filtered) {
+      const q = registeredAmountOf(r);
+      if (r.paymentSource === "fresh_bazaar") {
+        freshLines += 1;
+        freshQty += q;
+      } else if (r.paymentSource === "depleted") {
+        depletedLines += 1;
+        depletedQty += q;
+      } else {
+        storeLines += 1;
+        storeQty += q;
+      }
+    }
+    return {
+      freshLines,
+      freshQty,
+      depletedLines,
+      depletedQty,
+      storeLines,
+      storeQty,
+    };
+  }, [filtered]);
   const totalCredit = useMemo(
     () => filtered.reduce((s, r) => s + creditAmountETB(r), 0),
     [filtered],
@@ -355,6 +388,30 @@ export function HotelInventoryPaymentCategoryPanel({
               {mode === "credit" ? ` · ${totalCredit.toLocaleString()} ETB credit` : ""}
             </span>
           </p>
+          {(filteredBreakdown.freshLines > 0 ||
+            filteredBreakdown.depletedLines > 0 ||
+            filteredBreakdown.storeLines > 0) && (
+            <p className="w-full text-xs text-muted-foreground tabular-nums">
+              In this view:{" "}
+              {filteredBreakdown.freshLines > 0 ? (
+                <>
+                  <span className="font-medium text-foreground">
+                    {filteredBreakdown.freshLines} fresh bazaar
+                  </span>
+                  {" "}
+                  ({filteredBreakdown.freshQty.toLocaleString()} units)
+                </>
+              ) : (
+                "0 fresh bazaar"
+              )}
+              {filteredBreakdown.depletedLines > 0
+                ? ` · ${filteredBreakdown.depletedLines} stocked out (non-fresh, ${filteredBreakdown.depletedQty.toLocaleString()} units)`
+                : ""}
+              {filteredBreakdown.storeLines > 0
+                ? ` · ${filteredBreakdown.storeLines} still in store (${filteredBreakdown.storeQty.toLocaleString()} units)`
+                : ""}
+            </p>
+          )}
           <Button
             type="button"
             size="sm"

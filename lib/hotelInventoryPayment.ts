@@ -182,23 +182,71 @@ export type InventoryPaymentRow = ItemRegistration & {
 };
 
 /**
- * True fresh-bazaar archives: stocked in (received) as Kitchen or Bar, then
- * fully stocked out — not Store-received depletes.
+ * Fresh bazaar for payment & tax:
+ * fully stocked out to Kitchen/Bar (same “Department” as Inactive), or received by
+ * Kitchen/Bar. Staff destination / `(staff)` names are never fresh bazaar.
  */
-export function isKitchenFreshBazaarArchive(row: {
-  name?: string | null;
-  receivedByDepartment?: string | null;
-}): boolean {
+export function isKitchenFreshBazaarArchive(
+  row: {
+    name?: string | null;
+    receivedByDepartment?: string | null;
+  },
+  stockOutDest?: string | null,
+): boolean {
   const name = String(row.name ?? "").toLowerCase();
-  // Staff-meal style names are not fresh-bazaar format for payment labeling.
   if (/\(staff\)/.test(name)) return false;
+  const dest = String(stockOutDest ?? "")
+    .trim()
+    .toUpperCase();
+  if (dest === "STAFF") return false;
+  if (dest === "KITCHEN" || dest === "BAR") return true;
   const dept = String(row.receivedByDepartment ?? "")
     .trim()
     .toUpperCase();
-  if (dept === "STORE") return false;
+  if (dept === "STAFF" || dept === "STORE") return false;
   if (dept === "KITCHEN" || dept === "BAR") return true;
-  // Legacy archives with empty dept defaulted to kitchen — treat as fresh bazaar.
+  // Legacy empty dept — treat as fresh bazaar only when no staff signal.
   return !dept;
+}
+
+/** Resolve stock-out department code the same way Inactive list does. */
+export function paymentStockOutDepartmentCode(req: {
+  requestedByDepartment?: string | null;
+  stakeHolderOrReason?: string | null;
+  movementType?: string | null;
+  status?: string | null;
+}): string {
+  const requested = String(req.requestedByDepartment ?? "").trim().toUpperCase();
+  if (requested) return requested;
+  if (String(req.movementType ?? "").toUpperCase() === "STOCK_OUT" || !req.movementType) {
+    const stake = String(req.stakeHolderOrReason ?? "").trim().toLowerCase();
+    if (stake === "kitchen") return "KITCHEN";
+    if (stake === "barista" || stake === "bar") return "BAR";
+    if (stake === "staff") return "STAFF";
+  }
+  return "";
+}
+
+export function lastApprovedStockOutDest(
+  itemRegistrationId: number,
+  stockOuts: readonly {
+    itemRegistrationId: number;
+    amount?: number;
+    status: string;
+    movementType?: string | null;
+    requestedByDepartment?: string | null;
+    stakeHolderOrReason?: string | null;
+  }[] = [],
+): string {
+  let best: (typeof stockOuts)[number] | null = null;
+  for (const s of stockOuts) {
+    if (Number(s.itemRegistrationId) !== itemRegistrationId) continue;
+    if (String(s.status ?? "").toUpperCase() !== "APPROVED") continue;
+    const mt = String(s.movementType ?? "STOCK_OUT").toUpperCase();
+    if (mt && mt !== "STOCK_OUT") continue;
+    best = s;
+  }
+  return best ? paymentStockOutDepartmentCode(best) : "";
 }
 
 /**
@@ -235,6 +283,7 @@ export function applyRegisteredAmountsFromStockOuts(
 /** Map a FreshBazaar archive into a payment-table row. */
 export function freshBazaarToPaymentRow(
   row: FreshBazaarRow,
+  stockOutDest?: string | null,
 ): InventoryPaymentRow {
   const qty = Number(row.amount) || 0;
   const unitPrice = Number(row.unitPrice) || 0;
@@ -245,7 +294,10 @@ export function freshBazaarToPaymentRow(
   // Use a stable synthetic id so DataTable keys never collide with live store rows
   // if MySQL ever reuses an itemRegistrationId after delete.
   const syntheticId = -(Number(row.id) || row.itemRegistrationId || 0);
-  const paymentSource: InventoryPaymentSource = isKitchenFreshBazaarArchive(row)
+  const paymentSource: InventoryPaymentSource = isKitchenFreshBazaarArchive(
+    row,
+    stockOutDest,
+  )
     ? "fresh_bazaar"
     : "depleted";
   return {
@@ -279,9 +331,8 @@ export function freshBazaarToPaymentRow(
 
 /**
  * Live store lines (qty = original registered = on-hand + stocked out) plus
- * kitchen/bar fresh-bazaar archives. Store-received fully depleted archives stay
- * in the list without the Fresh bazaar tag (`depleted`) so payment still shows
- * them as one line — never split into remaining inventory + stocked-out separately.
+ * kitchen/bar fresh-bazaar archives. Staff / non-kitchen-bar depletes stay as
+ * `depleted` (Stocked out) — never tagged Fresh bazaar.
  */
 export function mergeInventoryPaymentRows(
   inventoryItems: readonly ItemRegistration[],
@@ -290,6 +341,9 @@ export function mergeInventoryPaymentRows(
     itemRegistrationId: number;
     amount: number;
     status: string;
+    movementType?: string | null;
+    requestedByDepartment?: string | null;
+    stakeHolderOrReason?: string | null;
   }[] = [],
 ): InventoryPaymentRow[] {
   const withRegistered = applyRegisteredAmountsFromStockOuts(
@@ -306,6 +360,11 @@ export function mergeInventoryPaymentRows(
   const archiveRows = freshBazaarArchives
     // Skip when the same registration is still live (partial stock — one summed store line).
     .filter((f) => !storeIds.has(f.itemRegistrationId))
-    .map(freshBazaarToPaymentRow);
+    .map((f) =>
+      freshBazaarToPaymentRow(
+        f,
+        lastApprovedStockOutDest(f.itemRegistrationId, stockOuts),
+      ),
+    );
   return [...storeRows, ...archiveRows];
 }
