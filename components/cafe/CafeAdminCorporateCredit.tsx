@@ -8,22 +8,29 @@ export function CafeAdminCorporateCredit({
   propertyName,
   propertyLogo,
   propertyTin,
+  variant = "cafe-admin",
 }: {
   tenantScope: string;
   propertyName: string;
   propertyLogo?: string | null;
   propertyTin?: string | null;
+  /** Café admin vs hotel manager (same screens, different approval copy). */
+  variant?: "cafe-admin" | "hotel-manager";
 }) {
+  const audience =
+    variant === "cafe-admin" ? "cafe-admin" : "hotel-manager";
+  const tierVariant = variant === "cafe-admin" ? "cafe" : "hotel";
+
   return (
     <div className="space-y-8">
       <HotelManagerCompanyApprovals
-        audience="cafe-admin"
+        audience={audience}
         tenantScope={tenantScope}
         propertyName={propertyName}
         propertyLogo={propertyLogo}
         propertyTin={propertyTin}
       />
-      <ManagerCorporateCreditTiers variant="cafe" />
+      <ManagerCorporateCreditTiers variant={tierVariant} />
     </div>
   );
 }

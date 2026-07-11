@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { createCredentialSchema } from "@/lib/validations";
 import type { ModuleOption } from "@/constants";
-import { canAccessTenantModule } from "@/lib/tenantAccess";
+import { useTenantModules } from "@/hooks/useTenantModules";
+import { tenantHasModule } from "@/lib/subscriptionModules";
 import { UserPlus, ShieldCheck, Hotel } from "lucide-react";
 
 interface GrantCredentialProps {
@@ -47,18 +48,22 @@ export default function GrantCredential({
   ];
 
   const hotelRoles: { value: string; label: string; module?: ModuleOption }[] = [
+    { value: "Kitchen", label: "Kitchen (Chef)", module: "Cafe and Restaurant" },
+    { value: "Barista", label: "Bar", module: "Cafe and Restaurant" },
+    { value: "Cashier", label: "Cashier", module: "Cafe and Restaurant" },
     { value: "CostControl", label: "Cost control", module: "Financial Management" },
     { value: "Finance", label: "Finance", module: "Financial Management" },
     { value: "Store", label: "Hotel store", module: "Inventory" },
-    {
-      value: "HotelCashier",
-      label: "Hotel cashier (corporate credit)",
-      module: "Credit Management",
-    },
   ];
 
-  const roleOptions = (variant === "hotel" ? hotelRoles : cafeRoles).filter(
-    (r) => !r.module || canAccessTenantModule(r.module),
+  const tenantModules = useTenantModules();
+
+  const roleOptions = useMemo(
+    () =>
+      (variant === "hotel" ? hotelRoles : cafeRoles).filter(
+        (r) => !r.module || tenantHasModule(tenantModules, r.module),
+      ),
+    [variant, tenantModules],
   );
 
   const defaultRole = (roleOptions[0]?.value ??
@@ -78,11 +83,31 @@ export default function GrantCredential({
     },
   });
 
+  useEffect(() => {
+    const current = form.getValues("Role");
+    if (roleOptions.some((r) => r.value === current)) return;
+    if (roleOptions[0]) {
+      form.setValue(
+        "Role",
+        roleOptions[0].value as z.infer<typeof createCredentialSchema>["Role"],
+      );
+    }
+  }, [roleOptions, form]);
+
   const handleSubmit = async (values: z.infer<typeof createCredentialSchema>) => {
     setIsSubmitting(true);
     try {
       await onSubmit(values);
-      form.reset();
+      form.reset({
+        UserName: "",
+        Password: "",
+        confirmPassword: "",
+        Role: (roleOptions[0]?.value ?? defaultRole) as z.infer<
+          typeof createCredentialSchema
+        >["Role"],
+        HotelName: hotelName,
+        LogoUrl: logoUrl || "",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +123,7 @@ export default function GrantCredential({
           </div>
           <CardDescription>
             {variant === "hotel"
-              ? "Create access for cost control, finance, or hotel store staff."
+              ? "Create access for cashier, chef, bar, hotel store, and approval teams. Roles appear only for modules subscribed on this property."
               : "Create new login credentials for kitchen or bar staff members."}
           </CardDescription>
         </CardHeader>
@@ -126,7 +151,10 @@ export default function GrantCredential({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Access Role</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a role" />
@@ -189,6 +217,7 @@ export default function GrantCredential({
               <PendingButton
                 type="submit"
                 pending={isSubmitting}
+                disabled={roleOptions.length === 0}
                 className="w-full h-11 text-base shadow-lg cursor-pointer"
               >
                 {isSubmitting ? (

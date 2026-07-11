@@ -515,6 +515,69 @@
     margin: 4px 0;
   }
 
+  .inactive-audit-print-signatures {
+    margin-top: 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .inactive-audit-print-signatures-title {
+    margin: 0 0 6px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #71717a;
+  }
+
+  .inactive-audit-print-signatures-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 18px;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .inactive-audit-print-signature-item {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .inactive-audit-print-signature-meta {
+    flex-shrink: 0;
+    max-width: 42%;
+  }
+
+  .inactive-audit-print-signature-label {
+    margin: 0;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #71717a;
+    line-height: 1.2;
+  }
+
+  .inactive-audit-print-signature-name {
+    margin: 2px 0 0;
+    font-size: 9px;
+    font-weight: 500;
+    color: #3f3f46;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+
+  .inactive-audit-print-signature-line {
+    flex: 1;
+    min-width: 28px;
+    height: 14px;
+    margin-bottom: 2px;
+    border-bottom: 1.5px solid #a1a1aa;
+  }
+
   .inactive-audit-print-apex-footer {
     display: flex;
     justify-content: space-between;

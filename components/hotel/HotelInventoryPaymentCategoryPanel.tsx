@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ItemRegistration } from "@/lib/actions";
+import type { FreshBazaarRow, ItemRegistration } from "@/lib/actions";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +26,10 @@ import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
+  mergeInventoryPaymentRows,
   registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
+import type { InventoryPaymentRow } from "@/lib/hotelInventoryPayment";
 import { buildInventoryPaymentColumns } from "@/lib/dataTableColumns/inventoryPayment";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
@@ -54,24 +56,25 @@ const COPY: Record<
   credit: {
     title: "Credit receiving vouchers",
     description:
-      "Inventory items received on supplier credit — full or partial payment recorded.",
+      "Store inventory and fresh bazaar (fully stocked-out kitchen) lines received on supplier credit — full or partial payment recorded.",
     sheet: "Credit_vouchers",
   },
   paid: {
     title: "Paid receiving items",
     description:
-      "Inventory lines where the supplier has been paid in full at registration.",
+      "Store and fresh bazaar lines where the supplier has been paid in full at registration.",
     sheet: "Paid_receiving",
   },
   "with-vat": {
     title: "Items purchased with VAT",
     description:
-      "Registrations where unit price includes 15% VAT on the purchase.",
+      "Store and fresh bazaar registrations where unit price includes 15% VAT on the purchase.",
     sheet: "With_VAT",
   },
   "without-vat": {
     title: "Items purchased without VAT",
-    description: "Registrations recorded at net unit price without VAT.",
+    description:
+      "Store and fresh bazaar registrations recorded at net unit price without VAT.",
     sheet: "Without_VAT",
   },
 };
@@ -101,9 +104,9 @@ const PAY_FILTER_OPTIONS: { id: PayFilter; label: string }[] = [
 const inventoryColumns = buildInventoryPaymentColumns();
 
 function filterRowsByMode(
-  items: ItemRegistration[],
+  items: InventoryPaymentRow[],
   mode: PaymentCategoryMode,
-): ItemRegistration[] {
+): InventoryPaymentRow[] {
   return items.filter((r) => {
     if (mode === "credit") return itemPaymentBucket(r) === "credit";
     if (mode === "paid") return itemPaymentBucket(r) === "paid";
@@ -116,10 +119,13 @@ export function HotelInventoryPaymentCategoryPanel({
   mode,
   tenantLabel,
   inventoryItems,
+  freshBazaarArchives = [],
 }: {
   mode: PaymentCategoryMode;
   tenantLabel: string;
   inventoryItems: ItemRegistration[];
+  /** Fully stocked-out kitchen-received lines archived as fresh bazaar. */
+  freshBazaarArchives?: FreshBazaarRow[];
 }) {
   const meta = COPY[mode];
   const [dateFrom, setDateFrom] = useState("");
@@ -129,13 +135,18 @@ export function HotelInventoryPaymentCategoryPanel({
   const [vatFilter, setVatFilter] = useState<VatFilter>("all");
   const [payFilter, setPayFilter] = useState<PayFilter>("all");
 
+  const paymentRows = useMemo(
+    () => mergeInventoryPaymentRows(inventoryItems, freshBazaarArchives),
+    [inventoryItems, freshBazaarArchives],
+  );
+
   // Credit/Paid submenus offer a VAT filter; the VAT submenus offer a supplier
   // payment-status (fully paid / on credit) filter.
   const showVatFilter = mode === "credit" || mode === "paid";
   const showPayFilter = mode === "with-vat" || mode === "without-vat";
 
   const filtered = useMemo(() => {
-    return filterRowsByMode(inventoryItems, mode).filter((r) => {
+    return filterRowsByMode(paymentRows, mode).filter((r) => {
       if (!matchesRegistrationDateRange(r.registrationDate, dateFrom, dateTo)) {
         return false;
       }
@@ -156,7 +167,7 @@ export function HotelInventoryPaymentCategoryPanel({
       return true;
     });
   }, [
-    inventoryItems,
+    paymentRows,
     mode,
     dateFrom,
     dateTo,
@@ -178,8 +189,8 @@ export function HotelInventoryPaymentCategoryPanel({
   const fileBase = `${tenantLabel || "property"}_inventory`;
 
   const modeCount = useMemo(
-    () => filterRowsByMode(inventoryItems, mode).length,
-    [inventoryItems, mode],
+    () => filterRowsByMode(paymentRows, mode).length,
+    [paymentRows, mode],
   );
 
   const hasActiveFilters =
@@ -237,6 +248,10 @@ export function HotelInventoryPaymentCategoryPanel({
                 filtered.map((r) => ({
                   id: r.id,
                   item_name: r.name,
+                  source:
+                    r.paymentSource === "fresh_bazaar"
+                      ? "Fresh bazaar"
+                      : "Store",
                   quantity_with_unit: formatQtyWithUnit(
                     registeredAmountOf(r),
                     r.measuredBy,

@@ -300,6 +300,10 @@ export async function LoginAction(
           toast.error("Hotel cashier is only for hotel / resort / pension accounts.");
           break;
         }
+        if (modules.includes("Cafe and Restaurant")) {
+          router.push(`/Cashier?${queryParams}`);
+          break;
+        }
         router.push(`/HotelCashier?${queryParams}`);
         break;
       default:

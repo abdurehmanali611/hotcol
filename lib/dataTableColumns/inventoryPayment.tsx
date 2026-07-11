@@ -1,7 +1,6 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import type { ItemRegistration } from "@/lib/actions";
 import {
   creditAmountETB,
   isVatEnabled,
@@ -9,6 +8,7 @@ import {
   itemPaymentLabel,
   lineOwedETB,
   registeredAmountOf,
+  type InventoryPaymentRow,
 } from "@/lib/hotelInventoryPayment";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
 import { rowRegistrationYmd } from "@/lib/panelFilters";
@@ -28,16 +28,24 @@ function paymentBadgeClass(bucket: ReturnType<typeof itemPaymentBucket>) {
 export function buildInventoryPaymentColumns(options?: {
   includeRegistered?: boolean;
   creditOnlyWhenCredit?: boolean;
-}): ColumnDef<ItemRegistration>[] {
+}): ColumnDef<InventoryPaymentRow>[] {
   const { includeRegistered = true, creditOnlyWhenCredit = false } = options ?? {};
-  const cols: ColumnDef<ItemRegistration>[] = [
+  const cols: ColumnDef<InventoryPaymentRow>[] = [
     {
       accessorKey: "name",
       header: "Item",
       cell: ({ row }) => (
-        <span className="font-medium max-w-[200px] block truncate">
-          {row.original.name}
-        </span>
+        <div className="flex flex-col gap-0.5 max-w-[220px]">
+          <span className="font-medium truncate">{row.original.name}</span>
+          {row.original.paymentSource === "fresh_bazaar" ? (
+            <Badge
+              variant="outline"
+              className="w-fit text-[9px] font-normal border-cyan-500/30 bg-cyan-500/10 text-cyan-900 dark:text-cyan-200"
+            >
+              Fresh bazaar
+            </Badge>
+          ) : null}
+        </div>
       ),
     },
   ];

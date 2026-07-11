@@ -10,7 +10,8 @@ import {
 export const BUSINESS_TYPE_SIGNUP_DESCRIPTIONS: Record<BusinessType, string> = {
   "Cafe and Restaurant":
     "Orders, kitchen, bar, tables, cashier, and daily café operations.",
-  Hotel: "Lodging with inventory, credit, and optional financial modules.",
+  Hotel:
+    "Lodging with inventory, credit, optional financial modules, and optional café & restaurant.",
   Resort: "Resort operations — registration opening soon.",
   Pension: "Guest house and pension workflows — registration opening soon.",
 };
@@ -84,9 +85,6 @@ export function isModuleDisabledAtSignup(
 ): boolean {
   if (isModuleComingSoon(mod)) return true;
   if (isModuleRequiredAtSignup(mod, businessType)) return true;
-  if (mod === "Cafe and Restaurant" && isLodgingBusinessType(businessType)) {
-    return true;
-  }
   if (mod === "Financial Management" && businessType === "Cafe and Restaurant") {
     return true;
   }
@@ -98,9 +96,6 @@ export function getSignupDisabledReason(
   businessType: BusinessType,
 ): string | null {
   if (isModuleComingSoon(mod)) return "Coming soon";
-  if (mod === "Cafe and Restaurant" && isLodgingBusinessType(businessType)) {
-    return "Coming soon for hotels";
-  }
   if (isModuleRequiredAtSignup(mod, businessType)) return "Included";
   return null;
 }
@@ -133,14 +128,17 @@ export function normalizeSignupModules(
 
 /**
  * Default signup pricing matrix (café / hotel tiers).
- * Used as fallback and to detect when the Apex catalog differs from baseline.
- * Live signup reads the catalog via signupPricingPreview when available.
+ * Lodging + Cafe and Restaurant uses café tier setup fees with hotel quarterly
+ * rates where inventory/finance apply. Used as fallback and to detect when the
+ * Apex catalog differs from baseline. Live signup reads the catalog via
+ * signupPricingPreview when available.
  */
 export function calculateSignupPricing(
   businessType: BusinessType,
   modules: readonly ModuleOption[],
 ): SignupPricing {
   const set = new Set(modules);
+  const hasCafe = set.has("Cafe and Restaurant");
   const hasInv = set.has("Inventory");
   const hasFin = set.has("Financial Management");
   const hasCredit = set.has("Credit Management");
@@ -152,6 +150,24 @@ export function calculateSignupPricing(
   }
 
   if (isLodgingBusinessType(businessType)) {
+    if (hasCafe) {
+      if (hasInv && hasFin && hasCredit) {
+        return { setupFeeETB: 35_000, quarterlyFeeETB: 15_000 };
+      }
+      if (hasInv && hasCredit) {
+        return { setupFeeETB: 35_000, quarterlyFeeETB: 10_000 };
+      }
+      if (hasCredit && !hasInv) {
+        return { setupFeeETB: 35_000, quarterlyFeeETB: 10_000 };
+      }
+      if (hasInv && hasFin) {
+        return { setupFeeETB: 30_000, quarterlyFeeETB: 10_000 };
+      }
+      if (hasInv) {
+        return { setupFeeETB: 30_000, quarterlyFeeETB: 10_000 };
+      }
+      return { setupFeeETB: 25_000, quarterlyFeeETB: 5_000 };
+    }
     if (hasInv && hasFin && hasCredit) {
       return { setupFeeETB: 35_000, quarterlyFeeETB: 15_000 };
     }
@@ -213,12 +229,17 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "credit-registrations": "Credit Management",
 };
 
-/** Manager tab visible when the tenant has any of these modules. */
-export const MANAGER_TAB_ANY_MODULES: Partial<
-  Record<string, readonly ModuleOption[]>
+/** Manager café / restaurant + credit tabs (admin parity, no café inventory list). */
+export const MANAGER_SERVICE_TAB_MODULES: Partial<
+  Record<string, ModuleOption>
 > = {
-  "menu-create-item": ["Credit Management", "Cafe and Restaurant"],
-  "menu-update-item": ["Credit Management", "Cafe and Restaurant"],
+  "cafe-reports": "Cafe and Restaurant",
+  "menu-create-item": "Cafe and Restaurant",
+  "menu-update-item": "Cafe and Restaurant",
+  "station-prep-qty": "Cafe and Restaurant",
+  "waiter-table": "Cafe and Restaurant",
+  "cafe-item-receipts": "Inventory",
+  "credit-registrations": "Credit Management",
 };
 
 export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
@@ -233,9 +254,6 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "item-receipts": "Inventory",
   "reports-beginnings": "Inventory",
   "inventory-payment-vat": "Financial Management",
-  "creditor-usage-report": "Credit Management",
-  "corporate-credit-tiers": "Credit Management",
-  "authorize-companies": "Credit Management",
   "cc-profiles": "Financial Management",
 };
 
@@ -291,6 +309,12 @@ export function roleAllowedForModules(
   role: string,
   modules: readonly ModuleOption[],
 ): boolean {
+  if (role === "HotelCashier") {
+    return (
+      tenantHasModule(modules, "Credit Management") ||
+      tenantHasModule(modules, "Cafe and Restaurant")
+    );
+  }
   const required = ROLE_REQUIRED_MODULE[role];
   if (!required) return true;
   return tenantHasModule(modules, required);
@@ -317,9 +341,25 @@ export function filterManagerTabId(
   tabId: string,
   modules: readonly ModuleOption[],
 ): boolean {
-  const anyOf = MANAGER_TAB_ANY_MODULES[tabId];
-  if (anyOf) return tenantHasAnyModule(modules, anyOf);
   const required = MANAGER_TAB_MODULES[tabId];
   if (!required) return true;
   return tenantHasModule(modules, required);
+}
+
+export function filterManagerServiceTabId(
+  tabId: string,
+  modules: readonly ModuleOption[],
+): boolean {
+  const required = MANAGER_SERVICE_TAB_MODULES[tabId];
+  if (!required) return true;
+  return tenantHasModule(modules, required);
+}
+
+export function tenantHasServiceModuleGroup(
+  modules: readonly ModuleOption[],
+): boolean {
+  return (
+    tenantHasModule(modules, "Cafe and Restaurant") ||
+    tenantHasModule(modules, "Credit Management")
+  );
 }

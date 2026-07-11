@@ -91,8 +91,20 @@ export function formatDepartmentWithLeader(
   const normalized = normalizeDepartmentCode(String(code ?? "").trim());
   if (normalized === STAFF_REQUESTED_BY_CODE) return "Staff";
   const label = departmentLabel(code);
-  const name = String(leaderName ?? "").trim();
+  const name = normalizeLeaderNames(String(leaderName ?? ""));
   return name ? `${label} (${name})` : label;
+}
+
+/**
+ * Normalize a department leader field: split on commas, trim each name,
+ * drop empties, rejoin with ", ". Supports multiple leaders per department.
+ */
+export function normalizeLeaderNames(raw: string): string {
+  return String(raw ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 /** Printed receipt / voucher label for who requested a purchase or stock movement. */

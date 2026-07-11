@@ -120,11 +120,26 @@ export type CafeCashierNavId = (typeof CAFE_CASHIER_NAV_ITEMS)[number]["id"];
 
 export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
 
-/** Manager (hotel) dashboard — stock & credential operations; expand later. */
+/**
+ * Manager café / restaurant + credit sidebar — mirrors cafe Admin except inventory.
+ * Shown when the tenant subscribes to the matching module.
+ */
+export const MANAGER_SERVICE_SIDEBAR_ITEMS = [
+  { id: "cafe-reports", label: "Reports", icon: "FileText" },
+  { id: "menu-create-item", label: "Add Item", icon: "PlusCircle" },
+  { id: "menu-update-item", label: "Update/Delete Item", icon: "Edit" },
+  { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
+  { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
+  { id: "cafe-item-receipts", label: "Item receipts", icon: "Receipt" },
+  { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
+] as const;
+
+export type ManagerServiceSidebarItemId =
+  (typeof MANAGER_SERVICE_SIDEBAR_ITEMS)[number]["id"];
+
+/** Manager (hotel) dashboard — lodging inventory & credential operations. */
 export const MANAGER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { id: "menu-create-item", label: "Add items", icon: "PlusCircle" },
-  { id: "menu-update-item", label: "Menu items", icon: "Edit" },
   { id: "cc-profiles", label: "Cost control IDs", icon: "UserCheck" },
   { id: "department-leaders", label: "Department leaders", icon: "Users" },
   { id: "reports-inventory", label: "Inventory items (list)", icon: "Package" },
@@ -133,23 +148,12 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "authorize-item-registrations", label: "Authorize registrations", icon: "Package" },
   { id: "authorize-purchases", label: "Authorize purchases", icon: "ShoppingCart" },
   { id: "authorize-stock", label: "Authorize stock", icon: "ArrowRightLeft" },
-  { id: "authorize-companies", label: "Corporate companies", icon: "Building2" },
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
   {
     id: "inventory-payment-vat",
     label: "Inventory payment & tax",
     icon: "Receipt",
-  },
-  {
-    id: "creditor-usage-report",
-    label: "Creditor staff usage report",
-    icon: "Table2",
-  },
-  {
-    id: "corporate-credit-tiers",
-    label: "Corporate credit tiers",
-    icon: "BadgePercent",
   },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },
   { id: "update-credential", label: "Update credential", icon: "RefreshCw" },
@@ -165,7 +169,7 @@ export const HOTEL_CASHIER_NAV_ITEMS = [
     label: "Company deals",
     icon: "Building2",
     description:
-      "Corporate accounts, credit tiers, allowed dishes & drinks, deal sheet.",
+      "Corporate accounts, credit tiers, allowed dishes and drinks, and the deal sheet.",
   },
   {
     id: "usage",

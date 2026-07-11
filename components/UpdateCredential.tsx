@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import type { ModuleOption } from "@/constants";
+import { useTenantModules } from "@/hooks/useTenantModules";
+import { tenantHasModule } from "@/lib/subscriptionModules";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Loader2 } from "lucide-react";
@@ -81,6 +84,31 @@ export default function UpdateCredential({
   const [staffPending, setStaffPending] = useState(false);
   const [adminPending, setAdminPending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
+  const tenantModules = useTenantModules();
+
+  const roleOptions = useMemo(() => {
+    type RoleRow = { id: number; name: string; module?: ModuleOption };
+    const rows: RoleRow[] =
+      variant === "hotel"
+        ? [
+            { id: 1, name: "Kitchen", module: "Cafe and Restaurant" },
+            { id: 2, name: "Barista", module: "Cafe and Restaurant" },
+            { id: 3, name: "Cashier", module: "Cafe and Restaurant" },
+            { id: 4, name: "Store", module: "Inventory" },
+            { id: 5, name: "CostControl", module: "Financial Management" },
+            { id: 6, name: "Finance", module: "Financial Management" },
+            { id: 7, name: "HotelCashier", module: "Credit Management" },
+          ]
+        : [
+            { id: 1, name: "Kitchen" },
+            { id: 2, name: "Barista" },
+            { id: 3, name: "Cashier" },
+            { id: 4, name: "Store" },
+          ];
+    return rows.filter(
+      (role) => !role.module || tenantHasModule(tenantModules, role.module),
+    );
+  }, [variant, tenantModules]);
 
   const nonAdminStaff = useMemo(
     () =>
@@ -149,21 +177,7 @@ export default function UpdateCredential({
                     name="Role"
                     fieldType={formFieldTypes.SELECT}
                     label="Update Role"
-                    listdisplay={
-                      variant === "hotel"
-                        ? [
-                            { id: 1, name: "CostControl" },
-                            { id: 2, name: "Finance" },
-                            { id: 3, name: "Store" },
-                            { id: 4, name: "HotelCashier" },
-                          ]
-                        : [
-                            { id: 1, name: "Kitchen" },
-                            { id: 2, name: "Barista" },
-                            { id: 3, name: "Cashier" },
-                            { id: 4, name: "Store" },
-                          ]
-                    }
+                    listdisplay={roleOptions}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

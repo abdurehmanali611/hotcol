@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "./ui/card";
@@ -16,6 +17,7 @@ import { PendingButton } from "./ui/pending-button";
 import { useState } from "react";
 import { LoginAction } from "@/lib/actions";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +87,7 @@ const Login = () => {
           </form>
         </Form>
       </CardContent>
-      {/* <CardFooter className="justify-center border-t border-border/60 px-6 py-4">
+      <CardFooter className="justify-center border-t border-border/60 px-6 py-4">
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
           <Link
@@ -95,7 +97,7 @@ const Login = () => {
             Sign up
           </Link>
         </p>
-      </CardFooter> */}
+      </CardFooter>
     </Card>
   );
 };

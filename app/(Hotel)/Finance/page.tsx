@@ -721,6 +721,7 @@ function FinanceInner() {
               mode={paymentModeFromSection(financeSection)!}
               tenantLabel={displayName || "Property"}
               inventoryItems={activeInventoryRows}
+              freshBazaarArchives={freshBazaarArchives}
             />
           </section>
         )}

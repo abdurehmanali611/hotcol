@@ -1613,6 +1613,7 @@ function CostControlInner() {
                 mode={paymentModeFromSection(activeSection)!}
                 tenantLabel={displayName || "Property"}
                 inventoryItems={activeInventoryRows}
+                freshBazaarArchives={freshBazaarArchives}
               />
             </div>
           )}

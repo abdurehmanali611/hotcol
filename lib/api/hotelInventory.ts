@@ -746,13 +746,16 @@ export async function fetchFreshBazaarArchives() {
           name
           imageUrl
           category
+          amount
           measuredBy
           unitPrice
           purchaseWithVat
+          paidAmount
           supplierName
           supplierPhone
           Address
           supplierTinNumber
+          registrationDate
           archivedAt
         }
       }

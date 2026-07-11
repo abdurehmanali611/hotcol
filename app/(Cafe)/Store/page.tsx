@@ -681,6 +681,7 @@ export function StoreComponent({
               mode="credit"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
+              freshBazaarArchives={freshBazaarArchives}
             />
           </div>
         ) : activeView === "PaymentPaid" && hotelInventory ? (
@@ -689,6 +690,7 @@ export function StoreComponent({
               mode="paid"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
+              freshBazaarArchives={freshBazaarArchives}
             />
           </div>
         ) : activeView === "PaymentWithVat" && hotelInventory ? (
@@ -697,6 +699,7 @@ export function StoreComponent({
               mode="with-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
+              freshBazaarArchives={freshBazaarArchives}
             />
           </div>
         ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
@@ -705,6 +708,7 @@ export function StoreComponent({
               mode="without-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
+              freshBazaarArchives={freshBazaarArchives}
             />
           </div>
         ) : activeView === "Inactive" ? (

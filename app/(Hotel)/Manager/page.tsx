@@ -11,6 +11,8 @@ import {
   createCredential,
   createCostControllerProfileApi,
   createItem,
+  createWaiter,
+  createTable,
   deleteCostControllerProfileApi,
   deleteCredential,
   deleteItem,
@@ -21,8 +23,16 @@ import {
   fetchFreshBazaarArchives,
   fetchItems,
   fetchKitchenBarBeginnings,
+  fetchLiveCafeOrders,
+  CAFE_LIVE_ORDERS_POLL_MS,
   fetchPurchaseRequests,
   fetchStockOutRequests,
+  fetchWaiters,
+  fetchTables,
+  fetchCashout,
+  generateReport,
+  prepareReportExportData,
+  exportToExcel,
   logoutAction,
   notifyApiFailure,
   updateAdminPassword,
@@ -43,9 +53,14 @@ import {
   normalizeKitchenBarStationKey,
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
-import { MANAGER_SIDEBAR_ITEMS } from "@/constants";
-import { filterManagerTabId } from "@/lib/subscriptionModules";
+import { MANAGER_SIDEBAR_ITEMS, MANAGER_SERVICE_SIDEBAR_ITEMS } from "@/constants";
+import {
+  filterManagerServiceTabId,
+  filterManagerTabId,
+  tenantHasModule,
+} from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import { readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
 import {
@@ -55,7 +70,9 @@ import {
 import { TrialBillingButton } from "@/components/subscription/TrialBillingButton";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   LogOut,
@@ -68,12 +85,12 @@ import {
   UserCheck,
   Users,
   Loader2,
-  BadgePercent,
   PlusCircle,
   Edit,
   Receipt,
-  Table2,
   Building2,
+  FileText,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -84,8 +101,6 @@ import {
   SidebarHeader,
   SidebarSeparator,
   SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
@@ -107,7 +122,7 @@ import {
 } from "@/lib/dataTableColumns/kitchenBar";
 import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
-import { ManagerCorporateCreditTiers } from "@/components/hotel/ManagerCorporateCreditTiers";
+import { ManagerCollapsibleSidebarGroup } from "@/components/hotel/ManagerCollapsibleSidebarGroup";
 import StoreItems from "@/app/StoreItems/page";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
 import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
@@ -118,16 +133,21 @@ import {
   HotelRegistrationApprovalsBlock,
   HotelStockWorkflowQueue,
 } from "@/components/hotel/HotelWorkflowApprovalQueues";
-import { HotelManagerCompanyApprovals } from "@/components/hotel/HotelManagerCompanyApprovals";
 import {
   isPaymentCategorySection,
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
 import { PAYMENT_CATEGORY_NAV } from "@/constants/hotelInventoryNav";
-import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
+import Reports from "@/components/reports";
+import WaiterAndTable from "@/components/Waiter_And_Table";
+import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
+import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
+import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
+import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
+import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -135,10 +155,12 @@ import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSe
 type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
   | Exclude<(typeof MANAGER_SIDEBAR_ITEMS)[number]["id"], "inventory-payment-vat">
+  | (typeof MANAGER_SERVICE_SIDEBAR_ITEMS)[number]["id"]
   | PaymentTabId;
 
-const sidebarIconMap: Record<
-  (typeof MANAGER_SIDEBAR_ITEMS)[number]["icon"],
+const managerSidebarIconMap: Record<
+  | (typeof MANAGER_SIDEBAR_ITEMS)[number]["icon"]
+  | (typeof MANAGER_SERVICE_SIDEBAR_ITEMS)[number]["icon"],
   LucideIcon
 > = {
   LayoutDashboard,
@@ -152,11 +174,37 @@ const sidebarIconMap: Record<
   Building2,
   ClipboardList,
   Receipt,
-  Table2,
-  BadgePercent,
   Key,
   RefreshCw,
+  FileText,
 };
+
+const MANAGER_INVENTORY_TAB_IDS = new Set<TabId>([
+  "dashboard",
+  "cc-profiles",
+  "department-leaders",
+  "reports-inventory",
+  "reports-movements",
+  "reports-purchases",
+  "authorize-item-registrations",
+  "authorize-purchases",
+  "authorize-stock",
+  "item-receipts",
+  "reports-beginnings",
+]);
+
+const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
+  "grant-credential",
+  "update-credential",
+]);
+
+const MANAGER_SERVICE_TAB_IDS = new Set<TabId>(
+  MANAGER_SERVICE_SIDEBAR_ITEMS.map((item) => item.id),
+);
+
+function isManagerServiceTab(tab: string): tab is TabId {
+  return MANAGER_SERVICE_TAB_IDS.has(tab as TabId);
+}
 
 function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -264,6 +312,9 @@ function ManagerContent() {
   }, []);
   const [newCcName, setNewCcName] = useState("");
   const [menuItems, setMenuItems] = useState<Item[]>([]);
+  const [cafeOrders, setCafeOrders] = useState<any[]>([]);
+  const [waiters, setWaiters] = useState<any[]>([]);
+  const [tables, setTables] = useState<any[]>([]);
   const [ccAddPending, setCcAddPending] = useState(false);
   const [ccRemoveId, setCcRemoveId] = useState<number | null>(null);
   const [managerDailyReportDate, setManagerDailyReportDate] = useState(() =>
@@ -277,6 +328,10 @@ function ManagerContent() {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
         try {
+          const hasCafeModule = tenantHasModule(
+            readTenantModulesFromStorage(),
+            "Cafe and Restaurant",
+          );
           const [
             creds,
             regs,
@@ -287,6 +342,9 @@ function ManagerContent() {
             kb,
             ccp,
             rawMenu,
+            liveOrders,
+            waiterRows,
+            tableRows,
           ] = await Promise.all([
             fetchCredentials(),
             fetchItemRegistrations(),
@@ -297,6 +355,9 @@ function ManagerContent() {
             fetchKitchenBarBeginnings(),
             fetchCostControllerProfiles(),
             fetchItems(),
+            hasCafeModule ? fetchLiveCafeOrders() : Promise.resolve([]),
+            hasCafeModule ? fetchWaiters() : Promise.resolve([]),
+            hasCafeModule ? fetchTables() : Promise.resolve([]),
           ]);
           if (isStale()) return;
           setCredentials(creds);
@@ -330,6 +391,27 @@ function ManagerContent() {
                 )
               : [],
           );
+          setCafeOrders(
+            Array.isArray(liveOrders)
+              ? liveOrders.filter((o) =>
+                  rowHotelMatchesTenantScope(o.HotelName, tenantScope),
+                )
+              : [],
+          );
+          setWaiters(
+            Array.isArray(waiterRows)
+              ? waiterRows.filter((w) =>
+                  rowHotelMatchesTenantScope(w.HotelName, tenantScope),
+                )
+              : [],
+          );
+          setTables(
+            Array.isArray(tableRows)
+              ? tableRows.filter((t) =>
+                  rowHotelMatchesTenantScope(t.HotelName, tenantScope),
+                )
+              : [],
+          );
         } catch (e: unknown) {
           if (!isStale()) notifyApiFailure(e, "Could not load dashboard data");
         } finally {
@@ -356,7 +438,7 @@ function ManagerContent() {
       MANAGER_SIDEBAR_ITEMS.filter((item) =>
         filterManagerTabId(item.id, tenantModules),
       ).map((item) => {
-        const Icon = sidebarIconMap[item.icon];
+        const Icon = managerSidebarIconMap[item.icon];
         return {
           id: item.id as TabId,
           label: item.label,
@@ -366,15 +448,108 @@ function ManagerContent() {
     [tenantModules],
   );
 
+  const serviceSidebarItems = useMemo(
+    () =>
+      MANAGER_SERVICE_SIDEBAR_ITEMS.filter((item) =>
+        filterManagerServiceTabId(item.id, tenantModules),
+      ).map((item) => {
+        const Icon = managerSidebarIconMap[item.icon];
+        return {
+          id: item.id as TabId,
+          label: item.label,
+          icon: <Icon className="h-4 w-4" aria-hidden />,
+        };
+      }),
+    [tenantModules],
+  );
+
+  const allNavItems = useMemo(
+    () => [...sidebarItems, ...serviceSidebarItems],
+    [sidebarItems, serviceSidebarItems],
+  );
+
+  const inventorySidebarItems = useMemo(
+    () =>
+      sidebarItems.filter((item) =>
+        MANAGER_INVENTORY_TAB_IDS.has(item.id),
+      ),
+    [sidebarItems],
+  );
+
+  const accessSidebarItems = useMemo(
+    () =>
+      sidebarItems.filter((item) =>
+        MANAGER_ACCESS_TAB_IDS.has(item.id),
+      ),
+    [sidebarItems],
+  );
+
   useEffect(() => {
     if (
-      sidebarItems.length > 0 &&
-      !sidebarItems.some((item) => item.id === activeTab) &&
+      allNavItems.length > 0 &&
+      !allNavItems.some((item) => item.id === activeTab) &&
       !isPaymentCategorySection(activeTab)
     ) {
-      setActiveTab(sidebarItems[0]!.id);
+      setActiveTab(allNavItems[0]!.id);
     }
-  }, [activeTab, sidebarItems]);
+  }, [activeTab, allNavItems]);
+
+  const refreshCafeOrdersLive = useCallback(async () => {
+    if (!tenantScope || !tenantHasModule(tenantModules, "Cafe and Restaurant")) {
+      return;
+    }
+    await loadCoordinator.run(async (isStale) => {
+      try {
+        const ordersData = await fetchLiveCafeOrders();
+        if (isStale()) return;
+        setCafeOrders(
+          Array.isArray(ordersData)
+            ? ordersData.filter((o) =>
+                rowHotelMatchesTenantScope(o.HotelName, tenantScope),
+              )
+            : [],
+        );
+      } catch {
+        /* silent background refresh */
+      }
+    });
+  }, [tenantScope, tenantModules, loadCoordinator]);
+
+  useEffect(() => {
+    if (!tenantScope || !tenantHasModule(tenantModules, "Cafe and Restaurant")) {
+      return;
+    }
+    const refresh = () => void refreshCafeOrdersLive();
+    const unsubSync = subscribeCafeOrdersChanged(refresh);
+    return () => {
+      unsubSync();
+    };
+  }, [tenantScope, tenantModules, refreshCafeOrdersLive]);
+
+  useVisibleInterval(
+    () => {
+      if (tenantScope && tenantHasModule(tenantModules, "Cafe and Restaurant")) {
+        void refreshCafeOrdersLive();
+      }
+    },
+    tenantScope && tenantHasModule(tenantModules, "Cafe and Restaurant")
+      ? CAFE_LIVE_ORDERS_POLL_MS
+      : null,
+  );
+
+  const inventoryGroupActive =
+    MANAGER_INVENTORY_TAB_IDS.has(activeTab) || isPaymentCategorySection(activeTab);
+  const serviceGroupActive =
+    isManagerServiceTab(activeTab) ||
+    serviceSidebarItems.some((item) => item.id === activeTab);
+  const accessGroupActive = MANAGER_ACCESS_TAB_IDS.has(activeTab);
+
+  const activeNavLabel = useMemo(() => {
+    return (
+      allNavItems.find((i) => i.id === activeTab)?.label ??
+      PAYMENT_CATEGORY_NAV.find((n) => n.id === activeTab)?.label
+    );
+  }, [activeTab, allNavItems]);
 
   const activeInventoryRows = useMemo(
     () => filterInventoryListRegistrations(items),
@@ -844,6 +1019,57 @@ function ManagerContent() {
           </div>
         );
 
+      case "cafe-reports":
+        return (
+          <div className="flex flex-col gap-6 p-3 sm:gap-8 sm:p-5 md:p-6">
+            <CafeAdminDailyRevenueCards
+              orders={cafeOrders}
+              hotelName={tenantScope || ""}
+              loading={loading}
+            />
+            <Reports
+              orders={cafeOrders}
+              hotelName={tenantScope || ""}
+              items={menuItems}
+              onGenerateReport={async ({
+                date,
+                type,
+              }: {
+                date: Date;
+                type: "Daily" | "Monthly";
+              }) => {
+                try {
+                  const cashouts = await fetchCashout(tenantScope || "");
+                  return await generateReport(cafeOrders, cashouts, {
+                    date,
+                    type,
+                    HotelName: tenantScope || "",
+                  });
+                } catch (error: any) {
+                  toast.error("Failed to generate report: " + error.message);
+                  throw error;
+                }
+              }}
+              onExportReport={async (
+                reportData: any,
+                reportType: "Daily" | "Monthly",
+              ) => {
+                try {
+                  const exportData = prepareReportExportData(
+                    reportData.orders,
+                    reportType,
+                    menuItems,
+                  );
+                  await exportToExcel(exportData);
+                } catch (error: any) {
+                  toast.error("Failed to export report: " + error.message);
+                  throw error;
+                }
+              }}
+            />
+          </div>
+        );
+
       case "menu-create-item":
         return (
           <div className="p-4 md:p-8">
@@ -883,6 +1109,61 @@ function ManagerContent() {
                   notifyApiFailure(err, "Could not delete menu item");
                 }
               }}
+              onImageUpload={uploadImage}
+            />
+          </div>
+        );
+
+      case "station-prep-qty":
+        return (
+          <CafeAdminStationPrepQtyPanel
+            items={menuItems}
+            hotelName={tenantScope || ""}
+            onRefresh={() => loadData(true)}
+          />
+        );
+
+      case "waiter-table":
+        return (
+          <div className="p-2 sm:p-4 md:p-5 min-w-0">
+            <WaiterAndTable
+              waiters={waiters}
+              tables={tables}
+              hotelName={tenantScope || ""}
+              onAddWaiter={async (data: any) => {
+                await createWaiter({ ...data, HotelName: tenantScope });
+                loadData(true);
+              }}
+              onAddTable={async (data: any) => {
+                await createTable({ ...data, HotelName: tenantScope });
+                loadData(true);
+              }}
+            />
+          </div>
+        );
+
+      case "cafe-item-receipts":
+        return (
+          <div className="rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
+            <StoreItemReceiptPrinting
+              items={items}
+              propertyName={displayName || tenantScope || ""}
+              propertyTin={propertyTin}
+              logoUrl={logoUrl || null}
+              variant="cafe-store"
+            />
+          </div>
+        );
+
+      case "credit-registrations":
+        return (
+          <div className="min-w-0 overflow-x-hidden rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
+            <CafeAdminCorporateCredit
+              tenantScope={tenantScope || ""}
+              propertyName={displayName || headerLabel}
+              propertyLogo={logoUrl || null}
+              propertyTin={propertyTin}
+              variant="hotel-manager"
             />
           </div>
         );
@@ -930,13 +1211,6 @@ function ManagerContent() {
           </div>
         );
 
-      case "creditor-usage-report":
-        return (
-          <div className="p-4 md:p-6">
-            <HotelCreditorUsageReportPanel tenantLabel={displayName || headerLabel} />
-          </div>
-        );
-
       case "authorize-purchases":
         return (
           <div className="p-4 md:p-6 space-y-6">
@@ -966,18 +1240,6 @@ function ManagerContent() {
                 )
               }
               onRefresh={() => void loadData(true)}
-            />
-          </div>
-        );
-
-      case "authorize-companies":
-        return (
-          <div className="p-4 md:p-6">
-            <HotelManagerCompanyApprovals
-              tenantScope={tenantScope || ""}
-              propertyName={displayName || headerLabel}
-              propertyLogo={logoUrl}
-              propertyTin={propertyTin}
             />
           </div>
         );
@@ -1012,13 +1274,6 @@ function ManagerContent() {
               propertyTin={propertyTin}
               logoUrl={logoUrl}
             />
-          </div>
-        );
-
-      case "corporate-credit-tiers":
-        return (
-          <div className="p-4 md:p-6">
-            <ManagerCorporateCreditTiers variant="hotel" />
           </div>
         );
 
@@ -1203,6 +1458,7 @@ function ManagerContent() {
                 mode={mode as PaymentCategoryMode}
                 tenantLabel={displayName || headerLabel}
                 inventoryItems={activeInventoryRows}
+                freshBazaarArchives={freshBazaarArchives}
               />
             </div>
           );
@@ -1233,28 +1489,44 @@ function ManagerContent() {
           <div className="shrink-0 px-3 pb-2 pt-3">
             <SidebarSeparator className="bg-sidebar-border/80" />
           </div>
-          <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
-            <SidebarMenu className="gap-1">
-              {sidebarItems
-                .filter((item) => item.id !== "inventory-payment-vat")
-                .map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <SidebarMenuButton
-                    isActive={activeTab === item.id}
-                    onClick={() => setActiveTab(item.id as TabId)}
-                    tooltip={item.label}
-                    size="lg"
-                    className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              <HotelInventoryPaymentSidebarGroup
+          <SidebarContent className="flex-1 gap-0 px-0 pb-4 pt-2">
+            <SidebarMenu className="gap-1 px-2">
+              <ManagerCollapsibleSidebarGroup
+                label="Inventory"
+                icon={Store}
+                items={inventorySidebarItems}
                 activeSection={activeTab}
+                isGroupActive={inventoryGroupActive}
                 onSelect={(id) => setActiveTab(id as TabId)}
-              />
+                layout="flat"
+              >
+                <HotelInventoryPaymentSidebarGroup
+                  activeSection={activeTab}
+                  onSelect={(id) => setActiveTab(id as TabId)}
+                />
+              </ManagerCollapsibleSidebarGroup>
+
+              {serviceSidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="Cafe & Restaurant / Credit"
+                  icon={Building2}
+                  items={serviceSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={serviceGroupActive}
+                  onSelect={(id) => setActiveTab(id as TabId)}
+                />
+              ) : null}
+
+              {accessSidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="Access"
+                  icon={Key}
+                  items={accessSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={accessGroupActive}
+                  onSelect={(id) => setActiveTab(id as TabId)}
+                />
+              ) : null}
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 pt-2">
@@ -1303,18 +1575,19 @@ function ManagerContent() {
               <SubscriptionAlertBanner />
               <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-6 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-8">
                 <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
-                  {sidebarItems.find((i) => i.id === activeTab)?.label ??
-                    PAYMENT_CATEGORY_NAV.find((n) => n.id === activeTab)?.label}
+                  {activeNavLabel}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
-                  {activeTab === "menu-create-item" || activeTab === "menu-update-item"
-                    ? "POS menu for café service and corporate credit: add dishes and drinks for cashier, orders, and company deals."
-                    : activeTab === "corporate-credit-tiers"
-                      ? "Cashiers attach these tiers to companies. Credit limits and periods are managed centrally from this terminal."
-                      : "Unified manager cockpit for approvals, stock visibility, station daily counts, and creditor usage oversight."}
+                  {isManagerServiceTab(activeTab)
+                    ? "Café service and corporate credit — same tools as the café admin terminal, without the separate café inventory list."
+                    : activeTab === "menu-create-item" || activeTab === "menu-update-item"
+                      ? "POS menu for café service and corporate credit: add dishes and drinks for cashier, orders, and company deals."
+                      : "Unified manager cockpit for lodging inventory, approvals, stock visibility, and station daily counts."}
                 </p>
               </div>
-              <HotelWorkflowGlossary variant="manager" />
+              {!isManagerServiceTab(activeTab) ? (
+                <HotelWorkflowGlossary variant="manager" />
+              ) : null}
               {renderContent()}
             </div>
           </main>

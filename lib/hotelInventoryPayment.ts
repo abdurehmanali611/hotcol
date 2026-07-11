@@ -1,3 +1,5 @@
+import type { FreshBazaarRow, ItemRegistration } from "@/lib/api/types";
+
 export const INVENTORY_VAT_RATE = 0.15;
 
 export function isVatEnabled(flag: unknown): boolean {
@@ -168,4 +170,66 @@ export function summarizeInventoryPayment<T>(
     } else none += 1;
   }
   return { paid, credit, none, total: rows.length, creditAmount };
+}
+
+/** Row shown in Inventory payment & tax (live store + fresh bazaar archives). */
+export type InventoryPaymentRow = ItemRegistration & {
+  paymentSource?: "store" | "fresh_bazaar";
+};
+
+/** Map a FreshBazaar archive into a payment-table row. */
+export function freshBazaarToPaymentRow(
+  row: FreshBazaarRow,
+): InventoryPaymentRow {
+  const qty = Number(row.amount) || 0;
+  const unitPrice = Number(row.unitPrice) || 0;
+  const paidAmount = Number(row.paidAmount) || 0;
+  const registrationDate = (row.registrationDate ||
+    row.archivedAt ||
+    new Date()) as Date;
+  return {
+    id: row.itemRegistrationId,
+    name: row.name,
+    imageUrl: row.imageUrl || "",
+    category: row.category || "",
+    amount: 0,
+    measuredBy: row.measuredBy,
+    unitPrice,
+    registrationDate,
+    expireDate: registrationDate,
+    supplierName: row.supplierName,
+    supplierPhone: row.supplierPhone,
+    purchaseWithVat: row.purchaseWithVat,
+    supplierTinNumber: row.supplierTinNumber,
+    Address: row.Address,
+    paidAmount,
+    registeredAmount: qty,
+    registeredValue: computeInventoryPaidAmountETB(
+      qty,
+      unitPrice,
+      row.purchaseWithVat,
+    ),
+    HotelName: row.HotelName,
+    approvalStatus: "AUTHORIZED",
+    paymentSource: "fresh_bazaar",
+  };
+}
+
+/**
+ * Live authorized store lines plus fully stocked-out kitchen (fresh bazaar) archives.
+ * Fresh bazaar rows whose registration id is still in the store list are skipped.
+ */
+export function mergeInventoryPaymentRows(
+  inventoryItems: readonly ItemRegistration[],
+  freshBazaarArchives: readonly FreshBazaarRow[] = [],
+): InventoryPaymentRow[] {
+  const storeIds = new Set(inventoryItems.map((r) => r.id));
+  const storeRows: InventoryPaymentRow[] = inventoryItems.map((r) => ({
+    ...r,
+    paymentSource: "store" as const,
+  }));
+  const freshRows = freshBazaarArchives
+    .filter((f) => !storeIds.has(f.itemRegistrationId))
+    .map(freshBazaarToPaymentRow);
+  return [...storeRows, ...freshRows];
 }

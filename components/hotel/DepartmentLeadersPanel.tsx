@@ -21,6 +21,7 @@ import {
   DEPARTMENT_LABELS,
   HOTEL_DEPARTMENT_CODES,
   LEGACY_HOUSE_KEEPING_CODE,
+  normalizeLeaderNames,
   type DepartmentLeaderRow,
 } from "@/lib/departments";
 import { notifyApiFailure } from "@/lib/actions";
@@ -67,10 +68,12 @@ export function DepartmentLeadersPanel() {
           Department leaders
         </CardTitle>
         <CardDescription>
-          Register one leader per department. Housekeeping has separate room and
-          public area leaders. Only departments with a leader appear when store
-          staff choose received by or requested by. Names are snapshotted on
-          each request for printed receipts.
+          Register one or more leaders per department (comma-separated), e.g.{" "}
+          <span className="font-medium text-foreground">Abdu, Sara</span>.
+          Housekeeping has separate room and public area leaders. Only
+          departments with a leader appear when store staff choose received by
+          or requested by. Names are snapshotted on each request for printed
+          receipts.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -92,7 +95,7 @@ export function DepartmentLeadersPanel() {
                   </div>
                   <div className="flex-1 space-y-1.5 min-w-0">
                     <Label htmlFor={`leader-${code}`} className="sr-only">
-                      Leader name for {label}
+                      Leader name(s) for {label}
                     </Label>
                     <Input
                       id={`leader-${code}`}
@@ -103,23 +106,26 @@ export function DepartmentLeadersPanel() {
                           [code]: e.target.value,
                         }))
                       }
-                      placeholder="e.g. Abdu"
+                      placeholder="e.g. Abdu, Sara"
                       className="h-10"
                     />
+                    <p className="text-[10px] text-muted-foreground">
+                      Separate multiple leaders with commas
+                    </p>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <PendingButton
                       type="button"
                       size="sm"
                       pending={pendingDept === `save-${code}`}
-                      disabled={!(draftNames[code] ?? "").trim()}
+                      disabled={!normalizeLeaderNames(draftNames[code] ?? "")}
                       onClick={async () => {
                         setPendingDept(`save-${code}`);
                         try {
-                          await upsertDepartmentLeaderApi(
-                            code,
-                            (draftNames[code] ?? "").trim(),
+                          const normalized = normalizeLeaderNames(
+                            draftNames[code] ?? "",
                           );
+                          await upsertDepartmentLeaderApi(code, normalized);
                           await load();
                         } catch (e) {
                           notifyApiFailure(e, "Could not save");

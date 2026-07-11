@@ -67,7 +67,15 @@ export function hasAuthToken(): boolean {
 export function loggedInRoleMatchesTerminal(terminalRole: string): boolean {
   const logged = readLoggedInRole();
   if (!logged) return false;
-  return logged === terminalRole;
+  if (logged === terminalRole) return true;
+  if (
+    terminalRole === "Cashier" &&
+    logged === "HotelCashier" &&
+    tenantHasModule(readTenantModulesFromStorage(), "Cafe and Restaurant")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): string {

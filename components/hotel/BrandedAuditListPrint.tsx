@@ -17,6 +17,11 @@ export type AuditPrintColumn<T> = {
   cell: (row: T) => ReactNode;
 };
 
+export type AuditPrintSignatureBlock = {
+  label: string;
+  name?: string | null;
+};
+
 export function BrandedAuditListPrintActions<T>({
   rows,
   getRowKey,
@@ -32,6 +37,7 @@ export function BrandedAuditListPrintActions<T>({
   buttonLabel,
   emptyMessage = "No records match the selected filters.",
   showSummary = true,
+  signatureBlocks,
 }: {
   rows: T[];
   getRowKey: (row: T) => string | number;
@@ -47,6 +53,8 @@ export function BrandedAuditListPrintActions<T>({
   buttonLabel?: string;
   emptyMessage?: string;
   showSummary?: boolean;
+  /** Optional sign-off lines (e.g. Store / Cost Controller / Finance / Manager). */
+  signatureBlocks?: AuditPrintSignatureBlock[];
 }) {
   const printRef = useRef<HTMLDivElement>(null);
   const printedAt = new Date().toLocaleString();
@@ -190,6 +198,35 @@ export function BrandedAuditListPrintActions<T>({
                     >
                       <span>{row.label}</span>
                       <span className="tabular-nums">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {signatureBlocks && signatureBlocks.length > 0 ? (
+              <div className="inactive-audit-print-signatures">
+                <p className="inactive-audit-print-signatures-title">
+                  Signatures
+                </p>
+                <div className="inactive-audit-print-signatures-grid">
+                  {signatureBlocks.map((entry) => (
+                    <div
+                      key={entry.label}
+                      className="inactive-audit-print-signature-item"
+                    >
+                      <div className="inactive-audit-print-signature-meta">
+                        <p className="inactive-audit-print-signature-label">
+                          {entry.label}
+                        </p>
+                        <p className="inactive-audit-print-signature-name">
+                          {(entry.name || "").trim() || "—"}
+                        </p>
+                      </div>
+                      <div
+                        className="inactive-audit-print-signature-line"
+                        aria-label={`${entry.label} signature`}
+                      />
                     </div>
                   ))}
                 </div>

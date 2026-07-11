@@ -5,7 +5,7 @@ import {
   HotelInventoryPaymentCategoryPanel,
   type PaymentCategoryMode,
 } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
-import type { ItemRegistration } from "@/lib/actions";
+import type { FreshBazaarRow, ItemRegistration } from "@/lib/actions";
 import { PAYMENT_CATEGORY_NAV } from "@/constants/hotelInventoryNav";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import {
@@ -20,10 +20,12 @@ import { Label } from "@/components/ui/label";
 export function HotelInventoryPaymentHub({
   tenantLabel,
   inventoryItems,
+  freshBazaarArchives = [],
   initialMode = "credit",
 }: {
   tenantLabel: string;
   inventoryItems: ItemRegistration[];
+  freshBazaarArchives?: FreshBazaarRow[];
   initialMode?: PaymentCategoryMode;
 }) {
   const [mode, setMode] = useState<PaymentCategoryMode>(initialMode);
@@ -56,6 +58,7 @@ export function HotelInventoryPaymentHub({
         mode={mode}
         tenantLabel={tenantLabel}
         inventoryItems={inventoryItems}
+        freshBazaarArchives={freshBazaarArchives}
       />
     </div>
   );
