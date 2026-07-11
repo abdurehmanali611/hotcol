@@ -56,11 +56,9 @@ import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatu
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 import {
   departmentLeaderDisplayLabel,
-  mergeAccountabilityFilterOptions,
   PURCHASE_REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
-import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import { formatEtbAmount, purchaseLineMoneyBreakdown, purchaseVatModeLabel } from "@/lib/inventoryLineTotals";
@@ -136,21 +134,8 @@ export function PurchaseRequestStatusPanel({
       logoUrl,
     });
 
-  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+  const { options: departmentOptions } = useDepartmentLeaderSelectOptions(
     PURCHASE_REQUESTED_BY_DEPARTMENT_CODES,
-  );
-  const departmentOptions = useMemo(
-    () =>
-      mergeAccountabilityFilterOptions(
-        registryDeptOptions,
-        rows
-          .filter((r) => rowHotelMatchesCanonicalTenantScope(r.HotelName, null))
-          .map((r) => ({
-            department: r.requestedByDepartment,
-            leaderName: r.requestedByLeaderName,
-          })),
-      ),
-    [registryDeptOptions, rows],
   );
 
   const filtered = useMemo(() => {

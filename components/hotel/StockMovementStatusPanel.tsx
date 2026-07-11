@@ -46,11 +46,9 @@ import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusL
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import {
   departmentLeaderDisplayLabel,
-  mergeAccountabilityFilterOptions,
   REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
-import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -115,21 +113,8 @@ export function StockMovementStatusPanel({
       logoUrl,
     });
 
-  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+  const { options: departmentOptions } = useDepartmentLeaderSelectOptions(
     REQUESTED_BY_DEPARTMENT_CODES,
-  );
-  const departmentOptions = useMemo(
-    () =>
-      mergeAccountabilityFilterOptions(
-        registryDeptOptions,
-        rows
-          .filter((r) => rowHotelMatchesCanonicalTenantScope(r.HotelName, null))
-          .map((r) => ({
-            department: r.requestedByDepartment,
-            leaderName: r.requestedByLeaderName,
-          })),
-      ),
-    [registryDeptOptions, rows],
   );
 
   const filtered = useMemo(() => {

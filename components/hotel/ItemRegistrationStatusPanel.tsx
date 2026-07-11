@@ -39,11 +39,9 @@ import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusL
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
 import {
   departmentLeaderDisplayLabel,
-  mergeAccountabilityFilterOptions,
   REGISTRATION_RECEIVED_BY_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
-import { rowHotelMatchesCanonicalTenantScope } from "@/lib/tenantRowMatch";
 
 const REG_APPROVAL_OPTIONS: {
   id: RegistrationApprovalFilter;
@@ -109,21 +107,8 @@ export function ItemRegistrationStatusPanel({
       logoUrl,
     });
 
-  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+  const { options: departmentOptions } = useDepartmentLeaderSelectOptions(
     REGISTRATION_RECEIVED_BY_CODES,
-  );
-  const departmentOptions = useMemo(
-    () =>
-      mergeAccountabilityFilterOptions(
-        registryDeptOptions,
-        rows
-          .filter((r) => rowHotelMatchesCanonicalTenantScope(r.HotelName, null))
-          .map((r) => ({
-            department: r.receivedByDepartment,
-            leaderName: r.receivedByLeaderName,
-          })),
-      ),
-    [registryDeptOptions, rows],
   );
 
   const filtered = useMemo(() => {

@@ -37,7 +37,6 @@ import {
   type InventoryListFilters,
 } from "@/lib/inventoryListFilters";
 import {
-  mergeAccountabilityFilterOptions,
   REGISTRATION_RECEIVED_BY_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
@@ -122,6 +121,11 @@ export default function StoreItems({
       let scoped = rows;
       if (!eff) {
         scoped = hotelStockApprovals ? [] : rows;
+      } else if (hotelStockApprovals) {
+        // Hotel inventory must use TIN/canonical keys only — display names collide across tenants.
+        scoped = rows.filter((it) =>
+          rowHotelMatchesCanonicalTenantScope(it.HotelName, eff),
+        );
       } else {
         scoped = rows.filter((it) => rowHotelMatchesTenantScope(it.HotelName, eff));
       }
@@ -182,21 +186,8 @@ export default function StoreItems({
     [data, filters],
   );
 
-  const { options: registryDeptOptions } = useDepartmentLeaderSelectOptions(
+  const { options: departmentFilterOptions } = useDepartmentLeaderSelectOptions(
     REGISTRATION_RECEIVED_BY_CODES,
-  );
-  const departmentFilterOptions = useMemo(
-    () =>
-      mergeAccountabilityFilterOptions(
-        registryDeptOptions,
-        data
-          .filter((r) => rowHotelMatchesCanonicalTenantScope(r.HotelName, null))
-          .map((r) => ({
-            department: r.receivedByDepartment,
-            leaderName: r.receivedByLeaderName,
-          })),
-      ),
-    [registryDeptOptions, data],
   );
 
   const tableData = useMemo(() => {
