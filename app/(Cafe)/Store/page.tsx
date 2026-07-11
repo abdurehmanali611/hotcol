@@ -799,8 +799,7 @@ export function StoreComponent({
 
                 {hotelInventory && hotelHasFinance ? (
                 <Collapsible
-                  key={requestStatusActive ? "request-active" : "request-idle"}
-                  defaultOpen={requestStatusActive}
+                  defaultOpen={false}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
@@ -870,8 +869,7 @@ export function StoreComponent({
 
                 {hotelInventory && hotelHasFinance ? (
                 <Collapsible
-                  key={paymentVatActive ? "payment-active" : "payment-idle"}
-                  defaultOpen={paymentVatActive}
+                  defaultOpen={false}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>

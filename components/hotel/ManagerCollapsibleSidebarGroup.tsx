@@ -46,8 +46,7 @@ export function ManagerCollapsibleSidebarGroup({
 
   return (
     <Collapsible
-      key={isGroupActive ? `${label}-active` : `${label}-idle`}
-      defaultOpen={isGroupActive}
+      defaultOpen={false}
       className="group/collapsible px-2"
     >
       <SidebarMenu>

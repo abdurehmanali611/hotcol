@@ -30,8 +30,7 @@ export function HotelInventoryPaymentSidebarGroup({
 
   return (
     <Collapsible
-      key={paymentActive ? "payment-active" : "payment-idle"}
-      defaultOpen={paymentActive}
+      defaultOpen={false}
       className="group/collapsible"
     >
       <SidebarMenuItem>

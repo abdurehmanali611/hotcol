@@ -35,8 +35,7 @@ export function HotelRequestStatusSidebarGroup({
 
   return (
     <Collapsible
-      key={requestActive ? "request-active" : "request-idle"}
-      defaultOpen={requestActive}
+      defaultOpen={false}
       className="group/collapsible"
     >
       <SidebarMenuItem>
