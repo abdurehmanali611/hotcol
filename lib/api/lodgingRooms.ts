@@ -94,6 +94,7 @@ export type LodgingServiceItem = {
   name: string;
   unitPriceETB: number;
   unitLabel: string;
+  imageUrl?: string | null;
   isActive: boolean;
 };
 
@@ -154,6 +155,7 @@ export type UpsertLodgingServiceItemInput = {
   name: string;
   unitPriceETB: number;
   unitLabel?: string;
+  imageUrl?: string;
   isActive?: boolean;
 };
 
@@ -226,11 +228,13 @@ export type RegisterLodgingServiceChargeInput = {
   roomNumber?: string;
 };
 
-export type CreateLodgingCmAssignmentInput = {
+export type CreateLodgingCmAssignmentsInput = {
   roomId: number;
   workKind: string;
-  assigneeName: string;
+  assigneeNames: string[];
   notes?: string;
+  /** Skip success toast (batch callers toast once). */
+  quiet?: boolean;
 };
 
 /* ── Fragments ─────────────────────────────────────────────────────────── */
@@ -313,6 +317,7 @@ const SERVICE_ITEM_FIELDS = `
   name
   unitPriceETB
   unitLabel
+  imageUrl
   isActive
 `;
 
@@ -651,6 +656,7 @@ export async function upsertLodgingServiceItemApi(
       $name: String!
       $unitPriceETB: Float!
       $unitLabel: String
+      $imageUrl: String
       $isActive: Boolean
     ) {
       upsertLodgingServiceItem(
@@ -659,6 +665,7 @@ export async function upsertLodgingServiceItemApi(
         name: $name
         unitPriceETB: $unitPriceETB
         unitLabel: $unitLabel
+        imageUrl: $imageUrl
         isActive: $isActive
       ) { ${SERVICE_ITEM_FIELDS} }
     }
@@ -671,6 +678,7 @@ export async function upsertLodgingServiceItemApi(
       name: input.name,
       unitPriceETB: input.unitPriceETB,
       unitLabel: input.unitLabel ?? null,
+      imageUrl: input.imageUrl ?? "",
       isActive: input.isActive ?? null,
     },
   });
@@ -903,6 +911,52 @@ export async function addLodgingBillLineApi(
   return refetchStayForUi(input.stayId);
 }
 
+export async function updateLodgingBillLineApi(input: {
+  lineId: number;
+  quantity: number;
+  stayId: number;
+}): Promise<LodgingStay> {
+  const mutation = `
+    mutation UpdateLodgingBillLine($lineId: Int!, $quantity: Float!) {
+      updateLodgingBillLine(lineId: $lineId, quantity: $quantity) {
+        id
+        quantity
+        amountETB
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      lineId: input.lineId,
+      quantity: input.quantity,
+    },
+  });
+  gqlError(response, "Could not update bill line");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success("Line updated");
+  return refetchStayForUi(input.stayId);
+}
+
+export async function deleteLodgingBillLineApi(input: {
+  lineId: number;
+  stayId: number;
+}): Promise<LodgingStay> {
+  const mutation = `
+    mutation DeleteLodgingBillLine($lineId: Int!) {
+      deleteLodgingBillLine(lineId: $lineId)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { lineId: input.lineId },
+  });
+  gqlError(response, "Could not remove bill line");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success("Line removed");
+  return refetchStayForUi(input.stayId);
+}
+
 export async function transferLodgingBillLinesApi(
   input: TransferLodgingBillLinesInput,
 ): Promise<LodgingStay> {
@@ -1050,37 +1104,67 @@ export async function updateLodgingRoomStatusApi(
   return response.data.data.updateLodgingRoomStatus as LodgingRoom;
 }
 
-export async function createLodgingCmAssignmentApi(
-  input: CreateLodgingCmAssignmentInput,
-): Promise<LodgingCmAssignment> {
+export async function createLodgingCmAssignmentsApi(
+  input: CreateLodgingCmAssignmentsInput,
+): Promise<LodgingCmAssignment[]> {
   const mutation = `
-    mutation CreateLodgingCmAssignment(
+    mutation CreateLodgingCmAssignments(
       $roomId: Int!
       $workKind: String!
-      $assigneeName: String!
+      $assigneeNames: [String!]!
       $notes: String
     ) {
-      createLodgingCmAssignment(
+      createLodgingCmAssignments(
         roomId: $roomId
         workKind: $workKind
-        assigneeName: $assigneeName
+        assigneeNames: $assigneeNames
         notes: $notes
       ) { ${CM_ASSIGNMENT_FIELDS} }
     }
   `;
+  const names = [
+    ...new Set(
+      (input.assigneeNames || [])
+        .map((n) => String(n || "").trim())
+        .filter(Boolean),
+    ),
+  ];
   const response = await api.post(API_URL, {
     query: mutation,
     variables: {
       roomId: input.roomId,
       workKind: input.workKind,
-      assigneeName: input.assigneeName,
+      assigneeNames: names,
       notes: input.notes ?? null,
     },
   });
   gqlError(response, "Could not create assignment");
-  invalidateLodgingCaches(["cm", "stats", "logs"]);
-  toast.success("Assignment created");
-  return response.data.data.createLodgingCmAssignment as LodgingCmAssignment;
+  invalidateLodgingCaches(["cm", "stats", "logs", "rooms"]);
+  if (!input.quiet) {
+    toast.success(
+      names.length === 1
+        ? "Assignment created"
+        : `${names.length} assignments created`,
+    );
+  }
+  return (response.data.data.createLodgingCmAssignments ??
+    []) as LodgingCmAssignment[];
+}
+
+/** @deprecated Use createLodgingCmAssignmentsApi */
+export async function createLodgingCmAssignmentApi(input: {
+  roomId: number;
+  workKind: string;
+  assigneeName: string;
+  notes?: string;
+}): Promise<LodgingCmAssignment> {
+  const rows = await createLodgingCmAssignmentsApi({
+    roomId: input.roomId,
+    workKind: input.workKind,
+    assigneeNames: [input.assigneeName],
+    notes: input.notes,
+  });
+  return rows[0]!;
 }
 
 export async function completeLodgingCmAssignmentApi(

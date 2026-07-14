@@ -32,17 +32,31 @@ import CustomFormField, { formFieldTypes } from "./customFormField";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
 
-const orderSchema = orderDetailsSchema.extend({
+const tableOrderSchema = orderDetailsSchema.extend({
   orderAmount: z.number().min(1),
 });
 
+const roomOrderSchema = z.object({
+  tableNo: z.number().int().positive("Please select a room"),
+  waiterName: z.string().min(1, "Please select a waiter"),
+  orderAmount: z.number().min(1, "Order amount must be at least 1"),
+});
+
 interface OrderDetailsModalProps {
-  item: { name: string; price: number; imageUrl: string; category: string; type: string };
+  item: {
+    name: string;
+    price: number;
+    imageUrl: string;
+    category: string;
+    type: string;
+  };
   isOpen: boolean;
   onClose: () => void;
   hotelName: string;
   openOrders?: Order[];
   onSubmit: (data: OrderCreationData) => Promise<unknown>;
+  /** When set, "Table" becomes "Room" and these options replace café tables (value = stay id). */
+  roomOptions?: { id: number; name: string; realValue: number }[];
 }
 
 export default function OrderDetailsModal({
@@ -52,15 +66,17 @@ export default function OrderDetailsModal({
   hotelName,
   openOrders = [],
   onSubmit,
+  roomOptions,
 }: OrderDetailsModalProps) {
+  const roomMode = roomOptions != null;
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
     waiters: [] as Waiter[],
     tables: [] as Table[],
   });
 
-  const form = useForm<z.infer<typeof orderSchema>>({
-    resolver: zodResolver(orderSchema),
+  const form = useForm<z.infer<typeof tableOrderSchema>>({
+    resolver: zodResolver(roomMode ? roomOrderSchema : tableOrderSchema) as never,
     defaultValues: {
       tableNo: CAFE_TABLE_UNSELECTED,
       waiterName: "",
@@ -71,7 +87,10 @@ export default function OrderDetailsModal({
   useEffect(() => {
     if (isOpen && item) {
       (async () => {
-        const [w, t] = await Promise.all([fetchWaiters(), fetchTables()]);
+        const [w, t] = await Promise.all([
+          fetchWaiters(),
+          roomMode ? Promise.resolve([] as Table[]) : fetchTables(),
+        ]);
         setData({
           waiters: w.filter((x) =>
             rowHotelMatchesTenantScope(x.HotelName, hotelName),
@@ -87,7 +106,7 @@ export default function OrderDetailsModal({
         });
       })();
     }
-  }, [isOpen]);
+  }, [isOpen, roomMode]);
 
   const occupiedTables = useMemo(
     () => occupiedTableNumbersFromOrders(openOrders, hotelName),
@@ -99,7 +118,9 @@ export default function OrderDetailsModal({
     [data.tables, occupiedTables],
   );
 
-  const onValidSubmit = async (values: z.infer<typeof orderSchema>) => {
+  const anchorOptions = roomMode ? roomOptions ?? [] : tableSelectOptions;
+
+  const onValidSubmit = async (values: z.infer<typeof tableOrderSchema>) => {
     setLoading(true);
     try {
       const fullOrderData: OrderCreationData = {
@@ -154,9 +175,9 @@ export default function OrderDetailsModal({
                   control={form.control}
                   name="tableNo"
                   fieldType={formFieldTypes.SELECT}
-                  label="Table"
+                  label={roomMode ? "Room" : "Table"}
                   placeholder="Select"
-                  listdisplay={tableSelectOptions}
+                  listdisplay={anchorOptions}
                   isNumeric={true}
                 />
                 <CustomFormField

@@ -161,10 +161,8 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "update-credential", label: "Update credential", icon: "RefreshCw" },
 ] as const;
 
-/** Nested under Manager Rooms → Food & drink / Laundry (not flat MANAGER_SIDEBAR_ITEMS). */
+/** Nested under Manager Rooms → Laundry (F&B lives under Cafe and Restaurant). */
 export const MANAGER_LODGING_NESTED_TAB_IDS = [
-  "lodging-fnb-add",
-  "lodging-fnb-menu",
   "lodging-laundry-add",
   "lodging-laundry-items",
 ] as const;
@@ -218,12 +216,6 @@ export const RECEPTION_NAV_ITEMS = [
     label: "Active stays",
     icon: "BedDouble",
     description: "View bills, add charges, split/transfer, and checkout.",
-  },
-  {
-    id: "services",
-    label: "Services",
-    icon: "UtensilsCrossed",
-    description: "Register food & drink or laundry charges to a stay.",
   },
   {
     id: "cm-portal",

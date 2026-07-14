@@ -29,8 +29,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -38,30 +36,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { CM_LEADER_NAV_ITEMS, type CmLeaderNavId } from "@/constants";
-import {
-  LODGING_ROOM_STATUS_LABELS,
-  type LodgingRoomStatus,
-} from "@/constants/lodgingRooms";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
+import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
+import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import {
   completeLodgingCmAssignmentApi,
-  createLodgingCmAssignmentApi,
   fetchLodgingActionLogs,
   fetchLodgingCmAssignments,
   fetchLodgingCmQueue,
   fetchLodgingDashboardStats,
-  updateLodgingRoomStatusApi,
   type LodgingActionLog,
   type LodgingCmAssignment,
   type LodgingDashboardStats,
@@ -74,21 +61,6 @@ const navIconMap: Record<(typeof CM_LEADER_NAV_ITEMS)[number]["icon"], LucideIco
   ClipboardList,
   History,
 };
-
-function roomStatusBadgeClass(status: string): string {
-  switch (status) {
-    case "vacant_clean":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
-    case "vacant_dirty":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-400";
-    case "occupied":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400";
-    case "on_maintenance":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400";
-    default:
-      return "border-border bg-muted text-muted-foreground";
-  }
-}
 
 export function CMLeaderDashboard() {
   useTenantRouteGuard({ role: "CMLeader" });
@@ -106,12 +78,6 @@ export function CMLeaderDashboard() {
   const [queue, setQueue] = useState<LodgingRoom[]>([]);
   const [assignments, setAssignments] = useState<LodgingCmAssignment[]>([]);
   const [logs, setLogs] = useState<LodgingActionLog[]>([]);
-
-  const [assignRoomId, setAssignRoomId] = useState<number | null>(null);
-  const [workKind, setWorkKind] = useState("cleaning");
-  const [assigneeName, setAssigneeName] = useState("");
-  const [notes, setNotes] = useState("");
-  const [maintUntil, setMaintUntil] = useState("");
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -331,238 +297,14 @@ export function CMLeaderDashboard() {
               )}
 
               {activeSection === "queue" && (
-                <div className="space-y-6">
-                  <Card className="border-border/80 shadow-md bg-card/95">
-                    <CardHeader>
-                      <CardTitle className="text-lg">
-                        Dirty & maintenance queue
-                      </CardTitle>
-                      <CardDescription>
-                        Mark rooms vacant clean, set maintenance until, or assign staff.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {queue.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          No rooms in the queue.
-                        </p>
-                      ) : (
-                        <ul className="divide-y rounded-xl border border-border/70">
-                          {queue.map((room) => {
-                            const status = room.status as LodgingRoomStatus;
-                            return (
-                              <li
-                                key={room.id}
-                                className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"
-                              >
-                                <div className="min-w-0">
-                                  <p className="font-medium tabular-nums">
-                                    Room {room.roomNumber}
-                                    <span className="text-muted-foreground font-normal">
-                                      {" "}
-                                      · {room.roomType} · Floor {room.floor || "—"}
-                                    </span>
-                                  </p>
-                                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                                    <Badge
-                                      variant="outline"
-                                      className={cn(
-                                        "font-normal",
-                                        roomStatusBadgeClass(room.status),
-                                      )}
-                                    >
-                                      {LODGING_ROOM_STATUS_LABELS[status] ??
-                                        room.status}
-                                    </Badge>
-                                    {room.maintenanceUntil ? (
-                                      <span className="text-xs text-muted-foreground">
-                                        Until{" "}
-                                        {new Date(
-                                          room.maintenanceUntil,
-                                        ).toLocaleString()}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <PendingButton
-                                    type="button"
-                                    size="sm"
-                                    pending={pending === `clean-${room.id}`}
-                                    onClick={async () => {
-                                      setPending(`clean-${room.id}`);
-                                      try {
-                                        await updateLodgingRoomStatusApi(
-                                          room.id,
-                                          "vacant_clean",
-                                        );
-                                        await load(true);
-                                      } catch (e) {
-                                        notifyApiFailure(
-                                          e,
-                                          "Could not mark clean",
-                                        );
-                                      } finally {
-                                        setPending(null);
-                                      }
-                                    }}
-                                  >
-                                    Vacant clean
-                                  </PendingButton>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setAssignRoomId(room.id);
-                                      setWorkKind(
-                                        status === "on_maintenance"
-                                          ? "maintenance"
-                                          : "cleaning",
-                                      );
-                                    }}
-                                  >
-                                    Assign
-                                  </Button>
-                                  <PendingButton
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    pending={pending === `maint-${room.id}`}
-                                    onClick={async () => {
-                                      const until = maintUntil
-                                        ? new Date(maintUntil).toISOString()
-                                        : (() => {
-                                            const d = new Date();
-                                            d.setHours(d.getHours() + 4);
-                                            return d.toISOString();
-                                          })();
-                                      setPending(`maint-${room.id}`);
-                                      try {
-                                        await updateLodgingRoomStatusApi(
-                                          room.id,
-                                          "on_maintenance",
-                                          until,
-                                        );
-                                        await load(true);
-                                      } catch (e) {
-                                        notifyApiFailure(
-                                          e,
-                                          "Could not set maintenance",
-                                        );
-                                      } finally {
-                                        setPending(null);
-                                      }
-                                    }}
-                                  >
-                                    Set maintenance
-                                  </PendingButton>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      <div className="mt-4 max-w-sm space-y-1.5">
-                        <Label htmlFor="maint-until">
-                          Default maintenance until (optional)
-                        </Label>
-                        <Input
-                          id="maint-until"
-                          type="datetime-local"
-                          className="h-10"
-                          value={maintUntil}
-                          onChange={(e) => setMaintUntil(e.target.value)}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {assignRoomId != null ? (
-                    <Card className="border-border/80 shadow-md bg-card/95 max-w-lg">
-                      <CardHeader>
-                        <CardTitle className="text-lg">
-                          Assign room #{queue.find((r) => r.id === assignRoomId)?.roomNumber ?? assignRoomId}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="space-y-1.5">
-                          <Label>Work kind</Label>
-                          <Select value={workKind} onValueChange={setWorkKind}>
-                            <SelectTrigger className="h-10">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="cleaning">Cleaning</SelectItem>
-                              <SelectItem value="maintenance">
-                                Maintenance
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Assignee name</Label>
-                          <Input
-                            className="h-10"
-                            value={assigneeName}
-                            onChange={(e) => setAssigneeName(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Notes</Label>
-                          <Input
-                            className="h-10"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <PendingButton
-                            type="button"
-                            pending={pending === "assign"}
-                            disabled={!assigneeName.trim()}
-                            onClick={async () => {
-                              setPending("assign");
-                              try {
-                                if (workKind === "maintenance" && maintUntil) {
-                                  await updateLodgingRoomStatusApi(
-                                    assignRoomId,
-                                    "on_maintenance",
-                                    new Date(maintUntil).toISOString(),
-                                  );
-                                }
-                                await createLodgingCmAssignmentApi({
-                                  roomId: assignRoomId,
-                                  workKind,
-                                  assigneeName: assigneeName.trim(),
-                                  notes: notes.trim(),
-                                });
-                                setAssignRoomId(null);
-                                setAssigneeName("");
-                                setNotes("");
-                                await load(true);
-                              } catch (e) {
-                                notifyApiFailure(e, "Could not create assignment");
-                              } finally {
-                                setPending(null);
-                              }
-                            }}
-                          >
-                            Create assignment
-                          </PendingButton>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setAssignRoomId(null)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : null}
-                </div>
+                <LodgingCmQueuePanel
+                  queue={queue}
+                  openAssignments={assignments.filter((a) => a.status === "open")}
+                  onRefresh={async () => {
+                    await load(true);
+                  }}
+                  showRoomMeta
+                />
               )}
 
               {activeSection === "assignments" && (
@@ -633,32 +375,10 @@ export function CMLeaderDashboard() {
               )}
 
               {activeSection === "history" && (
-                <Card className="border-border/80 shadow-md bg-card/95">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Action history</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {logs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No logs yet.</p>
-                    ) : (
-                      <ul className="divide-y rounded-xl border border-border/70">
-                        {logs.map((log) => (
-                          <li key={log.id} className="px-4 py-3 text-sm">
-                            <div className="flex flex-wrap justify-between gap-2">
-                              <span className="font-medium">{log.action}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(log.createdAt).toLocaleString()}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {log.actorRole} · {log.actorName} · {log.entityType}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </CardContent>
-                </Card>
+                <LodgingActionHistoryPanel
+                  logs={logs}
+                  description="Full lodging audit trail for this property."
+                />
               )}
             </div>
           </main>

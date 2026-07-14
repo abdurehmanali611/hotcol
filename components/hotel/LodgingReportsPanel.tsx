@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef, FilterFn } from "@tanstack/react-table";
 import {
   Card,
   CardContent,
@@ -10,17 +11,28 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
-import { FileText, Loader2, Printer } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  Users,
+} from "lucide-react";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
+import { DataTable } from "@/app/StoreItems/data-table";
 import {
   fetchLodgingActionLogs,
   fetchLodgingDashboardStats,
+  fetchLodgingGuests,
   fetchLodgingStaysByDate,
   type LodgingActionLog,
   type LodgingDashboardStats,
+  type LodgingGuest,
   type LodgingStay,
 } from "@/lib/api/lodgingRooms";
+import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +54,47 @@ function dayRangeToIso(fromDay: string, toDay: string) {
   };
 }
 
-export function LodgingReportsPanel() {
+function guestLabel(g: LodgingGuest | LodgingStay["guest"] | null | undefined) {
+  if (!g) return "—";
+  return `${g.firstName} ${g.lastName}`.trim() || "—";
+}
+
+function guestSearchHaystack(g: LodgingGuest): string {
+  return [
+    g.firstName,
+    g.lastName,
+    g.phone,
+    g.phoneSecondary,
+    g.email,
+    g.nationalId,
+    g.passportNumber,
+    g.country,
+    g.stateRegion,
+    g.addressLine,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+const guestMultiSearchFilter: FilterFn<LodgingGuest> = (
+  row,
+  _columnId,
+  filterValue,
+) => {
+  const q = String(filterValue ?? "")
+    .trim()
+    .toLowerCase();
+  if (!q) return true;
+  return guestSearchHaystack(row.original).includes(q);
+};
+
+export function LodgingReportsPanel({
+  showActivityTrail = true,
+}: {
+  /** Manager reports include recent actions; reception can omit if history is separate. */
+  showActivityTrail?: boolean;
+}) {
   const [stats, setStats] = useState<LodgingDashboardStats | null>(null);
   const [logs, setLogs] = useState<LodgingActionLog[]>([]);
   const [stays, setStays] = useState<LodgingStay[]>([]);
@@ -50,13 +102,17 @@ export function LodgingReportsPanel() {
   const [to, setTo] = useState(todayYmd);
   const [loading, setLoading] = useState(true);
   const [loadingStays, setLoadingStays] = useState(false);
+  const [guests, setGuests] = useState<LodgingGuest[]>([]);
+  const [loadingGuests, setLoadingGuests] = useState(false);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
     try {
       const [st, lg] = await Promise.all([
         fetchLodgingDashboardStats(),
-        fetchLodgingActionLogs(80),
+        showActivityTrail
+          ? fetchLodgingActionLogs(80)
+          : Promise.resolve([] as LodgingActionLog[]),
       ]);
       setStats(st);
       setLogs(lg);
@@ -65,11 +121,88 @@ export function LodgingReportsPanel() {
     } finally {
       setLoading(false);
     }
+  }, [showActivityTrail]);
+
+  const loadGuests = useCallback(async () => {
+    setLoadingGuests(true);
+    try {
+      setGuests(await fetchLodgingGuests());
+    } catch (e) {
+      notifyApiFailure(e, "Could not load past guests");
+    } finally {
+      setLoadingGuests(false);
+    }
   }, []);
 
   useEffect(() => {
     void loadBase();
   }, [loadBase]);
+
+  useEffect(() => {
+    void loadGuests();
+  }, [loadGuests]);
+
+  const guestColumns = useMemo<ColumnDef<LodgingGuest>[]>(
+    () => [
+      {
+        id: "guest",
+        accessorFn: (g) => guestLabel(g),
+        header: "Guest",
+        filterFn: guestMultiSearchFilter,
+        cell: ({ row }) => (
+          <span className="font-medium">{guestLabel(row.original)}</span>
+        ),
+      },
+      {
+        id: "phone",
+        accessorFn: (g) => g.phone || "",
+        header: "Phone",
+        cell: ({ row }) => (
+          <div className="text-xs tabular-nums">
+            {row.original.phone || "—"}
+            {row.original.phoneSecondary ? (
+              <span className="block text-muted-foreground">
+                {row.original.phoneSecondary}
+              </span>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: "email",
+        accessorKey: "email",
+        header: "Email",
+        cell: ({ row }) => (
+          <span className="text-xs">{row.original.email || "—"}</span>
+        ),
+      },
+      {
+        id: "idDocs",
+        accessorFn: (g) =>
+          [g.nationalId, g.passportNumber].filter(Boolean).join(" "),
+        header: "ID / Passport",
+        cell: ({ row }) => (
+          <span className="text-xs">
+            {row.original.nationalId || row.original.passportNumber || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "location",
+        accessorFn: (g) =>
+          [g.country, g.stateRegion].filter(Boolean).join(" · "),
+        header: "Location",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {[row.original.country, row.original.stateRegion]
+              .filter(Boolean)
+              .join(" · ") || "—"}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
 
   const loadStays = async () => {
     setLoadingStays(true);
@@ -81,6 +214,42 @@ export function LodgingReportsPanel() {
     } finally {
       setLoadingStays(false);
     }
+  };
+
+  const exportStaysExcel = async () => {
+    if (stays.length === 0) return;
+    await exportRowsExcel(`lodging-stays-${from}_to_${to}`, "Stays", stays.map((s) => ({
+      Voucher: s.voucherCode,
+      Guest: guestLabel(s.guest),
+      Phone: s.guest?.phone || "",
+      Status: s.status,
+      Arrival: new Date(s.arrivalAt).toLocaleString(),
+      Departure: new Date(s.departureAt).toLocaleString(),
+      Rooms:
+        s.rooms
+          ?.map((r) => r.room?.roomNumber)
+          .filter(Boolean)
+          .join(", ") || "",
+      "Bill ETB": s.bill ? Number(s.bill.totalETB) : 0,
+    })));
+  };
+
+  const exportGuestsExcel = async () => {
+    if (guests.length === 0) return;
+    await exportRowsExcel(
+      "past-guests",
+      "Guests",
+      guests.map((g) => ({
+        Name: guestLabel(g),
+        Phone: g.phone || "",
+        "Phone 2": g.phoneSecondary || "",
+        Email: g.email || "",
+        "National ID": g.nationalId || "",
+        Passport: g.passportNumber || "",
+        Country: g.country || "",
+        Region: g.stateRegion || "",
+      })),
+    );
   };
 
   const cards = [
@@ -111,18 +280,20 @@ export function LodgingReportsPanel() {
     },
   ];
 
+  const billedTotal = stays.reduce((s, x) => s + (x.bill?.totalETB ?? 0), 0);
+
   return (
-    <div className="mx-auto max-w-6xl space-y-8 print:max-w-none">
-      <Card className="overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10 print:shadow-none">
-        <div className="h-1 bg-linear-to-r from-primary/60 via-sky-500/45 to-emerald-500/40 print:hidden" />
+    <div className="mx-auto max-w-6xl space-y-8">
+      <Card className="overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+        <div className="h-1 bg-linear-to-r from-primary/60 via-sky-500/45 to-emerald-500/40" />
         <CardHeader className="space-y-1 pb-2">
           <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
             <FileText className="h-5 w-5 text-primary" />
             Room management reports
           </CardTitle>
           <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-            Live occupancy snapshot, stay activity by date range, and the lodging
-            action trail — oriented like café operations reporting.
+            Occupancy snapshot, stay activity by date (Excel export), past guests
+            who used this property, and the lodging action trail.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8 pb-8">
@@ -131,7 +302,7 @@ export function LodgingReportsPanel() {
             description="Current room status counts across the property."
           >
             {loading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading snapshot…
               </div>
@@ -157,7 +328,7 @@ export function LodgingReportsPanel() {
 
           <HotelFormSection
             title="Stays by date"
-            description="Pick a range, generate the stay list, then print if needed."
+            description="Generate a structured stay list for the range, then export to Excel."
           >
             <div className="flex flex-wrap items-end gap-3">
               <HotelDayPicker label="From" value={from} onChange={setFrom} />
@@ -173,91 +344,154 @@ export function LodgingReportsPanel() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 print:hidden"
-                onClick={() => window.print()}
+                className="h-10"
+                disabled={stays.length === 0}
+                onClick={() => void exportStaysExcel()}
               >
-                <Printer className="h-4 w-4" />
-                Print
+                <FileSpreadsheet className="h-4 w-4" />
+                Export Excel
               </Button>
             </div>
 
             {stays.length === 0 ? (
-              <p className="text-sm text-muted-foreground pt-1">
+              <p className="pt-1 text-sm text-muted-foreground">
                 Choose dates and generate to list stays in that window.
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border/70 mt-1">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/35 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <th className="px-3 py-2.5 font-medium">Voucher</th>
-                      <th className="px-3 py-2.5 font-medium">Guest</th>
-                      <th className="px-3 py-2.5 font-medium">Status</th>
-                      <th className="px-3 py-2.5 font-medium">Arrival</th>
-                      <th className="px-3 py-2.5 font-medium">Departure</th>
-                      <th className="px-3 py-2.5 font-medium text-right">
-                        Bill (ETB)
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {stays.map((s) => (
-                      <tr key={s.id} className="hover:bg-muted/20">
-                        <td className="px-3 py-2.5 font-mono text-xs">
-                          {s.voucherCode}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {s.guest
-                            ? `${s.guest.firstName} ${s.guest.lastName}`
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2.5 capitalize">{s.status}</td>
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                          {new Date(s.arrivalAt).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                          {new Date(s.departureAt).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                          {s.bill
-                            ? Number(s.bill.totalETB).toLocaleString()
-                            : "—"}
-                        </td>
+              <div className="mt-2 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Range summary
+                    </p>
+                    <p className="text-sm font-medium">
+                      {stays.length} stay{stays.length === 1 ? "" : "s"} ·{" "}
+                      {from} → {to}
+                    </p>
+                  </div>
+                  <p className="text-lg font-semibold tabular-nums">
+                    ETB {billedTotal.toLocaleString()}
+                  </p>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-border/70">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/35 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                        <th className="px-3 py-2.5 font-medium">Voucher</th>
+                        <th className="px-3 py-2.5 font-medium">Guest</th>
+                        <th className="px-3 py-2.5 font-medium">Rooms</th>
+                        <th className="px-3 py-2.5 font-medium">Status</th>
+                        <th className="px-3 py-2.5 font-medium">Arrival</th>
+                        <th className="px-3 py-2.5 font-medium">Departure</th>
+                        <th className="px-3 py-2.5 font-medium text-right">
+                          Bill (ETB)
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {stays.map((s) => (
+                        <tr key={s.id} className="hover:bg-muted/20">
+                          <td className="px-3 py-2.5 font-mono text-xs">
+                            {s.voucherCode}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <p className="font-medium">{guestLabel(s.guest)}</p>
+                            {s.guest?.phone ? (
+                              <p className="text-xs text-muted-foreground">
+                                {s.guest.phone}
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs tabular-nums">
+                            {s.rooms
+                              ?.map((r) => r.room?.roomNumber)
+                              .filter(Boolean)
+                              .join(", ") || "—"}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Badge
+                              variant="outline"
+                              className="font-normal capitalize"
+                            >
+                              {s.status}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                            {new Date(s.arrivalAt).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                            {new Date(s.departureAt).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                            {s.bill
+                              ? Number(s.bill.totalETB).toLocaleString()
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </HotelFormSection>
 
           <HotelFormSection
-            title="Recent actions"
-            description="Audit trail of room, stay, bill, and CM activity."
+            title="Past guests"
+            description="Full guest registry for this tenant — search the table by name, phone, email, national ID, or passport."
           >
-            {logs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No actions logged yet.</p>
-            ) : (
-              <ul className="max-h-80 divide-y overflow-y-auto rounded-xl border border-border/70">
-                {logs.map((log) => (
-                  <li key={log.id} className="px-4 py-3 text-sm hover:bg-muted/15">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-medium">{log.action}</span>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {log.actorRole || "—"} · {log.actorName || "—"} ·{" "}
-                      {log.entityType || "—"}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Users className="h-4 w-4 shrink-0" />
+                {loadingGuests
+                  ? "Loading guests…"
+                  : `${guests.length} guest${guests.length === 1 ? "" : "s"} loaded`}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <PendingButton
+                  type="button"
+                  variant="outline"
+                  className="h-9"
+                  pending={loadingGuests}
+                  onClick={() => void loadGuests()}
+                >
+                  Refresh list
+                </PendingButton>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9"
+                  disabled={guests.length === 0}
+                  onClick={() => void exportGuestsExcel()}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Export Excel
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <DataTable
+                columns={guestColumns}
+                data={guests}
+                getRowId={(row) => String(row.id)}
+                searchColumnId="guest"
+                searchPlaceholder="Search name, phone, email, ID, passport…"
+                emptyMessage="No past guests yet for this property."
+                pageSize={10}
+              />
+            </div>
           </HotelFormSection>
         </CardContent>
       </Card>
+
+      {showActivityTrail ? (
+        <LodgingActionHistoryPanel
+          logs={logs}
+          title="Recent actions"
+          description="Audit trail of room, stay, bill, and CM activity — including what changed."
+        />
+      ) : null}
     </div>
   );
 }

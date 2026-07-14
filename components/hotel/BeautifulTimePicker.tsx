@@ -45,12 +45,15 @@ export function BeautifulTimePicker({
   value,
   onChange,
   className,
+  compact = false,
 }: {
   label?: string;
   /** "HH:mm" 24-hour */
   value: string;
   onChange: (hm: string) => void;
   className?: string;
+  /** Tighter layout for panels (e.g. active-stay checkout). */
+  compact?: boolean;
 }) {
   const { hour24, minute } = parseHm(value);
   const snappedMinute = Math.round(minute / 5) * 5;
@@ -67,27 +70,58 @@ export function BeautifulTimePicker({
     onChange(formatHm(from12h(hour12, p), minuteSafe));
   };
 
+  const chipH = compact ? "h-8 text-xs" : "h-9 text-sm";
+
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-4 shadow-sm ring-1 ring-black/5 dark:ring-white/10",
+        "relative overflow-hidden rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 shadow-sm ring-1 ring-black/5 dark:ring-white/10",
+        compact ? "p-3" : "p-4",
         className,
       )}
     >
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
-      <div className="relative flex items-center gap-2 mb-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Clock className="h-4 w-4" />
+      <div
+        className={cn(
+          "relative flex items-center gap-2",
+          compact ? "mb-2.5" : "mb-3",
+        )}
+      >
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary",
+            compact ? "h-7 w-7" : "h-8 w-8",
+          )}
+        >
+          <Clock className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <Label className="text-sm font-medium">{label}</Label>
           <p className="text-xs text-muted-foreground tabular-nums">
             {pad2(hour12)}:{pad2(minuteSafe)} {period}
           </p>
         </div>
+        <div className="flex shrink-0 gap-1">
+          {(["AM", "PM"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "rounded-lg text-xs font-semibold tracking-wide transition-all",
+                compact ? "h-8 min-w-10 px-2.5" : "h-9 min-w-11 px-3",
+                period === p
+                  ? "bg-foreground text-background shadow-md"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="relative space-y-3">
+      <div className={cn("relative", compact ? "space-y-2.5" : "space-y-3")}>
         <div>
           <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             Hour
@@ -99,7 +133,8 @@ export function BeautifulTimePicker({
                 type="button"
                 onClick={() => setHour12(h)}
                 className={cn(
-                  "h-9 rounded-lg text-sm font-medium tabular-nums transition-all",
+                  "rounded-lg font-medium tabular-nums transition-all",
+                  chipH,
                   hour12 === h
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
                     : "bg-muted/50 text-foreground hover:bg-muted",
@@ -122,7 +157,8 @@ export function BeautifulTimePicker({
                 type="button"
                 onClick={() => setMinute(m)}
                 className={cn(
-                  "h-9 rounded-lg text-sm font-medium tabular-nums transition-all",
+                  "rounded-lg font-medium tabular-nums transition-all",
+                  chipH,
                   minuteSafe === m
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
                     : "bg-muted/50 text-foreground hover:bg-muted",
@@ -132,24 +168,6 @@ export function BeautifulTimePicker({
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="flex gap-2">
-          {(["AM", "PM"] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPeriod(p)}
-              className={cn(
-                "flex-1 h-10 rounded-xl text-sm font-semibold tracking-wide transition-all",
-                period === p
-                  ? "bg-foreground text-background shadow-md"
-                  : "bg-muted/60 text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {p}
-            </button>
-          ))}
         </div>
       </div>
     </div>

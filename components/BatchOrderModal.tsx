@@ -22,7 +22,7 @@ import {
   isValidSelectedCafeTableNo,
   occupiedTableNumbersFromOrders,
 } from "@/lib/cafeTableOrder";
-import { batchOrderSchema } from "@/lib/validations";
+import { batchOrderItemSchema, batchOrderSchema } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Form } from "@/components/ui/form";
@@ -37,6 +37,15 @@ import CustomFormField, { formFieldTypes } from "./customFormField";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 
+/** Stay ids are not café table numbers (0–999); allow any positive stay id. */
+const roomBatchOrderSchema = z.object({
+  items: z.array(batchOrderItemSchema).min(1, "At least one item is required"),
+  HotelName: z.string().min(1, "Hotel name is required"),
+  assignmentType: z.enum(["single", "multiple"]),
+  singleWaiterName: z.string().min(1, "Please select a waiter"),
+  singleTableNo: z.coerce.number().int().positive("Please select a room"),
+});
+
 interface BatchOrderModalProps {
   items: (Item & { orderAmount: number })[];
   isOpen: boolean;
@@ -44,6 +53,14 @@ interface BatchOrderModalProps {
   hotelName: string;
   openOrders?: Order[];
   onSubmitSuccess: () => void;
+  /** Room / stay options — replaces table selector; value is stay id. */
+  roomOptions?: { id: number; name: string; realValue: number }[];
+  /** When room mode, called instead of createBatchOrders. */
+  onRoomBatchSubmit?: (payload: {
+    stayId: number;
+    waiterName: string;
+    items: (Item & { orderAmount: number })[];
+  }) => Promise<void>;
 }
 
 export default function BatchOrderModal({
@@ -53,7 +70,10 @@ export default function BatchOrderModal({
   hotelName,
   openOrders = [],
   onSubmitSuccess,
+  roomOptions,
+  onRoomBatchSubmit,
 }: BatchOrderModalProps) {
+  const roomMode = roomOptions != null;
   const [loading, setLoading] = useState(false);
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
@@ -61,7 +81,10 @@ export default function BatchOrderModal({
   const wasOpenRef = useRef(false);
 
   const form = useForm<z.infer<typeof batchOrderSchema>>({
-    resolver: zodResolver(batchOrderSchema),
+    // Room mode uses stay ids (any positive int); café mode keeps 0–999 table refine.
+    resolver: zodResolver(
+      roomMode ? roomBatchOrderSchema : batchOrderSchema,
+    ) as never,
     defaultValues: {
       singleWaiterName: "",
       singleTableNo: CAFE_TABLE_UNSELECTED,
@@ -106,15 +129,17 @@ export default function BatchOrderModal({
       )
       .then(setWaiters)
       .catch(() => toast.error("Failed to load waiters"));
-    fetchTables()
-      .then((res) =>
-        res.filter((t) =>
-          rowHotelMatchesTenantScope(t.HotelName, hotelName),
-        ),
-      )
-      .then(setTables)
-      .catch(() => toast.error("Failed to load tables"));
-  }, [isOpen, hotelName, form, initialItems]);
+    if (!roomMode) {
+      fetchTables()
+        .then((res) =>
+          res.filter((t) =>
+            rowHotelMatchesTenantScope(t.HotelName, hotelName),
+          ),
+        )
+        .then(setTables)
+        .catch(() => toast.error("Failed to load tables"));
+    }
+  }, [isOpen, hotelName, form, initialItems, roomMode]);
 
   const updateQuantity = (id: number, delta: number) => {
     setSelectedItems((prev) => {
@@ -170,9 +195,38 @@ export default function BatchOrderModal({
     [tables, occupiedTables],
   );
 
+  const anchorOptions = roomMode ? roomOptions ?? [] : tableSelectOptions;
+
   const onSubmit = async (values: z.infer<typeof batchOrderSchema>) => {
     if (selectedItems.length === 0) {
       toast.error("No items selected");
+      return;
+    }
+
+    if (roomMode) {
+      const stayId = Math.floor(Number(values.singleTableNo));
+      if (!(stayId > 0)) {
+        toast.error("Please select a room");
+        return;
+      }
+      if (!values.singleWaiterName || values.singleWaiterName === "") {
+        toast.error("Please select a waiter");
+        return;
+      }
+      setLoading(true);
+      try {
+        await onRoomBatchSubmit?.({
+          stayId,
+          waiterName: values.singleWaiterName,
+          items: selectedItems,
+        });
+        onSubmitSuccess();
+        onClose();
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to charge room");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -248,11 +302,11 @@ export default function BatchOrderModal({
                 control={form.control}
                 name="singleTableNo"
                 fieldType={formFieldTypes.SELECT}
-                label="Table Number"
-                placeholder="Select Table"
+                label={roomMode ? "Room" : "Table Number"}
+                placeholder={roomMode ? "Select Room" : "Select Table"}
                 isNumeric={true}
                 inputClassName="h-fit p-2 w-56"
-                listdisplay={tableSelectOptions}
+                listdisplay={anchorOptions}
               />
               <CustomFormField
                 control={form.control}

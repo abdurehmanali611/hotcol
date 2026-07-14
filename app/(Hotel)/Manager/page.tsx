@@ -117,6 +117,8 @@ import {
   SidebarHeader,
   SidebarSeparator,
   SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
@@ -129,8 +131,7 @@ import { Input } from "@/components/ui/input";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { DataTable } from "@/app/StoreItems/data-table";
-import { buildPurchaseRequestDashboardColumns } from "@/lib/dataTableColumns/purchaseRequests";
-import { buildItemStatusColumns } from "@/lib/dataTableColumns/itemStatus";
+import { ManagerOverviewDashboard } from "@/components/hotel/ManagerOverviewDashboard";
 import Inactive from "@/app/Inactive/page";
 import {
   buildKitchenBarDailyColumns,
@@ -154,7 +155,7 @@ import {
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
 import { PAYMENT_CATEGORY_NAV } from "@/constants/hotelInventoryNav";
-import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
+import { HotelWorkflowGlossary, resolveManagerGlossaryTopic } from "@/components/hotel/HotelWorkflowGlossary";
 import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
 import Reports from "@/components/reports";
@@ -206,7 +207,6 @@ const LEGACY_SERVICE_TAB_REMAP: Partial<
 };
 
 const MANAGER_INVENTORY_TAB_IDS = new Set<TabId>([
-  "dashboard",
   "cc-profiles",
   "department-leaders",
   "reports-inventory",
@@ -509,6 +509,11 @@ function ManagerContent() {
     [sidebarItems, serviceSidebarItems],
   );
 
+  const dashboardNavItem = useMemo(
+    () => sidebarItems.find((item) => item.id === "dashboard") ?? null,
+    [sidebarItems],
+  );
+
   const inventorySidebarItems = useMemo(
     () =>
       sidebarItems.filter((item) =>
@@ -598,8 +603,6 @@ function ManagerContent() {
 
   const activeNavLabel = useMemo(() => {
     const nestedLabels: Record<string, string> = {
-      "lodging-fnb-add": "Food & drink · Add item",
-      "lodging-fnb-menu": "Food & drink · Menu items",
       "lodging-laundry-add": "Laundry · Add item",
       "lodging-laundry-items": "Laundry · Menu items",
     };
@@ -609,6 +612,69 @@ function ManagerContent() {
       PAYMENT_CATEGORY_NAV.find((n) => n.id === activeTab)?.label
     );
   }, [activeTab, allNavItems]);
+
+  const activeNavDescription = useMemo(() => {
+    const byTab: Record<string, string> = {
+      dashboard:
+        "Module scorecard and charts for rooms, inventory, café, and other subscribed areas.",
+      "lodging-reports":
+        "Occupancy snapshot, stay history by date, past guests, and lodging action trail.",
+      "lodging-rooms":
+        "Create and maintain room numbers, types, nightly rates, and notes for this property.",
+      "lodging-laundry-add":
+        "Add laundry service lines guests can order to a room during their stay.",
+      "lodging-laundry-items":
+        "Edit prices, images, and active state for in-room laundry menu items.",
+      "grant-credential":
+        "Issue staff logins for roles allowed by this tenant’s subscribed modules.",
+      "update-credential":
+        "Change passwords, roles, or remove access for existing staff accounts.",
+      "reports-inventory":
+        "Browse active inventory lines registered for this hotel property.",
+      "reports-movements":
+        "Review stock movement history after cost-control decisions.",
+      "reports-purchases":
+        "Follow purchase requests through cost control and finance gates.",
+      "authorize-item-registrations":
+        "Approve or reject new inventory item registrations waiting on the manager.",
+      "authorize-purchases":
+        "Manager sign-off on purchase requests that require executive approval.",
+      "authorize-stock":
+        "Review stock movement requests that need manager authorization.",
+      "item-receipts":
+        "Confirm goods received into inventory after finance clears a purchase.",
+      "reports-beginnings":
+        "Station daily opening counts, sealed movements, and roll-up views.",
+      "cc-profiles":
+        "Named cost-controller identities used for approval audit trails.",
+      "department-leaders":
+        "Department leaders linked to inventory and operational accountability.",
+      "inventory-payment-vat":
+        "Classify and review inventory payments with or without VAT.",
+      reports:
+        "Café sales and operations reporting for the restaurant module.",
+      "create-item":
+        "Add dishes and drinks to the café menu for this property.",
+      "update-item":
+        "Edit existing café menu items, prices, and availability.",
+      "waiter-table":
+        "Manage waiters and floor tables used by café cashier orders.",
+      "station-prep-qty":
+        "Station preparation quantities that feed kitchen and bar workflows.",
+      "creditor-usage":
+        "Corporate credit consumption report for company deals.",
+    };
+    if (byTab[activeTab]) return byTab[activeTab];
+    if (isPaymentCategorySection(activeTab)) {
+      return "Inventory payment category view for how purchases were settled or taxed.";
+    }
+    return "Manager tools for this property based on your subscribed modules.";
+  }, [activeTab]);
+
+  const glossaryTopic = useMemo(
+    () => resolveManagerGlossaryTopic(activeTab),
+    [activeTab],
+  );
 
   const activeInventoryRows = useMemo(
     () => filterInventoryListRegistrations(items),
@@ -897,11 +963,6 @@ function ManagerContent() {
     }, 0);
   }, [managerRollupFromDailyRows, unitPriceByItemName]);
 
-  const recentPurchaseColumns = useMemo(
-    () => buildPurchaseRequestDashboardColumns(),
-    [],
-  );
-  const itemStatusColumns = useMemo(() => buildItemStatusColumns(), []);
   const managerRollupColumns = useMemo(
     () =>
       buildKitchenBarRollupColumns({
@@ -937,65 +998,20 @@ function ManagerContent() {
     switch (activeTab) {
       case "dashboard":
         return (
-          <div className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Card className="border-primary/15 bg-linear-to-br from-card to-primary/5 shadow-md overflow-hidden">
-                <CardHeader className="pb-2 pt-4">
-                  <CardDescription>{HOTEL_INVENTORY_COPY.inventoryItems}</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums tracking-tight">
-                    {activeInventoryRows.length}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card className="border-violet-500/20 bg-linear-to-br from-card to-violet-500/5 shadow-md overflow-hidden">
-                <CardHeader className="pb-2 pt-4">
-                  <CardDescription>Open purchase steps</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums tracking-tight">{pendingPurchases}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card className="border-amber-500/20 bg-linear-to-br from-card to-amber-500/5 shadow-md overflow-hidden">
-                <CardHeader className="pb-2 pt-4">
-                  <CardDescription>Stock movements pending CC</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums tracking-tight">{pendingStock}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card className="border-emerald-500/20 bg-linear-to-br from-card to-emerald-500/5 shadow-md overflow-hidden">
-                <CardHeader className="pb-2 pt-4">
-                  <CardDescription>Movement lines (history)</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums tracking-tight">{statuses.length}</CardTitle>
-                </CardHeader>
-              </Card>
-            </div>
-            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden">
-              <CardHeader>
-                <CardTitle>Recent purchase requests</CardTitle>
-                <CardDescription>Latest 8 rows</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  columns={recentPurchaseColumns}
-                  data={recentPurchases}
-                  getRowId={(row) => String(row.id)}
-                  searchColumnId="itemName"
-                  emptyMessage="No purchase requests yet."
-                />
-              </CardContent>
-            </Card>
-            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden">
-              <CardHeader>
-                <CardTitle>Recent stock movements</CardTitle>
-                <CardDescription>Latest 8 rows</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  columns={itemStatusColumns}
-                  data={recentStockMovements}
-                  getRowId={(row) => String(row.id)}
-                  emptyMessage="No stock movements yet."
-                />
-              </CardContent>
-            </Card>
-          </div>
+          <ManagerOverviewDashboard
+            modules={tenantModules}
+            inventoryItemCount={activeInventoryRows.length}
+            pendingPurchases={pendingPurchases}
+            pendingStock={pendingStock}
+            movementHistoryCount={statuses.length}
+            cafeLiveOrderCount={cafeOrders.length}
+            cafeTableCount={tables.length}
+            cafeWaiterCount={waiters.length}
+            cafeMenuItemCount={menuItems.length}
+            credentialCount={credentials.length}
+            recentPurchases={recentPurchases}
+            recentStockMovements={recentStockMovements}
+          />
         );
 
       case "cc-profiles":
@@ -1486,50 +1502,6 @@ function ManagerContent() {
           </div>
         );
 
-      case "lodging-fnb-add":
-        return (
-          <div className="p-3 sm:p-5 md:p-6">
-            <ItemCreationForm
-              hotelName={tenantScope || ""}
-              onSubmit={async (data) => {
-                try {
-                  await createItem({
-                    name: data.name,
-                    price: data.price,
-                    category: data.category,
-                    type: data.type,
-                    imageUrl: data.imageUrl,
-                  });
-                  loadData(true);
-                } catch (err: unknown) {
-                  notifyApiFailure(err, "Could not create menu item");
-                }
-              }}
-              onImageUpload={uploadImage}
-            />
-          </div>
-        );
-
-      case "lodging-fnb-menu":
-        return (
-          <div className="p-3 sm:p-5 md:p-6">
-            <UpdateDeleteIntro
-              items={menuItems}
-              hotelName={tenantScope || ""}
-              onUpdate={() => loadData(true)}
-              onDelete={async (id: number) => {
-                try {
-                  await deleteItem(id);
-                  loadData(true);
-                } catch (err: unknown) {
-                  notifyApiFailure(err, "Could not delete menu item");
-                }
-              }}
-              onImageUpload={uploadImage}
-            />
-          </div>
-        );
-
       case "lodging-laundry-add":
         return (
           <div className="p-4 md:p-6">
@@ -1623,6 +1595,21 @@ function ManagerContent() {
           </div>
           <SidebarContent className="flex-1 gap-0 px-0 pb-4 pt-2">
             <SidebarMenu className="gap-1 px-2">
+              {dashboardNavItem ? (
+                <SidebarMenuItem className="px-2">
+                  <SidebarMenuButton
+                    isActive={activeTab === "dashboard"}
+                    onClick={() => setActiveTab("dashboard")}
+                    tooltip={dashboardNavItem.label}
+                    size="lg"
+                    className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                  >
+                    {dashboardNavItem.icon}
+                    <span>{dashboardNavItem.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
+
               <ManagerCollapsibleSidebarGroup
                 label="Inventory"
                 icon={Store}
@@ -1724,14 +1711,20 @@ function ManagerContent() {
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
             <div className="mx-auto max-w-6xl space-y-8 pb-10">
               <SubscriptionAlertBanner />
-              <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-6 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-8">
-                <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
-                  {activeNavLabel}
-                </h2>
+              <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6 space-y-4">
+                <div className="space-y-1.5">
+                  <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
+                    {activeNavLabel}
+                  </h2>
+                  <p className="max-w-3xl text-sm text-muted-foreground leading-relaxed text-pretty">
+                    {activeNavDescription}
+                  </p>
+                </div>
+                <HotelWorkflowGlossary
+                  variant="manager"
+                  topic={glossaryTopic}
+                />
               </div>
-              {!isManagerServiceTab(activeTab) ? (
-                <HotelWorkflowGlossary variant="manager" />
-              ) : null}
               {renderContent()}
             </div>
           </main>

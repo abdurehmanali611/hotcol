@@ -38,7 +38,7 @@ export const MODULE_DESCRIPTIONS: Record<ModuleOption, string> = {
     "Cost control and finance roles; purchase, registration, and stock movement approvals.",
   "HR Module": "Staff HR workflows — coming soon.",
   "Room Management":
-    "Rooms, reception check-in/out, guest stays, billing, laundry and in-room F&B.",
+    "Rooms, reception check-in/out, guest stays, billing, and laundry. In-room F&B uses the Cafe and Restaurant module.",
   "Cleaning and Maintenance":
     "Housekeeping and maintenance queues: dirty rooms, maintenance windows, and CM assignments.",
 };
@@ -268,8 +268,6 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "cc-profiles": "Financial Management",
   "lodging-rooms": "Room Management",
   "lodging-reports": "Room Management",
-  "lodging-fnb-add": "Room Management",
-  "lodging-fnb-menu": "Room Management",
   "lodging-laundry-add": "Room Management",
   "lodging-laundry-items": "Room Management",
   /** @deprecated legacy flat tab */

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { CldUploadButton } from "next-cloudinary";
 import {
   Card,
   CardContent,
@@ -19,8 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shirt, Pencil, Plus, Trash2 } from "lucide-react";
+import { Shirt, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+import { RegistrationImageUploadField } from "@/components/hotel/RegistrationImageUploadField";
 import {
   deleteLodgingServiceItemApi,
   fetchLodgingServiceItems,
@@ -31,6 +34,11 @@ import {
   INVENTORY_UNIT_SELECT_OPTIONS,
   inventoryUnitSelectValues,
 } from "@/lib/inventoryUnits";
+import { ITEM_REGISTRATION_IMAGE_UPLOAD_OPTIONS } from "@/lib/cloudinaryUploadOptions";
+import {
+  hasRegistrationImage,
+  registrationPreviewImageUrl,
+} from "@/lib/registrationImageUrl";
 import { notifyApiFailure } from "@/lib/actions";
 import { toast } from "sonner";
 
@@ -39,6 +47,7 @@ type LaundryLine = {
   name: string;
   unitPriceETB: string;
   unitLabel: string;
+  imageUrl: string;
 };
 
 function newKey() {
@@ -51,7 +60,19 @@ function emptyLine(): LaundryLine {
     name: "",
     unitPriceETB: "",
     unitLabel: INVENTORY_UNIT_SELECT_OPTIONS[2]?.name ?? "Piece",
+    imageUrl: "",
   };
+}
+
+function secureUrlFromUpload(result: unknown): string {
+  const info =
+    result && typeof result === "object" && "info" in result
+      ? (result as { info?: unknown }).info
+      : null;
+  if (info && typeof info === "object" && info !== null && "secure_url" in info) {
+    return String((info as { secure_url: unknown }).secure_url || "");
+  }
+  return "";
 }
 
 export function LodgingLaundryAddPanel() {
@@ -87,6 +108,7 @@ export function LodgingLaundryAddPanel() {
           name: line.name.trim(),
           unitPriceETB: Number(line.unitPriceETB),
           unitLabel: line.unitLabel,
+          imageUrl: line.imageUrl.trim(),
           isActive: true,
         });
         ok += 1;
@@ -116,6 +138,7 @@ export function LodgingLaundryAddPanel() {
         <CardDescription className="max-w-3xl text-pretty leading-relaxed">
           Price laundry services charged to guest stays. Add several rows, then
           submit once — units match store inventory (Litre, Kilogram, Piece…).
+          Optional photos help reception pick the right item.
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-8">
@@ -202,6 +225,55 @@ export function LodgingLaundryAddPanel() {
                     </Select>
                   </div>
                 </div>
+                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                  <Label className="text-xs text-muted-foreground">
+                    Item image{" "}
+                    <span className="font-normal">(optional)</span>
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    {hasRegistrationImage(line.imageUrl) ? (
+                      <div className="relative h-12 w-12 overflow-hidden rounded-md border">
+                        <Image
+                          src={
+                            registrationPreviewImageUrl(line.imageUrl) ||
+                            line.imageUrl
+                          }
+                          alt=""
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    ) : null}
+                    <CldUploadButton
+                      uploadPreset={
+                        process.env.NEXT_PUBLIC_CLOUDINARY_PRESET_NAME
+                      }
+                      options={{ ...ITEM_REGISTRATION_IMAGE_UPLOAD_OPTIONS }}
+                      onSuccess={(result) => {
+                        const url = secureUrlFromUpload(result);
+                        if (url) updateLine(line.key, { imageUrl: url });
+                      }}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-muted"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {hasRegistrationImage(line.imageUrl)
+                        ? "Change image"
+                        : "Upload image"}
+                    </CldUploadButton>
+                    {hasRegistrationImage(line.imageUrl) ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 text-xs text-muted-foreground"
+                        onClick={() => updateLine(line.key, { imageUrl: "" })}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -248,6 +320,7 @@ export function LodgingLaundryItemsPanel() {
     name: "",
     unitPriceETB: "",
     unitLabel: "Piece",
+    imageUrl: "",
   });
   const [pending, setPending] = useState<string | null>(null);
 
@@ -269,7 +342,7 @@ export function LodgingLaundryItemsPanel() {
 
   const resetForm = () => {
     setEditingId(null);
-    setForm({ name: "", unitPriceETB: "", unitLabel: "Piece" });
+    setForm({ name: "", unitPriceETB: "", unitLabel: "Piece", imageUrl: "" });
   };
 
   const onSave = async () => {
@@ -286,6 +359,7 @@ export function LodgingLaundryItemsPanel() {
         name: form.name.trim(),
         unitPriceETB: price,
         unitLabel: form.unitLabel,
+        imageUrl: form.imageUrl.trim(),
         isActive: true,
       });
       resetForm();
@@ -306,14 +380,14 @@ export function LodgingLaundryItemsPanel() {
           Laundry menu items
         </CardTitle>
         <CardDescription className="leading-relaxed">
-          Update or remove laundry catalog prices used at reception.
+          Update or remove laundry catalog prices and photos used at reception.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 pb-8">
         {editingId != null ? (
           <HotelFormSection
             title="Edit item"
-            description="Save when the name, price, and unit look right."
+            description="Save when the name, price, unit, and image look right."
           >
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="col-span-2 space-y-1.5 sm:col-span-1">
@@ -360,6 +434,11 @@ export function LodgingLaundryItemsPanel() {
                 </Select>
               </div>
             </div>
+            <RegistrationImageUploadField
+              value={form.imageUrl}
+              onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
+              hint="Optional photo shown on the reception laundry menu."
+            />
             <div className="flex flex-wrap gap-2">
               <PendingButton
                 type="button"
@@ -384,59 +463,81 @@ export function LodgingLaundryItemsPanel() {
           </div>
         ) : (
           <ul className="divide-y overflow-hidden rounded-xl border border-border/70">
-            {items.map((item) => (
-              <li
-                key={item.id}
-                className="flex flex-col gap-2 bg-card/60 p-4 transition-colors hover:bg-muted/20 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-sm">{item.name}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
-                    ETB {Number(item.unitPriceETB).toLocaleString()} /{" "}
-                    {item.unitLabel}
-                  </p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-8"
-                    onClick={() => {
-                      setEditingId(item.id);
-                      setForm({
-                        name: item.name,
-                        unitPriceETB: String(item.unitPriceETB),
-                        unitLabel: item.unitLabel || "Piece",
-                      });
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <PendingButton
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-8 text-destructive hover:text-destructive"
-                    pending={pending === `del-${item.id}`}
-                    onClick={async () => {
-                      setPending(`del-${item.id}`);
-                      try {
-                        await deleteLodgingServiceItemApi(item.id);
-                        if (editingId === item.id) resetForm();
-                        await load();
-                      } catch (e) {
-                        notifyApiFailure(e, "Could not remove item");
-                      } finally {
-                        setPending(null);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </PendingButton>
-                </div>
-              </li>
-            ))}
+            {items.map((item) => {
+              const preview = registrationPreviewImageUrl(item.imageUrl || "");
+              const hasImg = hasRegistrationImage(item.imageUrl || "");
+              return (
+                <li
+                  key={item.id}
+                  className="flex flex-col gap-2 bg-card/60 p-4 transition-colors hover:bg-muted/20 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30">
+                      {hasImg && preview ? (
+                        <Image
+                          src={preview}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Shirt className="h-5 w-5 text-muted-foreground/60" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                        ETB {Number(item.unitPriceETB).toLocaleString()} /{" "}
+                        {item.unitLabel}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-8"
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setForm({
+                          name: item.name,
+                          unitPriceETB: String(item.unitPriceETB),
+                          unitLabel: item.unitLabel || "Piece",
+                          imageUrl: item.imageUrl || "",
+                        });
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <PendingButton
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 text-destructive hover:text-destructive"
+                      pending={pending === `del-${item.id}`}
+                      onClick={async () => {
+                        setPending(`del-${item.id}`);
+                        try {
+                          await deleteLodgingServiceItemApi(item.id);
+                          if (editingId === item.id) resetForm();
+                          await load();
+                        } catch (e) {
+                          notifyApiFailure(e, "Could not remove item");
+                        } finally {
+                          setPending(null);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </PendingButton>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>

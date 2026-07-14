@@ -41,6 +41,15 @@ interface OrderProps {
   onItemSelect: (item: Item) => void;
   onGoToPayment: () => void;
   onBatchOrderSuccess?: () => void;
+  /** Reception lodging: room/stay options replace tables; waiter stays. */
+  roomOptions?: { id: number; name: string; realValue: number }[];
+  onRoomBatchSubmit?: (payload: {
+    stayId: number;
+    waiterName: string;
+    items: (Item & { orderAmount: number })[];
+  }) => Promise<void>;
+  /** Hide type select + category tabs (e.g. laundry ordering). */
+  hideTypeFilters?: boolean;
 }
 
 type MenuCategory = "all" | "food" | "beverage" | "others";
@@ -52,6 +61,9 @@ export default function OrderComponent({
   onItemSelect,
   onGoToPayment,
   onBatchOrderSuccess,
+  roomOptions,
+  onRoomBatchSubmit,
+  hideTypeFilters = false,
 }: OrderProps) {
   const [searchedText, setSearchedText] = useState("");
   const [selectedType, setSelectedType] = useState<string>("All");
@@ -163,19 +175,23 @@ export default function OrderComponent({
                 Menu
               </h2>
               <p className="text-sm text-muted-foreground">
-                Tap a card for a quick order, or select items for a batch order.
+                {roomOptions != null
+                  ? "Tap a card for a quick order, or batch-select — pick room and waiter in the dialog."
+                  : "Tap a card for a quick order, or select items for a batch order."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                onClick={onGoToPayment}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
-                Pending payments
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              {roomOptions == null ? (
+                <Button
+                  onClick={onGoToPayment}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  Pending payments
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : null}
               {selectedItems.length > 0 ? (
                 <Button
                   onClick={() => setShowBatchModal(true)}
@@ -194,65 +210,83 @@ export default function OrderComponent({
             <div className="relative w-full max-w-sm sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search menu…"
+                placeholder={
+                  hideTypeFilters ? "Search laundry…" : "Search menu…"
+                }
                 className="h-10 pl-9"
                 value={searchedText}
                 onChange={(e) => setSearchedText(e.target.value)}
               />
             </div>
-            <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger className="h-10 w-full sm:w-44">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Item type</SelectLabel>
-                  <SelectItem value="All">All types</SelectItem>
-                  {uniqueTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            {!hideTypeFilters ? (
+              <Select value={selectedType} onValueChange={setSelectedType}>
+                <SelectTrigger className="h-10 w-full sm:w-44">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Item type</SelectLabel>
+                    <SelectItem value="All">All types</SelectItem>
+                    {uniqueTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : null}
           </div>
 
-          <Tabs
-            value={menuCategory}
-            onValueChange={(v) => setMenuCategory(v as MenuCategory)}
-            className="w-full"
-          >
-            <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted/50 p-1">
-              <TabsTrigger value="all" className="gap-1.5 px-3 py-2">
-                <LayoutGrid className="h-3.5 w-3.5" />
-                All
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                  {categoryCounts.all}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="food" className="gap-1.5 px-3 py-2">
-                <Utensils className="h-3.5 w-3.5" />
-                Kitchen
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                  {categoryCounts.food}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="beverage" className="gap-1.5 px-3 py-2">
-                <Coffee className="h-3.5 w-3.5" />
-                Bar
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                  {categoryCounts.beverage}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="others" className="gap-1.5 px-3 py-2">
-                Others
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                  {categoryCounts.others}
-                </Badge>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {!hideTypeFilters ? (
+            <Tabs
+              value={menuCategory}
+              onValueChange={(v) => setMenuCategory(v as MenuCategory)}
+              className="w-full"
+            >
+              <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted/50 p-1">
+                <TabsTrigger value="all" className="gap-1.5 px-3 py-2">
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  All
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 h-5 px-1.5 text-[10px]"
+                  >
+                    {categoryCounts.all}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="food" className="gap-1.5 px-3 py-2">
+                  <Utensils className="h-3.5 w-3.5" />
+                  Kitchen
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 h-5 px-1.5 text-[10px]"
+                  >
+                    {categoryCounts.food}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="beverage" className="gap-1.5 px-3 py-2">
+                  <Coffee className="h-3.5 w-3.5" />
+                  Bar
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 h-5 px-1.5 text-[10px]"
+                  >
+                    {categoryCounts.beverage}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="others" className="gap-1.5 px-3 py-2">
+                  Others
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 h-5 px-1.5 text-[10px]"
+                  >
+                    {categoryCounts.others}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : null}
         </div>
       </div>
 
@@ -453,6 +487,8 @@ export default function OrderComponent({
         hotelName={hotelName}
         openOrders={openOrders}
         onSubmitSuccess={handleBatchOrderSuccess}
+        roomOptions={roomOptions}
+        onRoomBatchSubmit={onRoomBatchSubmit}
       />
     </div>
   );
