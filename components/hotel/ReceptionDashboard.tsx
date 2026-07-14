@@ -18,7 +18,6 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
@@ -70,10 +69,6 @@ import {
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
-import {
-  LODGING_ROOM_STATUS_LABELS,
-  type LodgingRoomStatus,
-} from "@/constants/lodgingRooms";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { fetchItems, logoutAction, notifyApiFailure } from "@/lib/actions";
@@ -117,21 +112,6 @@ const navIconMap: Record<(typeof RECEPTION_NAV_ITEMS)[number]["icon"], LucideIco
   History,
 };
 
-function roomStatusBadgeClass(status: string): string {
-  switch (status) {
-    case "vacant_clean":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
-    case "vacant_dirty":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-400";
-    case "occupied":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400";
-    case "on_maintenance":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400";
-    default:
-      return "border-border bg-muted text-muted-foreground";
-  }
-}
-
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -142,10 +122,6 @@ function todayYmd(d = new Date()) {
 
 function nowHm(d = new Date()) {
   return `${pad2(d.getHours())}:${pad2(Math.floor(d.getMinutes() / 5) * 5)}`;
-}
-
-function toLocalDatetimeValue(d = new Date()) {
-  return `${todayYmd(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 

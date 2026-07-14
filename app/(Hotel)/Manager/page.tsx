@@ -164,7 +164,6 @@ import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyReve
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
-import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
 

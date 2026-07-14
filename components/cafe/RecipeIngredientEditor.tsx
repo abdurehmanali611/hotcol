@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChefHat, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,18 +64,12 @@ function DecimalInput({
   const [draft, setDraft] = useState(() => formatDecimalDisplay(value));
   const [focused, setFocused] = useState(false);
 
-  useEffect(() => {
-    if (!focused) {
-      setDraft(formatDecimalDisplay(value));
-    }
-  }, [value, focused]);
-
   return (
     <Input
       type="text"
       inputMode="decimal"
       autoComplete="off"
-      value={draft}
+      value={focused ? draft : formatDecimalDisplay(value)}
       placeholder={placeholder}
       className={cn(
         "tabular-nums",
@@ -83,7 +77,10 @@ function DecimalInput({
         align === "right" && "text-right",
         className,
       )}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        setFocused(true);
+        setDraft(formatDecimalDisplay(value));
+      }}
       onBlur={() => {
         setFocused(false);
         const parsed = parseDecimalInput(draft);

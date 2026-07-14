@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -96,6 +96,11 @@ export function formatLodgingActionDetails(detailJson: string): string {
   }
 }
 
+function logsSignature(logs: LodgingActionLog[]) {
+  if (logs.length === 0) return "0";
+  return `${logs.length}:${logs[0]!.id}:${logs[logs.length - 1]!.id}`;
+}
+
 export function LodgingActionHistoryPanel({
   logs,
   title = "Action history",
@@ -108,17 +113,16 @@ export function LodgingActionHistoryPanel({
   pageSize?: number;
 }) {
   const [page, setPage] = useState(0);
+  const [logsSig, setLogsSig] = useState(() => logsSignature(logs));
+  const nextSig = logsSignature(logs);
+  if (nextSig !== logsSig) {
+    setLogsSig(nextSig);
+    setPage(0);
+  }
+
   const size = Math.max(1, pageSize);
   const pageCount = Math.max(1, Math.ceil(logs.length / size));
   const safePage = Math.min(page, pageCount - 1);
-
-  useEffect(() => {
-    setPage(0);
-  }, [logs]);
-
-  useEffect(() => {
-    if (page > pageCount - 1) setPage(Math.max(0, pageCount - 1));
-  }, [page, pageCount]);
 
   const pageLogs = useMemo(() => {
     const start = safePage * size;
@@ -153,7 +157,7 @@ export function LodgingActionHistoryPanel({
                     <th className="px-3 py-2.5 font-medium">Action</th>
                     <th className="px-3 py-2.5 font-medium">Actor</th>
                     <th className="px-3 py-2.5 font-medium">Entity</th>
-                    <th className="px-3 py-2.5 font-medium min-w-[14rem]">
+                    <th className="px-3 py-2.5 font-medium min-w-56">
                       What changed
                     </th>
                   </tr>

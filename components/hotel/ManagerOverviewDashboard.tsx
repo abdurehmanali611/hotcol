@@ -45,8 +45,8 @@ import {
 import {
   MODULE_DESCRIPTIONS,
   tenantHasModule,
-  type ModuleOption,
 } from "@/lib/subscriptionModules";
+import type { ModuleOption } from "@/constants";
 import type { PurchaseRequestRow } from "@/lib/api/hotelWorkflow";
 import type { ItemStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";

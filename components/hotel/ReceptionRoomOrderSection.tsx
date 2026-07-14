@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import OrderComponent from "@/components/Order";
 import OrderDetailsModal from "@/components/orderDetailsModal";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   notifyApiFailure,
   type Item,

@@ -203,7 +203,7 @@ export function StoreComponent({
   const [storeItem, setStoreItem] = useState<ItemRegistration[]>([]);
   const [itemStatus, setItemStatus] = useState<ItemStatus[]>([]);
   const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
-  const [pettyCashBalance, setPettyCashBalance] = useState<number | null>(null);
+  const [, setPettyCashBalance] = useState<number | null>(null);
   const searchedParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(
     searchedParams.get("hotel"),
