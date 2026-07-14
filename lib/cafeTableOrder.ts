@@ -59,7 +59,8 @@ export function buildTableSelectOptions(
       name: formatTableSelectLabel(table, occupied),
       realValue: table.tableNo,
       disabled: occupied,
-      subText: occupied ? "In use" : captionOrEmpty(table.orderCaption),
+      // Caption only — "(In use)" is already in `name` when occupied.
+      subText: captionOrEmpty(table.orderCaption),
     };
   });
 }
@@ -71,7 +72,25 @@ export function buildEditTableSelectOptions(
   currentTableNo: number,
 ) {
   const current = Math.floor(Number(currentTableNo));
-  const options = buildTableSelectOptions(tables, occupiedTableNos);
+  const options = buildTableSelectOptions(tables, occupiedTableNos).map(
+    (option) => {
+      if (Number(option.realValue) !== current) return option;
+      const currentTable = tables.find((t) => Number(t.tableNo) === current);
+      return {
+        ...option,
+        // Keep the current table selectable while editing this order.
+        disabled: false,
+        name: formatTableSelectLabel(
+          {
+            tableNo: current,
+            orderCaption: currentTable?.orderCaption ?? null,
+          },
+          false,
+        ),
+        subText: captionOrEmpty(currentTable?.orderCaption ?? null),
+      };
+    },
+  );
   const currentTable = tables.find((t) => Number(t.tableNo) === current);
   const withCurrent = options.some((o) => Number(o.realValue) === current)
     ? options
@@ -87,6 +106,7 @@ export function buildEditTableSelectOptions(
           ),
           realValue: current,
           disabled: false,
+          subText: captionOrEmpty(currentTable?.orderCaption ?? null),
         },
         ...options,
       ];
@@ -306,7 +326,7 @@ export function groupCafeOrderUpdateTables(
     });
 }
 
-/** Kitchen/bar ticket: one card per batch (same table + waiter + short time window). */
+/** Kitchen/bar ticket: one card per open table (all pending lines for that table). */
 export type CafeStationOrderGroup = {
   key: string;
   orders: Order[];
@@ -320,7 +340,10 @@ export type CafePaidOrderBatch = {
   orders: Order[];
 };
 
-/** Pending kitchen/bar lines from one submission within this window share one card. */
+/**
+ * @deprecated Kept for callers; station cards now group by table, not time window.
+ * Pending kitchen/bar lines from one submission within this window previously shared one card.
+ */
 export const CAFE_STATION_ORDER_BATCH_WINDOW_MS = 60_000;
 /** Same table + paid lines within this window collapse together in payment-type correction. */
 export const CAFE_PAID_ORDER_BATCH_WINDOW_MS = 60_000;
@@ -555,84 +578,33 @@ export function groupCafePaidOrderBatches(
   );
 }
 
-function stationOrderBatchKey(orders: Order[]): string {
-  return orders.length === 1
-    ? String(orders[0].id)
-    : orders.map((o) => o.id).join("-");
-}
-
-function belongsToStationOrderCluster(
-  cluster: Order[],
-  clusterStartMs: number,
-  order: Order,
-): boolean {
-  if (cluster.length === 0) return true;
-
-  const ts = new Date(order.createdAt).getTime();
-  if (ts - clusterStartMs <= CAFE_STATION_ORDER_BATCH_WINDOW_MS) {
-    return true;
-  }
-
-  const prev = cluster[cluster.length - 1];
-  const prevTs = new Date(prev.createdAt).getTime();
-  const idGap = order.id - prev.id;
-  return (
-    idGap > 0 &&
-    idGap <= 25 &&
-    ts - prevTs <= CAFE_STATION_ORDER_BATCH_WINDOW_MS
-  );
-}
-
 /**
- * Groups pending station orders so batch submissions appear as one card.
- * Uses a sliding time window (not fixed buckets) plus sequential id chaining
- * so slow multi-line batch inserts still render as one batch card.
+ * Groups pending station orders into one card per table.
+ * Later adds/updates on the same table stay with that table instead of
+ * splitting into a new time-window batch.
  */
 export function groupCafeStationOrderCards(orders: Order[]): CafeStationOrderGroup[] {
   if (orders.length === 0) return [];
 
-  const byTableWaiter = new Map<string, Order[]>();
+  const byTable = new Map<number, Order[]>();
   for (const order of orders) {
     const tableNo = normalizeOrderTableNo(order);
-    const waiter = String(order.waiterName ?? "").trim().toLowerCase();
-    const partitionKey = `${tableNo}|${waiter}`;
-    const list = byTableWaiter.get(partitionKey) ?? [];
+    const list = byTable.get(tableNo) ?? [];
     list.push(order);
-    byTableWaiter.set(partitionKey, list);
+    byTable.set(tableNo, list);
   }
 
   const groups: CafeStationOrderGroup[] = [];
-
-  for (const partitionOrders of byTableWaiter.values()) {
-    const sorted = [...partitionOrders].sort((a, b) => {
+  for (const [tableNo, tableOrders] of byTable.entries()) {
+    const sorted = [...tableOrders].sort((a, b) => {
       const diff =
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       return diff !== 0 ? diff : a.id - b.id;
     });
-
-    let cluster: Order[] = [];
-    let clusterStartMs = 0;
-
-    const flushCluster = () => {
-      if (cluster.length === 0) return;
-      const clusterSorted = [...cluster].sort((a, b) => a.id - b.id);
-      groups.push({
-        key: stationOrderBatchKey(clusterSorted),
-        orders: clusterSorted,
-      });
-      cluster = [];
-    };
-
-    for (const order of sorted) {
-      if (!belongsToStationOrderCluster(cluster, clusterStartMs, order)) {
-        flushCluster();
-        clusterStartMs = new Date(order.createdAt).getTime();
-      } else if (cluster.length === 0) {
-        clusterStartMs = new Date(order.createdAt).getTime();
-      }
-      cluster.push(order);
-    }
-    flushCluster();
+    groups.push({
+      key: `table-${tableNo}`,
+      orders: sorted,
+    });
   }
 
   return groups.sort((a, b) => a.orders[0].id - b.orders[0].id);

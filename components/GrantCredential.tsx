@@ -40,29 +40,42 @@ export default function GrantCredential({
     if (d) setDisplayName(d);
   }, []);
 
-  const cafeRoles: { value: string; label: string; module?: ModuleOption }[] = [
+  const cafeRoles: { value: string; label: string; module?: ModuleOption; modulesAny?: ModuleOption[] }[] = [
     { value: "Kitchen", label: "Kitchen (Chef)", module: "Cafe and Restaurant" },
     { value: "Barista", label: "Bar (Barista)", module: "Cafe and Restaurant" },
     { value: "Cashier", label: "Cash (Cashier)", module: "Cafe and Restaurant" },
     { value: "Store", label: "Store Keeper", module: "Inventory" },
   ];
 
-  const hotelRoles: { value: string; label: string; module?: ModuleOption }[] = [
+  const hotelRoles: { value: string; label: string; module?: ModuleOption; modulesAny?: ModuleOption[] }[] = [
     { value: "Kitchen", label: "Kitchen (Chef)", module: "Cafe and Restaurant" },
-    { value: "Barista", label: "Bar", module: "Cafe and Restaurant" },
-    { value: "Cashier", label: "Cashier", module: "Cafe and Restaurant" },
+    { value: "Barista", label: "Bar (Barista)", module: "Cafe and Restaurant" },
+    {
+      value: "Cashier",
+      label: "Cash (Cashier)",
+      modulesAny: ["Cafe and Restaurant", "Credit Management"],
+    },
     { value: "CostControl", label: "Cost control", module: "Financial Management" },
     { value: "Finance", label: "Finance", module: "Financial Management" },
-    { value: "Store", label: "Hotel store", module: "Inventory" },
+    { value: "Store", label: "Store Keeper", module: "Inventory" },
+    { value: "Reception", label: "Reception", module: "Room Management" },
+    {
+      value: "CMLeader",
+      label: "CM leader (Cleaning & Maintenance)",
+      module: "Cleaning and Maintenance",
+    },
   ];
 
   const tenantModules = useTenantModules();
 
   const roleOptions = useMemo(
     () =>
-      (variant === "hotel" ? hotelRoles : cafeRoles).filter(
-        (r) => !r.module || tenantHasModule(tenantModules, r.module),
-      ),
+      (variant === "hotel" ? hotelRoles : cafeRoles).filter((r) => {
+        if (r.modulesAny?.length) {
+          return r.modulesAny.some((m) => tenantHasModule(tenantModules, m));
+        }
+        return !r.module || tenantHasModule(tenantModules, r.module);
+      }),
     [variant, tenantModules],
   );
 
@@ -123,7 +136,7 @@ export default function GrantCredential({
           </div>
           <CardDescription>
             {variant === "hotel"
-              ? "Create access for cashier, chef, bar, hotel store, and approval teams. Roles appear only for modules subscribed on this property."
+              ? "Create access for reception, CM leader, cashier, chef, bar, store, and approval teams. Roles appear only for modules subscribed on this property."
               : "Create new login credentials for kitchen or bar staff members."}
           </CardDescription>
         </CardHeader>

@@ -53,7 +53,12 @@ import {
   normalizeKitchenBarStationKey,
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
-import { MANAGER_SIDEBAR_ITEMS, MANAGER_SERVICE_SIDEBAR_ITEMS } from "@/constants";
+import {
+  MANAGER_SIDEBAR_ITEMS,
+  MANAGER_SERVICE_SIDEBAR_ITEMS,
+  MANAGER_SERVICE_LEGACY_TAB_IDS,
+  MANAGER_LODGING_NESTED_TAB_IDS,
+} from "@/constants";
 import {
   filterManagerServiceTabId,
   filterManagerTabId,
@@ -95,6 +100,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
+import { LodgingRoomsPanel } from "@/components/hotel/LodgingRoomsPanel";
+import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
+import {
+  LodgingLaundryAddPanel,
+  LodgingLaundryItemsPanel,
+} from "@/components/hotel/LodgingLaundryPanels";
+import {
+  HotelLodgingServiceSidebarGroup,
+  isLodgingServiceNestedTab,
+} from "@/components/hotel/HotelLodgingServiceSidebarGroup";
 import {
   Sidebar,
   SidebarContent,
@@ -147,7 +162,6 @@ import WaiterAndTable from "@/components/Waiter_And_Table";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
-import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
@@ -157,6 +171,8 @@ type PaymentTabId = (typeof PAYMENT_CATEGORY_NAV)[number]["id"];
 type TabId =
   | Exclude<(typeof MANAGER_SIDEBAR_ITEMS)[number]["id"], "inventory-payment-vat">
   | (typeof MANAGER_SERVICE_SIDEBAR_ITEMS)[number]["id"]
+  | (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
+  | (typeof MANAGER_LODGING_NESTED_TAB_IDS)[number]
   | PaymentTabId;
 
 const managerSidebarIconMap: Record<
@@ -180,6 +196,15 @@ const managerSidebarIconMap: Record<
   FileText,
 };
 
+const LEGACY_SERVICE_TAB_REMAP: Partial<
+  Record<(typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number], TabId>
+> = {
+  "cafe-reports": "reports",
+  "menu-create-item": "create-item",
+  "menu-update-item": "update-item",
+  "cafe-item-receipts": "item-receipts",
+};
+
 const MANAGER_INVENTORY_TAB_IDS = new Set<TabId>([
   "dashboard",
   "cc-profiles",
@@ -199,12 +224,19 @@ const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
   "update-credential",
 ]);
 
-const MANAGER_SERVICE_TAB_IDS = new Set<TabId>(
-  MANAGER_SERVICE_SIDEBAR_ITEMS.map((item) => item.id),
-);
+const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
+  "lodging-rooms",
+  "lodging-reports",
+  ...MANAGER_LODGING_NESTED_TAB_IDS,
+]);
 
-function isManagerServiceTab(tab: string): tab is TabId {
-  return MANAGER_SERVICE_TAB_IDS.has(tab as TabId);
+const MANAGER_SERVICE_TAB_IDS = new Set<string>([
+  ...MANAGER_SERVICE_SIDEBAR_ITEMS.map((item) => item.id),
+  ...MANAGER_SERVICE_LEGACY_TAB_IDS,
+]);
+
+function isManagerServiceTab(tab: string): boolean {
+  return MANAGER_SERVICE_TAB_IDS.has(tab);
 }
 
 function round2(n: number): number {
@@ -432,6 +464,14 @@ function ManagerContent() {
     }
   }, [tenantScope, loadData]);
 
+  useEffect(() => {
+    const remapped =
+      LEGACY_SERVICE_TAB_REMAP[
+        activeTab as (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
+      ];
+    if (remapped) setActiveTab(remapped);
+  }, [activeTab]);
+
   const tenantModules = useTenantModules();
 
   const sidebarItems = useMemo(
@@ -477,6 +517,13 @@ function ManagerContent() {
     [sidebarItems],
   );
 
+  const lodgingSidebarItems = useMemo(() => {
+    const order = ["lodging-reports", "lodging-rooms"] as const;
+    return order
+      .map((id) => sidebarItems.find((item) => item.id === id))
+      .filter((item): item is (typeof sidebarItems)[number] => Boolean(item));
+  }, [sidebarItems]);
+
   const accessSidebarItems = useMemo(
     () =>
       sidebarItems.filter((item) =>
@@ -489,7 +536,9 @@ function ManagerContent() {
     if (
       allNavItems.length > 0 &&
       !allNavItems.some((item) => item.id === activeTab) &&
-      !isPaymentCategorySection(activeTab)
+      !isPaymentCategorySection(activeTab) &&
+      !isLodgingServiceNestedTab(activeTab) &&
+      activeTab !== "lodging-reports"
     ) {
       setActiveTab(allNavItems[0]!.id);
     }
@@ -543,9 +592,18 @@ function ManagerContent() {
   const serviceGroupActive =
     isManagerServiceTab(activeTab) ||
     serviceSidebarItems.some((item) => item.id === activeTab);
+  const lodgingGroupActive =
+    MANAGER_LODGING_TAB_IDS.has(activeTab) || isLodgingServiceNestedTab(activeTab);
   const accessGroupActive = MANAGER_ACCESS_TAB_IDS.has(activeTab);
 
   const activeNavLabel = useMemo(() => {
+    const nestedLabels: Record<string, string> = {
+      "lodging-fnb-add": "Food & drink · Add item",
+      "lodging-fnb-menu": "Food & drink · Menu items",
+      "lodging-laundry-add": "Laundry · Add item",
+      "lodging-laundry-items": "Laundry · Menu items",
+    };
+    if (nestedLabels[activeTab]) return nestedLabels[activeTab];
     return (
       allNavItems.find((i) => i.id === activeTab)?.label ??
       PAYMENT_CATEGORY_NAV.find((n) => n.id === activeTab)?.label
@@ -1020,6 +1078,7 @@ function ManagerContent() {
           </div>
         );
 
+      case "reports":
       case "cafe-reports":
         return (
           <div className="flex flex-col gap-6 p-3 sm:gap-8 sm:p-5 md:p-6">
@@ -1028,6 +1087,17 @@ function ManagerContent() {
               hotelName={tenantScope || ""}
               loading={loading}
             />
+
+            <div className="relative">
+              <div
+                className="absolute inset-x-0 -top-3 hidden h-px bg-linear-to-r from-transparent via-border to-transparent sm:block"
+                aria-hidden
+              />
+              <p className="mb-3 hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 sm:block">
+                Detailed reports
+              </p>
+            </div>
+
             <Reports
               orders={cafeOrders}
               hotelName={tenantScope || ""}
@@ -1071,9 +1141,10 @@ function ManagerContent() {
           </div>
         );
 
+      case "create-item":
       case "menu-create-item":
         return (
-          <div className="p-4 md:p-8">
+          <div className="p-3 sm:p-5 md:p-6">
             <ItemCreationForm
               hotelName={tenantScope || ""}
               onSubmit={async (data) => {
@@ -1095,9 +1166,10 @@ function ManagerContent() {
           </div>
         );
 
+      case "update-item":
       case "menu-update-item":
         return (
-          <div className="p-4 md:p-8">
+          <div className="p-3 sm:p-5 md:p-6">
             <UpdateDeleteIntro
               items={menuItems}
               hotelName={tenantScope || ""}
@@ -1143,19 +1215,6 @@ function ManagerContent() {
           </div>
         );
 
-      case "cafe-item-receipts":
-        return (
-          <div className="rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
-            <StoreItemReceiptPrinting
-              items={items}
-              propertyName={displayName || tenantScope || ""}
-              propertyTin={propertyTin}
-              logoUrl={logoUrl || null}
-              variant="cafe-store"
-            />
-          </div>
-        );
-
       case "credit-registrations":
         return (
           <div className="min-w-0 overflow-x-hidden rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
@@ -1164,7 +1223,6 @@ function ManagerContent() {
               propertyName={displayName || headerLabel}
               propertyLogo={logoUrl || null}
               propertyTin={propertyTin}
-              variant="hotel-manager"
             />
           </div>
         );
@@ -1414,6 +1472,78 @@ function ManagerContent() {
           </div>
         );
 
+      case "lodging-rooms":
+        return (
+          <div className="p-4 md:p-6">
+            <LodgingRoomsPanel />
+          </div>
+        );
+
+      case "lodging-reports":
+        return (
+          <div className="p-4 md:p-6">
+            <LodgingReportsPanel />
+          </div>
+        );
+
+      case "lodging-fnb-add":
+        return (
+          <div className="p-3 sm:p-5 md:p-6">
+            <ItemCreationForm
+              hotelName={tenantScope || ""}
+              onSubmit={async (data) => {
+                try {
+                  await createItem({
+                    name: data.name,
+                    price: data.price,
+                    category: data.category,
+                    type: data.type,
+                    imageUrl: data.imageUrl,
+                  });
+                  loadData(true);
+                } catch (err: unknown) {
+                  notifyApiFailure(err, "Could not create menu item");
+                }
+              }}
+              onImageUpload={uploadImage}
+            />
+          </div>
+        );
+
+      case "lodging-fnb-menu":
+        return (
+          <div className="p-3 sm:p-5 md:p-6">
+            <UpdateDeleteIntro
+              items={menuItems}
+              hotelName={tenantScope || ""}
+              onUpdate={() => loadData(true)}
+              onDelete={async (id: number) => {
+                try {
+                  await deleteItem(id);
+                  loadData(true);
+                } catch (err: unknown) {
+                  notifyApiFailure(err, "Could not delete menu item");
+                }
+              }}
+              onImageUpload={uploadImage}
+            />
+          </div>
+        );
+
+      case "lodging-laundry-add":
+        return (
+          <div className="p-4 md:p-6">
+            <LodgingLaundryAddPanel />
+          </div>
+        );
+
+      case "lodging-laundry-items":
+        return (
+          <div className="p-4 md:p-6">
+            <LodgingLaundryItemsPanel />
+          </div>
+        );
+
       case "grant-credential":
         return (
           <div className="p-4 md:p-6">
@@ -1511,13 +1641,31 @@ function ManagerContent() {
               {serviceSidebarItems.length > 0 &&
               tenantHasServiceModuleGroup(tenantModules) ? (
                 <ManagerCollapsibleSidebarGroup
-                  label="Cafe & Restaurant / Credit"
+                  label="Cafe & Restaurant"
                   icon={Building2}
                   items={serviceSidebarItems}
                   activeSection={activeTab}
                   isGroupActive={serviceGroupActive}
                   onSelect={(id) => setActiveTab(id as TabId)}
                 />
+              ) : null}
+
+              {lodgingSidebarItems.length > 0 ||
+              tenantHasModule(tenantModules, "Room Management") ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="Rooms"
+                  icon={Building2}
+                  items={lodgingSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={lodgingGroupActive}
+                  onSelect={(id) => setActiveTab(id as TabId)}
+                  layout="flat"
+                >
+                  <HotelLodgingServiceSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={(id) => setActiveTab(id as TabId)}
+                  />
+                </ManagerCollapsibleSidebarGroup>
               ) : null}
 
               {accessSidebarItems.length > 0 ? (
@@ -1580,13 +1728,6 @@ function ManagerContent() {
                 <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
                   {activeNavLabel}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
-                  {isManagerServiceTab(activeTab)
-                    ? "Café service and corporate credit — same tools as the café admin terminal, without the separate café inventory list."
-                    : activeTab === "menu-create-item" || activeTab === "menu-update-item"
-                      ? "POS menu for café service and corporate credit: add dishes and drinks for cashier, orders, and company deals."
-                      : "Unified manager cockpit for lodging inventory, approvals, stock visibility, and station daily counts."}
-                </p>
               </div>
               {!isManagerServiceTab(activeTab) ? (
                 <HotelWorkflowGlossary variant="manager" />

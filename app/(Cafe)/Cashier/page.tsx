@@ -13,7 +13,6 @@ import {
   Building2,
   LogOut,
   Receipt,
-  ClipboardEdit,
   ArrowLeftRight,
 } from "lucide-react";
 import {
@@ -34,7 +33,6 @@ import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Button } from "@/components/ui/button";
 import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCorporateCreditPanel";
 import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
-import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeCashierPaymentTypePanel } from "@/components/cafe/CafeCashierPaymentTypePanel";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import {
@@ -70,7 +68,6 @@ const NAV_ICONS: Record<
   Wallet,
   Building2,
   Receipt,
-  ClipboardEdit,
   ArrowLeftRight,
 };
 
@@ -292,6 +289,7 @@ function CashierContent() {
     ) : activeView === "payment" ? (
       <PaymentComponent
         orders={orders}
+        items={items}
         hotelName={tenantScope}
         onHandlePayment={handlePayment}
         onRefresh={() => loadData({ refresh: true })}
@@ -299,13 +297,6 @@ function CashierContent() {
     ) : activeView === "payment-type" ? (
       <CafeCashierPaymentTypePanel
         orders={orders}
-        hotelName={tenantScope}
-        onRefresh={() => loadData({ refresh: true })}
-      />
-    ) : activeView === "order-update" ? (
-      <CafeCashierOrderUpdatePanel
-        orders={orders}
-        items={items}
         hotelName={tenantScope}
         onRefresh={() => loadData({ refresh: true })}
       />
@@ -412,7 +403,7 @@ function CashierContent() {
               className={
                 activeView === "order"
                   ? "min-h-full"
-                  :                 activeView === "order-update" || activeView === "payment-type"
+                  : activeView === "payment-type"
                     ? "flex min-h-0 flex-1 flex-col"
                     : "rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4"
               }

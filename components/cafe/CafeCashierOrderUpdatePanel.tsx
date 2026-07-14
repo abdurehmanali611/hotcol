@@ -83,6 +83,10 @@ interface Props {
   onRefresh: () => void | Promise<void>;
   /** After creating a line, select it once it appears in `orders`. */
   focusOrderId?: number | null;
+  /** When set, only show / edit lines for this table (Payment portal embed). */
+  restrictTableNo?: number;
+  /** Compact layout without page-level search chrome. */
+  embedded?: boolean;
 }
 
 type AddItemsTarget = { tableNo: number; waiterName: string };
@@ -144,6 +148,8 @@ export function CafeCashierOrderUpdatePanel({
   hotelName,
   onRefresh,
   focusOrderId = null,
+  restrictTableNo,
+  embedded = false,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
@@ -160,17 +166,23 @@ export function CafeCashierOrderUpdatePanel({
     () =>
       [...orders]
         .filter((o) => isLiveOrderEditable(o, hotelName))
+        .filter(
+          (o) =>
+            restrictTableNo == null ||
+            normalizeOrderTableNo(o) === restrictTableNo,
+        )
         .sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         ),
-    [orders, hotelName],
+    [orders, hotelName, restrictTableNo],
   );
 
-  const openTableGroups = useMemo(
-    () => groupCafeOrderUpdateTables(orders, hotelName),
-    [orders, hotelName],
-  );
+  const openTableGroups = useMemo(() => {
+    const groups = groupCafeOrderUpdateTables(orders, hotelName);
+    if (restrictTableNo == null) return groups;
+    return groups.filter((g) => g.tableNo === restrictTableNo);
+  }, [orders, hotelName, restrictTableNo]);
 
   const filteredTableGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -356,23 +368,329 @@ export function CafeCashierOrderUpdatePanel({
 
   if (openTableGroups.length === 0) {
     return (
-      <Card className="border-dashed py-14 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-          <ClipboardEdit className="h-7 w-7 text-muted-foreground/50" />
-        </div>
-        <h3 className="mb-2 text-lg font-semibold">No open tables</h3>
-        <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
-          Today&apos;s unpaid tables with pending kitchen/bar tickets show up here.
-          Tables that are fully prepared but not paid also appear so you can add
-          more orders — completed lines are not listed for editing.
+      <div
+        className={cn(
+          "rounded-lg border border-dashed bg-muted/30 text-center",
+          embedded ? "px-4 py-8" : "py-14",
+        )}
+      >
+        <ClipboardEdit className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        <h3 className="mb-1 text-base font-semibold">
+          {restrictTableNo != null ? "No pending tickets" : "No open tables"}
+        </h3>
+        <p className="mx-auto max-w-md text-sm text-muted-foreground">
+          {restrictTableNo != null
+            ? "This table is ready. Use By order or By amount to take payment."
+            : "Unpaid tables with pending tickets will show up here."}
         </p>
-      </Card>
+      </div>
+    );
+  }
+
+  const tableScoped = restrictTableNo != null;
+  const embeddedGroup = embedded && tableScoped ? openTableGroups[0] : null;
+  const embeddedPending = embeddedGroup?.pendingOrders ?? [];
+  const embeddedWaiter = embeddedGroup?.waiterName ?? "Self-Service";
+  const embeddedTableTotal =
+    embedded && restrictTableNo != null
+      ? sumOpenTableOrdersETB(orders, hotelName, restrictTableNo)
+      : 0;
+  const embeddedDisplay =
+    embedded && restrictTableNo != null
+      ? formatCafeTableDisplayFromRegistry(
+          restrictTableNo,
+          tables,
+          embeddedGroup?.serviceCaption,
+        )
+      : "";
+
+  if (embedded && restrictTableNo != null && embeddedGroup) {
+    const allReady = embeddedPending.length === 0;
+
+    return (
+      <>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-3">
+            <div>
+              <p className="text-lg font-semibold tracking-tight">
+                {embeddedDisplay}
+              </p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Waiter:{" "}
+                <span className="font-medium text-foreground">
+                  {embeddedWaiter}
+                </span>
+                {" · "}
+                {allReady
+                  ? "All ready"
+                  : `${embeddedPending.length} pending`}
+              </p>
+            </div>
+            <p className="text-xl font-bold tabular-nums">
+              {embeddedTableTotal.toFixed(2)}{" "}
+              <span className="text-sm font-medium text-muted-foreground">
+                ETB
+              </span>
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Items</p>
+
+              {allReady ? (
+                <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center">
+                  <p className="text-sm font-medium">Kitchen and bar finished</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Add more items, or switch tab to pay.
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-[min(48vh,420px)] space-y-2 overflow-y-auto">
+                  {embeddedPending.map((order) => {
+                    const isSelected = selectedId === order.id;
+                    return (
+                      <div
+                        key={order.id}
+                        className={cn(
+                          "flex items-stretch gap-2 rounded-lg border bg-card",
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "hover:bg-muted/40",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => selectOrder(order.id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
+                        >
+                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                            <Image
+                              src={order.imageUrl || "/placeholder-food.jpg"}
+                              alt={order.title}
+                              fill
+                              className="object-cover"
+                              sizes="48px"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-base font-semibold">
+                              {order.title}
+                            </p>
+                            <p className="mt-0.5 text-sm text-muted-foreground">
+                              Qty {order.orderAmount} ·{" "}
+                              <span className="font-semibold tabular-nums text-foreground">
+                                {(order.price * order.orderAmount).toFixed(2)}{" "}
+                                ETB
+                              </span>
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              <StatusBadge
+                                status={String(order.status || "Pending")}
+                              />
+                              <StationBadge order={order} />
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex items-center border-l px-1">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 text-muted-foreground hover:text-destructive"
+                                disabled={removingId === order.id}
+                                aria-label={`Remove ${order.title}`}
+                              >
+                                {removingId === order.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Remove this item?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  &ldquo;{order.title}&rdquo; will be cancelled.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Keep</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => void handleRemove(order.id)}
+                                >
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full gap-2 text-base"
+                onClick={() => openAddItems(restrictTableNo, embeddedWaiter)}
+              >
+                <Plus className="h-4 w-4" />
+                Add items
+              </Button>
+            </div>
+
+            <div className="rounded-lg border bg-card">
+              <div className="border-b px-4 py-3">
+                <p className="text-base font-semibold">
+                  {selectedOrder ? "Edit item" : "Edit / Add"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedOrder
+                    ? selectedOrder.title
+                    : "Select an item on the left"}
+                </p>
+              </div>
+
+              <Tabs
+                value={sideTab}
+                onValueChange={(v) => setSideTab(v as "edit" | "add")}
+                className="gap-0"
+              >
+                <div className="border-b px-4 py-3">
+                  <TabsList className="grid h-11 w-full grid-cols-2">
+                    <TabsTrigger value="edit" className="text-sm">
+                      Edit
+                    </TabsTrigger>
+                    <TabsTrigger value="add" className="text-sm">
+                      Add
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <TabsContent value="edit" className="mt-0 px-4 py-4">
+                  {!selectedOrder ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Tap an item to edit quantity, waiter, or table.
+                    </p>
+                  ) : (
+                    <Form {...form} key={`edit-form-${selectedOrder.id}`}>
+                      <form
+                        onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+                        className="space-y-4"
+                      >
+                        <input type="hidden" {...form.register("id")} />
+                        <CustomFormField
+                          control={form.control}
+                          name="title"
+                          fieldType={formFieldTypes.INPUT}
+                          label="Item name"
+                          placeholder="Item name"
+                          formItemClassName="w-full"
+                          inputClassName="h-11 w-full text-base"
+                        />
+                        <CustomFormField
+                          control={form.control}
+                          name="orderAmount"
+                          fieldType={formFieldTypes.INPUT}
+                          type="number"
+                          label="Quantity"
+                          formItemClassName="w-full"
+                          inputClassName="h-11 w-full text-base"
+                        />
+                        <CustomFormField
+                          control={form.control}
+                          name="waiterName"
+                          fieldType={formFieldTypes.SELECT}
+                          label="Waiter"
+                          placeholder="Select waiter"
+                          listdisplay={waiterOptions}
+                          formItemClassName="w-full"
+                          inputClassName="h-fit w-full text-base"
+                        />
+                        <CustomFormField
+                          control={form.control}
+                          name="tableNo"
+                          fieldType={formFieldTypes.SELECT}
+                          label="Table"
+                          placeholder="Select table"
+                          listdisplay={tableOptions}
+                          isNumeric
+                          formItemClassName="w-full"
+                          inputClassName="h-fit w-full text-base"
+                        />
+                        <Button
+                          type="submit"
+                          className="h-11 w-full text-base"
+                          disabled={saving || !selectedOrder}
+                        >
+                          {saving ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving…
+                            </>
+                          ) : (
+                            "Save changes"
+                          )}
+                        </Button>
+                      </form>
+                    </Form>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="add" className="mt-0 px-4 py-4">
+                  <div className="space-y-3 py-2 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Add menu items to {embeddedDisplay}
+                    </p>
+                    <Button
+                      type="button"
+                      className="h-11 w-full gap-2 text-base"
+                      onClick={() =>
+                        openAddItems(restrictTableNo, embeddedWaiter)
+                      }
+                    >
+                      <Plus className="h-4 w-4" />
+                      Open menu
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+
+        {addItemsTarget ? (
+          <CafeCashierAddItemsDialog
+            items={items}
+            hotelName={hotelName}
+            tableNo={addItemsTarget.tableNo}
+            tableCaption={tableCaptionForNo(tables, addItemsTarget.tableNo)}
+            tables={tables}
+            waiterName={addItemsTarget.waiterName}
+            existingOrders={editableOrders}
+            isOpen
+            onClose={() => setAddItemsTarget(null)}
+            onSuccess={onRefresh}
+          />
+        ) : null}
+      </>
     );
   }
 
   return (
     <>
-      <div className="space-y-5">
+      <div className={cn("space-y-5", embedded && "space-y-3")}>
+        {!embedded ? (
+          <>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-primary/10 p-2.5 shadow-sm">
@@ -441,6 +759,8 @@ export function CafeCashierOrderUpdatePanel({
           Expand a table to edit pending lines or add new menu items. Completed
           tickets stay hidden here — use Payment when the table is ready to pay.
         </p>
+          </>
+        ) : null}
 
         <div className="grid h-[min(calc(100dvh-14rem),700px)] min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,440px)]">
           <div className="min-h-0 overflow-y-auto overscroll-y-contain rounded-xl border bg-muted/15 p-2 pr-1">
@@ -481,7 +801,7 @@ export function CafeCashierOrderUpdatePanel({
                   return (
                     <Collapsible
                       key={tableNo}
-                      defaultOpen={false}
+                      defaultOpen={tableScoped || embedded}
                       className="group/table-update"
                     >
                       <Card className="overflow-hidden border-l-4 border-l-primary/80 shadow-sm transition-shadow hover:shadow-md">

@@ -17,7 +17,9 @@ import {
   updateWaiterPayment,
   type HotelCreditCompanyRow,
   type HotelCreditPartyRow,
+  type Item,
 } from "@/lib/actions";
+import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { isCompanyAuthorized } from "@/lib/hotelApproval";
 import {
@@ -85,6 +87,7 @@ type ReadyTableSummary = {
 
 interface PaymentProps {
   orders: Order[];
+  items: Item[];
   hotelName: string;
   onHandlePayment: (
     id: number,
@@ -102,6 +105,7 @@ interface PaymentProps {
 
 export default function PaymentComponent({
   orders,
+  items,
   hotelName,
   onHandlePayment,
   onRefresh,
@@ -1445,8 +1449,20 @@ export default function PaymentComponent({
                         amount: tableAmountFormState.amount,
                       })
                     }
+                    orderUpdateContent={
+                      <CafeCashierOrderUpdatePanel
+                        orders={orders}
+                        items={items}
+                        hotelName={hotelName}
+                        onRefresh={onRefresh}
+                        restrictTableNo={tableNoNum}
+                        embedded
+                      />
+                    }
                   />
 
+                  {tablePayMode !== "update" ? (
+                    <>
                   {allCompleted && tablePayMode === "orders" && (
                     <div className="mb-6 p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -2233,6 +2249,8 @@ export default function PaymentComponent({
                       ) : null}
                     </div>
                   </div>
+                    </>
+                  ) : null}
                     </CardContent>
                   </CollapsibleContent>
                 </Card>

@@ -15,7 +15,7 @@ import { Form } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { PendingButton } from "./ui/pending-button";
 import { useState } from "react";
-import { LoginAction } from "@/lib/actions";
+import { LoginAction } from "@/lib/api/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 const Login = () => {

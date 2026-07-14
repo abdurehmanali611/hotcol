@@ -17,27 +17,32 @@ import {
   Banknote,
   Building2,
   CheckCircle2,
+  ClipboardEdit,
   Clock,
   Loader2,
   Receipt,
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
-export type TablePaymentMode = "orders" | "amount";
+export type TablePaymentMode = "orders" | "amount" | "update";
 
 const MODE_OPTIONS = [
   {
     value: "orders" as const,
     label: "By order",
-    short: "Per item",
     icon: Receipt,
   },
   {
     value: "amount" as const,
     label: "By amount",
-    short: "Cash + bank",
     icon: ArrowLeftRight,
+  },
+  {
+    value: "update" as const,
+    label: "Order update",
+    icon: ClipboardEdit,
   },
 ] as const;
 
@@ -78,6 +83,8 @@ type Props = {
   onAmountInputChange: (value: string) => void;
   processing: boolean;
   onSubmitAmountPayment: () => void;
+  /** Rendered when mode is Order update (scoped to this table). */
+  orderUpdateContent?: ReactNode;
 };
 
 export function CafeTablePaymentModePanel({
@@ -93,6 +100,7 @@ export function CafeTablePaymentModePanel({
   onAmountInputChange,
   processing,
   onSubmitAmountPayment,
+  orderUpdateContent,
 }: Props) {
   const amountInputId = `table-${tableNo}-amount`;
 
@@ -156,13 +164,13 @@ export function CafeTablePaymentModePanel({
     <div className="mb-6 overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
       <div className="flex flex-col gap-3 border-b border-border/50 bg-muted/25 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold">Checkout method</p>
+          <p className="text-sm font-semibold">Checkout</p>
           <p className="text-xs text-muted-foreground">
-            Choose how this table is settled at the counter.
+            Choose how to pay or update this table
           </p>
         </div>
-        <div className="inline-flex w-full gap-1 rounded-xl border border-border/50 bg-background/80 p-1 sm:w-auto">
-          {MODE_OPTIONS.map(({ value, label, short, icon: Icon }) => {
+        <div className="inline-flex w-full gap-1 rounded-lg border bg-muted/40 p-1 sm:w-auto">
+          {MODE_OPTIONS.map(({ value, label, icon: Icon }) => {
             const active = mode === value;
             return (
               <button
@@ -170,17 +178,14 @@ export function CafeTablePaymentModePanel({
                 type="button"
                 onClick={() => onModeChange(value)}
                 className={cn(
-                  "inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all sm:flex-none sm:px-4",
+                  "inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors sm:flex-none sm:px-4",
                   active
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className="truncate">{label}</span>
-                <span className="hidden text-[11px] font-normal text-muted-foreground sm:inline">
-                  · {short}
-                </span>
               </button>
             );
           })}
@@ -340,9 +345,9 @@ export function CafeTablePaymentModePanel({
                       this item
                     </span>
                   ) : allocatedSplit &&
-                  primaryChannel === "cash" &&
-                  allocatedSplit.cashLineTotal + allocatedSplit.bankLineTotal >
-                    0 ? (
+                    primaryChannel === "cash" &&
+                    allocatedSplit.cashLineTotal + allocatedSplit.bankLineTotal >
+                      0 ? (
                     <span className="block text-xs">
                       {allocatedSplit.cashChannels.length} cash item
                       {allocatedSplit.cashChannels.length === 1 ? "" : "s"} (
@@ -387,12 +392,15 @@ export function CafeTablePaymentModePanel({
             </div>
           )}
         </div>
+      ) : mode === "update" ? (
+        <div className="p-4 sm:p-5">{orderUpdateContent}</div>
       ) : (
-        <div className="px-4 py-3.5 sm:px-5">
+        <div className="px-4 py-4 sm:px-5">
           <p className="text-sm text-muted-foreground">
-            Use <span className="font-medium text-foreground">Pay Now</span> on
-            each line or <span className="font-medium text-foreground">Pay All
-            Now</span> when every item is ready.
+            Use <span className="font-semibold text-foreground">Pay Now</span> on
+            each item, or{" "}
+            <span className="font-semibold text-foreground">Pay All Now</span> when
+            the table is ready.
           </p>
         </div>
       )}

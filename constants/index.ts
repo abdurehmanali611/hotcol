@@ -53,7 +53,7 @@ export const SIGNUP_REQUIRED_MODULES_CAFE = [
   "Cafe and Restaurant",
 ] as const satisfies readonly ModuleOption[];
 
-/** Hotel, resort, and pension — credentials only until Room Management launches. */
+/** Hotel, resort, and pension — credentials always; room modules optional. */
 export const SIGNUP_REQUIRED_MODULES_LODGING = [
   SIGNUP_REQUIRED_MODULE_COMMON,
 ] as const satisfies readonly ModuleOption[];
@@ -94,13 +94,6 @@ export const CAFE_CASHIER_NAV_ITEMS = [
       "Correct cash or bank on orders already paid today. Select lines and apply the right channel.",
   },
   {
-    id: "order-update",
-    label: "Order update",
-    icon: "ClipboardEdit",
-    description:
-      "Correct table, waiter, or quantity on orders already sent to kitchen or bar.",
-  },
-  {
     id: "cashout",
     label: "Cashout",
     icon: "Receipt",
@@ -121,17 +114,24 @@ export type CafeCashierNavId = (typeof CAFE_CASHIER_NAV_ITEMS)[number]["id"];
 export type AdminSidebarItemId = (typeof ADMIN_SIDEBAR_ITEMS)[number]["id"];
 
 /**
- * Manager café / restaurant + credit sidebar — mirrors cafe Admin except inventory.
- * Shown when the tenant subscribes to the matching module.
+ * Manager café / restaurant + credit sidebar — cafe Admin service tools only.
+ * Inventory / item receipts stay under the lodging Inventory group (hotel flow differs from café).
  */
 export const MANAGER_SERVICE_SIDEBAR_ITEMS = [
-  { id: "cafe-reports", label: "Reports", icon: "FileText" },
-  { id: "menu-create-item", label: "Add Item", icon: "PlusCircle" },
-  { id: "menu-update-item", label: "Update/Delete Item", icon: "Edit" },
+  { id: "reports", label: "Reports", icon: "FileText" },
+  { id: "create-item", label: "Add Item", icon: "PlusCircle" },
+  { id: "update-item", label: "Update/Delete Item", icon: "Edit" },
   { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
-  { id: "cafe-item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
+] as const;
+
+/** @deprecated Legacy service tab ids — still accepted when restoring saved tabs. */
+export const MANAGER_SERVICE_LEGACY_TAB_IDS = [
+  "cafe-reports",
+  "menu-create-item",
+  "menu-update-item",
+  "cafe-item-receipts",
 ] as const;
 
 export type ManagerServiceSidebarItemId =
@@ -155,8 +155,18 @@ export const MANAGER_SIDEBAR_ITEMS = [
     label: "Inventory payment & tax",
     icon: "Receipt",
   },
+  { id: "lodging-reports", label: "Reports", icon: "FileText" },
+  { id: "lodging-rooms", label: "Rooms", icon: "Building2" },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },
   { id: "update-credential", label: "Update credential", icon: "RefreshCw" },
+] as const;
+
+/** Nested under Manager Rooms → Food & drink / Laundry (not flat MANAGER_SIDEBAR_ITEMS). */
+export const MANAGER_LODGING_NESTED_TAB_IDS = [
+  "lodging-fnb-add",
+  "lodging-fnb-menu",
+  "lodging-laundry-add",
+  "lodging-laundry-items",
 ] as const;
 
 export type ManagerSidebarItemId =
@@ -188,6 +198,84 @@ export const HOTEL_CASHIER_NAV_ITEMS = [
 
 export type HotelCashierNavId =
   (typeof HOTEL_CASHIER_NAV_ITEMS)[number]["id"];
+
+/** Reception terminal — room check-in, stays, services, CM portal. */
+export const RECEPTION_NAV_ITEMS = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: "LayoutDashboard",
+    description: "Room occupancy snapshot and recent activity.",
+  },
+  {
+    id: "check-in",
+    label: "Check-in",
+    icon: "UserPlus",
+    description: "Register guests and assign vacant clean rooms.",
+  },
+  {
+    id: "active-stays",
+    label: "Active stays",
+    icon: "BedDouble",
+    description: "View bills, add charges, split/transfer, and checkout.",
+  },
+  {
+    id: "services",
+    label: "Services",
+    icon: "UtensilsCrossed",
+    description: "Register food & drink or laundry charges to a stay.",
+  },
+  {
+    id: "cm-portal",
+    label: "CM portal",
+    icon: "Sparkles",
+    description: "Dirty and maintenance queue — assign and mark clean.",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    icon: "FileText",
+    description: "Daily and monthly stay summaries for print.",
+  },
+  {
+    id: "history",
+    label: "History",
+    icon: "History",
+    description: "Lodging action audit trail.",
+  },
+] as const;
+
+export type ReceptionNavId = (typeof RECEPTION_NAV_ITEMS)[number]["id"];
+
+/** CM Leader terminal — cleaning & maintenance queue. */
+export const CM_LEADER_NAV_ITEMS = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: "LayoutDashboard",
+    description: "Room status and open assignment counts.",
+  },
+  {
+    id: "queue",
+    label: "Dirty & maintenance",
+    icon: "Sparkles",
+    description: "Act on vacant dirty and on-maintenance rooms.",
+  },
+  {
+    id: "assignments",
+    label: "Assignments",
+    icon: "ClipboardList",
+    description: "Open and completed CM assignments.",
+  },
+  {
+    id: "history",
+    label: "History",
+    icon: "History",
+    description: "CM action audit trail.",
+  },
+] as const;
+
+export type CmLeaderNavId = (typeof CM_LEADER_NAV_ITEMS)[number]["id"];
 
 /** Legacy name — prefer `BUSINESS_TYPES`. */
 export const businessTypes = [...BUSINESS_TYPES] as BusinessType[];

@@ -87,17 +87,34 @@ export default function UpdateCredential({
   const tenantModules = useTenantModules();
 
   const roleOptions = useMemo(() => {
-    type RoleRow = { id: number; name: string; module?: ModuleOption };
+    type RoleRow = {
+      id: number;
+      name: string;
+      label?: string;
+      module?: ModuleOption;
+      modulesAny?: ModuleOption[];
+    };
     const rows: RoleRow[] =
       variant === "hotel"
         ? [
-            { id: 1, name: "Kitchen", module: "Cafe and Restaurant" },
-            { id: 2, name: "Barista", module: "Cafe and Restaurant" },
-            { id: 3, name: "Cashier", module: "Cafe and Restaurant" },
-            { id: 4, name: "Store", module: "Inventory" },
-            { id: 5, name: "CostControl", module: "Financial Management" },
-            { id: 6, name: "Finance", module: "Financial Management" },
-            { id: 7, name: "HotelCashier", module: "Credit Management" },
+            { id: 1, name: "Kitchen", label: "Kitchen (Chef)", module: "Cafe and Restaurant" },
+            { id: 2, name: "Barista", label: "Bar (Barista)", module: "Cafe and Restaurant" },
+            {
+              id: 3,
+              name: "Cashier",
+              label: "Cash (Cashier)",
+              modulesAny: ["Cafe and Restaurant", "Credit Management"],
+            },
+            { id: 4, name: "Store", label: "Store Keeper", module: "Inventory" },
+            { id: 5, name: "CostControl", label: "Cost control", module: "Financial Management" },
+            { id: 6, name: "Finance", label: "Finance", module: "Financial Management" },
+            { id: 7, name: "Reception", label: "Reception", module: "Room Management" },
+            {
+              id: 8,
+              name: "CMLeader",
+              label: "CM leader (Cleaning & Maintenance)",
+              module: "Cleaning and Maintenance",
+            },
           ]
         : [
             { id: 1, name: "Kitchen" },
@@ -105,9 +122,12 @@ export default function UpdateCredential({
             { id: 3, name: "Cashier" },
             { id: 4, name: "Store" },
           ];
-    return rows.filter(
-      (role) => !role.module || tenantHasModule(tenantModules, role.module),
-    );
+    return rows.filter((role) => {
+      if (role.modulesAny?.length) {
+        return role.modulesAny.some((m) => tenantHasModule(tenantModules, m));
+      }
+      return !role.module || tenantHasModule(tenantModules, role.module);
+    });
   }, [variant, tenantModules]);
 
   const nonAdminStaff = useMemo(

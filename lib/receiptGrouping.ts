@@ -32,6 +32,11 @@ import {
   purchaseEntranceDate,
 } from "@/lib/purchaseRequestDates";
 import {
+  stockMovementBusinessDate,
+  stockMovementBusinessDateYmd,
+} from "@/lib/stockMovementDates";
+import { toYmdLocal } from "@/lib/hotelDateYmd";
+import {
   stockLineTotalETB,
   stockLineUnitPriceLookup,
   unitPriceByRegistrationIdFromFreshBazaar,
@@ -101,7 +106,8 @@ function bundleIdFromKey(key: string): number {
 
 function dateKey(d: Date | string | null | undefined): string {
   const t = new Date(d ?? "");
-  return Number.isNaN(t.getTime()) ? "" : t.toISOString().slice(0, 10);
+  if (Number.isNaN(t.getTime())) return "";
+  return toYmdLocal(t);
 }
 
 function displayDate(d: Date | string | null | undefined): string {
@@ -316,7 +322,7 @@ function stockMovementBundles(
     freshBazaarSnapshotByRegistrationId(freshBazaarArchives);
   const map = new Map<string, StockOutRequestRow[]>();
   for (const row of rows) {
-    const day = dateKey(row.movementDate ?? row.createdAt);
+    const day = stockMovementBusinessDateYmd(row);
     const dept = accountabilityGroupKey(
       row.requestedByDepartment,
       row.requestedByLeaderName,
@@ -399,8 +405,8 @@ function stockMovementBundles(
       title: receiptTitle("stock_movement", {
         movementType: first.movementType,
       }),
-      date: dateKey(first.movementDate ?? first.createdAt),
-      dateLabel: displayDate(first.movementDate ?? first.createdAt),
+      date: stockMovementBusinessDateYmd(first),
+      dateLabel: displayDate(stockMovementBusinessDate(first)),
       supplierName:
         String(
           linkedFirst?.supplierName ||
@@ -643,6 +649,7 @@ export function buildStockMovementReceiptBundleForStatus(
   itemStatusHistory: ItemStatus[] = [],
   freshBazaarArchives: FreshBazaarRow[] = [],
 ): ReceiptBundle | null {
+  const anchorDay = stockMovementBusinessDateYmd(anchor);
   const siblings = pool.filter((row) => {
     const n = Math.floor(Number(anchor.voucherNumber) || 0);
     const d = String(anchor.voucherDisplay ?? "").trim();
@@ -651,6 +658,7 @@ export function buildStockMovementReceiptBundleForStatus(
     const voucherMatch =
       (n > 0 && rn === n) || (d && rd && d === rd);
     if (!voucherMatch) return false;
+    if (stockMovementBusinessDateYmd(row) !== anchorDay) return false;
     return accountabilityMatches(
       row.requestedByDepartment,
       row.requestedByLeaderName,

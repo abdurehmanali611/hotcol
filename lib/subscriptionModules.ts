@@ -11,7 +11,7 @@ export const BUSINESS_TYPE_SIGNUP_DESCRIPTIONS: Record<BusinessType, string> = {
   "Cafe and Restaurant":
     "Orders, kitchen, bar, tables, cashier, and daily café operations.",
   Hotel:
-    "Lodging with inventory, credit, optional financial modules, and optional café & restaurant.",
+    "Lodging with optional room management, cleaning & maintenance, inventory, credit, and café.",
   Resort: "Resort operations — registration opening soon.",
   Pension: "Guest house and pension workflows — registration opening soon.",
 };
@@ -23,8 +23,6 @@ export function isBusinessTypeComingSoon(type: BusinessType): boolean {
 /** Not selectable at signup yet. */
 export const SIGNUP_COMING_SOON_MODULES = [
   "HR Module",
-  "Cleaning and Maintenance",
-  "Room Management",
 ] as const satisfies readonly ModuleOption[];
 
 export const MODULE_DESCRIPTIONS: Record<ModuleOption, string> = {
@@ -39,8 +37,10 @@ export const MODULE_DESCRIPTIONS: Record<ModuleOption, string> = {
   "Financial Management":
     "Cost control and finance roles; purchase, registration, and stock movement approvals.",
   "HR Module": "Staff HR workflows — coming soon.",
-  "Room Management": "Room operations — coming soon.",
-  "Cleaning and Maintenance": "Housekeeping and maintenance — coming soon.",
+  "Room Management":
+    "Rooms, reception check-in/out, guest stays, billing, laundry and in-room F&B.",
+  "Cleaning and Maintenance":
+    "Housekeeping and maintenance queues: dirty rooms, maintenance windows, and CM assignments.",
 };
 
 export type SignupPricing = {
@@ -88,6 +88,12 @@ export function isModuleDisabledAtSignup(
   if (mod === "Financial Management" && businessType === "Cafe and Restaurant") {
     return true;
   }
+  if (
+    businessType === "Cafe and Restaurant" &&
+    (mod === "Room Management" || mod === "Cleaning and Maintenance")
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -106,6 +112,7 @@ export function getDefaultSignupModules(
   if (businessType === "Cafe and Restaurant") {
     return ["Credentials(Common)", "Cafe and Restaurant"];
   }
+  // Lodging: credentials only — Room Management / Cleaning are opt-in.
   return ["Credentials(Common)"];
 }
 
@@ -229,17 +236,21 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "credit-registrations": "Credit Management",
 };
 
-/** Manager café / restaurant + credit tabs (admin parity, no café inventory list). */
+/** Manager café / restaurant + credit tabs (no inventory / receipts — those stay in lodging Inventory). */
 export const MANAGER_SERVICE_TAB_MODULES: Partial<
   Record<string, ModuleOption>
 > = {
+  reports: "Cafe and Restaurant",
+  "create-item": "Cafe and Restaurant",
+  "update-item": "Cafe and Restaurant",
+  "station-prep-qty": "Cafe and Restaurant",
+  "waiter-table": "Cafe and Restaurant",
+  "credit-registrations": "Credit Management",
+  // Legacy ids (pre-parity rename)
   "cafe-reports": "Cafe and Restaurant",
   "menu-create-item": "Cafe and Restaurant",
   "menu-update-item": "Cafe and Restaurant",
-  "station-prep-qty": "Cafe and Restaurant",
-  "waiter-table": "Cafe and Restaurant",
   "cafe-item-receipts": "Cafe and Restaurant",
-  "credit-registrations": "Credit Management",
 };
 
 export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
@@ -255,6 +266,14 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "reports-beginnings": "Inventory",
   "inventory-payment-vat": "Financial Management",
   "cc-profiles": "Financial Management",
+  "lodging-rooms": "Room Management",
+  "lodging-reports": "Room Management",
+  "lodging-fnb-add": "Room Management",
+  "lodging-fnb-menu": "Room Management",
+  "lodging-laundry-add": "Room Management",
+  "lodging-laundry-items": "Room Management",
+  /** @deprecated legacy flat tab */
+  "lodging-service-prices": "Room Management",
 };
 
 export const ROLE_REQUIRED_MODULE: Partial<Record<string, ModuleOption>> = {
@@ -265,6 +284,8 @@ export const ROLE_REQUIRED_MODULE: Partial<Record<string, ModuleOption>> = {
   CostControl: "Financial Management",
   Finance: "Financial Management",
   HotelCashier: "Credit Management",
+  Reception: "Room Management",
+  CMLeader: "Cleaning and Maintenance",
 };
 
 export const HOTEL_STORE_FINANCE_VIEWS = new Set([
@@ -311,7 +332,6 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
     | "order"
     | "payment"
     | "payment-type"
-    | "order-update"
     | "cashout"
     | "credit",
     ModuleOption
@@ -320,7 +340,6 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
   order: "Cafe and Restaurant",
   payment: "Cafe and Restaurant",
   "payment-type": "Cafe and Restaurant",
-  "order-update": "Cafe and Restaurant",
   cashout: "Cafe and Restaurant",
   credit: "Credit Management",
 };
@@ -338,10 +357,11 @@ export function roleAllowedForModules(
   role: string,
   modules: readonly ModuleOption[],
 ): boolean {
-  if (role === "HotelCashier") {
+  // Cashier and legacy HotelCashier are one role: café POS and/or corporate credit.
+  if (role === "Cashier" || role === "HotelCashier") {
     return (
-      tenantHasModule(modules, "Credit Management") ||
-      tenantHasModule(modules, "Cafe and Restaurant")
+      tenantHasModule(modules, "Cafe and Restaurant") ||
+      tenantHasModule(modules, "Credit Management")
     );
   }
   const required = ROLE_REQUIRED_MODULE[role];

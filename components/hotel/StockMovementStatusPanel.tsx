@@ -34,7 +34,6 @@ import { RequestStatusFilterBar } from "@/components/hotel/RequestStatusFilterBa
 import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
   FIFO_TABLE_SORT,
-  requestFifoTimestamp,
   sortRowsByFifo,
 } from "@/lib/requestOrdering";
 import { applyRequestStatusFilters } from "@/lib/requestStatusFilters";
@@ -44,6 +43,7 @@ import { buildRequestStatusReceiptColumn } from "@/components/hotel/requestStatu
 import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
 import { RequestStatusListPrintActions } from "@/components/hotel/RequestStatusListPrintActions";
 import { resolveRequestStatusPrintScope } from "@/lib/requestStatusPrintScope";
+import { stockMovementBusinessDate } from "@/lib/stockMovementDates";
 import {
   departmentLeaderDisplayLabel,
   REQUESTED_BY_DEPARTMENT_CODES,
@@ -125,7 +125,7 @@ export function StockMovementStatusPanel({
         dateTo,
         voucherFrom,
         voucherTo,
-        getSubmittedDate: (r) => r.createdAt,
+        getSubmittedDate: (r) => stockMovementBusinessDate(r),
         department,
         getDepartment: (r) => r.requestedByDepartment,
         getLeaderName: (r) => r.requestedByLeaderName,
@@ -146,8 +146,8 @@ export function StockMovementStatusPanel({
       resolveRequestStatusPrintScope(rows, filtered, hasActiveFilters, {
         dateFrom,
         dateTo,
-        dateFromLabel: "Submitted from",
-        dateToLabel: "Submitted to",
+        dateFromLabel: "Movement from",
+        dateToLabel: "Movement to",
         department,
         departmentLabelText: "Requested by department",
         voucherFrom,
@@ -183,11 +183,14 @@ export function StockMovementStatusPanel({
       buildVoucherColumn<StockOutRequestRow>(),
       {
         id: "submitted",
-        header: "Submitted",
-        accessorFn: (row) => requestFifoTimestamp(row),
+        header: "Movement date",
+        accessorFn: (row) =>
+          new Date(stockMovementBusinessDate(row) ?? 0).getTime(),
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-            {formatWhen(row.original.createdAt)}
+            {formatWhen(
+              String(stockMovementBusinessDate(row.original) ?? "") || null,
+            )}
           </span>
         ),
       },
@@ -337,6 +340,8 @@ export function StockMovementStatusPanel({
         dateTo={dateTo}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
+        dateFromLabel="Movement from"
+        dateToLabel="Movement to"
         voucherFrom={voucherFrom}
         voucherTo={voucherTo}
         onVoucherFromChange={setVoucherFrom}
@@ -350,7 +355,7 @@ export function StockMovementStatusPanel({
         helperText={
           department
             ? "Showing stock movements for the selected department leader."
-            : "Filter by submission date, voucher range, and requesting department leader."
+            : "Filter by movement date, voucher range, and requesting department leader."
         }
         showClear={hasActiveFilters}
         onClear={clearFilters}

@@ -18,6 +18,7 @@ import {
   canPrintPurchaseRequestFromStatus,
   canPrintStockMovementFromStatus,
 } from "@/lib/hotelApproval";
+import { stockMovementBusinessDateYmd } from "@/lib/stockMovementDates";
 
 function voucherKey(
   row: { voucherNumber?: number | null; voucherDisplay?: string | null },
@@ -41,6 +42,12 @@ function purchaseOrStockPrintKey(row: {
     row.requestedByDepartment,
     row.requestedByLeaderName,
   )}`;
+}
+
+function stockMovementPrintKey(row: StockOutRequestRow): string {
+  const base = purchaseOrStockPrintKey(row);
+  if (!base) return "";
+  return `${base}|${stockMovementBusinessDateYmd(row)}`;
 }
 
 function registrationPrintKey(row: {
@@ -107,7 +114,7 @@ export function stockPrintBundlesFromFiltered(
   const bundles: ReceiptBundle[] = [];
   for (const row of filtered) {
     if (!canPrintStockMovementFromStatus(row.status)) continue;
-    const key = purchaseOrStockPrintKey(row);
+    const key = stockMovementPrintKey(row);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const bundle = buildStockMovementReceiptBundleForStatus(

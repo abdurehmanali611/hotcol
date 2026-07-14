@@ -68,6 +68,7 @@ export function HotelDayPicker({
           <Calendar
             mode="single"
             selected={selected}
+            captionLayout="dropdown"
             onSelect={(d) => {
               if (!d) return;
               onChange(toYmdLocal(d));

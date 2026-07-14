@@ -24,6 +24,8 @@ export const TERMINAL_PAGE_MODULES: Record<string, ModuleOption | undefined> = {
   CostControl: "Financial Management",
   Finance: "Financial Management",
   HotelCashier: "Credit Management",
+  Reception: "Room Management",
+  CMLeader: "Cleaning and Maintenance",
 };
 
 export function readSubscriptionBillingSnapshot() {
@@ -47,9 +49,17 @@ export function canAccessTenantModule(module: ModuleOption): boolean {
 
 export function canAccessTerminalRole(role: string): boolean {
   if (!canUseTenantSystem()) return false;
+  const modules = readTenantModulesFromStorage();
+  // Unified cashier terminal: café POS and/or credit desk.
+  if (role === "Cashier" || role === "HotelCashier") {
+    return (
+      tenantHasModule(modules, "Cafe and Restaurant") ||
+      tenantHasModule(modules, "Credit Management")
+    );
+  }
   const required = TERMINAL_PAGE_MODULES[role];
   if (!required) return true;
-  return tenantHasModule(readTenantModulesFromStorage(), required);
+  return tenantHasModule(modules, required);
 }
 
 export function readLoggedInRole(): string | null {
@@ -63,16 +73,17 @@ export function hasAuthToken(): boolean {
   return Boolean(localStorage.getItem("auth_token")?.trim());
 }
 
+function isCashierFamilyRole(role: string): boolean {
+  return role === "Cashier" || role === "HotelCashier";
+}
+
 /** True when the signed-in staff role matches the terminal (e.g. Cashier on /Cashier). */
 export function loggedInRoleMatchesTerminal(terminalRole: string): boolean {
   const logged = readLoggedInRole();
   if (!logged) return false;
   if (logged === terminalRole) return true;
-  if (
-    terminalRole === "Cashier" &&
-    logged === "HotelCashier" &&
-    tenantHasModule(readTenantModulesFromStorage(), "Cafe and Restaurant")
-  ) {
+  // Cashier and legacy HotelCashier are the same staff role.
+  if (isCashierFamilyRole(logged) && isCashierFamilyRole(terminalRole)) {
     return true;
   }
   return false;

@@ -40,6 +40,7 @@ import {
 } from "@/lib/inventoryLineTotals";
 import type { InventoryListFilters } from "@/lib/inventoryListFilters";
 import { purchaseEntranceDate } from "@/lib/purchaseRequestDates";
+import { stockMovementBusinessDate } from "@/lib/stockMovementDates";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 
 export type RequestStatusListPrintFilters = {
@@ -309,8 +310,8 @@ export function buildStockListPrintConfig(
   const columns: AuditPrintColumn<StockOutRequestRow>[] = [
     { header: "Voucher", cell: (row) => rowVoucher(row) },
     {
-      header: "Submitted",
-      cell: (row) => formatPrintDateTime(row.createdAt),
+      header: "Movement date",
+      cell: (row) => formatPrintDateTime(stockMovementBusinessDate(row)),
     },
     { header: "Item", cell: (row) => row.itemName },
     {

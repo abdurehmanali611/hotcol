@@ -283,8 +283,23 @@ export async function LoginAction(
         router.push(`/Finance?${queryParams}`);
         break;
       case "Cashier":
+      case "HotelCashier": {
+        // One cashier role: café POS when Cafe is subscribed, else credit desk for lodging.
+        if (
+          lodgingStore &&
+          !modules.includes("Cafe and Restaurant") &&
+          modules.includes("Credit Management")
+        ) {
+          router.push(`/HotelCashier?${queryParams}`);
+          break;
+        }
+        if (user.Role === "HotelCashier" && !lodgingStore) {
+          toast.error("Hotel cashier is only for hotel / resort / pension accounts.");
+          break;
+        }
         router.push(`/Cashier?${queryParams}`);
         break;
+      }
       case "Barista":
         router.push(`/Bar?${queryParams}`);
         break;
@@ -296,16 +311,11 @@ export async function LoginAction(
           lodgingStore ? `/HotelStore?${queryParams}` : `/Store?${queryParams}`,
         );
         break;
-      case "HotelCashier":
-        if (!lodgingStore) {
-          toast.error("Hotel cashier is only for hotel / resort / pension accounts.");
-          break;
-        }
-        if (modules.includes("Cafe and Restaurant")) {
-          router.push(`/Cashier?${queryParams}`);
-          break;
-        }
-        router.push(`/HotelCashier?${queryParams}`);
+      case "Reception":
+        router.push(`/Reception?${queryParams}`);
+        break;
+      case "CMLeader":
+        router.push(`/CMLeader?${queryParams}`);
         break;
       default:
         toast.error("No Role Found");

@@ -211,6 +211,8 @@ export const createCredentialSchema = z
         "CostControl",
         "Finance",
         "HotelCashier",
+        "Reception",
+        "CMLeader",
       ],
       {
         message: "Invalid role",
@@ -243,6 +245,8 @@ export const updateCredentialSchema = z
         "CostControl",
         "Finance",
         "HotelCashier",
+        "Reception",
+        "CMLeader",
       ],
       {
         message: "Invalid role",

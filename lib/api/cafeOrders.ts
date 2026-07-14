@@ -55,10 +55,10 @@ function formatCafeOrderMutationError(raw: string, fallback: string): string {
     lower.includes("not authorized to update live orders") ||
     lower.includes("not authorized to remove this order")
   ) {
-    return "Your session may be out of date. Sign out and sign in again, then retry.";
+    return "You do not have permission to change this order.";
   }
   if (msg === "Order not found or not authorized") {
-    return "This order could not be updated for your property. Sign out and sign in again, then retry.";
+    return "This order could not be updated for your property. Refresh and try again.";
   }
   if (graphqlMessageIndicatesSessionExpiry(msg)) {
     return "Your session has expired. Please sign in again.";
