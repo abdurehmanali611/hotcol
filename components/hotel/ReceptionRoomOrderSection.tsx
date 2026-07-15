@@ -5,6 +5,7 @@ import OrderComponent from "@/components/Order";
 import OrderDetailsModal from "@/components/orderDetailsModal";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  createBatchOrders,
   notifyApiFailure,
   type Item,
   type OrderCreationData,
@@ -14,6 +15,11 @@ import {
   type LodgingServiceItem,
   type LodgingStay,
 } from "@/lib/api/lodgingRooms";
+import {
+  roomServiceCaption,
+  roomServiceTableNo,
+  withCafeOrderMarker,
+} from "@/lib/lodgingRoomService";
 import { toast } from "sonner";
 
 const PLACEHOLDER_IMG = "/placeholder-food.jpg";
@@ -86,10 +92,52 @@ export function ReceptionRoomOrderSection({
     const stay = stays.find((s) => s.id === stayId);
     if (!stay) throw new Error("Stay not found");
     const roomNumber = roomNumberForStay(stay);
+
+    // Food & drink: create café tickets first, then bill lines tagged with order id
+    // so a kitchen/cashier cancel removes the matching stay charge.
+    if (mode === "food_drink" && lines.length > 0) {
+      const caption = roomServiceCaption(roomNumber);
+      const tableNo = roomServiceTableNo(stayId);
+      const created = await createBatchOrders(
+        lines.map(({ item, qty }) => ({
+          title: item.name,
+          imageUrl: item.imageUrl || PLACEHOLDER_IMG,
+          tableNo,
+          orderAmount: qty,
+          HotelName: hotelName,
+          category: item.category || "food",
+          type: item.type || "kitchen",
+          price: item.price,
+          waiterName: waiterName || "Reception",
+          serviceCaption: caption,
+        })),
+        { silent: true },
+      );
+      for (let i = 0; i < lines.length; i++) {
+        const { item, qty } = lines[i]!;
+        const order = created[i];
+        const base = waiterName
+          ? `${item.name} · ${waiterName}`
+          : item.name;
+        await addLodgingBillLineApi({
+          stayId,
+          kind: "food_drink",
+          description:
+            order?.id != null
+              ? withCafeOrderMarker(base, Number(order.id))
+              : base,
+          quantity: qty,
+          unitPriceETB: item.price,
+          roomNumber: roomNumber || undefined,
+        });
+      }
+      return;
+    }
+
     for (const { item, qty } of lines) {
       await addLodgingBillLineApi({
         stayId,
-        kind: mode === "laundry" ? "laundry" : "food_drink",
+        kind: "laundry",
         description: waiterName
           ? `${item.name} · ${waiterName}`
           : item.name,
@@ -154,7 +202,7 @@ export function ReceptionRoomOrderSection({
           toast.success(
             mode === "laundry"
               ? "Laundry charged to room stay"
-              : "Food & drink charged to room stay",
+              : "Food & drink charged — sent to kitchen / bar for Room service",
           );
         }}
       />
@@ -176,7 +224,7 @@ export function ReceptionRoomOrderSection({
               toast.success(
                 mode === "laundry"
                   ? "Laundry charged to room stay"
-                  : "Charged to room stay",
+                  : "Charged to room — kitchen / bar notified",
               );
               await onCompleted();
             } catch (e) {

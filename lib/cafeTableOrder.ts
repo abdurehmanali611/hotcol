@@ -130,6 +130,9 @@ export function normalizeOrderTableNo(order: {
 
 export function formatCafeTableLabel(tableNo: number): string {
   const n = Math.floor(Number(tableNo));
+  if (n >= 900_000) {
+    return `Room service · stay ${n - 900_000}`;
+  }
   return `Table ${n}`;
 }
 

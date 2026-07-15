@@ -495,10 +495,10 @@ export function StoreItemRegistrationReceipt({
               />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-emerald-950">{APEX_SOLUTION.name}</p>
+                  <p className="text-base font-semibold text-emerald-950">{APEX_SOLUTION.name}</p>
               <a
                 href={APEX_SOLUTION.website}
-                className="text-xs text-emerald-800/80 underline-offset-2 hover:underline hover:text-emerald-950"
+                className="text-sm text-emerald-800/80 underline-offset-2 hover:underline hover:text-emerald-950"
               >
                 {APEX_SOLUTION.website.replace(/^https?:\/\//, "")}
               </a>

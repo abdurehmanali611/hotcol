@@ -319,7 +319,10 @@ export async function createOrder(orderData: OrderCreationData) {
   }
 }
 
-export async function createBatchOrders(orderDataArray: any[]) {
+export async function createBatchOrders(
+  orderDataArray: any[],
+  options?: { silent?: boolean },
+) {
   try {
     const orders = orderDataArray.map((o) => ({
       title: String(o.title),
@@ -333,6 +336,9 @@ export async function createBatchOrders(orderDataArray: any[]) {
       waiterName: String(o.waiterName),
       status: "Pending",
       payment: "Unpaid",
+      ...(o.serviceCaption != null && String(o.serviceCaption).trim()
+        ? { serviceCaption: String(o.serviceCaption).trim() }
+        : {}),
     }));
 
     const mutation = `
@@ -344,6 +350,7 @@ export async function createBatchOrders(orderDataArray: any[]) {
           waiterName
           orderAmount
           status
+          serviceCaption
           createdAt
         }
       }
@@ -361,12 +368,14 @@ export async function createBatchOrders(orderDataArray: any[]) {
     }
 
     const results = response.data.data.BatchOrderCreation || [];
-    toast.success(`${results.length} orders sent to kitchen!`);
+    if (!options?.silent) {
+      toast.success(`${results.length} orders sent to kitchen!`);
+    }
     refreshCafeOrdersFeed();
     return results;
   } catch (error: any) {
     const message = error.response?.data?.errors?.[0]?.message || error.message;
-    toast.error(message);
+    if (!options?.silent) toast.error(message);
     throw error;
   }
 }

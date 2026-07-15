@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Toaster } from "sonner";
+import { useReactToPrint } from "react-to-print";
+import { Toaster, toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
-import { BeautifulTimePicker } from "@/components/hotel/BeautifulTimePicker";
 import {
   Sidebar,
   SidebarContent,
@@ -55,6 +54,11 @@ import { ReceptionLodgingServiceUpdatePanel } from "@/components/hotel/Reception
 import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
+import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
+import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepartureReceipt";
+import {
+  ReceptionCheckoutPaymentDialog,
+} from "@/components/hotel/ReceptionCheckoutPaymentDialog";
 import {
   BedDouble,
   FileText,
@@ -72,8 +76,25 @@ import {
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { fetchItems, logoutAction, notifyApiFailure } from "@/lib/actions";
-import type { Item } from "@/lib/api/types";
+import {
+  fetchLiveCafeOrders,
+  updateOrderPayment,
+} from "@/lib/api/cafeOrders";
+import type { Item, Order } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import {
+  billLinesExcludingCancelledFoodDrink,
+  billTotalFromLines,
+  cafeOrderIdFromBillDescription,
+  incompleteFoodDrinkLines,
+  isCafeOrderCancelled,
+  isCancelledFoodDrinkBillLine,
+  isFoodDrinkLineKitchenComplete,
+  nightsFromArrivalDeparture,
+  resolveCafeOrderForFoodDrinkLine,
+  roomServiceTableNo,
+  stripCafeOrderMarker,
+} from "@/lib/lodgingRoomService";
 import {
   readTenantModulesFromStorage,
 } from "@/lib/tenantModules";
@@ -81,6 +102,7 @@ import { tenantHasModule } from "@/lib/subscriptionModules";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import {
   checkoutLodgingStayApi,
+  deleteLodgingBillLineApi,
   fetchLodgingActionLogs,
   fetchLodgingActiveStays,
   fetchLodgingCmAssignments,
@@ -111,19 +133,6 @@ const navIconMap: Record<(typeof RECEPTION_NAV_ITEMS)[number]["icon"], LucideIco
   FileText,
   History,
 };
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function todayYmd(d = new Date()) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function nowHm(d = new Date()) {
-  return `${pad2(d.getHours())}:${pad2(Math.floor(d.getMinutes() / 5) * 5)}`;
-}
-
 
 function formatMoney(n: number) {
   return `ETB ${Number(n || 0).toLocaleString()}`;
@@ -178,25 +187,47 @@ export function ReceptionDashboard() {
   const [cafeMenuItems, setCafeMenuItems] = useState<Item[]>([]);
   const [cmQueue, setCmQueue] = useState<LodgingRoom[]>([]);
   const [cmAssignments, setCmAssignments] = useState<LodgingCmAssignment[]>([]);
+  const [liveCafeOrders, setLiveCafeOrders] = useState<Order[]>([]);
 
   // Active stay detail
   const [selectedStayId, setSelectedStayId] = useState<number | null>(null);
-  const [editNights, setEditNights] = useState(1);
   const [editNotes, setEditNotes] = useState("");
-  const [checkoutDate, setCheckoutDate] = useState(todayYmd);
-  const [checkoutTime, setCheckoutTime] = useState(nowHm);
   const [transferToStayId, setTransferToStayId] = useState<string>("");
   const [selectedLineIds, setSelectedLineIds] = useState<number[]>([]);
   const [splitLineId, setSplitLineId] = useState<number | null>(null);
   const [splitQtyToMove, setSplitQtyToMove] = useState("1");
   const [splitToStayId, setSplitToStayId] = useState<string>("");
+  const [checkoutPaymentOpen, setCheckoutPaymentOpen] = useState(false);
+  const [printStay, setPrintStay] = useState<LodgingStay | null>(null);
+  const [printPayment, setPrintPayment] = useState<{
+    cashETB: number;
+    bankETB: number;
+  } | null>(null);
+  const departurePrintRef = useRef<HTMLDivElement>(null);
+  const handleDeparturePrint = useReactToPrint({
+    contentRef: departurePrintRef,
+    documentTitle: "Departure_receipt",
+    onAfterPrint: () => {
+      setPrintStay(null);
+      setPrintPayment(null);
+    },
+  });
+
+  useEffect(() => {
+    if (!printStay) return;
+    const t = window.setTimeout(() => {
+      handleDeparturePrint();
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [printStay, handleDeparturePrint]);
 
   const load = useCallback(
     async (isRefresh = false) => {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       try {
-        const [st, lg, rm, ac, si, cq, ca, cafeItems] = await Promise.all([
+        const [st, lg, rm, ac, si, cq, ca, cafeItems, liveOrders] =
+          await Promise.all([
           fetchLodgingDashboardStats().catch(() => null),
           fetchLodgingActionLogs().catch(() => []),
           fetchLodgingRooms().catch(() => []),
@@ -205,6 +236,7 @@ export function ReceptionDashboard() {
           fetchLodgingCmQueue().catch(() => []),
           fetchLodgingCmAssignments().catch(() => []),
           fetchItems().catch(() => [] as Item[]),
+          fetchLiveCafeOrders().catch(() => [] as Order[]),
         ]);
         setStats(st);
         setLogs(lg);
@@ -214,6 +246,7 @@ export function ReceptionDashboard() {
         setCafeMenuItems(Array.isArray(cafeItems) ? cafeItems : []);
         setCmQueue(cq);
         setCmAssignments(ca);
+        setLiveCafeOrders(Array.isArray(liveOrders) ? liveOrders : []);
       } catch (e) {
         notifyApiFailure(e, "Could not load reception data");
       } finally {
@@ -243,18 +276,105 @@ export function ReceptionDashboard() {
     [stays, selectedStayId],
   );
 
+  const selectedStayActiveLines = useMemo(() => {
+    if (!selectedStay) return [];
+    return billLinesExcludingCancelledFoodDrink(
+      selectedStay.id,
+      selectedStay.bill?.lines ?? [],
+      liveCafeOrders,
+    );
+  }, [selectedStay, liveCafeOrders]);
+
+  const selectedStayActiveTotal = useMemo(
+    () => billTotalFromLines(selectedStayActiveLines),
+    [selectedStayActiveLines],
+  );
+
+  const selectedStayForCheckout = useMemo(() => {
+    if (!selectedStay) return null;
+    if (!selectedStay.bill) return selectedStay;
+    return {
+      ...selectedStay,
+      bill: {
+        ...selectedStay.bill,
+        lines: selectedStayActiveLines,
+        totalETB: selectedStayActiveTotal,
+      },
+    };
+  }, [selectedStay, selectedStayActiveLines, selectedStayActiveTotal]);
+
+  const incompleteFnBLines = useMemo(() => {
+    if (!selectedStay) return [];
+    return incompleteFoodDrinkLines(
+      selectedStay.id,
+      selectedStayActiveLines,
+      liveCafeOrders,
+    );
+  }, [selectedStay, selectedStayActiveLines, liveCafeOrders]);
+
+  const checkoutBlockedByIncompleteFnB = incompleteFnBLines.length > 0;
+
+  useEffect(() => {
+    if (!selectedStay?.bill || liveCafeOrders.length === 0) return;
+    const stale = (selectedStay.bill.lines ?? []).filter((l) =>
+      isCancelledFoodDrinkBillLine(l, selectedStay.id, liveCafeOrders),
+    );
+    if (stale.length === 0) return;
+    let disposed = false;
+    void (async () => {
+      let removed = 0;
+      for (const line of stale) {
+        try {
+          await deleteLodgingBillLineApi({
+            lineId: line.id,
+            stayId: selectedStay.id,
+            silent: true,
+          });
+          removed += 1;
+        } catch {
+          /* keep filtered from UI even if delete fails */
+        }
+      }
+      if (!disposed && removed > 0) await load(true);
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [selectedStay, liveCafeOrders, load]);
+
   useEffect(() => {
     if (!selectedStay) return;
-    setEditNights(selectedStay.nights);
     setEditNotes(selectedStay.notes || "");
     setSelectedLineIds([]);
     setTransferToStayId("");
     setSplitLineId(null);
     setSplitToStayId("");
-    const now = new Date();
-    setCheckoutDate(todayYmd(now));
-    setCheckoutTime(nowHm(now));
   }, [selectedStay]);
+
+  // Keep room-night charges aligned with calendar nights so far (arrival → today).
+  useEffect(() => {
+    if (!selectedStay) return;
+    const estimated = nightsFromArrivalDeparture(
+      new Date(selectedStay.arrivalAt),
+      new Date(),
+    );
+    if (estimated === selectedStay.nights) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await updateLodgingStayApi({
+          id: selectedStay.id,
+          nights: estimated,
+        });
+        if (!cancelled) await load(true);
+      } catch {
+        /* non-blocking; checkout still recomputes nights */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStay?.id, selectedStay?.arrivalAt, selectedStay?.nights, load]);
 
 
   const hasCafeModule = useMemo(
@@ -315,6 +435,7 @@ export function ReceptionDashboard() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
+        <div className="reception-screen flex min-h-screen w-full">
         <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
@@ -438,50 +559,7 @@ export function ReceptionDashboard() {
 
               {activeSection === "dashboard" && (
                 <div className="space-y-6">
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {[
-                      {
-                        label: "Vacant clean",
-                        value: stats?.vacantClean ?? 0,
-                        className: "border-emerald-500/20 to-emerald-500/5",
-                      },
-                      {
-                        label: "Vacant dirty",
-                        value: stats?.vacantDirty ?? 0,
-                        className: "border-amber-500/20 to-amber-500/5",
-                      },
-                      {
-                        label: "Occupied",
-                        value: stats?.occupied ?? 0,
-                        className: "border-sky-500/20 to-sky-500/5",
-                      },
-                      {
-                        label: "On maintenance",
-                        value: stats?.onMaintenance ?? 0,
-                        className: "border-rose-500/20 to-rose-500/5",
-                      },
-                      {
-                        label: "Open CM jobs",
-                        value: stats?.openCmAssignments ?? 0,
-                        className: "border-border/80 to-muted/30",
-                      },
-                    ].map((c) => (
-                      <Card
-                        key={c.label}
-                        className={cn(
-                          "border bg-linear-to-br from-card shadow-md overflow-hidden",
-                          c.className,
-                        )}
-                      >
-                        <CardHeader className="pb-2 pt-4">
-                          <CardDescription>{c.label}</CardDescription>
-                          <CardTitle className="text-3xl tabular-nums tracking-tight">
-                            {c.value}
-                          </CardTitle>
-                        </CardHeader>
-                      </Card>
-                    ))}
-                  </div>
+                  <LodgingStatCardsGrid stats={stats} />
                   <Card className="border-border/80 shadow-md bg-card/95">
                     <CardHeader>
                       <CardTitle className="text-lg">Recent activity</CardTitle>
@@ -561,6 +639,9 @@ export function ReceptionDashboard() {
                                     .filter(Boolean)
                                     .join(", ") || "—"}
                                 </p>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground/90 tabular-nums">
+                                  In {new Date(s.arrivalAt).toLocaleString()}
+                                </p>
                               </button>
                             </li>
                           ))}
@@ -578,25 +659,38 @@ export function ReceptionDashboard() {
                           </CardTitle>
                           <CardDescription>
                             Voucher {selectedStay.voucherCode} ·{" "}
-                            {formatMoney(selectedStay.bill?.totalETB ?? 0)}
+                            {formatMoney(selectedStayActiveTotal)}
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-5">
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-1.5">
-                              <Label htmlFor="stay-nights">Nights</Label>
-                              <Input
-                                id="stay-nights"
-                                type="number"
-                                min={1}
-                                className="h-10"
-                                value={editNights}
-                                onChange={(e) =>
-                                  setEditNights(
-                                    Math.max(1, Number(e.target.value) || 1),
-                                  )
-                                }
-                              />
+                              <Label>Checked in</Label>
+                              <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                                {new Date(
+                                  selectedStay.arrivalAt,
+                                ).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Checked out</Label>
+                              <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                                {selectedStay.status === "checked_out"
+                                  ? new Date(
+                                      selectedStay.departureAt,
+                                    ).toLocaleString()
+                                  : "At checkout"}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Nights (auto)</Label>
+                              <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                                {nightsFromArrivalDeparture(
+                                  new Date(selectedStay.arrivalAt),
+                                  new Date(),
+                                )}{" "}
+                                · updates at checkout from departure − arrival
+                              </div>
                             </div>
                             <div className="space-y-1.5">
                               <Label htmlFor="stay-notes">Notes</Label>
@@ -619,7 +713,6 @@ export function ReceptionDashboard() {
                               try {
                                 await updateLodgingStayApi({
                                   id: selectedStay.id,
-                                  nights: editNights,
                                   notes: editNotes,
                                 });
                                 await load(true);
@@ -630,7 +723,7 @@ export function ReceptionDashboard() {
                               }
                             }}
                           >
-                            Save stay changes
+                            Save stay notes
                           </PendingButton>
 
                           <div className="space-y-2">
@@ -640,28 +733,26 @@ export function ReceptionDashboard() {
                                 <p className="text-xs text-muted-foreground">
                                   Checkboxes select guest service usages for
                                   transfer — room night charges are not
-                                  selectable.
+                                  selectable. Food &amp; drink can be moved only
+                                  after kitchen/barista marks the order Completed.
                                 </p>
                               </div>
-                              {(selectedStay.bill?.lines ?? []).length > 0 ? (
+                              {(selectedStayActiveLines.length > 0 ? (
                                 <p className="text-sm font-semibold tabular-nums">
                                   Stay total{" "}
-                                  {formatMoney(
-                                    selectedStay.bill?.totalETB ?? 0,
-                                  )}
+                                  {formatMoney(selectedStayActiveTotal)}
                                 </p>
-                              ) : null}
+                              ) : null)}
                             </div>
 
-                            {(selectedStay.bill?.lines ?? []).length === 0 ? (
+                            {selectedStayActiveLines.length === 0 ? (
                               <div className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
                                 No bill lines yet.
                               </div>
                             ) : (
                               <div className="space-y-3">
-                                {groupBillLinesByRoom(
-                                  selectedStay.bill?.lines ?? [],
-                                ).map(([room, roomLines]) => {
+                                {groupBillLinesByRoom(selectedStayActiveLines).map(
+                                  ([room, roomLines]) => {
                                   const roomTotal = roomLines.reduce(
                                     (sum, l) => sum + Number(l.amountETB || 0),
                                     0,
@@ -702,6 +793,22 @@ export function ReceptionDashboard() {
                                             const isService =
                                               String(line.kind || "").toLowerCase() !==
                                               "room";
+                                            const isFnB =
+                                              String(line.kind || "").toLowerCase() ===
+                                              "food_drink";
+                                            const fnBComplete =
+                                              isFoodDrinkLineKitchenComplete(
+                                                line,
+                                                selectedStay.id,
+                                                liveCafeOrders,
+                                              );
+                                            const cafeOrder = isFnB
+                                              ? resolveCafeOrderForFoodDrinkLine(
+                                                  line,
+                                                  selectedStay.id,
+                                                  liveCafeOrders,
+                                                )
+                                              : null;
                                             return (
                                             <tr key={line.id}>
                                               <td className="px-3 py-2 align-top">
@@ -711,15 +818,22 @@ export function ReceptionDashboard() {
                                                     checked={selectedLineIds.includes(
                                                       line.id,
                                                     )}
-                                                    onCheckedChange={() =>
+                                                    disabled={isFnB && !fnBComplete}
+                                                    onCheckedChange={() => {
+                                                      if (isFnB && !fnBComplete) {
+                                                        toast.message(
+                                                          "Wait until food & drink is Completed before transferring",
+                                                        );
+                                                        return;
+                                                      }
                                                       setSelectedLineIds((prev) =>
                                                         prev.includes(line.id)
                                                           ? prev.filter(
                                                               (x) => x !== line.id,
                                                             )
                                                           : [...prev, line.id],
-                                                      )
-                                                    }
+                                                      );
+                                                    }}
                                                   />
                                                 ) : (
                                                   <span
@@ -730,13 +844,24 @@ export function ReceptionDashboard() {
                                               </td>
                                               <td className="px-3 py-2">
                                                 <p className="font-medium leading-snug">
-                                                  {line.description}
+                                                  {stripCafeOrderMarker(
+                                                    line.description,
+                                                  )}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
                                                   {line.kind.replace(/_/g, " ")}{" "}
                                                   · qty {line.quantity}
                                                   {!isService
                                                     ? " · not transferable here"
+                                                    : ""}
+                                                  {isFnB
+                                                    ? isCafeOrderCancelled(
+                                                        cafeOrder?.status,
+                                                      )
+                                                      ? " · Cancelled (ignored)"
+                                                      : fnBComplete
+                                                        ? ` · ${cafeOrder?.status || "Completed"}`
+                                                        : ` · ${cafeOrder?.status || "Pending"} — transfer/split locked`
                                                     : ""}
                                                 </p>
                                               </td>
@@ -762,6 +887,7 @@ export function ReceptionDashboard() {
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 Move checked usages to another active stay.
+                                Food &amp; drink must be Completed first.
                                 {selectedLineIds.length > 0
                                   ? ` ${selectedLineIds.length} selected.`
                                   : ""}
@@ -802,11 +928,27 @@ export function ReceptionDashboard() {
                                   setPending("transfer");
                                   try {
                                     const transferable = serviceUsageLines(
-                                      selectedStay.bill?.lines ?? [],
-                                    ).map((l) => l.id);
-                                    const lineIds = selectedLineIds.filter((id) =>
-                                      transferable.includes(id),
+                                      selectedStayActiveLines,
+                                    ).filter((l) =>
+                                      isFoodDrinkLineKitchenComplete(
+                                        l,
+                                        selectedStay.id,
+                                        liveCafeOrders,
+                                      ),
                                     );
+                                    const lineIds = selectedLineIds.filter((id) =>
+                                      transferable.some((l) => l.id === id),
+                                    );
+                                    const blocked = selectedLineIds.filter(
+                                      (id) =>
+                                        !transferable.some((l) => l.id === id),
+                                    );
+                                    if (blocked.length > 0) {
+                                      toast.error(
+                                        "Cannot transfer food & drink until kitchen/barista marks it Completed",
+                                      );
+                                      return;
+                                    }
                                     if (lineIds.length === 0) {
                                       notifyApiFailure(
                                         new Error(
@@ -840,7 +982,8 @@ export function ReceptionDashboard() {
                               <p className="text-sm font-medium">Split a line</p>
                               <p className="text-xs text-muted-foreground">
                                 Move part of a guest service usage (food & drink,
-                                laundry, etc.) — not room night charges.
+                                laundry, etc.) — not room night charges. Food &amp;
+                                drink lines appear only when Completed.
                               </p>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
@@ -861,8 +1004,13 @@ export function ReceptionDashboard() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     {groupBillLinesByRoom(
-                                      serviceUsageLines(
-                                        selectedStay.bill?.lines ?? [],
+                                      serviceUsageLines(selectedStayActiveLines).filter(
+                                        (l) =>
+                                          isFoodDrinkLineKitchenComplete(
+                                            l,
+                                            selectedStay.id,
+                                            liveCafeOrders,
+                                          ),
                                       ),
                                     ).map(([room, roomLines]) => (
                                       <SelectGroup key={room}>
@@ -876,7 +1024,10 @@ export function ReceptionDashboard() {
                                             key={l.id}
                                             value={String(l.id)}
                                           >
-                                            {l.description} (qty {l.quantity})
+                                            {stripCafeOrderMarker(
+                                              l.description,
+                                            )}{" "}
+                                            (qty {l.quantity})
                                           </SelectItem>
                                         ))}
                                       </SelectGroup>
@@ -931,6 +1082,22 @@ export function ReceptionDashboard() {
                               }
                               onClick={async () => {
                                 if (splitLineId == null) return;
+                                const line = selectedStayActiveLines.find(
+                                  (l) => l.id === splitLineId,
+                                );
+                                if (
+                                  line &&
+                                  !isFoodDrinkLineKitchenComplete(
+                                    line,
+                                    selectedStay.id,
+                                    liveCafeOrders,
+                                  )
+                                ) {
+                                  toast.error(
+                                    "Cannot split food & drink until it is Completed",
+                                  );
+                                  return;
+                                }
                                 setPending("split");
                                 try {
                                   await splitLodgingBillLineApi({
@@ -956,22 +1123,18 @@ export function ReceptionDashboard() {
                             <div className="space-y-1">
                               <p className="text-sm font-medium">Checkout</p>
                               <p className="text-xs text-muted-foreground">
-                                Pick the departure date and time, then complete
-                                checkout.
+                                Departure is set automatically when you confirm
+                                checkout. All food &amp; drink on this stay must be
+                                Completed first.
                               </p>
-                            </div>
-                            <div className="grid gap-4 lg:grid-cols-[minmax(0,200px)_minmax(0,1fr)] lg:items-start">
-                              <HotelDayPicker
-                                label="Date"
-                                value={checkoutDate}
-                                onChange={setCheckoutDate}
-                              />
-                              <BeautifulTimePicker
-                                label="Time"
-                                value={checkoutTime}
-                                onChange={setCheckoutTime}
-                                compact
-                              />
+                              {checkoutBlockedByIncompleteFnB ? (
+                                <p className="text-xs text-amber-700 dark:text-amber-400">
+                                  {incompleteFnBLines.length} food &amp; drink
+                                  order
+                                  {incompleteFnBLines.length === 1 ? "" : "s"}{" "}
+                                  still pending in kitchen/bar — checkout locked.
+                                </p>
+                              ) : null}
                             </div>
                             <div className="flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
@@ -979,74 +1142,28 @@ export function ReceptionDashboard() {
                                   Total of all usages
                                 </p>
                                 <p className="text-lg font-semibold tabular-nums">
-                                  {formatMoney(
-                                    selectedStay.bill?.totalETB ?? 0,
-                                  )}
+                                  {formatMoney(selectedStayActiveTotal)}
                                 </p>
                               </div>
                               <PendingButton
                                 type="button"
                                 className="h-11 w-full sm:w-auto sm:min-w-[220px]"
                                 pending={pending === "checkout"}
-                                onClick={async () => {
-                                  setPending("checkout");
-                                  try {
-                                    const at = new Date(
-                                      `${checkoutDate}T${checkoutTime}`,
+                                disabled={checkoutBlockedByIncompleteFnB}
+                                onClick={() => {
+                                  if (checkoutBlockedByIncompleteFnB) {
+                                    toast.error(
+                                      "Complete all food & drink orders before checkout",
                                     );
-                                    if (Number.isNaN(at.getTime())) {
-                                      notifyApiFailure(
-                                        new Error(
-                                          "Invalid checkout date or time",
-                                        ),
-                                        "Checkout failed",
-                                      );
-                                      return;
-                                    }
-                                    const updated =
-                                      await checkoutLodgingStayApi(
-                                        selectedStay.id,
-                                        at.toISOString(),
-                                      );
-                                    const receipt =
-                                      updated.bill?.receiptNumber ||
-                                      updated.voucherCode;
-                                    window.print();
-                                    void receipt;
-                                    setSelectedStayId(null);
-                                    await load(true);
-                                  } catch (e) {
-                                    notifyApiFailure(e, "Checkout failed");
-                                  } finally {
-                                    setPending(null);
+                                    return;
                                   }
+                                  setCheckoutPaymentOpen(true);
                                 }}
                               >
                                 Checkout & print receipt
                               </PendingButton>
                             </div>
                           </div>
-
-                          {selectedStay.bill?.receiptNumber ||
-                          selectedStay.bill ? (
-                            <div className="print:block hidden print:p-6">
-                              <h1 className="text-xl font-bold">
-                                Stay receipt
-                              </h1>
-                              <p>
-                                {guestName(selectedStay.guest)} ·{" "}
-                                {selectedStay.voucherCode}
-                              </p>
-                              <p>
-                                Receipt:{" "}
-                                {selectedStay.bill?.receiptNumber || "—"}
-                              </p>
-                              <p>
-                                Total:{" "}
-                                {formatMoney(selectedStay.bill?.totalETB ?? 0)}
-                              </p>
-                            </div>
-                          ) : null}
                         </CardContent>
                       </Card>
                     </div>
@@ -1093,6 +1210,7 @@ export function ReceptionDashboard() {
                   stays={stays}
                   menuItems={scopedCafeMenuItems}
                   hotelName={tenantScope || ""}
+                  cafeOrders={liveCafeOrders}
                   onRefresh={async () => {
                     await load(true);
                   }}
@@ -1146,6 +1264,112 @@ export function ReceptionDashboard() {
             </div>
           </main>
         </div>
+        </div>
+
+        {selectedStayForCheckout ? (
+          <ReceptionCheckoutPaymentDialog
+            open={checkoutPaymentOpen}
+            onOpenChange={setCheckoutPaymentOpen}
+            stay={selectedStayForCheckout}
+            pending={pending === "checkout"}
+            onConfirm={async (payment) => {
+              setPending("checkout");
+              try {
+                const at = new Date();
+
+                // Prefer bank/cash channels from checkout dialog; checkout API
+                // also marks any remaining room-service café lines Paid.
+                // Include tickets linked by #co: on this stay's bill (transfers/splits).
+                try {
+                  const tableNo = roomServiceTableNo(selectedStay!.id);
+                  const orderIdsFromBill = new Set(
+                    selectedStayActiveLines
+                      .filter((l) => String(l.kind) === "food_drink")
+                      .map((l) => cafeOrderIdFromBillDescription(l.description))
+                      .filter((id): id is number => id != null && id > 0),
+                  );
+                  const roomOrders = liveCafeOrders.filter((o) => {
+                    if (String(o.payment || "").toLowerCase() === "paid") {
+                      return false;
+                    }
+                    if (String(o.status || "").toLowerCase() === "cancelled") {
+                      return false;
+                    }
+                    if (orderIdsFromBill.has(o.id)) return true;
+                    return Math.floor(Number(o.tableNo)) === tableNo;
+                  });
+                  for (const order of roomOrders) {
+                    const lineMatch =
+                      payment.mode === "order"
+                        ? selectedStayActiveLines.find((l) => {
+                            if (String(l.kind) !== "food_drink") return false;
+                            const oid = cafeOrderIdFromBillDescription(
+                              l.description,
+                            );
+                            if (oid === order.id) return true;
+                            return stripCafeOrderMarker(l.description)
+                              .toLowerCase()
+                              .includes(
+                                String(order.title || "").toLowerCase(),
+                              );
+                          })
+                        : null;
+                    const useBank =
+                      payment.mode === "order"
+                        ? (lineMatch
+                            ? payment.lineChannels[lineMatch.id] === "bank"
+                            : payment.bankETB >= payment.cashETB)
+                        : payment.bankETB > 0 &&
+                          (payment.cashETB <= 0 ||
+                            payment.bankETB >= payment.cashETB);
+                    await updateOrderPayment(order.id, "Paid", useBank, {
+                      silent: true,
+                    });
+                  }
+                } catch (e) {
+                  console.warn(
+                    "[reception] Room-service café settle before checkout:",
+                    e,
+                  );
+                }
+
+                const updated = await checkoutLodgingStayApi(
+                  selectedStay!.id,
+                  at.toISOString(),
+                );
+                setPrintPayment({
+                  cashETB: payment.cashETB,
+                  bankETB: payment.bankETB,
+                });
+                setPrintStay(updated);
+                setCheckoutPaymentOpen(false);
+                setSelectedStayId(null);
+                await load(true);
+              } catch (e) {
+                notifyApiFailure(e, "Checkout failed");
+              } finally {
+                setPending(null);
+              }
+            }}
+          />
+        ) : null}
+
+        {printStay ? (
+          <div
+            aria-hidden
+            className="pointer-events-none fixed left-[-10000px] top-0 h-0 w-0 overflow-hidden opacity-0 print:pointer-events-auto print:static print:left-auto print:top-auto print:h-auto print:w-auto print:overflow-visible print:opacity-100"
+          >
+            <div
+              ref={departurePrintRef}
+              className="lodging-departure-print-root"
+            >
+              <LodgingStayDepartureReceipt
+                stay={printStay}
+                payment={printPayment}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
       <Toaster position="top-right" richColors />
     </SidebarProvider>

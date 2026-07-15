@@ -38,6 +38,10 @@ export type LodgingGuest = {
   country: string;
   stateRegion: string;
   addressLine: string;
+  /** Latest stay arrival (check-in). */
+  lastCheckedInAt?: string | null;
+  /** Latest completed stay departure (check-out). */
+  lastCheckedOutAt?: string | null;
 };
 
 export type LodgingBillLine = {
@@ -267,6 +271,8 @@ const GUEST_FIELDS = `
   country
   stateRegion
   addressLine
+  lastCheckedInAt
+  lastCheckedOutAt
 `;
 
 const STAY_FIELDS = `
@@ -941,6 +947,7 @@ export async function updateLodgingBillLineApi(input: {
 export async function deleteLodgingBillLineApi(input: {
   lineId: number;
   stayId: number;
+  silent?: boolean;
 }): Promise<LodgingStay> {
   const mutation = `
     mutation DeleteLodgingBillLine($lineId: Int!) {
@@ -953,7 +960,7 @@ export async function deleteLodgingBillLineApi(input: {
   });
   gqlError(response, "Could not remove bill line");
   invalidateLodgingCaches(["stays", "logs"]);
-  toast.success("Line removed");
+  if (!input.silent) toast.success("Line removed");
   return refetchStayForUi(input.stayId);
 }
 
@@ -1177,7 +1184,16 @@ export async function completeLodgingCmAssignmentApi(
   `;
   const response = await api.post(API_URL, { query: mutation, variables: { id } });
   gqlError(response, "Could not complete assignment");
+  // Drop CM queue/assignments/rooms/stats so vacant_clean shows without a hard refresh.
   invalidateLodgingCaches(["cm", "rooms", "stats", "logs"]);
-  toast.success("Assignment completed");
-  return response.data.data.completeLodgingCmAssignment as LodgingCmAssignment;
+  const row = response.data.data
+    .completeLodgingCmAssignment as LodgingCmAssignment;
+  const cleared =
+    String(row?.room?.status || "").toLowerCase() === "vacant_clean";
+  toast.success(
+    cleared
+      ? `Done — room ${row.room?.roomNumber ?? ""} is vacant clean`
+      : "Assignment completed",
+  );
+  return row;
 }

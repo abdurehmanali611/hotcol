@@ -177,9 +177,23 @@
 }
 
 @media print {
+  .reception-screen {
+    display: none !important;
+  }
+
+  .lodging-departure-print-root {
+    display: block !important;
+  }
+
+  .lodging-departure-receipt {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Prefer blank/minimal headers so the Reception app URL is not stamped */
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 10mm;
   }
 
   .corporate-meal-agreement {

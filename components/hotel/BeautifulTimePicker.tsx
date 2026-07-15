@@ -35,10 +35,10 @@ function from12h(hour12: number, period: "AM" | "PM"): number {
 }
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
-const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 
 /**
- * Polished arrival/departure time control — 12h hour chips, 5-min steps, AM/PM.
+ * Polished time control — 12h hour chips, minute chips, AM/PM.
+ * Default minute step is 1 minute.
  */
 export function BeautifulTimePicker({
   label = "Time",
@@ -46,6 +46,7 @@ export function BeautifulTimePicker({
   onChange,
   className,
   compact = false,
+  minuteStep = 1,
 }: {
   label?: string;
   /** "HH:mm" 24-hour */
@@ -54,10 +55,17 @@ export function BeautifulTimePicker({
   className?: string;
   /** Tighter layout for panels (e.g. active-stay checkout). */
   compact?: boolean;
+  /** Minute increment (1–30). Defaults to 1. */
+  minuteStep?: number;
 }) {
+  const step = Math.min(30, Math.max(1, Math.floor(minuteStep) || 1));
+  const minutes = Array.from(
+    { length: Math.floor(60 / step) },
+    (_, i) => i * step,
+  );
   const { hour24, minute } = parseHm(value);
-  const snappedMinute = Math.round(minute / 5) * 5;
-  const minuteSafe = snappedMinute >= 60 ? 55 : snappedMinute;
+  const snappedMinute = Math.round(minute / step) * step;
+  const minuteSafe = snappedMinute >= 60 ? minutes[minutes.length - 1]! : snappedMinute;
   const { hour12, period } = to12h(hour24);
 
   const setHour12 = (h: number) => {
@@ -71,6 +79,7 @@ export function BeautifulTimePicker({
   };
 
   const chipH = compact ? "h-8 text-xs" : "h-9 text-sm";
+  const minuteCols = step === 1 ? "grid-cols-10" : "grid-cols-6";
 
   return (
     <div
@@ -150,15 +159,21 @@ export function BeautifulTimePicker({
           <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             Minute
           </p>
-          <div className="grid grid-cols-6 gap-1.5">
-            {MINUTES.map((m) => (
+          <div
+            className={cn(
+              "grid gap-1.5",
+              minuteCols,
+              step === 1 && "max-h-40 overflow-y-auto pr-0.5",
+            )}
+          >
+            {minutes.map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMinute(m)}
                 className={cn(
                   "rounded-lg font-medium tabular-nums transition-all",
-                  chipH,
+                  step === 1 ? "h-7 text-[11px]" : chipH,
                   minuteSafe === m
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
                     : "bg-muted/50 text-foreground hover:bg-muted",

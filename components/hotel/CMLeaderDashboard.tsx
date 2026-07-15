@@ -40,9 +40,9 @@ import { CM_LEADER_NAV_ITEMS, type CmLeaderNavId } from "@/constants";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { logoutAction, notifyApiFailure } from "@/lib/actions";
-import { cn } from "@/lib/utils";
 import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
+import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
 import {
   completeLodgingCmAssignmentApi,
   fetchLodgingActionLogs,
@@ -218,55 +218,11 @@ export function CMLeaderDashboard() {
 
               {activeSection === "dashboard" && (
                 <div className="space-y-6">
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {[
-                      {
-                        label: "Vacant dirty",
-                        value: stats?.vacantDirty ?? 0,
-                        className: "border-amber-500/20 to-amber-500/5",
-                      },
-                      {
-                        label: "On maintenance",
-                        value: stats?.onMaintenance ?? 0,
-                        className: "border-rose-500/20 to-rose-500/5",
-                      },
-                      {
-                        label: "Vacant clean",
-                        value: stats?.vacantClean ?? 0,
-                        className: "border-emerald-500/20 to-emerald-500/5",
-                      },
-                      {
-                        label: "Occupied",
-                        value: stats?.occupied ?? 0,
-                        className: "border-sky-500/20 to-sky-500/5",
-                      },
-                      {
-                        label: "Open assignments",
-                        value: stats?.openCmAssignments ?? 0,
-                        className: "border-primary/20 to-primary/5",
-                      },
-                      {
-                        label: "Active stays",
-                        value: stats?.activeStays ?? 0,
-                        className: "border-border/80 to-muted/30",
-                      },
-                    ].map((c) => (
-                      <Card
-                        key={c.label}
-                        className={cn(
-                          "border bg-linear-to-br from-card shadow-md overflow-hidden",
-                          c.className,
-                        )}
-                      >
-                        <CardHeader className="pb-2 pt-4">
-                          <CardDescription>{c.label}</CardDescription>
-                          <CardTitle className="text-3xl tabular-nums tracking-tight">
-                            {c.value}
-                          </CardTitle>
-                        </CardHeader>
-                      </Card>
-                    ))}
-                  </div>
+                                    <LodgingStatCardsGrid
+                    stats={stats}
+                    includeActiveStays
+                    openCmLabel="Open assignments"
+                  />
                   <Card className="border-border/80 shadow-md bg-card/95">
                     <CardHeader>
                       <CardTitle className="text-lg">Recent activity</CardTitle>

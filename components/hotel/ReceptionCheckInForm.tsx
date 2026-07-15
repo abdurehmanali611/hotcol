@@ -24,8 +24,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PhoneInput } from "@/components/phone-input";
-import { BeautifulTimePicker } from "@/components/hotel/BeautifulTimePicker";
-import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { WORLD_COUNTRIES, statesForCountry } from "@/lib/countryStates";
 import { LODGING_ROOM_TYPES } from "@/constants/lodgingRooms";
@@ -96,21 +94,12 @@ const emptyGuest = (): GuestDraft => ({
   stateRegion: statesForCountry("Ethiopia")[0] || "Addis Ababa",
 });
 
-function todayYmd() {
-  const d = new Date();
+function todayYmd(d = new Date()) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function nowHm() {
-  const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(Math.floor(d.getMinutes() / 5) * 5)}`;
-}
-
-function addNightsPreview(arrivalDate: string, nights: number) {
-  const d = new Date(`${arrivalDate}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  d.setDate(d.getDate() + Math.max(1, nights));
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+function nowHm(d = new Date()) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 function formatMoney(n: number) {
@@ -137,17 +126,11 @@ export function ReceptionCheckInForm({
   ]);
   const [arrivalDate, setArrivalDate] = useState(todayYmd);
   const [arrivalTime, setArrivalTime] = useState(nowHm);
-  const [nights, setNights] = useState(1);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [stayNotes, setStayNotes] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [searchedEmpty, setSearchedEmpty] = useState(false);
-
-  const departurePreview = useMemo(
-    () => addNightsPreview(arrivalDate, nights),
-    [arrivalDate, nights],
-  );
 
   const selectedRoomIds = useMemo(
     () =>
@@ -163,13 +146,13 @@ export function ReceptionCheckInForm({
       .filter(Boolean) as LodgingRoom[];
   }, [selectedRoomIds, vacantCleanRooms]);
 
-  const nightlyTotal = useMemo(
+  const nightlyRate = useMemo(
     () =>
       assignedRoomsMeta.reduce(
         (sum, r) => sum + Number(r.pricePerNightETB || 0),
         0,
-      ) * Math.max(1, nights),
-    [assignedRoomsMeta, nights],
+      ),
+    [assignedRoomsMeta],
   );
 
   const canSubmit =
@@ -235,7 +218,12 @@ export function ReceptionCheckInForm({
       toast.error("Each room can only be assigned once");
       return;
     }
-    const arrival = new Date(`${arrivalDate}T${arrivalTime}`);
+    const now = new Date();
+    const liveArrivalDate = todayYmd(now);
+    const liveArrivalTime = nowHm(now);
+    setArrivalDate(liveArrivalDate);
+    setArrivalTime(liveArrivalTime);
+    const arrival = new Date(`${liveArrivalDate}T${liveArrivalTime}`);
     if (Number.isNaN(arrival.getTime())) {
       toast.error("Invalid arrival date or time");
       return;
@@ -260,7 +248,7 @@ export function ReceptionCheckInForm({
           addressLine: "",
         },
         arrivalAt: arrival.toISOString(),
-        nights: Math.max(1, nights),
+        nights: 1,
         adults: Math.max(1, adults),
         children: Math.max(0, children),
         preferredRoomType: roomAssignments[0]?.roomType || LODGING_ROOM_TYPES[0],
@@ -273,7 +261,6 @@ export function ReceptionCheckInForm({
       setGuestHits([]);
       setRoomAssignments([emptyAssign()]);
       setStayNotes("");
-      setNights(1);
       setAdults(1);
       setChildren(0);
       setSearchedEmpty(false);
@@ -623,49 +610,51 @@ export function ReceptionCheckInForm({
           {/* Stay timing */}
           <HotelFormSection
             title="Stay window"
-            description="Arrival date and time, nights, and party size. Departure is calculated automatically."
+            description="Arrival is filled automatically at check-in. Nights are calculated at checkout from arrival and departure dates. Departure is set automatically when you check out."
           >
             <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch">
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <CalendarDays className="h-3.5 w-3.5" />
-                  Arrival
+                  Arrival (auto)
                 </div>
-                <HotelDayPicker
-                  label="Date"
-                  value={arrivalDate}
-                  onChange={setArrivalDate}
-                />
-                <BeautifulTimePicker
-                  label="Time"
-                  value={arrivalTime}
-                  onChange={setArrivalTime}
-                />
+                <div className="space-y-1.5">
+                  <Label>Date</Label>
+                  <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                    {arrivalDate}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Time</Label>
+                  <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                    {arrivalTime}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => {
+                    const now = new Date();
+                    setArrivalDate(todayYmd(now));
+                    setArrivalTime(nowHm(now));
+                  }}
+                >
+                  Refresh to current time
+                </Button>
               </div>
 
               <div className="flex h-full min-h-0 flex-col gap-4">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <Users className="h-3.5 w-3.5" />
-                  Length & party
+                  Nights & party
                 </div>
                 <div className="grid grid-cols-2 gap-3 shrink-0">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ci-nights">Nights</Label>
-                    <Input
-                      id="ci-nights"
-                      type="number"
-                      min={1}
-                      className="h-10 tabular-nums"
-                      value={nights}
-                      onChange={(e) =>
-                        setNights(Math.max(1, Number(e.target.value) || 1))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Departure</Label>
-                    <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
-                      {departurePreview || "—"}
+                  <div className="space-y-1.5 col-span-2">
+                    <Label>Nights</Label>
+                    <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm text-muted-foreground">
+                      Auto — departure date minus arrival date at checkout
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -851,11 +840,11 @@ export function ReceptionCheckInForm({
                 {selectedRoomIds.length > 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {selectedRoomIds.length} room
-                    {selectedRoomIds.length === 1 ? "" : "s"} · est.{" "}
+                    {selectedRoomIds.length === 1 ? "" : "s"} ·{" "}
                     <span className="font-medium tabular-nums text-foreground">
-                      {formatMoney(nightlyTotal)}
-                    </span>{" "}
-                    for {nights} night{nights === 1 ? "" : "s"}
+                      {formatMoney(nightlyRate)}
+                    </span>
+                    /night · nights finalized at checkout
                   </p>
                 ) : null}
               </div>

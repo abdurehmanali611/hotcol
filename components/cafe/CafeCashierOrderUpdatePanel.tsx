@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -75,6 +75,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isRoomServiceTableNo } from "@/lib/lodgingRoomService";
 
 interface Props {
   orders: Order[];
@@ -87,6 +88,26 @@ interface Props {
   restrictTableNo?: number;
   /** Compact layout without page-level search chrome. */
   embedded?: boolean;
+  /** When set, only these table numbers (e.g. room-service stay tables). */
+  restrictTableNos?: number[];
+  /** Captions preferred over café table registry (e.g. "Rm 12 · Guest"). */
+  tableCaptionOverrides?: Record<number, string>;
+  /** Labeling for room-service lodging UI. */
+  groupingNoun?: "table" | "room";
+  /** Replaces café Add-items dialog (e.g. Reception room order section). */
+  customAddItems?: ReactNode;
+  /**
+   * When set, treat lines as lodging bill rows (ids = bill line ids):
+   * updates/removes go through these handlers instead of café live-order APIs.
+   */
+  lodgingLineHandlers?: {
+    onUpdate: (input: {
+      id: number;
+      orderAmount: number;
+      title: string;
+    }) => Promise<void>;
+    onRemove: (id: number) => Promise<void>;
+  };
 }
 
 type AddItemsTarget = { tableNo: number; waiterName: string };
@@ -150,7 +171,14 @@ export function CafeCashierOrderUpdatePanel({
   focusOrderId = null,
   restrictTableNo,
   embedded = false,
+  restrictTableNos,
+  tableCaptionOverrides,
+  groupingNoun = "table",
+  customAddItems,
+  lodgingLineHandlers,
 }: Props) {
+  const isRoomScope = groupingNoun === "room";
+  const useLodgingHandlers = Boolean(lodgingLineHandlers);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
   const [waiters, setWaiters] = useState<Waiter[]>([]);
@@ -165,39 +193,121 @@ export function CafeCashierOrderUpdatePanel({
   const editableOrders = useMemo(
     () =>
       [...orders]
-        .filter((o) => isLiveOrderEditable(o, hotelName))
+        .filter((o) =>
+          useLodgingHandlers
+            ? rowHotelMatchesTenantScope(o.HotelName, hotelName) &&
+              String(o.payment || "").toLowerCase() !== "paid" &&
+              String(o.status || "").toLowerCase() !== "cancelled"
+            : isLiveOrderEditable(o, hotelName),
+        )
         .filter(
           (o) =>
             restrictTableNo == null ||
             normalizeOrderTableNo(o) === restrictTableNo,
         )
+        .filter((o) => {
+          if (restrictTableNos == null) return true;
+          if (restrictTableNos.length === 0) return false;
+          return restrictTableNos.includes(normalizeOrderTableNo(o));
+        })
         .sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         ),
-    [orders, hotelName, restrictTableNo],
+    [
+      orders,
+      hotelName,
+      restrictTableNo,
+      restrictTableNos,
+      useLodgingHandlers,
+    ],
   );
 
   const openTableGroups = useMemo(() => {
-    const groups = groupCafeOrderUpdateTables(orders, hotelName);
-    if (restrictTableNo == null) return groups;
-    return groups.filter((g) => g.tableNo === restrictTableNo);
-  }, [orders, hotelName, restrictTableNo]);
+    if (useLodgingHandlers) {
+      const byTable = new Map<number, Order[]>();
+      for (const o of editableOrders) {
+        const key = normalizeOrderTableNo(o);
+        const list = byTable.get(key);
+        if (list) list.push(o);
+        else byTable.set(key, [o]);
+      }
+      let groups = [...byTable.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([tableNo, tableOrders]) => {
+          const sorted = [...tableOrders].sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          );
+          return {
+            tableNo,
+            pendingOrders: sorted,
+            waiterName:
+              String(sorted[0]?.waiterName ?? "").trim() || "Reception",
+            serviceCaption:
+              sorted.find((o) => String(o.serviceCaption ?? "").trim())
+                ?.serviceCaption ?? null,
+          };
+        });
+      if (restrictTableNo != null) {
+        groups = groups.filter((g) => g.tableNo === restrictTableNo);
+      }
+      if (restrictTableNos != null) {
+        if (restrictTableNos.length === 0) return [];
+        const allowed = new Set(restrictTableNos);
+        groups = groups.filter((g) => allowed.has(g.tableNo));
+      }
+      return groups;
+    }
+    let groups = groupCafeOrderUpdateTables(orders, hotelName);
+    if (restrictTableNo != null) {
+      groups = groups.filter((g) => g.tableNo === restrictTableNo);
+    }
+    if (restrictTableNos != null) {
+      if (restrictTableNos.length === 0) return [];
+      const allowed = new Set(restrictTableNos);
+      groups = groups.filter((g) => allowed.has(g.tableNo));
+    }
+    return groups;
+  }, [
+    orders,
+    hotelName,
+    restrictTableNo,
+    restrictTableNos,
+    useLodgingHandlers,
+    editableOrders,
+  ]);
+
+  const resolveTableDisplay = (
+    tableNo: number,
+    serviceCaption?: string | null,
+  ) => {
+    const override = tableCaptionOverrides?.[Math.floor(Number(tableNo))];
+    if (override) return override;
+    return formatCafeTableDisplayFromRegistry(
+      tableNo,
+      tables,
+      serviceCaption,
+    );
+  };
 
   const filteredTableGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return openTableGroups;
     return openTableGroups.filter((group) => {
-      const tableLabel = formatCafeTableDisplayFromRegistry(
+      const tableLabel = resolveTableDisplay(
         group.tableNo,
-        tables,
         group.serviceCaption,
       );
-      const openOnTable = orders.filter(
-        (o) =>
-          isOpenCafeOrder(o, hotelName) &&
-          normalizeOrderTableNo(o) === group.tableNo,
-      );
+      const openOnTable = useLodgingHandlers
+        ? editableOrders.filter(
+            (o) => normalizeOrderTableNo(o) === group.tableNo,
+          )
+        : orders.filter(
+            (o) =>
+              isOpenCafeOrder(o, hotelName) &&
+              normalizeOrderTableNo(o) === group.tableNo,
+          );
       const haystack = [
         tableLabel,
         group.waiterName,
@@ -206,8 +316,7 @@ export function CafeCashierOrderUpdatePanel({
         ...openOnTable.flatMap((order) => [
           order.title,
           order.waiterName,
-          orderStationLabel(order),
-          order.status,
+          order.serviceCaption,
         ]),
       ]
         .filter(Boolean)
@@ -215,14 +324,25 @@ export function CafeCashierOrderUpdatePanel({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [openTableGroups, searchQuery, tables, orders, hotelName]);
+  }, [
+    openTableGroups,
+    searchQuery,
+    tables,
+    orders,
+    hotelName,
+    tableCaptionOverrides,
+    useLodgingHandlers,
+    editableOrders,
+  ]);
 
   const openTotal = useMemo(
     () =>
-      sumOrderLinesETB(
-        orders.filter((o) => isOpenCafeOrder(o, hotelName)),
-      ),
-    [orders, hotelName],
+      useLodgingHandlers
+        ? sumOrderLinesETB(editableOrders)
+        : sumOrderLinesETB(
+            orders.filter((o) => isOpenCafeOrder(o, hotelName)),
+          ),
+    [orders, hotelName, useLodgingHandlers, editableOrders],
   );
 
   const selectedOrder =
@@ -257,7 +377,14 @@ export function CafeCashierOrderUpdatePanel({
   }, [selectedOrder?.id, form]);
 
   useEffect(() => {
+    if (customAddItems && openTableGroups.length === 0) {
+      setSideTab("add");
+    }
+  }, [customAddItems, openTableGroups.length]);
+
+  useEffect(() => {
     if (!hotelName) return;
+    if (useLodgingHandlers) return;
     Promise.all([fetchTables(), fetchWaiters()])
       .then(([t, w]) => {
         setTables(
@@ -268,7 +395,7 @@ export function CafeCashierOrderUpdatePanel({
         );
       })
       .catch(() => toast.error("Failed to load tables or waiters"));
-  }, [hotelName]);
+  }, [hotelName, useLodgingHandlers]);
 
   useEffect(() => {
     if (
@@ -291,8 +418,30 @@ export function CafeCashierOrderUpdatePanel({
 
   const tableOptions = useMemo(() => {
     if (selectedTableNo == null) return [];
+    if (isRoomScope) {
+      const nos =
+        restrictTableNos && restrictTableNos.length > 0
+          ? restrictTableNos
+          : [selectedTableNo];
+      return nos.map((n) => ({
+        id: n,
+        name:
+          tableCaptionOverrides?.[n] ||
+          (isRoomServiceTableNo(n)
+            ? `Room service · stay ${n - 900_000}`
+            : `Table ${n}`),
+        realValue: n,
+      }));
+    }
     return buildEditTableSelectOptions(tables, occupied, selectedTableNo);
-  }, [tables, occupied, selectedTableNo]);
+  }, [
+    tables,
+    occupied,
+    selectedTableNo,
+    isRoomScope,
+    restrictTableNos,
+    tableCaptionOverrides,
+  ]);
 
   const waiterOptions = useMemo(() => {
     const base = waiters.map((w) => ({ id: w.id, name: w.name }));
@@ -312,6 +461,10 @@ export function CafeCashierOrderUpdatePanel({
   };
 
   const openAddItems = (tableNo: number, waiterName: string) => {
+    if (customAddItems) {
+      setSideTab("add");
+      return;
+    }
     setAddItemsTarget({ tableNo, waiterName });
   };
 
@@ -330,24 +483,42 @@ export function CafeCashierOrderUpdatePanel({
     setSaving(true);
     try {
       const prevQty = Math.max(1, Number(selectedOrder.orderAmount) || 1);
-      await updateLiveOrder(
-        {
+      if (lodgingLineHandlers) {
+        await lodgingLineHandlers.onUpdate({
           id: values.id,
-          tableNo: values.tableNo,
-          waiterName: values.waiterName,
           orderAmount: values.orderAmount,
           title: values.title,
-        },
-        {
-          successMessage:
-            values.orderAmount !== prevQty
-              ? "Order updated — kitchen/bar will see the new quantity"
-              : "Order updated successfully",
-        },
-      );
+        });
+        toast.success(
+          values.orderAmount !== prevQty
+            ? "Line updated"
+            : "Order updated successfully",
+        );
+      } else {
+        await updateLiveOrder(
+          {
+            id: values.id,
+            tableNo: values.tableNo,
+            waiterName: values.waiterName,
+            orderAmount: values.orderAmount,
+            title: values.title,
+          },
+          {
+            successMessage:
+              values.orderAmount !== prevQty
+                ? "Order updated — kitchen/bar will see the new quantity"
+                : "Order updated successfully",
+          },
+        );
+      }
       await onRefresh();
-    } catch {
-      /* toast in action */
+    } catch (e) {
+      if (lodgingLineHandlers) {
+        toast.error(
+          e instanceof Error ? e.message : "Could not update line",
+        );
+      }
+      /* café update toasts in action */
     } finally {
       setSaving(false);
     }
@@ -356,17 +527,27 @@ export function CafeCashierOrderUpdatePanel({
   const handleRemove = async (orderId: number) => {
     setRemovingId(orderId);
     try {
-      await cancelLiveOrder(orderId);
+      if (lodgingLineHandlers) {
+        await lodgingLineHandlers.onRemove(orderId);
+        toast.success("Line removed");
+      } else {
+        await cancelLiveOrder(orderId);
+      }
       if (selectedId === orderId) setSelectedId(null);
       await onRefresh();
-    } catch {
-      /* toast in action */
+    } catch (e) {
+      if (lodgingLineHandlers) {
+        toast.error(
+          e instanceof Error ? e.message : "Could not remove line",
+        );
+      }
+      /* café cancel toasts in action */
     } finally {
       setRemovingId(null);
     }
   };
 
-  if (openTableGroups.length === 0) {
+  if (openTableGroups.length === 0 && !customAddItems) {
     return (
       <div
         className={cn(
@@ -376,12 +557,20 @@ export function CafeCashierOrderUpdatePanel({
       >
         <ClipboardEdit className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
         <h3 className="mb-1 text-base font-semibold">
-          {restrictTableNo != null ? "No pending tickets" : "No open tables"}
+          {restrictTableNo != null
+            ? "No pending tickets"
+            : isRoomScope
+              ? "No open room orders"
+              : "No open tables"}
         </h3>
         <p className="mx-auto max-w-md text-sm text-muted-foreground">
           {restrictTableNo != null
-            ? "This table is ready. Use By order or By amount to take payment."
-            : "Unpaid tables with pending tickets will show up here."}
+            ? isRoomScope
+              ? "This room stay has no pending lines to edit."
+              : "This table is ready. Use By order or By amount to take payment."
+            : isRoomScope
+              ? "Pending room service lines on active stays will show up here."
+              : "Unpaid tables with pending tickets will show up here."}
         </p>
       </div>
     );
@@ -397,9 +586,8 @@ export function CafeCashierOrderUpdatePanel({
       : 0;
   const embeddedDisplay =
     embedded && restrictTableNo != null
-      ? formatCafeTableDisplayFromRegistry(
+      ? resolveTableDisplay(
           restrictTableNo,
-          tables,
           embeddedGroup?.serviceCaption,
         )
       : "";
@@ -708,7 +896,11 @@ export function CafeCashierOrderUpdatePanel({
           <div className="relative w-full lg:w-72">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search table, item, waiter…"
+              placeholder={
+                isRoomScope
+                  ? "Search room, item, waiter…"
+                  : "Search table, item, waiter…"
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-9"
@@ -738,7 +930,7 @@ export function CafeCashierOrderUpdatePanel({
           </div>
           <div className="rounded-xl border bg-card px-3 py-2.5 shadow-sm">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Tables
+              {isRoomScope ? "Rooms" : "Tables"}
             </p>
             <p className="mt-0.5 text-lg font-bold tabular-nums">
               {openTableGroups.length}
@@ -756,20 +948,56 @@ export function CafeCashierOrderUpdatePanel({
         </div>
 
         <p className="rounded-lg border border-dashed bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          Expand a table to edit pending lines or add new menu items. Completed
-          tickets stay hidden here — use Payment when the table is ready to pay.
+          Expand a {isRoomScope ? "room" : "table"} to edit pending lines or add
+          new items. Completed tickets stay hidden here
+          {isRoomScope
+            ? " — checkout the stay when everything is ready."
+            : " — use Payment when the table is ready to pay."}
         </p>
           </>
         ) : null}
 
+        {customAddItems ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs
+              value={sideTab}
+              onValueChange={(v) => setSideTab(v as "edit" | "add")}
+            >
+              <TabsList className="h-10">
+                <TabsTrigger value="edit" className="px-4 text-sm">
+                  Update lines
+                </TabsTrigger>
+                <TabsTrigger value="add" className="px-4 text-sm">
+                  Add items
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        ) : null}
+
+        {customAddItems && sideTab === "add" ? (
+          <div className="min-h-[420px] rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+            {customAddItems}
+          </div>
+        ) : (
         <div className="grid h-[min(calc(100dvh-14rem),700px)] min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,440px)]">
           <div className="min-h-0 overflow-y-auto overscroll-y-contain rounded-xl border bg-muted/15 p-2 pr-1">
             <div className="space-y-3 pb-1">
               {filteredTableGroups.length === 0 ? (
                 <Card className="border-dashed py-10 text-center">
-                  <p className="text-sm font-medium">No matches</p>
+                  <p className="text-sm font-medium">
+                    {searchQuery
+                      ? "No matches"
+                      : isRoomScope
+                        ? "No open room lines"
+                        : "No open tables"}
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Try a different search term.
+                    {searchQuery
+                      ? "Try a different search term."
+                      : customAddItems
+                        ? "Use Add items above to place the first charge."
+                        : "Pending tickets will show up here."}
                   </p>
                   {searchQuery ? (
                     <Button
@@ -785,9 +1013,8 @@ export function CafeCashierOrderUpdatePanel({
                 </Card>
               ) : (
                 filteredTableGroups.map(({ tableNo, pendingOrders, waiterName, serviceCaption }) => {
-                  const tableDisplay = formatCafeTableDisplayFromRegistry(
+                  const tableDisplay = resolveTableDisplay(
                     tableNo,
-                    tables,
                     serviceCaption,
                   );
                   const tableTotal = sumOpenTableOrdersETB(
@@ -1005,9 +1232,8 @@ export function CafeCashierOrderUpdatePanel({
               {selectedOrder ? (
                 <p className="truncate text-xs text-muted-foreground">
                   {selectedOrder.title} ·{" "}
-                  {formatCafeTableDisplayFromRegistry(
+                  {resolveTableDisplay(
                     normalizeOrderTableNo(selectedOrder),
-                    tables,
                     selectedOrder.serviceCaption,
                   )}
                 </p>
@@ -1019,18 +1245,25 @@ export function CafeCashierOrderUpdatePanel({
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col gap-0 p-0">
               <Tabs
-                value={sideTab}
+                value={customAddItems ? "edit" : sideTab}
                 onValueChange={(v) => setSideTab(v as "edit" | "add")}
                 className="flex min-h-0 flex-1 flex-col gap-0"
               >
                 <div className="shrink-0 border-b bg-background px-4 py-3">
-                  <TabsList className="grid h-10 w-full grid-cols-2">
+                  <TabsList
+                    className={cn(
+                      "grid h-10 w-full",
+                      customAddItems ? "grid-cols-1" : "grid-cols-2",
+                    )}
+                  >
                     <TabsTrigger value="edit" className="text-xs sm:text-sm">
                       Edit line
                     </TabsTrigger>
-                    <TabsTrigger value="add" className="text-xs sm:text-sm">
-                      Add items
-                    </TabsTrigger>
+                    {!customAddItems ? (
+                      <TabsTrigger value="add" className="text-xs sm:text-sm">
+                        Add items
+                      </TabsTrigger>
+                    ) : null}
                   </TabsList>
                 </div>
 
@@ -1045,8 +1278,11 @@ export function CafeCashierOrderUpdatePanel({
                         <MousePointerClick className="mb-3 h-10 w-10 text-muted-foreground/40" />
                         <p className="text-sm font-medium">Select a line</p>
                         <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
-                          Expand a table on the left and tap an order to edit
-                          table, waiter, quantity, or name.
+                          Expand a {isRoomScope ? "room" : "table"} on the left
+                          and tap an order to edit
+                          {useLodgingHandlers
+                            ? " quantity."
+                            : " table, waiter, quantity, or name."}
                         </p>
                       </div>
                     ) : (
@@ -1070,9 +1306,8 @@ export function CafeCashierOrderUpdatePanel({
                                 {selectedOrder.title}
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                {formatCafeTableDisplayFromRegistry(
+                                {resolveTableDisplay(
                                   normalizeOrderTableNo(selectedOrder),
-                                  tables,
                                   selectedOrder.serviceCaption,
                                 )}{" "}
                                 · {selectedOrder.waiterName}
@@ -1083,7 +1318,9 @@ export function CafeCashierOrderUpdatePanel({
                                     selectedOrder.status || "Pending"
                                   }
                                 />
-                                <StationBadge order={selectedOrder} />
+                                {!useLodgingHandlers ? (
+                                  <StationBadge order={selectedOrder} />
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -1123,27 +1360,35 @@ export function CafeCashierOrderUpdatePanel({
                                 inputClassName="h-12 w-full text-base"
                               />
                             </div>
-                            <CustomFormField
-                              control={form.control}
-                              name="tableNo"
-                              fieldType={formFieldTypes.SELECT}
-                              label="Table"
-                              placeholder="Select table"
-                              listdisplay={tableOptions}
-                              isNumeric
-                              formItemClassName="w-full"
-                              inputClassName="h-fit w-full min-w-0 text-base"
-                            />
-                            <CustomFormField
-                              control={form.control}
-                              name="waiterName"
-                              fieldType={formFieldTypes.SELECT}
-                              label="Waiter"
-                              placeholder="Select waiter"
-                              listdisplay={waiterOptions}
-                              formItemClassName="w-full"
-                              inputClassName="h-fit w-full min-w-0 text-base"
-                            />
+                            {!useLodgingHandlers ? (
+                              <>
+                                <CustomFormField
+                                  control={form.control}
+                                  name="tableNo"
+                                  fieldType={formFieldTypes.SELECT}
+                                  label={isRoomScope ? "Room" : "Table"}
+                                  placeholder={
+                                    isRoomScope
+                                      ? "Select room"
+                                      : "Select table"
+                                  }
+                                  listdisplay={tableOptions}
+                                  isNumeric
+                                  formItemClassName="w-full"
+                                  inputClassName="h-fit w-full min-w-0 text-base"
+                                />
+                                <CustomFormField
+                                  control={form.control}
+                                  name="waiterName"
+                                  fieldType={formFieldTypes.SELECT}
+                                  label="Waiter"
+                                  placeholder="Select waiter"
+                                  listdisplay={waiterOptions}
+                                  formItemClassName="w-full"
+                                  inputClassName="h-fit w-full min-w-0 text-base"
+                                />
+                              </>
+                            ) : null}
                             <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-0 pt-3 backdrop-blur-sm">
                               <Button
                                 type="submit"
@@ -1183,8 +1428,10 @@ export function CafeCashierOrderUpdatePanel({
                               </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Cancels &ldquo;{selectedOrder.title}&rdquo; on
-                                this table. Tell kitchen or bar if already in
-                                preparation.
+                                this {isRoomScope ? "room" : "table"}.
+                                {!useLodgingHandlers
+                                  ? " Tell kitchen or bar if already in preparation."
+                                  : ""}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -1210,16 +1457,17 @@ export function CafeCashierOrderUpdatePanel({
                     className="absolute inset-0 mt-0 overflow-y-auto overscroll-y-contain px-4 py-4 data-[state=inactive]:hidden"
                   >
                     <div className="space-y-4 pb-2">
-                    {addContext ? (
+                    {customAddItems ? (
+                      customAddItems
+                    ) : addContext ? (
                       <>
                         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                           <p className="text-xs font-medium uppercase tracking-wider text-primary/90">
-                            Target table
+                            Target {isRoomScope ? "room" : "table"}
                           </p>
                           <p className="mt-1 text-2xl font-bold tabular-nums">
-                            {formatCafeTableDisplayFromRegistry(
+                            {resolveTableDisplay(
                               addContext.tableNo,
-                              tables,
                               selectedOrder?.serviceCaption,
                             )}
                           </p>
@@ -1229,7 +1477,8 @@ export function CafeCashierOrderUpdatePanel({
                           </p>
                           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                             New menu picks are sent as separate pending tickets
-                            to kitchen or bar on this table.
+                            to kitchen or bar on this{" "}
+                            {isRoomScope ? "room" : "table"}.
                           </p>
                         </div>
                         <Button
@@ -1247,18 +1496,23 @@ export function CafeCashierOrderUpdatePanel({
                         </Button>
                         {!selectedOrder ? (
                           <p className="text-center text-xs text-muted-foreground">
-                            Or expand any table and use &ldquo;Add items to
-                            table&rdquo; below its lines.
+                            Or expand any {isRoomScope ? "room" : "table"} and
+                            use &ldquo;Add items to{" "}
+                            {isRoomScope ? "room" : "table"}
+                            &rdquo; below its lines.
                           </p>
                         ) : null}
                       </>
                     ) : (
                       <div className="flex flex-col items-center rounded-xl border border-dashed bg-muted/20 px-4 py-12 text-center">
                         <Plus className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                        <p className="text-sm font-medium">Add to a table</p>
+                        <p className="text-sm font-medium">
+                          Add to a {isRoomScope ? "room" : "table"}
+                        </p>
                         <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
-                          Select a line first, or expand a table and use the
-                          add button under its orders.
+                          Select a line first, or expand a{" "}
+                          {isRoomScope ? "room" : "table"} and use the add
+                          button under its orders.
                         </p>
                       </div>
                     )}
@@ -1269,9 +1523,10 @@ export function CafeCashierOrderUpdatePanel({
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
 
-      {addItemsTarget ? (
+      {addItemsTarget && !customAddItems ? (
         <CafeCashierAddItemsDialog
           items={items}
           hotelName={hotelName}

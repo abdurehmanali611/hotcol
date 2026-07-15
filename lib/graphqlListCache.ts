@@ -32,9 +32,19 @@ export function tenantScopedGraphqlListKey(baseKey: string): string {
 }
 
 function cacheKeyMatchesTarget(cacheKey: string, target: string): boolean {
+  if (!cacheKey || !target) return false;
   if (cacheKey === target) return true;
-  if (cacheKey.startsWith(target)) return true;
-  // Tenant-scoped keys look like `${tenant}::${baseKey}`.
+  if (cacheKey.startsWith(`${target}:`) || cacheKey.startsWith(`${target}/`)) {
+    return true;
+  }
+  // Tenant-scoped keys: `${tenant}::${baseKey}` (base may include suffixes).
+  const scopedIdx = cacheKey.indexOf("::");
+  const scoped =
+    scopedIdx >= 0 ? cacheKey.slice(scopedIdx + 2) : cacheKey;
+  if (scoped === target) return true;
+  if (scoped.startsWith(`${target}:`) || scoped.startsWith(`${target}/`)) {
+    return true;
+  }
   if (cacheKey.endsWith(`::${target}`)) return true;
   return false;
 }

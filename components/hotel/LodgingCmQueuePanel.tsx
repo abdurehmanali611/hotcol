@@ -782,8 +782,9 @@ export function LodgingCmQueuePanel({
         <CardHeader>
           <CardTitle className="text-lg">Open assignments</CardTitle>
           <CardDescription>
-            Complete each person’s job when finished. After all cleaners on a
-            dirty room are completed, the room can auto-move to vacant clean.
+            Complete each person&apos;s job when finished. When the last cleaner
+            on a dirty room is completed, that room moves to vacant clean right
+            away.
           </CardDescription>
         </CardHeader>
         <CardContent>

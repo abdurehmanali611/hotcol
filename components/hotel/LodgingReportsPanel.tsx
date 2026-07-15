@@ -22,6 +22,7 @@ import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { DataTable } from "@/app/StoreItems/data-table";
+import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
 import {
   fetchLodgingActionLogs,
   fetchLodgingDashboardStats,
@@ -34,7 +35,6 @@ import {
 } from "@/lib/api/lodgingRooms";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { notifyApiFailure } from "@/lib/actions";
-import { cn } from "@/lib/utils";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -71,10 +71,57 @@ function guestSearchHaystack(g: LodgingGuest): string {
     g.country,
     g.stateRegion,
     g.addressLine,
+    g.lastCheckedInAt
+      ? new Date(g.lastCheckedInAt).toLocaleString()
+      : "",
+    g.lastCheckedOutAt
+      ? new Date(g.lastCheckedOutAt).toLocaleString()
+      : "",
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+function formatStayDateTime(value: string | Date | null | undefined) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
+
+type StayPaymentBreakdown = {
+  roomETB: number;
+  laundryETB: number;
+  foodDrinkETB: number;
+  otherETB: number;
+  totalETB: number;
+};
+
+function stayPaymentBreakdown(
+  stay: LodgingStay,
+): StayPaymentBreakdown {
+  const lines = stay.bill?.lines ?? [];
+  let roomETB = 0;
+  let laundryETB = 0;
+  let foodDrinkETB = 0;
+  let otherETB = 0;
+  for (const line of lines) {
+    const amt = Number(line.amountETB) || 0;
+    const kind = String(line.kind || "").toLowerCase();
+    if (kind === "room") roomETB += amt;
+    else if (kind === "laundry") laundryETB += amt;
+    else if (kind === "food_drink") foodDrinkETB += amt;
+    else otherETB += amt;
+  }
+  const fromLines = roomETB + laundryETB + foodDrinkETB + otherETB;
+  const totalETB =
+    fromLines > 0 ? fromLines : Number(stay.bill?.totalETB) || 0;
+  return { roomETB, laundryETB, foodDrinkETB, otherETB, totalETB };
+}
+
+function formatEtb(n: number) {
+  return `ETB ${Number(n || 0).toLocaleString()}`;
 }
 
 const guestMultiSearchFilter: FilterFn<LodgingGuest> = (
@@ -200,6 +247,26 @@ export function LodgingReportsPanel({
           </span>
         ),
       },
+      {
+        id: "checkedIn",
+        accessorFn: (g) => g.lastCheckedInAt || "",
+        header: "Checked in",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatStayDateTime(row.original.lastCheckedInAt)}
+          </span>
+        ),
+      },
+      {
+        id: "checkedOut",
+        accessorFn: (g) => g.lastCheckedOutAt || "",
+        header: "Checked out",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatStayDateTime(row.original.lastCheckedOutAt)}
+          </span>
+        ),
+      },
     ],
     [],
   );
@@ -208,7 +275,9 @@ export function LodgingReportsPanel({
     setLoadingStays(true);
     try {
       const range = dayRangeToIso(from, to);
-      setStays(await fetchLodgingStaysByDate(range.from, range.to));
+      const rows = await fetchLodgingStaysByDate(range.from, range.to);
+      // Never show in-house payment totals — only checked-out stays.
+      setStays(rows.filter((s) => s.status === "checked_out"));
     } catch (e) {
       notifyApiFailure(e, "Could not load stays for range");
     } finally {
@@ -218,20 +287,27 @@ export function LodgingReportsPanel({
 
   const exportStaysExcel = async () => {
     if (stays.length === 0) return;
-    await exportRowsExcel(`lodging-stays-${from}_to_${to}`, "Stays", stays.map((s) => ({
-      Voucher: s.voucherCode,
-      Guest: guestLabel(s.guest),
-      Phone: s.guest?.phone || "",
-      Status: s.status,
-      Arrival: new Date(s.arrivalAt).toLocaleString(),
-      Departure: new Date(s.departureAt).toLocaleString(),
-      Rooms:
-        s.rooms
-          ?.map((r) => r.room?.roomNumber)
-          .filter(Boolean)
-          .join(", ") || "",
-      "Bill ETB": s.bill ? Number(s.bill.totalETB) : 0,
-    })));
+    await exportRowsExcel(`lodging-stays-${from}_to_${to}`, "Stays", stays.map((s) => {
+      const b = stayPaymentBreakdown(s);
+      return {
+        Voucher: s.voucherCode,
+        Guest: guestLabel(s.guest),
+        Phone: s.guest?.phone || "",
+        Status: s.status,
+        "Checked in": new Date(s.arrivalAt).toLocaleString(),
+        "Checked out": new Date(s.departureAt).toLocaleString(),
+        Rooms:
+          s.rooms
+            ?.map((r) => r.room?.roomNumber)
+            .filter(Boolean)
+            .join(", ") || "",
+        "Room nights ETB": b.roomETB,
+        "Laundry ETB": b.laundryETB,
+        "Food & drink ETB (on stay)": b.foodDrinkETB,
+        "Other ETB": b.otherETB,
+        "Bill total ETB": b.totalETB,
+      };
+    }));
   };
 
   const exportGuestsExcel = async () => {
@@ -248,39 +324,32 @@ export function LodgingReportsPanel({
         Passport: g.passportNumber || "",
         Country: g.country || "",
         Region: g.stateRegion || "",
+        "Checked in": formatStayDateTime(g.lastCheckedInAt),
+        "Checked out": formatStayDateTime(g.lastCheckedOutAt),
       })),
     );
   };
 
-  const cards = [
-    {
-      label: "Vacant clean",
-      value: stats?.vacantClean ?? 0,
-      className: "border-emerald-500/25 from-emerald-500/8",
-    },
-    {
-      label: "Vacant dirty",
-      value: stats?.vacantDirty ?? 0,
-      className: "border-amber-500/25 from-amber-500/8",
-    },
-    {
-      label: "Occupied",
-      value: stats?.occupied ?? 0,
-      className: "border-sky-500/25 from-sky-500/8",
-    },
-    {
-      label: "On maintenance",
-      value: stats?.onMaintenance ?? 0,
-      className: "border-rose-500/25 from-rose-500/8",
-    },
-    {
-      label: "Open CM jobs",
-      value: stats?.openCmAssignments ?? 0,
-      className: "border-border/80 from-muted/30",
-    },
-  ];
-
-  const billedTotal = stays.reduce((s, x) => s + (x.bill?.totalETB ?? 0), 0);
+  const paymentTotals = useMemo(() => {
+    return stays.reduce(
+      (acc, s) => {
+        const b = stayPaymentBreakdown(s);
+        acc.roomETB += b.roomETB;
+        acc.laundryETB += b.laundryETB;
+        acc.foodDrinkETB += b.foodDrinkETB;
+        acc.otherETB += b.otherETB;
+        acc.totalETB += b.totalETB;
+        return acc;
+      },
+      {
+        roomETB: 0,
+        laundryETB: 0,
+        foodDrinkETB: 0,
+        otherETB: 0,
+        totalETB: 0,
+      },
+    );
+  }, [stays]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -292,8 +361,10 @@ export function LodgingReportsPanel({
             Room management reports
           </CardTitle>
           <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-            Occupancy snapshot, stay activity by date (Excel export), past guests
-            who used this property, and the lodging action trail.
+            Room nights and laundry payments for checked-out stays. Food &amp;
+            drink charged to rooms is summarized for visibility — primary café
+            payment reporting stays under Manager → Cafe &amp; Restaurant. In-house
+            guests do not appear in payment totals until checkout.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8 pb-8">
@@ -307,28 +378,13 @@ export function LodgingReportsPanel({
                 Loading snapshot…
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                {cards.map((c) => (
-                  <div
-                    key={c.label}
-                    className={cn(
-                      "rounded-xl border bg-linear-to-br to-card p-4 shadow-sm",
-                      c.className,
-                    )}
-                  >
-                    <p className="text-xs text-muted-foreground">{c.label}</p>
-                    <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
-                      {c.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <LodgingStatCardsGrid stats={stats} />
             )}
           </HotelFormSection>
 
           <HotelFormSection
-            title="Stays by date"
-            description="Generate a structured stay list for the range, then export to Excel."
+            title="Stay payments by date"
+            description="Shows only checked-out guests in this date range (by checkout / departure date). Active stays have no payment figures here until checkout is done. Food & drink is awareness only — Café owns the formal F&B report."
           >
             <div className="flex flex-wrap items-end gap-3">
               <HotelDayPicker label="From" value={from} onChange={setFrom} />
@@ -355,23 +411,59 @@ export function LodgingReportsPanel({
 
             {stays.length === 0 ? (
               <p className="pt-1 text-sm text-muted-foreground">
-                Choose dates and generate to list stays in that window.
+                Choose checkout dates and generate. Only checked-out stays with
+                payment data appear.
               </p>
             ) : (
               <div className="mt-2 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Range summary
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Room nights
                     </p>
-                    <p className="text-sm font-medium">
-                      {stays.length} stay{stays.length === 1 ? "" : "s"} ·{" "}
-                      {from} → {to}
+                    <p className="mt-1 text-base font-semibold tabular-nums">
+                      {formatEtb(paymentTotals.roomETB)}
                     </p>
                   </div>
-                  <p className="text-lg font-semibold tabular-nums">
-                    ETB {billedTotal.toLocaleString()}
-                  </p>
+                  <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Laundry
+                    </p>
+                    <p className="mt-1 text-base font-semibold tabular-nums">
+                      {formatEtb(paymentTotals.laundryETB)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Food & drink (on stay)
+                    </p>
+                    <p className="mt-1 text-base font-semibold tabular-nums">
+                      {formatEtb(paymentTotals.foodDrinkETB)}
+                    </p>
+                    <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                      Awareness only — café report is the source of truth
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Other
+                    </p>
+                    <p className="mt-1 text-base font-semibold tabular-nums">
+                      {formatEtb(paymentTotals.otherETB)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Stay total
+                    </p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">
+                      {formatEtb(paymentTotals.totalETB)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {stays.length} stay{stays.length === 1 ? "" : "s"} · {from}{" "}
+                      → {to}
+                    </p>
+                  </div>
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-border/70">
                   <table className="w-full text-sm">
@@ -381,54 +473,83 @@ export function LodgingReportsPanel({
                         <th className="px-3 py-2.5 font-medium">Guest</th>
                         <th className="px-3 py-2.5 font-medium">Rooms</th>
                         <th className="px-3 py-2.5 font-medium">Status</th>
-                        <th className="px-3 py-2.5 font-medium">Arrival</th>
-                        <th className="px-3 py-2.5 font-medium">Departure</th>
+                        <th className="px-3 py-2.5 font-medium">Checked in</th>
+                        <th className="px-3 py-2.5 font-medium">Checked out</th>
                         <th className="px-3 py-2.5 font-medium text-right">
-                          Bill (ETB)
+                          Room $
+                        </th>
+                        <th className="px-3 py-2.5 font-medium text-right">
+                          Laundry
+                        </th>
+                        <th className="px-3 py-2.5 font-medium text-right">
+                          F&amp;B
+                        </th>
+                        <th className="px-3 py-2.5 font-medium text-right">
+                          Total
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {stays.map((s) => (
-                        <tr key={s.id} className="hover:bg-muted/20">
-                          <td className="px-3 py-2.5 font-mono text-xs">
-                            {s.voucherCode}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <p className="font-medium">{guestLabel(s.guest)}</p>
-                            {s.guest?.phone ? (
-                              <p className="text-xs text-muted-foreground">
-                                {s.guest.phone}
+                      {stays.map((s) => {
+                        const b = stayPaymentBreakdown(s);
+                        return (
+                          <tr key={s.id} className="hover:bg-muted/20">
+                            <td className="px-3 py-2.5 font-mono text-xs">
+                              {s.voucherCode}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <p className="font-medium">
+                                {guestLabel(s.guest)}
                               </p>
-                            ) : null}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs tabular-nums">
-                            {s.rooms
-                              ?.map((r) => r.room?.roomNumber)
-                              .filter(Boolean)
-                              .join(", ") || "—"}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Badge
-                              variant="outline"
-                              className="font-normal capitalize"
-                            >
-                              {s.status}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                            {new Date(s.arrivalAt).toLocaleString()}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                            {new Date(s.departureAt).toLocaleString()}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-medium tabular-nums">
-                            {s.bill
-                              ? Number(s.bill.totalETB).toLocaleString()
-                              : "—"}
-                          </td>
-                        </tr>
-                      ))}
+                              {s.guest?.phone ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {s.guest.phone}
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs tabular-nums">
+                              {s.rooms
+                                ?.map((r) => r.room?.roomNumber)
+                                .filter(Boolean)
+                                .join(", ") || "—"}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge
+                                variant="outline"
+                                className="font-normal capitalize"
+                              >
+                                {s.status}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                              {formatStayDateTime(s.arrivalAt)}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                              {formatStayDateTime(s.departureAt)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {b.roomETB > 0
+                                ? Number(b.roomETB).toLocaleString()
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {b.laundryETB > 0
+                                ? Number(b.laundryETB).toLocaleString()
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                              {b.foodDrinkETB > 0
+                                ? Number(b.foodDrinkETB).toLocaleString()
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                              {b.totalETB > 0
+                                ? Number(b.totalETB).toLocaleString()
+                                : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -438,7 +559,7 @@ export function LodgingReportsPanel({
 
           <HotelFormSection
             title="Past guests"
-            description="Full guest registry for this tenant — search the table by name, phone, email, national ID, or passport."
+            description="Guest registry with latest check-in and check-out dates — search by name, phone, email, national ID, or passport."
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
