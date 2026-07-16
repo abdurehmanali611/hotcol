@@ -623,10 +623,10 @@ export function StoreComponent({
             <StoreItemReceiptPrinting
               items={storeItem}
               purchaseRequests={
-                hotelInventory ? requestStatusData.myPurchases : undefined
+                hotelInventory ? requestStatusData.tenantPurchases : undefined
               }
               stockMovements={
-                hotelInventory ? requestStatusData.myStocks : undefined
+                hotelInventory ? requestStatusData.tenantStocks : undefined
               }
               itemStatusHistory={hotelInventory ? scopedItemStatus : undefined}
               freshBazaarArchives={hotelInventory ? freshBazaarArchives : undefined}

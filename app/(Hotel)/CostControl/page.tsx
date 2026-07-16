@@ -470,6 +470,13 @@ function CostControlInner() {
     [tenantScope],
   );
 
+  const scopedPurchases = useMemo(() => {
+    const t = String(tenantScope ?? "").trim();
+    return t
+      ? purchases.filter((r) => rowHotelMatchesTenantScope(r.HotelName, t))
+      : purchases;
+  }, [purchases, tenantScope]);
+
   const ensureSectionData = useCallback(
     async (
       section: CostSection,
@@ -1617,7 +1624,7 @@ function CostControlInner() {
           {activeSection === "item-receipts" && (
             <HotelItemReceiptsSection
               items={inventoryRows}
-              purchaseRequests={purchases}
+              purchaseRequests={scopedPurchases}
               stockMovements={stocks}
               itemStatusHistory={statusRows}
               freshBazaarArchives={freshBazaarArchives}

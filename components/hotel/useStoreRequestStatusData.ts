@@ -192,12 +192,18 @@ export function useStoreRequestStatusData({
     [registrations, userName],
   );
 
+  /** Tenant-scoped purchase / stock lists (not filtered to signed-in store user). */
+  const tenantPurchases = mergedPurchases;
+  const tenantStocks = mergedStocks;
+
   return {
     initialLoading,
     userName,
     myPurchases,
     myStocks,
     myRegistrations,
+    tenantPurchases,
+    tenantStocks,
     reload: load,
   };
 }
