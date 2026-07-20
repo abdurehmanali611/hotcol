@@ -7,22 +7,39 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { PendingButton } from "@/components/ui/pending-button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createCredentialSchema } from "@/lib/validations";
 import type { ModuleOption } from "@/constants";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { tenantHasModule } from "@/lib/subscriptionModules";
-import { UserPlus, ShieldCheck, Hotel } from "lucide-react";
+import { UserPlus, ShieldCheck, Hotel, KeyRound, Lock } from "lucide-react";
 
 interface GrantCredentialProps {
   hotelName: string;
   logoUrl?: string;
   onSubmit: (data: any) => Promise<void>;
-  /** Hotel manager grants cost control / finance / store roles */
   variant?: "cafe" | "hotel";
 }
 
@@ -137,102 +154,134 @@ export default function GrantCredential({
   };
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-2xl py-2 sm:py-4">
-      <Card className="border-none shadow-none bg-transparent">
-        <CardHeader className="px-0">
-          <div className="flex items-center gap-2 mb-2">
-            <UserPlus className="text-primary h-5 w-5" />
-            <CardTitle className="text-base sm:text-xl">Staff Access Management</CardTitle>
-          </div>
-          <CardDescription>
+    <div className="mx-auto w-full min-w-0 max-w-2xl">
+      <Card className="overflow-hidden border-primary/15 bg-card/95 shadow-lg ring-1 ring-black/3 dark:ring-white/6">
+        <div className="h-1 bg-linear-to-r from-sky-500 via-cyan-400 to-primary/80" />
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
+            <UserPlus className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+            Grant credential
+          </CardTitle>
+          <CardDescription className="max-w-2xl text-pretty leading-relaxed">
             {variant === "hotel"
               ? "Create access for reception, CM leader, cashier, chef, bar, store, and approval teams. Roles appear only for modules subscribed on this property."
-              : "Create new login credentials for kitchen or bar staff members."}
+              : "Create login credentials for kitchen, bar, cashier, or store staff on this property."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-0">
+        <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="UserName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., barista_john" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="Role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Access Role</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="space-y-5"
+            >
+              <div className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4 sm:p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+                  Account details
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="UserName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a role" />
-                          </SelectTrigger>
+                          <Input
+                            placeholder="e.g. barista_john"
+                            className="h-10 bg-background"
+                            {...field}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          {roleOptions.map((role) => (
-                            <SelectItem key={role.value} value={role.value}>
-                              {role.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <Separator />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="Password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="Role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Access role</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="h-10 bg-background">
+                              <SelectValue placeholder="Select a role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {roleOptions.map((role) => (
+                              <SelectItem key={role.value} value={role.value}>
+                                {role.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10">
-                <Hotel className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4 sm:p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  Password
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="Password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="••••••••"
+                            className="h-10 bg-background"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="••••••••"
+                            className="h-10 bg-background"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-xl border border-primary/15 bg-primary/5 p-4">
+                <Hotel className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-primary">Target Location</p>
-                  <p className="text-sm text-muted-foreground">
-                    These credentials will grant access specifically to the <strong>{displayName}</strong> terminal.
+                  <p className="text-sm font-semibold text-primary">
+                    Target property
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Access is scoped to{" "}
+                    <strong className="text-foreground">{displayName}</strong>.
+                    Staff change their own password from their terminal header.
                   </p>
                 </div>
               </div>
@@ -241,13 +290,13 @@ export default function GrantCredential({
                 type="submit"
                 pending={isSubmitting}
                 disabled={roleOptions.length === 0}
-                className="w-full h-11 text-base shadow-lg cursor-pointer"
+                className="h-11 w-full cursor-pointer text-base shadow-md"
               >
                 {isSubmitting ? (
-                  "Generating account…"
+                  "Creating account…"
                 ) : (
                   <span className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4" /> Grant Access
+                    <ShieldCheck className="h-4 w-4" /> Grant access
                   </span>
                 )}
               </PendingButton>

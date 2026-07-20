@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useReactToPrint } from "react-to-print";
 import { Toaster, toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   Sidebar,
   SidebarContent,
@@ -531,6 +532,7 @@ export function ReceptionDashboard() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+            <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>

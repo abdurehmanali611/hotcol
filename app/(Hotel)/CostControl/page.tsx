@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   approvePurchaseRequestsCCBatchApi,
   approveStockOutRequestsBatchApi,
@@ -990,6 +991,7 @@ function CostControlInner() {
               disabled={loading}
               onClick={() => void load(true, false)}
             />
+            <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>

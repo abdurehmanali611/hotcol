@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ShoppingCart,
@@ -379,6 +380,7 @@ function CashierContent() {
                 disabled={loading}
                 onClick={() => void loadData({ refresh: true })}
               />
+              <ChangeOwnPasswordButton />
               <Avatar className="h-8 w-8 border shadow-sm sm:h-9 sm:w-9">
                 <AvatarImage src={logoUrl} alt={displayLabel} />
                 <AvatarFallback>

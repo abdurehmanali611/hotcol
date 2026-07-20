@@ -230,7 +230,7 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
   "grant-credential": "Credentials(Common)",
-  "update-credential": "Credentials(Common)",
+  "delete-credential": "Credentials(Common)",
   inventory: "Inventory",
   "item-receipts": "Inventory",
   "credit-registrations": "Credit Management",
@@ -255,7 +255,7 @@ export const MANAGER_SERVICE_TAB_MODULES: Partial<
 
 export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "grant-credential": "Credentials(Common)",
-  "update-credential": "Credentials(Common)",
+  "delete-credential": "Credentials(Common)",
   "reports-inventory": "Inventory",
   "reports-movements": "Inventory",
   "reports-purchases": "Financial Management",

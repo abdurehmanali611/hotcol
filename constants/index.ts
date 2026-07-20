@@ -66,7 +66,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
-  { id: "update-credential", label: "Update Credential", icon: "RefreshCw" },
+  { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
   { id: "inventory", label: "Inventory", icon: "Store" },
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
@@ -158,7 +158,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "lodging-reports", label: "Reports", icon: "FileText" },
   { id: "lodging-rooms", label: "Rooms", icon: "Building2" },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },
-  { id: "update-credential", label: "Update credential", icon: "RefreshCw" },
+  { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
 ] as const;
 
 /** Nested under Manager Rooms → Laundry (F&B lives under Cafe and Restaurant). */

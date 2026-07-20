@@ -8,7 +8,8 @@ import GrantCredential from "@/components/GrantCredential";
 import Reports from "@/components/reports";
 import ItemCreationForm from "@/components/ItemCreation";
 import UpdateDeleteIntro from "@/components/UpdateDeleteIntro";
-import UpdateCredential from "@/components/UpdateCredential";
+import DeleteCredential from "@/components/DeleteCredential";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import WaiterAndTable from "@/components/Waiter_And_Table";
 import {
   fetchItems,
@@ -20,9 +21,7 @@ import {
   createItem,
   deleteItem,
   createCredential,
-  updateCredential,
   deleteCredential,
-  updateAdminPassword,
   createWaiter,
   createTable,
   uploadImage,
@@ -42,7 +41,7 @@ import {
   Edit,
   Key,
   Users,
-  RefreshCw,
+  UserMinus,
   LogOut,
   LayoutDashboard,
   Loader2,
@@ -94,7 +93,7 @@ const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
   "station-prep-qty": ["items"],
   "grant-credential": ["credentials"],
   "waiter-table": ["waiters", "tables"],
-  "update-credential": ["credentials"],
+  "delete-credential": ["credentials"],
 };
 
 function AdminDashboardContent() {
@@ -289,7 +288,7 @@ function AdminDashboardContent() {
     Edit,
     Users,
     Key,
-    RefreshCw,
+    UserMinus,
     Store,
     Building2,
     Receipt,
@@ -467,22 +466,16 @@ function AdminDashboardContent() {
           />
           </div>
         );
-      case "update-credential":
+      case "delete-credential":
         return (
           <div className="p-3 sm:p-5 md:p-6 min-w-0 overflow-x-hidden">
-          <UpdateCredential
-            credentials={credentials}
-            hotelName={tenantScope}
-            onUpdateCredential={async (data: any) => {
-              await updateCredential(data);
-              loadData(true);
-            }}
-            onUpdateAdminPassword={updateAdminPassword}
-            onDeleteCredential={async (userName: string) => {
-              await deleteCredential(userName);
-              loadData(true);
-            }}
-          />
+            <DeleteCredential
+              credentials={credentials}
+              onDeleteCredential={async (userName: string) => {
+                await deleteCredential(userName);
+                loadData(true);
+              }}
+            />
           </div>
         );
       case "inventory":
@@ -587,6 +580,7 @@ function AdminDashboardContent() {
                 disabled={loading}
                 onClick={() => void loadData(true)}
               />
+              <ChangeOwnPasswordButton />
               <Avatar className="h-8 w-8 shrink-0 border shadow-sm md:h-9 md:w-9">
                 <AvatarImage src={logoUrl} alt={headerLabel} />
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">

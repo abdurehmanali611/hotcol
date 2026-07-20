@@ -539,7 +539,7 @@ export function resolveManagerGlossaryTopic(tabId: string): ManagerGlossaryTopic
   ) {
     return "laundry";
   }
-  if (tabId === "grant-credential" || tabId === "update-credential") {
+  if (tabId === "grant-credential" || tabId === "delete-credential") {
     return "credentials";
   }
   if (tabId === "reports-beginnings") return "station-counts";

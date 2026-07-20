@@ -69,6 +69,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { buildCreditorUsageColumns } from "@/lib/dataTableColumns/creditorUsage";
 import { Badge } from "@/components/ui/badge";
@@ -644,6 +645,7 @@ export function HotelCashierDashboard({
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+            <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 shrink-0 border shadow-sm">
               <AvatarImage src={logoUrl || undefined} alt="" />
               <AvatarFallback className="text-xs font-semibold">

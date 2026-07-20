@@ -230,46 +230,21 @@ export const deleteCredentialSchema = z.object({
   UserName: z.string().min(2, "Select a staff member to remove"),
 });
 
-export const updateCredentialSchema = z
+export const changeOwnPasswordSchema = z
   .object({
-    UserName: z.string().min(2, "Username must be at least 2 characters long"),
-    Password: z.string().min(6, "Password must be at least 6 characters long"),
-    confirmPassword: z.string().min(6, "Please confirm your password"),
-    HotelName: z.string().min(1, "Hotel name is required"),
-    Role: z.enum(
-      [
-        "Kitchen",
-        "Barista",
-        "Cashier",
-        "Store",
-        "CostControl",
-        "Finance",
-        "HotelCashier",
-        "Reception",
-        "CMLeader",
-      ],
-      {
-        message: "Invalid role",
-      },
-    ),
-  })
-  .refine((data) => data.Password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
-
-export const updateAdminPasswordSchema = z
-  .object({
-    oldPassword: z.string().min(6, "Old password is required"),
+    currentPassword: z.string().min(6, "Current password is required"),
     newPassword: z
       .string()
       .min(6, "New password must be at least 6 characters long"),
     confirmPassword: z.string().min(6, "Please confirm your password"),
-    HotelName: z.string().min(1, "Hotel name is required"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: "New password must be different from current password",
+    path: ["newPassword"],
   });
 
 export const verifyPasswordSchema = z.object({

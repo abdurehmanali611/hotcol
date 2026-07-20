@@ -131,7 +131,8 @@ export default function AdminIncomeRankings({
           : "all time";
 
   return (
-    <Card className="mb-4 border border-emerald-500/20 bg-emerald-950/10 sm:mb-6">
+    <Card className="mb-4 overflow-hidden border-primary/15 bg-card/95 shadow-md ring-1 ring-black/3 dark:ring-white/6 sm:mb-6">
+      <div className="h-0.5 bg-linear-to-r from-emerald-500/80 to-teal-400/70" />
       <CardHeader className="space-y-3 px-3 pb-2 pt-4 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 space-y-1">

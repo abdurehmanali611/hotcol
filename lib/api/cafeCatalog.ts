@@ -6,8 +6,6 @@ import type {
   CreateItemData,
   UpdateItemData,
   CreateCredentialData,
-  UpdateCredentialData,
-  UpdateAdminPasswordData,
   Waiter,
   CreateWaiterData,
   UpdateWaiterData,
@@ -293,39 +291,6 @@ export async function createCredential(credentialData: CreateCredentialData) {
   }
 }
 
-export async function updateCredential(credentialData: UpdateCredentialData) {
-  try {
-    const mutation = `
-      mutation UpdateCredential($UserName: String!, $Password: String!, $Role: String!) {
-        UpdateCredential(UserName: $UserName, Password: $Password, Role: $Role) {
-          id
-          UserName
-          Password
-          HotelName
-          Role
-        }
-      }
-    `;
-
-    const response = await api.post(API_URL, {
-      query: mutation,
-      variables: credentialData,
-    });
-
-    if (response.data.errors) {
-      throw new Error(
-        response.data.errors[0]?.message || "Failed to update credential",
-      );
-    }
-
-    toast.success("Credential updated successfully");
-    return response.data.data.UpdateCredential;
-  } catch (error: any) {
-    toast.error("Unable to update credential. Please try again.");
-    throw error;
-  }
-}
-
 export async function deleteCredential(userName: string) {
   try {
     const mutation = `
@@ -355,56 +320,46 @@ export async function deleteCredential(userName: string) {
   }
 }
 
-export async function updateAdminPassword(
-  passwordData: UpdateAdminPasswordData,
-): Promise<boolean> {
+export async function changeOwnPassword(passwordData: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<boolean> {
   try {
-    const isValid = await verifyAdminPassword(
-      passwordData.HotelName,
-      passwordData.oldPassword,
-    );
-    if (!isValid) {
-      toast.error("Old password is incorrect");
-      return false;
-    }
-
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error("New passwords do not match");
       return false;
     }
 
     const mutation = `
-      mutation UpdateAdminCredential($Password: String!) {
-        UpdateAdminCredential(Password: $Password) {
-          id
-          HotelName
-          Password
-        }
+      mutation ChangeOwnPassword($currentPassword: String!, $newPassword: String!) {
+        ChangeOwnPassword(currentPassword: $currentPassword, newPassword: $newPassword)
       }
     `;
 
     const response = await api.post(API_URL, {
       query: mutation,
       variables: {
-        Password: passwordData.newPassword,
-        HotelName: passwordData.HotelName,
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
       },
     });
 
     if (response.data.errors) {
       throw new Error(
-        response.data.errors[0]?.message || "Failed to update admin password",
+        response.data.errors[0]?.message || "Failed to update password",
       );
     }
 
-    toast.success("Admin password updated successfully");
+    toast.success("Password updated successfully");
     return true;
   } catch (error: any) {
-    toast.error(
-      `Unable to update password. Please verify your current password and try again. ${error.message}`,
-    );
-    console.error(error);
-    return false;
+    const msg =
+      error?.response?.data?.errors?.[0]?.message ||
+      error?.message ||
+      "Unable to update password";
+    toast.error(msg);
+    throw error;
   }
 }
 

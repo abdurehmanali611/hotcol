@@ -6,7 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { Toaster } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import GrantCredential from "@/components/GrantCredential";
-import UpdateCredential from "@/components/UpdateCredential";
+import DeleteCredential from "@/components/DeleteCredential";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   createCredential,
   createCostControllerProfileApi,
@@ -35,8 +36,6 @@ import {
   exportToExcel,
   logoutAction,
   notifyApiFailure,
-  updateAdminPassword,
-  updateCredential,
   uploadImage,
   type CostControllerProfileRow,
   type Item,
@@ -97,6 +96,7 @@ import {
   Building2,
   FileText,
   Store,
+  UserMinus,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -192,7 +192,7 @@ const managerSidebarIconMap: Record<
   ClipboardList,
   Receipt,
   Key,
-  RefreshCw,
+  UserMinus,
   FileText,
 };
 
@@ -220,7 +220,7 @@ const MANAGER_INVENTORY_TAB_IDS = new Set<TabId>([
 
 const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
   "grant-credential",
-  "update-credential",
+  "delete-credential",
 ]);
 
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
@@ -626,8 +626,8 @@ function ManagerContent() {
         "Edit prices, images, and active state for in-room laundry menu items.",
       "grant-credential":
         "Issue staff logins for roles allowed by this tenant’s subscribed modules.",
-      "update-credential":
-        "Change passwords, roles, or remove access for existing staff accounts.",
+      "delete-credential":
+        "Remove staff logins. To change a role, delete the account and grant a new credential.",
       "reports-inventory":
         "Browse active inventory lines registered for this hotel property.",
       "reports-movements":
@@ -1530,18 +1530,12 @@ function ManagerContent() {
           </div>
         );
 
-      case "update-credential":
+      case "delete-credential":
         return (
           <div className="p-4 md:p-6">
-            <UpdateCredential
+            <DeleteCredential
               credentials={credentials}
-              hotelName={tenantScope || ""}
               variant="hotel"
-              onUpdateCredential={async (data: any) => {
-                await updateCredential(data);
-                loadData(true);
-              }}
-              onUpdateAdminPassword={updateAdminPassword}
               onDeleteCredential={async (userName: string) => {
                 await deleteCredential(userName);
                 loadData(true);
@@ -1701,6 +1695,7 @@ function ManagerContent() {
               disabled={loading}
               onClick={() => void loadData(true)}
             />
+            <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={headerLabel} />
               <AvatarFallback>{headerLabel.slice(0, 2).toUpperCase()}</AvatarFallback>

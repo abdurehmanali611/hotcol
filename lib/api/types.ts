@@ -152,20 +152,6 @@ export interface CreateCredentialData {
   LogoUrl?: string;
 }
 
-export interface UpdateCredentialData {
-  UserName: string;
-  Password: string;
-  HotelName: string;
-  Role: string;
-}
-
-export interface UpdateAdminPasswordData {
-  oldPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-  HotelName: string;
-}
-
 export interface CreateWaiterData {
   name: string;
   HotelName: string;
