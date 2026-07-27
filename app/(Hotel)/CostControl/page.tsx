@@ -247,15 +247,6 @@ function CostControlInner() {
   const { requestRejectionReason, RejectionReasonDialog } =
     useRejectionReasonDialog();
 
-  const inventoryItemOptions = useMemo(() => {
-    return activeInventoryRows
-      .filter((r) => Number(r.amount) > 0)
-      .map((r) => ({
-        name: r.name,
-        measuredBy: r.measuredBy,
-      }));
-  }, [activeInventoryRows]);
-
   const dailyUnitOptions = useMemo(() => {
     const current = String(beginForm.measuredBy || "").trim();
     if (!current) return [...INVENTORY_UNIT_NAMES];
@@ -266,7 +257,6 @@ function CostControlInner() {
   }, [beginForm.measuredBy]);
 
   const beginningDerivedById = useMemo(() => {
-    const implied = new Map<number, number | null>();
     const daySales = new Map<number, number | null>();
     const t = String(tenantScope ?? "").trim();
     const scoped = t
@@ -284,72 +274,34 @@ function CostControlInner() {
       );
       for (let i = 0; i < list.length; i++) {
         if (i === 0) {
-          implied.set(list[i].id, null);
           daySales.set(list[i].id, null);
         } else {
           const prev = list[i - 1];
-          const prevLights =
+          const prevOnHand =
             Number(prev.closingOnHand) > 0
               ? Number(prev.closingOnHand)
               : Number(prev.amount);
-          implied.set(
-            list[i].id,
-            round2(
-              Number(prev.amount) +
-                Number(prev.stockOutDay) -
-                Number(list[i].amount),
-            ),
-          );
-          daySales.set(list[i].id, round2(Number(list[i].amount) - prevLights));
+          // Sales = beginning today − prior On Hand (does not subtract Management).
+          daySales.set(list[i].id, round2(Number(list[i].amount) - prevOnHand));
         }
       }
     }
-    return { implied, daySales };
+    return { daySales };
   }, [beginnings, tenantScope]);
 
   const dailyFormPreview = useMemo(() => {
     const stationKey = normalizeKitchenBarStationKey(beginForm.station);
     const item = beginForm.itemName.trim();
     const cal = selectedDailyDate;
-    const t = String(tenantScope ?? "").trim();
-    const scopedBeg = t
-      ? beginnings.filter((b) => rowHotelMatchesTenantScope(b.HotelName, t))
-      : beginnings;
-    let prev: KitchenBarBeginningRow | null = null;
-    if (item) {
-      const candidates = scopedBeg.filter((b) => {
-        if (b.itemName.trim().toLowerCase() !== item.toLowerCase()) {
-          return false;
-        }
-        if (normalizeKitchenBarStationKey(b.station) !== stationKey) {
-          return false;
-        }
-        if (String(b.calendarDate || "").slice(0, 10) >= cal) return false;
-        if (editingId != null && b.id === editingId) return false;
-        return true;
-      });
-      candidates.sort((a, b) =>
-        String(b.calendarDate || "").localeCompare(String(a.calendarDate || "")),
-      );
-      prev = candidates[0] ?? null;
-    }
     const stockOut =
       item === ""
         ? 0
         : round2(summarizeApprovedStockOutForDay(stocks, stationKey, item, cal));
     const opening = round2(Number(beginForm.amount));
-    const prevLights =
-      prev != null
-        ? Number(prev.closingOnHand) > 0
-          ? Number(prev.closingOnHand)
-          : Number(prev.amount)
-        : null;
-    const usageDay = prevLights != null ? round2(opening - prevLights) : null;
-    const managementTaken = round2(Number(beginForm.managementTakenDay) || 0);
-    // Lights-out = opening + approved stock-out - movement issued to management from station.
-    const lightsOut = round2(opening + stockOut - managementTaken);
-    return { stockOut, lightsOut, usageDay, managementTaken };
-  }, [beginForm, stocks, beginnings, tenantScope, editingId, selectedDailyDate]);
+    // Total = Beginning (BB) + Store (does not subtract Management).
+    const total = round2(opening + stockOut);
+    return { stockOut, total };
+  }, [beginForm, stocks, selectedDailyDate]);
 
   const visibleBeginnings = useMemo(() => {
     const day = String(selectedDailyDate || "").slice(0, 10);
@@ -367,24 +319,24 @@ function CostControlInner() {
     return byName;
   }, [activeInventoryRows]);
 
-  /** Sum over visible daily rows: unit price × sealed movement (implied); first row in a series has no sealed movement yet. */
+  /** Sum over visible daily rows: unit price × Sales; first row in a series has no Sales yet. */
   const selectedDayTotalCountedEtb = useMemo(() => {
     return visibleBeginnings.reduce((sum, row) => {
-      const sealed = beginningDerivedById.implied.get(row.id);
-      if (sealed == null) return sum;
+      const sales = beginningDerivedById.daySales.get(row.id);
+      if (sales == null) return sum;
       const key = normalizeItemNameForValueKey(row.itemName);
       const price = unitPriceByItemName.get(key) || 0;
-      return sum + (Number(sealed) || 0) * price;
+      return sum + (Number(sales) || 0) * price;
     }, 0);
   }, [visibleBeginnings, unitPriceByItemName, beginningDerivedById]);
 
-  /** Sum over monthly snapshot rows: unit price × Σ implied movement for that station/item in the month. */
+  /** Sum over monthly snapshot rows: unit price × Σ Sales for that station/item in the range. */
   const monthlyTotalEtb = useMemo(() => {
     return monthlySnapshots.reduce((sum, row) => {
       const key = normalizeItemNameForValueKey(row.itemName);
       const price = unitPriceByItemName.get(key) || 0;
-      const impliedSum = Number(row.totalImpliedSales) || 0;
-      return sum + impliedSum * price;
+      const salesSum = Number(row.totalImpliedSales) || 0;
+      return sum + salesSum * price;
     }, 0);
   }, [monthlySnapshots, unitPriceByItemName]);
 
@@ -845,7 +797,7 @@ function CostControlInner() {
     beginnings: {
       title: "Daily chef & bar counts",
       description:
-        "Opening pulse, documented stock-out, and lights-out snapshot per day — then sync a monthly roll-up.",
+        "Beginning (BB), store receipts, Total, Sales, Management, and On Hand per day — then sync a monthly roll-up.",
       Icon: LayoutGrid,
     },
     "purchase-request-status": {
@@ -1316,7 +1268,7 @@ function CostControlInner() {
                   tenantScope={tenantScope}
                   embedded
                   showPaymentSummary
-                  aggregateInventory={false}
+                  aggregateInventory
                   onHotelStockRequestCreated={() => {
                     void refreshStockQueues({ silent: true });
                   }}
@@ -1743,10 +1695,10 @@ function CostControlInner() {
                   <>
                     <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Total implied movement value — {rollupRangeLabel}
+                        Total Sales value — {rollupRangeLabel}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Σ (unit price × Σ implied movement) per item row below
+                        Σ (unit price × Σ Sales) per item row below
                       </p>
                       <p className="text-xl font-semibold tabular-nums mt-1">
                         {monthlyTotalEtb.toLocaleString()}{" "}
@@ -1782,14 +1734,14 @@ function CostControlInner() {
               <CardHeader>
                 <CardTitle className="text-lg">Register a day</CardTitle>
                 <CardDescription>
-                  <strong className="text-foreground">Opening pulse</strong> is the
+                  <strong className="text-foreground">Beginning (BB)</strong> is the
                   count when the day starts at the station.{" "}
-                  <strong className="text-foreground">Stock out</strong> is summed from{" "}
+                  <strong className="text-foreground">Store</strong> is summed from{" "}
                   <em>approved</em> store requests to that station for the same calendar day (you do not type it).{" "}
-                  <strong className="text-foreground">Issued to management</strong> is entered here when station stock is taken by management.{" "}
-                  <strong className="text-foreground">Lights-out</strong> is calculated from opening, that stock-out, and
-                  management issue, plus usage since the prior day (opening today minus prior lights-out when a prior row exists).{" "}
-                  <em>Sealed movement</em> still compares consecutive openings when the next day is recorded.
+                  <strong className="text-foreground">Total</strong> is Beginning + Store.{" "}
+                  <strong className="text-foreground">Sales</strong> is Beginning today minus prior On Hand (Management is not part of Sales).{" "}
+                  <strong className="text-foreground">Management</strong> is entered when station stock is taken by management.{" "}
+                  <strong className="text-foreground">On Hand</strong> is Total − (Sales + Management).
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-1 pb-8 px-5 sm:px-6">
@@ -1826,36 +1778,26 @@ function CostControlInner() {
 
                 <HotelFormSection
                   title="Item & counts"
-                  description="Select an item from active inventory. Daily rows cannot be created for out-of-stock items."
+                  description="Type the item name counted at the station. Store stock-out for matching names still fills in automatically."
                 >
                   <HotelFormFieldStack>
-                    <Label htmlFor="kb-item">Item or ingredient</Label>
-                    <Select
+                    <Label htmlFor="kb-item">Items</Label>
+                    <Input
+                      id="kb-item"
                       value={beginForm.itemName}
-                      onValueChange={(v) => {
-                        const hit = inventoryItemOptions.find((x) => x.name === v);
+                      onChange={(e) =>
                         setBeginForm((f) => ({
                           ...f,
-                          itemName: v,
-                          measuredBy: hit?.measuredBy || f.measuredBy,
-                        }));
-                      }}
-                    >
-                      <SelectTrigger id="kb-item" className="h-10 w-full border-border/80 shadow-sm">
-                        <SelectValue placeholder="Select item from inventory" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {inventoryItemOptions.map((it) => (
-                          <SelectItem key={it.name} value={it.name}>
-                            {it.name} ({it.measuredBy})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          itemName: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter item name"
+                      className="h-10 border-border/80 shadow-sm"
+                    />
                   </HotelFormFieldStack>
-                  <div className="grid gap-4 sm:grid-cols-4 pt-2">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2">
                     <HotelFormFieldStack>
-                      <Label htmlFor="kb-opening">Opening pulse</Label>
+                      <Label htmlFor="kb-opening">Beginning (BB)</Label>
                       <Input
                         id="kb-opening"
                         type="number"
@@ -1880,7 +1822,7 @@ function CostControlInner() {
                       />
                     </HotelFormFieldStack>
                     <HotelFormFieldStack>
-                      <Label>Approved stock-out (today)</Label>
+                      <Label>Store</Label>
                       <div className="h-10 flex items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums">
                         {dailyFormPreview.stockOut.toFixed(2)}
                       </div>
@@ -1889,19 +1831,16 @@ function CostControlInner() {
                       </p>
                     </HotelFormFieldStack>
                     <HotelFormFieldStack>
-                      <Label>Computed lights-out</Label>
+                      <Label>Total</Label>
                       <div className="h-10 flex items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums">
-                        {dailyFormPreview.lightsOut.toFixed(2)}
+                        {dailyFormPreview.total.toFixed(2)}
                       </div>
-                      {dailyFormPreview.usageDay != null && (
-                        <p className="text-xs text-muted-foreground">
-                          Day usage (opening − prior lights-out):{" "}
-                          {dailyFormPreview.usageDay.toFixed(2)}
-                        </p>
-                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Beginning (BB) + Store
+                      </p>
                     </HotelFormFieldStack>
                     <HotelFormFieldStack>
-                      <Label htmlFor="kb-management-taken">Issued to management</Label>
+                      <Label htmlFor="kb-management-taken">Management</Label>
                       <Input
                         id="kb-management-taken"
                         type="number"
@@ -2043,10 +1982,10 @@ function CostControlInner() {
             <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
               <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Total sealed movement value (selected day)
+                  Total Sales value (selected day)
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Σ (unit price × sealed movement) per row; rows without sealed movement yet are excluded
+                  Σ (unit price × Sales) per row; first-in-series rows have no Sales yet
                 </p>
                 <p className="text-lg font-semibold tabular-nums mt-1">
                   {selectedDayTotalCountedEtb.toLocaleString()}{" "}

@@ -19,7 +19,6 @@ function round2(n: number): number {
 }
 
 export type KitchenBarDerivedMaps = {
-  implied: Map<number, number | null>;
   daySales: Map<number, number | null>;
 };
 
@@ -40,15 +39,15 @@ export function buildKitchenBarRollupColumns(
     },
     {
       accessorKey: "itemName",
-      header: "Item",
+      header: "Items",
       cell: ({ row }) => (
         <span className="font-medium">{row.original.itemName}</span>
       ),
     },
     {
-      id: "totalImplied",
+      id: "totalSales",
       header: () => (
-        <span className="block text-right w-full">Σ implied movement</span>
+        <span className="block text-right w-full">Σ Sales</span>
       ),
       cell: ({ row }) => (
         <span className="block text-right tabular-nums">
@@ -57,9 +56,9 @@ export function buildKitchenBarRollupColumns(
       ),
     },
     {
-      id: "firstLightsOut",
+      id: "onHand",
       header: () => (
-        <span className="block text-right w-full">First lights-out on-hand</span>
+        <span className="block text-right w-full">On Hand</span>
       ),
       cell: ({ row }) => (
         <span className="block text-right tabular-nums">
@@ -117,6 +116,18 @@ export function buildKitchenBarDailyColumns(
     deletePendingId = null,
   } = options;
 
+  const storeFor = (b: KitchenBarBeginningRow): number =>
+    mode === "manager"
+      ? round2(
+          summarizeApprovedStockOutForDay(
+            stockOutRowsForProperty,
+            normalizeKitchenBarStationKey(b.station),
+            b.itemName,
+            String(selectedDayYmd || "").slice(0, 10),
+          ),
+        )
+      : round2(Number(b.stockOutDay ?? 0));
+
   const cols: ColumnDef<KitchenBarBeginningRow>[] = [
     {
       id: "date",
@@ -139,14 +150,16 @@ export function buildKitchenBarDailyColumns(
     },
     {
       accessorKey: "itemName",
-      header: "Item",
+      header: "Items",
       cell: ({ row }) => (
         <span className="font-medium">{row.original.itemName}</span>
       ),
     },
     {
       id: "opening",
-      header: () => <span className="block text-right w-full">Opening pulse</span>,
+      header: () => (
+        <span className="block text-right w-full">Beginning (BB)</span>
+      ),
       cell: ({ row }) => (
         <span className="block text-right tabular-nums">
           {row.original.amount} {row.original.measuredBy}
@@ -155,34 +168,27 @@ export function buildKitchenBarDailyColumns(
     },
     {
       id: "stockOut",
-      header: () => (
-        <span className="block text-right w-full">Approved stock-out</span>
+      header: () => <span className="block text-right w-full">Store</span>,
+      cell: ({ row }) => (
+        <span className="block text-right tabular-nums">
+          {storeFor(row.original).toFixed(2)}
+        </span>
       ),
+    },
+    {
+      id: "total",
+      header: () => <span className="block text-right w-full">Total</span>,
       cell: ({ row }) => {
         const b = row.original;
-        const approvedSo =
-          mode === "manager"
-            ? round2(
-                summarizeApprovedStockOutForDay(
-                  stockOutRowsForProperty,
-                  normalizeKitchenBarStationKey(b.station),
-                  b.itemName,
-                  String(selectedDayYmd || "").slice(0, 10),
-                ),
-              )
-            : round2(Number(b.stockOutDay ?? 0));
+        const total = round2(Number(b.amount || 0) + storeFor(b));
         return (
-          <span className="block text-right tabular-nums">
-            {approvedSo.toFixed(2)}
-          </span>
+          <span className="block text-right tabular-nums">{total.toFixed(2)}</span>
         );
       },
     },
     {
       id: "management",
-      header: () => (
-        <span className="block text-right w-full">Issued to management</span>
-      ),
+      header: () => <span className="block text-right w-full">Management</span>,
       cell: ({ row }) => (
         <span className="block text-right tabular-nums">
           {Number(row.original.managementTakenDay ?? 0).toFixed(2)}
@@ -190,56 +196,30 @@ export function buildKitchenBarDailyColumns(
       ),
     },
     {
-      id: "lightsOut",
-      header: () => <span className="block text-right w-full">Lights-out</span>,
+      id: "sales",
+      header: () => <span className="block text-right w-full">Sales</span>,
+      cell: ({ row }) => {
+        const sales = derived.daySales.get(row.original.id);
+        return (
+          <span className="block text-right tabular-nums text-muted-foreground">
+            {sales == null ? "—" : sales.toFixed(2)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "onHand",
+      header: () => <span className="block text-right w-full">On Hand</span>,
       cell: ({ row }) => {
         const b = row.original;
-        const approvedSo =
-          mode === "manager"
-            ? round2(
-                summarizeApprovedStockOutForDay(
-                  stockOutRowsForProperty,
-                  normalizeKitchenBarStationKey(b.station),
-                  b.itemName,
-                  String(selectedDayYmd || "").slice(0, 10),
-                ),
-              )
-            : round2(Number(b.stockOutDay ?? 0));
-        const lightsOut = round2(
-          Number(b.amount || 0) +
-            approvedSo -
-            Number(b.managementTakenDay ?? 0),
-        );
+        const store = storeFor(b);
+        const total = round2(Number(b.amount || 0) + store);
+        const sales = derived.daySales.get(b.id);
+        const salesQty = sales == null ? 0 : Number(sales);
+        const management = Number(b.managementTakenDay ?? 0);
+        const onHand = round2(total - salesQty - management);
         return (
-          <span className="block text-right tabular-nums">
-            {lightsOut.toFixed(2)}
-          </span>
-        );
-      },
-    },
-    {
-      id: "usage",
-      header: () => <span className="block text-right w-full">Day usage</span>,
-      cell: ({ row }) => {
-        const usage = derived.daySales.get(row.original.id);
-        return (
-          <span className="block text-right tabular-nums text-muted-foreground">
-            {usage == null ? "—" : usage.toFixed(2)}
-          </span>
-        );
-      },
-    },
-    {
-      id: "implied",
-      header: () => (
-        <span className="block text-right w-full">Sealed movement</span>
-      ),
-      cell: ({ row }) => {
-        const implied = derived.implied.get(row.original.id);
-        return (
-          <span className="block text-right tabular-nums text-muted-foreground">
-            {implied == null ? "—" : implied.toFixed(2)}
-          </span>
+          <span className="block text-right tabular-nums">{onHand.toFixed(2)}</span>
         );
       },
     },

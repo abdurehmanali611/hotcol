@@ -20,6 +20,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { lineOwedETB } from "@/lib/hotelInventoryPayment";
+import { aggregateInventoryByItemName } from "@/lib/inventoryAggregation";
+import type { items } from "@/app/StoreItems/columns";
 import { Users, Filter, Truck, Package } from "lucide-react";
 
 type SupplierSummary = {
@@ -63,6 +65,11 @@ export default function Suppliers({
     if (selectedSupplier === "all") return safeItems;
     return safeItems.filter((i) => i.supplierName === selectedSupplier);
   }, [safeItems, selectedSupplier]);
+
+  const tableData = useMemo(
+    () => aggregateInventoryByItemName(filteredItems as items[]),
+    [filteredItems],
+  );
 
   const activeSummary =
     selectedSupplier === "all"
@@ -181,10 +188,10 @@ export default function Suppliers({
 
       <div className="rounded-2xl border border-border/50 bg-card shadow-sm overflow-hidden">
         <DataTableClientWrapper
-          data={filteredItems}
+          data={tableData}
           readOnly
           showStoreMovementActions={false}
-          aggregateInventory={false}
+          aggregateInventory
         />
       </div>
     </main>

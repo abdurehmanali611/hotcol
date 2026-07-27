@@ -482,7 +482,6 @@ const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) =
                   embedded
                   tenantScope={hotelName}
                   adminEditDelete
-                  aggregateInventory={false}
                   showPaymentSummary={false}
                   movementCount={fetchedItemStatus.length}
                   pettyCashBalance={

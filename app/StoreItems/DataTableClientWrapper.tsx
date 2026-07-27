@@ -22,6 +22,7 @@ interface WrapperProps {
   showStoreMovementActions?: boolean;
   onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
   enableRowSelection?: boolean;
+  /** When true (default), same-name groups expand and use aggregated row ids. */
   aggregateInventory?: boolean;
   onRowSelectionChange?: (rows: ItemRegistration[]) => void;
 }
@@ -40,7 +41,7 @@ export const DataTableClientWrapper = forwardRef<
     showStoreMovementActions,
     onHotelStockRequestCreated,
     enableRowSelection,
-    aggregateInventory,
+    aggregateInventory = true,
     onRowSelectionChange,
   },
   ref,
@@ -80,6 +81,12 @@ export const DataTableClientWrapper = forwardRef<
       getRowId={resolveRowId}
       onRowSelectionChange={onRowSelectionChange}
       initialSorting={hotelStockApprovals ? VOUCHER_TABLE_SORT : undefined}
+      getSubRows={
+        aggregateInventory
+          ? (row) =>
+              isAggregatedInventoryRow(row) ? row.registrationLines : undefined
+          : undefined
+      }
     />
   );
 });

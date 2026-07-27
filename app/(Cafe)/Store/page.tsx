@@ -598,7 +598,6 @@ export function StoreComponent({
               tenantScope={inventoryTenantKey}
               embedded
               showPaymentSummary={false}
-              aggregateInventory={false}
               onExternalRefresh={handleItemsRegistered}
               onHotelStockRequestCreated={
                 hotelInventory

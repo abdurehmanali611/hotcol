@@ -100,29 +100,39 @@ const COST_CONTROL: GlossarySection[] = [
     title: "Station daily counts (kitchen, bar, etc.)",
     items: [
       {
-        term: "Opening pulse",
+        term: "Beginning (BB)",
         definition:
           "Physical count when the day starts at the station (kitchen/chef is one station; bar, juicer, cleaning, and other stakeholders match store stock-out labels).",
       },
       {
-        term: "Approved stock-out",
+        term: "Store",
         definition:
           "Total quantity moved from the store to that station on the calendar day, only after you approve the store’s stock-out request — you do not type this on the daily form.",
       },
       {
-        term: "Lights-out",
+        term: "Total",
         definition:
-          "System-calculated on-hand at close from opening pulse, approved stock-out that day, and usage since the prior day (today’s opening minus the previous day’s lights-out when a prior row exists).",
+          "Beginning (BB) plus Store for that day.",
       },
       {
-        term: "Sealed movement",
+        term: "Sales",
         definition:
-          "When the next day’s opening pulse exists: prior opening + prior approved stock-out − today’s opening (first day in a chain has no prior seal).",
+          "Beginning today minus prior On Hand. Does not include Management issues.",
+      },
+      {
+        term: "Management",
+        definition:
+          "Units taken from station stock by management on that day.",
+      },
+      {
+        term: "On Hand",
+        definition:
+          "Station quantity still on hand: Total − (Sales + Management).",
       },
       {
         term: "Sync monthly inventory",
         definition:
-          "Rolls daily rows into a month: sums sealed movement for the month and stores last lights-out on-hand for finance and managers.",
+          "Rolls daily rows into a date range: sums Sales for the range and stores last On Hand for finance and managers.",
       },
     ],
   },
@@ -302,24 +312,29 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
       title: "Daily station counts",
       items: [
         {
-          term: "Opening pulse",
+          term: "Beginning (BB)",
           definition:
             "Physical opening quantity counted at station start for a selected day.",
         },
         {
-          term: "Approved stock-out",
+          term: "Store",
           definition:
             "Total approved store-to-station quantity for that item and day.",
         },
         {
-          term: "Lights-out",
+          term: "Total",
           definition:
-            "Computed close-of-day station on-hand after approved stock-out and usage.",
+            "Beginning (BB) plus Store for that day.",
         },
         {
-          term: "Sealed movement",
+          term: "Sales",
           definition:
-            "Cross-day implied movement derived from consecutive daily opening rows.",
+            "Beginning today minus prior On Hand (excludes Management).",
+        },
+        {
+          term: "On Hand",
+          definition:
+            "Total − (Sales + Management) remaining at the station.",
         },
       ],
     },

@@ -50,11 +50,11 @@ export default function StoreItems({
   readOnly = false,
   showPaymentSummary = false,
   /**
-   * Merge rows with the same item name (sum qty, list suppliers). Defaults to
-   * false so each registration stays its own row — separate registration dates,
-   * expiry, and supplier batches must remain individually visible.
+   * Merge rows with the same item name into one collapsible parent (sum qty,
+   * show supplier count). Expand to see each registration’s own detail.
+   * Defaults on wherever inventory is listed.
    */
-  aggregateInventory = false,
+  aggregateInventory = true,
   adminEditDelete = false,
   onHotelStockRequestCreated,
   onExternalRefresh,

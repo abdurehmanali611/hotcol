@@ -4,8 +4,10 @@ import * as React from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type ExpandedState,
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
@@ -63,6 +65,8 @@ export interface DataTableProps<TData, TValue> {
    * sync with the in-table search box.
    */
   footerSummary?: (filteredRows: TData[]) => React.ReactNode;
+  /** When set, rows with children become expandable (e.g. same-name inventory groups). */
+  getSubRows?: (row: TData) => TData[] | undefined;
 }
 
 function DataTableInner<TData extends { id?: number }, TValue>(
@@ -80,6 +84,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     initialSorting,
     pageSize = 10,
     footerSummary,
+    getSubRows,
   }: DataTableProps<TData, TValue>,
   ref: React.ForwardedRef<DataTableRef>,
 ) {
@@ -92,6 +97,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const lastSelectionSig = React.useRef("");
 
   const selectColumn = React.useMemo<ColumnDef<TData, unknown>>(
@@ -112,13 +118,16 @@ function DataTableInner<TData extends { id?: number }, TValue>(
           aria-label="Select all on this page"
         />
       ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(v) => row.toggleSelected(!!v)}
-          aria-label={`Select ${String((row.original as { name?: string }).name ?? "row")}`}
-        />
-      ),
+      cell: ({ row }) => {
+        if (!row.getCanSelect()) return null;
+        return (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            aria-label={`Select ${String((row.original as { name?: string }).name ?? "row")}`}
+          />
+        );
+      },
     }),
     [],
   );
@@ -131,16 +140,21 @@ function DataTableInner<TData extends { id?: number }, TValue>(
   const table = useReactTable({
     data,
     columns: mergedColumns,
-    state: { sorting, columnFilters, columnVisibility, rowSelection },
+    state: { sorting, columnFilters, columnVisibility, rowSelection, expanded },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    enableRowSelection,
+    getExpandedRowModel: getSubRows ? getExpandedRowModel() : undefined,
+    getSubRows,
+    enableRowSelection: enableRowSelection
+      ? (row) => !(row.original as { isAggregated?: boolean }).isAggregated
+      : false,
     getRowId,
     initialState: {
       pagination: { pageSize },
@@ -295,7 +309,12 @@ function DataTableInner<TData extends { id?: number }, TValue>(
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() ? "selected" : undefined}
-                  className="hover:bg-muted/30 transition-colors data-[state=selected]:bg-muted/50"
+                  className={cn(
+                    "hover:bg-muted/30 transition-colors data-[state=selected]:bg-muted/50",
+                    row.depth > 0 && "bg-muted/25 border-l-2 border-l-primary/25",
+                    (row.original as { isAggregated?: boolean }).isAggregated &&
+                      "bg-muted/40 hover:bg-muted/50",
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="px-2 py-2 align-middle">

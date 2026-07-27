@@ -643,7 +643,7 @@ function ManagerContent() {
       "item-receipts":
         "Confirm goods received into inventory after finance clears a purchase.",
       "reports-beginnings":
-        "Station daily opening counts, sealed movements, and roll-up views.",
+        "Station daily counts (Beginning, Store, Total, Sales, Management, On Hand) and roll-up views.",
       "cc-profiles":
         "Named cost-controller identities used for approval audit trails.",
       "department-leaders":
@@ -729,7 +729,6 @@ function ManagerContent() {
   }, [beginnings, tenantScope]);
 
   const beginningDerivedById = useMemo(() => {
-    const implied = new Map<number, number | null>();
     const daySales = new Map<number, number | null>();
     const groups = new Map<string, KitchenBarBeginningRow[]>();
     for (const b of beginningsScoped) {
@@ -745,27 +744,18 @@ function ManagerContent() {
       );
       for (let i = 0; i < list.length; i++) {
         if (i === 0) {
-          implied.set(list[i].id, null);
           daySales.set(list[i].id, null);
         } else {
           const prev = list[i - 1];
-          const prevLights =
+          const prevOnHand =
             Number(prev.closingOnHand) > 0
               ? Number(prev.closingOnHand)
               : Number(prev.amount);
-          implied.set(
-            list[i].id,
-            round2(
-              Number(prev.amount) +
-                Number(prev.stockOutDay) -
-                Number(list[i].amount),
-            ),
-          );
-          daySales.set(list[i].id, round2(Number(list[i].amount) - prevLights));
+          daySales.set(list[i].id, round2(Number(list[i].amount) - prevOnHand));
         }
       }
     }
-    return { implied, daySales };
+    return { daySales };
   }, [beginningsScoped]);
 
   const visibleManagerDailyRows = useMemo(() => {
@@ -819,13 +809,13 @@ function ManagerContent() {
     return byName;
   }, [items]);
 
-  const managerDailySealedValueEtb = useMemo(() => {
+  const managerDailySalesValueEtb = useMemo(() => {
     return visibleManagerDailyRows.reduce((sum, row) => {
-      const sealed = beginningDerivedById.implied.get(row.id);
-      if (sealed == null) return sum;
+      const sales = beginningDerivedById.daySales.get(row.id);
+      if (sales == null) return sum;
       const key = normalizeItemNameForValueKey(row.itemName);
       const price = unitPriceByItemName.get(key) || 0;
-      return sum + (Number(sealed) || 0) * price;
+      return sum + (Number(sales) || 0) * price;
     }, 0);
   }, [visibleManagerDailyRows, unitPriceByItemName, beginningDerivedById]);
 
@@ -859,9 +849,9 @@ function ManagerContent() {
         );
       };
 
-      const lightsOutFor = (row: KitchenBarBeginningRow, dayYmd: string): number => {
+      const onHandFor = (row: KitchenBarBeginningRow, dayYmd: string): number => {
         const sk = normalizeKitchenBarStationKey(row.station);
-        const approvedSo = round2(
+        const store = round2(
           summarizeApprovedStockOutForDay(
             stockOutRowsForProperty,
             sk,
@@ -869,11 +859,11 @@ function ManagerContent() {
             dayYmd,
           ),
         );
-        return round2(
-          Number(row.amount || 0) +
-            approvedSo -
-            Number(row.managementTakenDay ?? 0),
-        );
+        const total = round2(Number(row.amount || 0) + store);
+        const sales = beginningDerivedById.daySales.get(row.id);
+        const salesQty = sales == null ? 0 : Number(sales);
+        const management = Number(row.managementTakenDay ?? 0);
+        return round2(total - salesQty - management);
       };
 
       const out: KitchenBarMonthlySnapshotRow[] = [];
@@ -888,24 +878,24 @@ function ManagerContent() {
         }
         if (!hasInRange) continue;
 
-        let totalImplied = 0;
+        let totalSales = 0;
         for (const d of eachYmdInclusive(fromYmd, toYmd)) {
           const row = pickForDay(rows, d);
           if (!row) continue;
-          const imp = beginningDerivedById.implied.get(row.id);
-          if (imp != null) totalImplied += Number(imp) || 0;
+          const sales = beginningDerivedById.daySales.get(row.id);
+          if (sales != null) totalSales += Number(sales) || 0;
         }
-        totalImplied = round2(totalImplied);
+        totalSales = round2(totalSales);
 
-        let lastClosing = 0;
+        let lastOnHand = 0;
         const lastRowOnTo = pickForDay(rows, toYmd);
         if (lastRowOnTo) {
-          lastClosing = lightsOutFor(lastRowOnTo, toYmd);
+          lastOnHand = onHandFor(lastRowOnTo, toYmd);
         } else {
           for (const d of eachYmdDescendingInclusive(fromYmd, toYmd)) {
             const r = pickForDay(rows, d);
             if (r) {
-              lastClosing = lightsOutFor(r, d);
+              lastOnHand = onHandFor(r, d);
               break;
             }
           }
@@ -923,8 +913,8 @@ function ManagerContent() {
           monthPeriod: fromYmd.slice(0, 7),
           periodFrom: fromYmd,
           periodTo: toYmd,
-          totalImpliedSales: totalImplied,
-          lastDayClosingOnHand: lastClosing,
+          totalImpliedSales: totalSales,
+          lastDayClosingOnHand: lastOnHand,
           syncedAt: CLIENT_ROLLUP_SYNCED_AT,
         });
       }
@@ -957,8 +947,8 @@ function ManagerContent() {
     return managerRollupFromDailyRows.reduce((sum, row) => {
       const key = normalizeItemNameForValueKey(row.itemName);
       const price = unitPriceByItemName.get(key) || 0;
-      const impliedSum = Number(row.totalImpliedSales) || 0;
-      return sum + impliedSum * price;
+      const salesSum = Number(row.totalImpliedSales) || 0;
+      return sum + salesSum * price;
     }, 0);
   }, [managerRollupFromDailyRows, unitPriceByItemName]);
 
@@ -1251,7 +1241,7 @@ function ManagerContent() {
               tenantScope={tenantScope}
               embedded
               showPaymentSummary
-              aggregateInventory={false}
+              aggregateInventory
             />
           </div>
         );
@@ -1356,10 +1346,9 @@ function ManagerContent() {
           <div className="p-4 md:p-6 space-y-6">
             <p className="text-sm text-muted-foreground mb-4">
               Read-only view of Cost Control daily rows for your property. Pick a calendar
-              day in the grid: one row per station and item for that day. Approved stock-out
-              is summed from approved store stock-outs (same UTC day rule as Cost Control);
-              day usage and sealed movement use the same consecutive-day math as the cost
-              controller terminal.
+              day in the grid: one row per station and item for that day. Store is summed from
+              approved store stock-outs (same UTC day rule as Cost Control); Sales and On Hand
+              use the same consecutive-day math as the cost controller terminal.
             </p>
             <Card>
               <CardHeader>
@@ -1367,7 +1356,7 @@ function ManagerContent() {
                 <CardDescription>
                   Pick <strong>From</strong> and <strong>To</strong> (inclusive). The table
                   recomputes automatically from daily station counts already loaded for your
-                  property (same sealed movement and lights-out rules as below). Use{" "}
+                  property (same Sales and On Hand rules as below). Use{" "}
                   <strong>Reload data</strong> if Cost Control entered new days after you
                   opened this page.
                 </CardDescription>
@@ -1411,10 +1400,10 @@ function ManagerContent() {
                 {managerRollupFromDailyRows.length > 0 ? (
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Total implied movement value — {rollupRangeLabel}
+                      Total Sales value — {rollupRangeLabel}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Σ (unit price × Σ implied movement) per row below
+                      Σ (unit price × Σ Sales) per row below
                     </p>
                     <p className="text-xl font-semibold tabular-nums mt-1">
                       {managerRollupTotalEtb.toLocaleString()}{" "}
@@ -1439,20 +1428,20 @@ function ManagerContent() {
                   Rows and numbers match <strong className="text-foreground">Cost Control</strong>{" "}
                   → <strong className="text-foreground">Daily chef &amp; bar counts</strong>. The first
                   column is always the calendar day you select; each other column is computed for that
-                  day only (inventory unit prices value sealed movement in ETB below).
+                  day only (inventory unit prices value Sales in ETB below).
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6 mb-4">
                   <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Total sealed movement value (selected day)
+                      Total Sales value (selected day)
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Σ (unit price × sealed movement) for rows on this day; first-in-series rows have no sealed movement yet
+                      Σ (unit price × Sales) for rows on this day; first-in-series rows have no Sales yet
                     </p>
                     <p className="text-lg font-semibold tabular-nums mt-1">
-                      {managerDailySealedValueEtb.toLocaleString()}{" "}
+                      {managerDailySalesValueEtb.toLocaleString()}{" "}
                       <span className="text-sm font-medium text-muted-foreground">ETB</span>
                     </p>
                   </div>

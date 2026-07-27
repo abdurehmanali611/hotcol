@@ -42,7 +42,6 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import {
-  aggregatedCreditETB,
   aggregatedLineOwedETB,
   isAggregatedInventoryRow,
 } from "@/lib/inventoryAggregation";
@@ -66,17 +65,13 @@ import { buildVoucherColumn } from "@/lib/dataTableColumns/voucherColumn";
 import {
   AlertTriangle,
   ChevronDown,
+  ChevronRight,
   Loader2,
   MoreVertical,
   Truck,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export type InventorySupplierLine = {
@@ -118,38 +113,45 @@ export type items = {
   suppliers?: InventorySupplierLine[];
 };
 
-function SuppliersSourceCell({ row }: { row: items }) {
+/** Aggregated name-group parent: only Product Detail + Source are shown. */
+function isInventoryGroupParent(row: items): boolean {
+  return isAggregatedInventoryRow(row);
+}
+
+function groupLineCount(row: items): number {
+  if (!isAggregatedInventoryRow(row)) return 1;
+  return row.registrationLines.length;
+}
+
+function groupSupplierCount(row: items): number {
   const lines =
     row.suppliers ??
     (isAggregatedInventoryRow(row) ? row.suppliers : undefined);
+  if (!lines?.length) return 1;
+  const unique = new Set(
+    lines
+      .map((s) => String(s.supplierName || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  return unique.size || lines.length;
+}
 
-  if (lines && lines.length > 1) {
+function SuppliersSourceCell({ row }: { row: items }) {
+  if (isInventoryGroupParent(row)) {
+    const count = groupSupplierCount(row);
     return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-auto min-h-9 max-w-[220px] justify-between gap-2 border-dashed px-2.5 py-1.5 text-left font-normal"
-          >
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex items-center gap-1.5 text-xs font-semibold">
-                <Truck size={12} className="shrink-0 text-primary" />
-                {lines.length} suppliers
-              </span>
-              <span className="text-[10px] text-muted-foreground truncate">
-                {lines.map((s) => s.supplierName).join(" · ")}
-              </span>
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 p-0">
-          <SupplierLinesList lines={lines} measuredBy={row.measuredBy} />
-        </PopoverContent>
-      </Popover>
+      <div className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-2.5 py-1.5 text-xs font-semibold tabular-nums shadow-sm">
+        <Truck size={12} className="shrink-0 text-primary" />
+        <span>
+          {count} {count === 1 ? "supplier" : "suppliers"}
+        </span>
+      </div>
     );
   }
+
+  const lines =
+    row.suppliers ??
+    (isAggregatedInventoryRow(row) ? row.suppliers : undefined);
 
   return (
     <SupplierLinesList
@@ -1003,57 +1005,158 @@ export const columns = (
     onHotelStockRequestCreated?: (row: StockOutRequestRow) => void;
   },
 ): ColumnDef<items>[] => {
+  const voucherCol = buildVoucherColumn<items>();
   const defs: ColumnDef<items>[] = [
-  ...(opts?.hotelStockApprovals ? [buildVoucherColumn<items>()] : []),
+  ...(opts?.hotelStockApprovals
+    ? [
+        {
+          ...voucherCol,
+          cell: (ctx) => {
+            if (isInventoryGroupParent(ctx.row.original)) return null;
+            const cell = voucherCol.cell;
+            return typeof cell === "function" ? cell(ctx) : null;
+          },
+        } satisfies ColumnDef<items>,
+      ]
+    : []),
   {
     accessorKey: "name",
     header: "Product Detail",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-3">
-        <Avatar className="h-10 w-10 border shadow-sm">
-          <AvatarImage src={row.original.imageUrl} />
-          <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
-            {row.original.name.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col">
-          <span className="font-semibold text-sm leading-tight">{row.original.name}</span>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mt-0.5">
-            {row.original.category}
-          </span>
+    cell: ({ row }) => {
+      const canExpand = row.getCanExpand();
+      const isChild = row.depth > 0;
+      const isGroup = isInventoryGroupParent(row.original);
+      const included = isGroup ? groupLineCount(row.original) : 0;
+      const expanded = row.getIsExpanded();
+
+      if (isGroup) {
+        return (
+          <button
+            type="button"
+            className={cn(
+              "group/collapse flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left",
+              "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            )}
+            aria-expanded={expanded}
+            aria-label={
+              expanded
+                ? `Collapse ${row.original.name} (${included} items)`
+                : `Expand ${row.original.name} (${included} items)`
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              row.toggleExpanded();
+            }}
+          >
+            <span
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background shadow-sm",
+                "text-muted-foreground transition-colors group-hover/collapse:border-primary/30 group-hover/collapse:text-primary",
+              )}
+            >
+              {expanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </span>
+            <Avatar className="h-9 w-9 border shadow-sm shrink-0">
+              <AvatarImage src={row.original.imageUrl} />
+              <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
+                {row.original.name.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-sm font-semibold leading-tight">
+                {row.original.name}
+              </span>
+              <span className="inline-flex w-fit items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary tabular-nums">
+                {included} {included === 1 ? "item" : "items"}
+              </span>
+            </div>
+          </button>
+        );
+      }
+
+      return (
+        <div
+          className="flex items-center gap-2"
+          style={isChild ? { paddingLeft: `${row.depth * 12}px` } : undefined}
+        >
+          {canExpand ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              aria-label={expanded ? "Collapse item batches" : "Expand item batches"}
+              onClick={(e) => {
+                e.stopPropagation();
+                row.toggleExpanded();
+              }}
+            >
+              {expanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </Button>
+          ) : (
+            <span className={cn("shrink-0", isChild ? "w-7" : "w-0")} aria-hidden />
+          )}
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="h-10 w-10 border shadow-sm shrink-0">
+              <AvatarImage src={row.original.imageUrl} />
+              <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
+                {row.original.name.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col min-w-0">
+              <span className="font-semibold text-sm leading-tight truncate">
+                {row.original.name}
+              </span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mt-0.5">
+                {isChild
+                  ? `Batch · ${new Date(row.original.registrationDate).toLocaleDateString()}`
+                  : row.original.category}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
-    ),
+      );
+    },
   },
   {
     accessorKey: "amount",
     header: "Inventory",
-    cell: ({ row }) => (
-      <div className="flex flex-col">
-        <span className="text-sm font-bold">
-          {row.original.amount} <span className="text-[10px] text-muted-foreground font-normal">{row.original.measuredBy}</span>
-        </span>
-        <span className="text-[11px] text-muted-foreground italic">
-          ETB {row.original.unitPrice.toLocaleString()} / unit
-        </span>
-      </div>
-    ),
+    cell: ({ row }) => {
+      if (isInventoryGroupParent(row.original)) return null;
+      return (
+        <div className="flex flex-col">
+          <span className="text-sm font-bold">
+            {row.original.amount}{" "}
+            <span className="text-[10px] text-muted-foreground font-normal">
+              {row.original.measuredBy}
+            </span>
+          </span>
+          <span className="text-[11px] text-muted-foreground italic">
+            ETB {row.original.unitPrice.toLocaleString()} / unit
+          </span>
+        </div>
+      );
+    },
   },
   {
     id: "totalValue",
     header: "Value",
     cell: ({ row }) => {
+      if (isInventoryGroupParent(row.original)) return null;
       const total = aggregatedLineOwedETB(row.original);
       return (
         <div className="flex flex-col">
           <span className="text-sm font-bold text-primary">
             ETB {total.toLocaleString()}
           </span>
-          {isAggregatedInventoryRow(row.original) ? (
-            <span className="text-[10px] text-muted-foreground">
-              {row.original.registrationLines.length} batches combined
-            </span>
-          ) : null}
         </div>
       );
     },
@@ -1062,37 +1165,23 @@ export const columns = (
     id: "purchaseVat",
     header: "VAT",
     cell: ({ row }) => {
-      const mixed =
-        isAggregatedInventoryRow(row.original) &&
-        new Set(
-          row.original.registrationLines.map((l) =>
-            isVatEnabled(l.purchaseWithVat),
-          ),
-        ).size > 1;
-      const vatOn = mixed
-        ? null
-        : isVatEnabled(row.original.purchaseWithVat);
+      if (isInventoryGroupParent(row.original)) return null;
+      const vatOn = isVatEnabled(row.original.purchaseWithVat);
       return (
         <div className="flex flex-col gap-1.5 min-w-[108px]">
           <Badge
             variant="outline"
             className={cn(
               "w-fit px-2.5 py-0.5 text-[11px] font-semibold tracking-wide border shadow-sm",
-              mixed
-                ? "border-amber-400/50 bg-amber-500/10 text-amber-900 dark:text-amber-100"
-                : vatOn
-                  ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white ring-1 ring-violet-500/25"
-                  : "border-slate-300/60 bg-muted/80 text-muted-foreground dark:border-slate-600/60",
+              vatOn
+                ? "border-violet-400/50 bg-linear-to-br from-violet-600 to-violet-700 text-white ring-1 ring-violet-500/25"
+                : "border-slate-300/60 bg-muted/80 text-muted-foreground dark:border-slate-600/60",
             )}
           >
-            {mixed ? "Mixed VAT" : vatOn ? "With VAT" : "Without VAT"}
+            {vatOn ? "With VAT" : "Without VAT"}
           </Badge>
           <span className="text-[10px] text-muted-foreground leading-snug">
-            {mixed
-              ? "Batches recorded with different VAT settings"
-              : vatOn
-                ? "Unit price includes 15% VAT"
-                : "Net line (no VAT on unit)"}
+            {vatOn ? "Unit price includes 15% VAT" : "Net line (no VAT on unit)"}
           </span>
         </div>
       );
@@ -1102,6 +1191,7 @@ export const columns = (
     id: "remainingDays",
     header: "Freshness",
     cell: ({ row }) => {
+      if (isInventoryGroupParent(row.original)) return null;
       const days = getRemainingDays(row.original.expireDate);
       const { text, color } = getExpiryStatus(days);
       return (
@@ -1121,27 +1211,12 @@ export const columns = (
     accessorKey: "paidAmount",
     header: "Supplier payment",
     cell: ({ row }) => {
+      if (isInventoryGroupParent(row.original)) return null;
       const owed = aggregatedLineOwedETB(row.original);
       const paid = Number(row.original.paidAmount) || 0;
-      const bucket =
-        isAggregatedInventoryRow(row.original) &&
-        new Set(
-          row.original.registrationLines.map((l) => itemPaymentBucket(l)),
-        ).size > 1
-          ? aggregatedCreditETB(row.original) > 0.01
-            ? ("credit" as const)
-            : paid >= owed - 0.02
-              ? ("paid" as const)
-              : ("none" as const)
-          : itemPaymentBucket(row.original);
+      const bucket = itemPaymentBucket(row.original);
       const pct = owed > 0.01 ? Math.min((paid / owed) * 100, 100) : paid > 0 ? 100 : 0;
-      const label =
-        isAggregatedInventoryRow(row.original) &&
-        new Set(
-          row.original.registrationLines.map((l) => itemPaymentBucket(l)),
-        ).size > 1
-          ? "Mixed payment"
-          : itemPaymentLabel(bucket);
+      const label = itemPaymentLabel(bucket);
       return (
         <div className="w-44 space-y-1.5">
           <Badge
@@ -1181,6 +1256,7 @@ export const columns = (
       <span className="text-muted-foreground text-xs font-medium">Actions</span>
     ),
     cell: ({ row }) => {
+      if (isInventoryGroupParent(row.original)) return null;
       const [openDrop, setOpenDrop] = useState(false);
       const actionLine = primaryRegistrationLine(row.original);
       return (
@@ -1204,9 +1280,6 @@ export const columns = (
                       }}
                     >
                       Edit Details
-                      {isAggregatedInventoryRow(row.original)
-                        ? " (primary batch)"
-                        : ""}
                     </Button>
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
