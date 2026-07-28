@@ -354,7 +354,7 @@ function TenantProfileContent() {
     {
       label: "Awaiting self-signup setup",
       value: formatBooleanStatus(
-        billing.awaitingSelfSignupSetup,
+        Boolean(billing.awaitingSelfSignupSetup),
         "Yes",
         "No",
       ),
@@ -756,8 +756,7 @@ function TenantProfileContent() {
 
                   <Button
                     type="button"
-                    variant="apex"
-                    className="h-11 w-full"
+                    className="h-11 w-full bg-linear-to-r from-primary via-violet-500 to-cyan-500 text-primary-foreground shadow-sm hover:opacity-95"
                     disabled={selectedModules.length === 0 || submitting}
                     onClick={handleSubmitRequest}
                   >
