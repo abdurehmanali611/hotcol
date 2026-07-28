@@ -54,7 +54,7 @@ import {
   readBusinessTypeFromStorage,
   subscriptionRenewalAmountETB,
 } from "@/lib/subscriptionBillingPeriod";
-import { sendTenantFeedbackMessage } from "@/lib/actions";
+import { requestTenantModuleChange } from "@/lib/actions";
 
 type TenantProfileState = {
   role: string;
@@ -202,20 +202,11 @@ function TenantProfileContent() {
     if (!profile || selectedModules.length === 0 || submitting) return;
     setSubmitting(true);
     try {
-      const lines = [
-        "Module request",
-        `Request type: ${requestMode === "add" ? "Add modules" : "Remove modules"}`,
-        `Property: ${profile.displayName}`,
-        `Tenant key: ${profile.tenantKey || "Not provided"}`,
-        profile.tinNumber ? `TIN: ${profile.tinNumber}` : null,
-        `Requested by: ${profile.userName} (${profile.role})`,
-        `Business type: ${profile.businessType}`,
-        `Current modules: ${profile.modules.join(", ") || "None"}`,
-        `Modules to ${requestVerb}: ${selectedModules.join(", ")}`,
-        `Projected modules after request: ${projectedModules.join(", ") || "None"}`,
-        requestNote.trim() ? `Message: ${requestNote.trim()}` : null,
-      ].filter(Boolean);
-      await sendTenantFeedbackMessage(lines.join("\n"));
+      await requestTenantModuleChange({
+        changeType: requestMode,
+        modules: selectedModules,
+        requestNote: requestNote.trim() || undefined,
+      });
       toast.success(
         requestMode === "add"
           ? "Module add request sent to Apex."

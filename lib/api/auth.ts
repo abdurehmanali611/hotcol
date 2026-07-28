@@ -485,6 +485,62 @@ export async function markTenantFeedbackRead(): Promise<void> {
   }
 }
 
+export type TenantModuleChangeRequestResult = {
+  id: number;
+  tinNumber: string;
+  status: string;
+  requestedBySide: string;
+  requestNote: string | null;
+  requestedModules: string[];
+  createdAt: string;
+};
+
+/** Admin/Manager: submit add/remove module change for Apex review. */
+export async function requestTenantModuleChange(input: {
+  changeType: "add" | "remove";
+  modules: string[];
+  requestNote?: string;
+}): Promise<TenantModuleChangeRequestResult> {
+  const MUTATION = `
+    mutation RequestTenantModuleChange(
+      $changeType: String!
+      $modules: JSON!
+      $requestNote: String
+    ) {
+      requestTenantModuleChange(
+        changeType: $changeType
+        modules: $modules
+        requestNote: $requestNote
+      ) {
+        id
+        tinNumber
+        status
+        requestedBySide
+        requestNote
+        requestedModules
+        createdAt
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: MUTATION,
+    variables: {
+      changeType: input.changeType,
+      modules: input.modules,
+      requestNote: input.requestNote?.trim() || null,
+    },
+  });
+
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message || "Could not submit module request",
+    );
+  }
+
+  return response.data.data.requestTenantModuleChange;
+}
+
 /** Authoritative signed-in username from the API (JWT session). */
 export async function fetchMe(): Promise<{ UserName: string } | null> {
   const query = `
