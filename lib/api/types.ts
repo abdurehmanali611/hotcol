@@ -39,7 +39,10 @@ export interface Order {
   category: string;
   type: string;
   HotelName: string;
+  /** Selling unit price frozen at order time. */
   price: number;
+  /** Ingredient cost per serving frozen at order time (null if no recipe / legacy). */
+  unitCostAtSale?: number | null;
   tableNo: number;
   waiterName: string;
   status: string | null;

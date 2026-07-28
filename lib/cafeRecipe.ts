@@ -16,6 +16,14 @@ function asNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function hasSnapshottedUnitCost(
+  order: Pick<Order, "unitCostAtSale">,
+): order is Pick<Order, "unitCostAtSale"> & { unitCostAtSale: number } {
+  return (
+    order.unitCostAtSale != null && Number.isFinite(Number(order.unitCostAtSale))
+  );
+}
+
 /** Parse stored recipe JSON from API/DB. */
 export function parseMenuRecipe(raw: unknown): MenuRecipe | null {
   if (!raw || typeof raw !== "object") return null;
@@ -59,21 +67,36 @@ export function orderLineIngredientCost(
   return recipeCostPerUnit(recipe) * qty;
 }
 
+/**
+ * Prefer `unitCostAtSale` frozen on the order; fall back to live recipe for
+ * legacy rows created before cost snapshotting.
+ */
+export function orderLineResolvedIngredientCost(
+  order: Pick<Order, "orderAmount" | "unitCostAtSale">,
+  recipe: MenuRecipe | null | undefined,
+): number | null {
+  const qty = Math.max(0, Number(order.orderAmount) || 0);
+  if (hasSnapshottedUnitCost(order)) {
+    return Number(order.unitCostAtSale) * qty;
+  }
+  if (!recipe) return null;
+  return orderLineIngredientCost(recipe, order.orderAmount);
+}
+
 export function orderLineRevenueETB(order: Pick<Order, "price" | "orderAmount">): number {
   const qty = Math.max(0, Number(order.orderAmount) || 0);
   const price = Number(order.price) || 0;
   return price * qty;
 }
 
-/** Profit = revenue − ingredient cost. Returns null when no recipe. */
+/** Profit = revenue − ingredient cost. Returns null when no snapshotted or live cost. */
 export function orderLineProfitETB(
-  order: Pick<Order, "title" | "price" | "orderAmount">,
+  order: Pick<Order, "title" | "price" | "orderAmount" | "unitCostAtSale">,
   recipe: MenuRecipe | null | undefined,
 ): number | null {
-  if (!recipe) return null;
-  const revenue = orderLineRevenueETB(order);
-  const cost = orderLineIngredientCost(recipe, order.orderAmount);
-  return revenue - cost;
+  const cost = orderLineResolvedIngredientCost(order, recipe);
+  if (cost == null) return null;
+  return orderLineRevenueETB(order) - cost;
 }
 
 export function findItemRecipeByTitle(

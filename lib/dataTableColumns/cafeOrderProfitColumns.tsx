@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { Item, Order } from "@/lib/api/types";
 import {
   findItemRecipeByTitle,
-  orderLineIngredientCost,
+  orderLineResolvedIngredientCost,
   orderLineProfitETB,
 } from "@/lib/cafeRecipe";
 
@@ -18,10 +18,10 @@ export function cafeOrderProfitColumns(
       header: "Ingredient cost",
       cell: ({ row }) => {
         const recipe = findItemRecipeByTitle(items, row.original.title);
-        if (!recipe) {
+        const cost = orderLineResolvedIngredientCost(row.original, recipe);
+        if (cost == null) {
           return <span className="text-xs text-muted-foreground">—</span>;
         }
-        const cost = orderLineIngredientCost(recipe, row.original.orderAmount);
         return (
           <span className="text-sm tabular-nums text-muted-foreground">
             {cost.toLocaleString()} ETB

@@ -112,6 +112,7 @@ export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[
           type
           HotelName
           price
+          unitCostAtSale
           tableNo
           waiterName
           status

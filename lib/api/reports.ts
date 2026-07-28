@@ -21,7 +21,7 @@ import {
 } from "../cafeBankPayment";
 import {
   findItemRecipeByTitle,
-  orderLineIngredientCost,
+  orderLineResolvedIngredientCost,
   orderLineProfitETB,
 } from "../cafeRecipe";
 import type {
@@ -205,9 +205,8 @@ export function prepareReportExportData(
     const lineTotal = cafeOrderLineTotalETB(order);
     const qty = Number(order.orderAmount) || 0;
     const recipe = findItemRecipeByTitle(items, order.title);
-    const ingredientCost = recipe
-      ? orderLineIngredientCost(recipe, order.orderAmount)
-      : 0;
+    const ingredientCost =
+      orderLineResolvedIngredientCost(order, recipe) ?? 0;
     const profit = orderLineProfitETB(order, recipe) ?? 0;
     const existing = aggregated.get(key) ?? {
       itemName,
