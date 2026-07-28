@@ -23,6 +23,14 @@ const PAID_QUARTERS_KEY = "tenant_paid_quarters_count";
 const AWAITING_SELF_SIGNUP_KEY = "tenant_awaiting_self_signup_setup";
 const PAYMENT_REF_KEY = "tenant_payment_transaction_ref";
 
+export const TENANT_SUBSCRIPTION_CHANGED_EVENT =
+  "hotcol-tenant-subscription-changed";
+
+function notifyTenantSubscriptionChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(TENANT_SUBSCRIPTION_CHANGED_EVENT));
+}
+
 export function persistTenantSubscription(sub: TenantSubscription): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(MODULES_KEY, JSON.stringify(sub.modules));
@@ -48,6 +56,7 @@ export function persistTenantSubscription(sub: TenantSubscription): void {
     sub.awaitingSelfSignupSetup ? "1" : "0",
   );
   localStorage.setItem(PAYMENT_REF_KEY, sub.paymentTransactionRef ?? "");
+  notifyTenantSubscriptionChanged();
 }
 
 export function readTenantModulesFromStorage(): ModuleOption[] {
@@ -131,4 +140,5 @@ export function clearTenantSubscriptionStorage(): void {
   ]) {
     localStorage.removeItem(k);
   }
+  notifyTenantSubscriptionChanged();
 }

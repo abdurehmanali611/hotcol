@@ -54,7 +54,7 @@ import {
   readBusinessTypeFromStorage,
   subscriptionRenewalAmountETB,
 } from "@/lib/subscriptionBillingPeriod";
-import { requestTenantModuleChange } from "@/lib/actions";
+import { requestTenantModuleChange, refreshTenantSubscription } from "@/lib/actions";
 
 type TenantProfileState = {
   role: string;
@@ -136,13 +136,27 @@ function TenantProfileContent() {
       router.replace("/");
       return;
     }
-    const next = readTenantProfileState();
-    if (!next) {
-      router.replace("/");
-      return;
-    }
-    setProfile(next);
-    setAllowed(true);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await refreshTenantSubscription();
+      } catch {
+        // Fall back to stored snapshot if live refresh fails.
+      }
+      if (cancelled) return;
+      const next = readTenantProfileState();
+      if (!next) {
+        router.replace("/");
+        return;
+      }
+      setProfile(next);
+      setAllowed(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const billing = readTenantBillingFromStorage();

@@ -14,8 +14,8 @@ import {
   moduleBlockMessage,
   subscriptionBlockMessage,
 } from "@/lib/tenantAccess";
-
 import { isPaymentPortalMode } from "@/lib/tenantAccessMode";
+import { refreshTenantSubscription } from "@/lib/actions";
 
 /** Redirect home if subscription or module access is denied. */
 export function useTenantRouteGuard(options?: {
@@ -35,27 +35,42 @@ export function useTenantRouteGuard(options?: {
       return;
     }
 
-    const status = getSubscriptionPeriodStatus();
-    if (!canUseTenantSystem()) {
-      toast.error(subscriptionBlockMessage(status));
-      router.replace("/");
-      return;
-    }
-    if (options?.requiredModule && !canAccessTenantModule(options.requiredModule)) {
-      toast.error(moduleBlockMessage(options.requiredModule));
-      router.replace("/");
-      return;
-    }
-    if (options?.role) {
-      if (!canAccessTerminalRole(options.role)) {
-        toast.error("This terminal is not included in your property subscription.");
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await refreshTenantSubscription();
+      } catch {
+        // Keep stored snapshot if live refresh fails.
+      }
+      if (cancelled) return;
+
+      const status = getSubscriptionPeriodStatus();
+      if (!canUseTenantSystem()) {
+        toast.error(subscriptionBlockMessage(status));
         router.replace("/");
         return;
       }
-      if (!loggedInRoleMatchesTerminal(options.role)) {
-        toast.error("You do not have access to this terminal.");
+      if (options?.requiredModule && !canAccessTenantModule(options.requiredModule)) {
+        toast.error(moduleBlockMessage(options.requiredModule));
         router.replace("/");
+        return;
       }
-    }
+      if (options?.role) {
+        if (!canAccessTerminalRole(options.role)) {
+          toast.error("This terminal is not included in your property subscription.");
+          router.replace("/");
+          return;
+        }
+        if (!loggedInRoleMatchesTerminal(options.role)) {
+          toast.error("You do not have access to this terminal.");
+          router.replace("/");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [options?.requiredModule, options?.role, router]);
 }

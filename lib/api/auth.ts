@@ -7,7 +7,7 @@ import { clearAuthStorage, resetSessionExpiryGuard } from "../sessionExpiry";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { persistTenantSubscription, readTenantSubscriptionFromStorage } from "../tenantModules";
 import { persistTenantAccessMode, type TenantPaymentKind } from "../tenantAccessMode";
-import { parseModulesJson, roleAllowedForModules } from "../subscriptionModules";
+import { parseModulesJson, roleAllowedForModules, type TenantSubscription } from "../subscriptionModules";
 import type { LoginCredentials, User, TenantFeedbackInbox } from "./types";
 
 
@@ -539,6 +539,90 @@ export async function requestTenantModuleChange(input: {
   }
 
   return response.data.data.requestTenantModuleChange;
+}
+
+function toIsoOrNull(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "string") return value;
+  try {
+    const date = new Date(value as string | number | Date);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+/** Pull live modules/billing from the API into localStorage after Apex changes. */
+export async function refreshTenantSubscription(): Promise<TenantSubscription> {
+  const QUERY = `
+    query TenantSubscription {
+      tenantSubscription {
+        modules
+        setupFeeETB
+        quarterlyFeeETB
+        setupFeeApproved
+        createdAt
+        billingStartedAt
+        billingHold
+        isIllustrationTenant
+        freeTrialEndsAt
+        subscriptionPaidUntil
+        subscriptionPaymentApproved
+        paidQuartersCount
+        paymentTransactionRef
+        awaitingSelfSignupSetup
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, { query: QUERY });
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message || "Could not refresh subscription",
+    );
+  }
+
+  const row = response.data.data?.tenantSubscription as {
+    modules?: unknown;
+    setupFeeETB?: number;
+    quarterlyFeeETB?: number;
+    setupFeeApproved?: boolean;
+    createdAt?: string | null;
+    billingStartedAt?: string | null;
+    billingHold?: boolean;
+    isIllustrationTenant?: boolean;
+    freeTrialEndsAt?: string | null;
+    subscriptionPaidUntil?: string | null;
+    subscriptionPaymentApproved?: boolean;
+    paidQuartersCount?: number;
+    paymentTransactionRef?: string | null;
+    awaitingSelfSignupSetup?: boolean;
+  };
+
+  if (!row) {
+    throw new Error("Could not refresh subscription");
+  }
+
+  const next: TenantSubscription = {
+    modules: parseModulesJson(row.modules),
+    setupFeeETB: Number(row.setupFeeETB) || 0,
+    quarterlyFeeETB: Number(row.quarterlyFeeETB) || 0,
+    setupFeeApproved: Boolean(row.setupFeeApproved),
+    createdAt: toIsoOrNull(row.createdAt),
+    billingStartedAt: toIsoOrNull(row.billingStartedAt),
+    billingHold: Boolean(row.billingHold),
+    isIllustrationTenant: Boolean(row.isIllustrationTenant),
+    freeTrialEndsAt: toIsoOrNull(row.freeTrialEndsAt),
+    subscriptionPaidUntil: toIsoOrNull(row.subscriptionPaidUntil),
+    subscriptionPaymentApproved: Boolean(row.subscriptionPaymentApproved),
+    paidQuartersCount: Number(row.paidQuartersCount) || 0,
+    awaitingSelfSignupSetup: Boolean(row.awaitingSelfSignupSetup),
+    paymentTransactionRef: row.paymentTransactionRef ?? null,
+  };
+
+  persistTenantSubscription(next);
+  return next;
 }
 
 /** Authoritative signed-in username from the API (JWT session). */
