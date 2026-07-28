@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, useEffect, useCallback, Suspense, useRef } from "react"; // Added Suspense
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Toaster, toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -581,12 +582,18 @@ function AdminDashboardContent() {
                 onClick={() => void loadData(true)}
               />
               <ChangeOwnPasswordButton />
-              <Avatar className="h-8 w-8 shrink-0 border shadow-sm md:h-9 md:w-9">
-                <AvatarImage src={logoUrl} alt={headerLabel} />
-                <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                  {headerLabel.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <Link
+                href="/TenantProfile"
+                className="rounded-full outline-none transition-transform hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-label="Open tenant profile"
+              >
+                <Avatar className="h-8 w-8 shrink-0 border shadow-sm md:h-9 md:w-9">
+                  <AvatarImage src={logoUrl} alt={headerLabel} />
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                    {headerLabel.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
             </div>
           </header>
 

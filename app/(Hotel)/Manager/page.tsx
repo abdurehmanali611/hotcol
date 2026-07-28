@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Toaster } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -81,7 +82,6 @@ import { toast } from "sonner";
 import {
   LayoutDashboard,
   LogOut,
-  RefreshCw,
   Key,
   Package,
   ArrowRightLeft,
@@ -1685,10 +1685,16 @@ function ManagerContent() {
               onClick={() => void loadData(true)}
             />
             <ChangeOwnPasswordButton />
-            <Avatar className="h-8 w-8 border shadow-sm">
-              <AvatarImage src={logoUrl} alt={headerLabel} />
-              <AvatarFallback>{headerLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
+            <Link
+              href="/TenantProfile"
+              className="rounded-full outline-none transition-transform hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-ring/50"
+              aria-label="Open tenant profile"
+            >
+              <Avatar className="h-8 w-8 border shadow-sm">
+                <AvatarImage src={logoUrl} alt={headerLabel} />
+                <AvatarFallback>{headerLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            </Link>
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">

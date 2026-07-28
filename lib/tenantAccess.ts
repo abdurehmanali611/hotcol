@@ -68,6 +68,14 @@ export function readLoggedInRole(): string | null {
   return role || null;
 }
 
+export function isAdminOrManagerRole(role: string | null | undefined): boolean {
+  return role === "Admin" || role === "Manager";
+}
+
+export function canAccessTenantOwnerPage(): boolean {
+  return isAdminOrManagerRole(readLoggedInRole());
+}
+
 export function hasAuthToken(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean(localStorage.getItem("auth_token")?.trim());
