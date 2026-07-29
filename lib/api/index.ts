@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./client";
 export * from "./auth";
+export * from "./signupRegistration";
 export * from "./cafeCatalog";
 export * from "./cafeOrders";
 export * from "./reports";

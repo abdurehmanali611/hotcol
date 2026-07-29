@@ -20,6 +20,10 @@ import {
 import { Form, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
 import { handleCredential, uploadImage } from "@/lib/actions";
+import {
+  persistSignupRegistrationReceipt,
+  readSignupRegistrationReceipt,
+} from "@/lib/api/signupRegistration";
 import { SignUpSchema } from "@/lib/validations";
 import { SIGNUP_REQUIRED_MODULES_CAFE, type BusinessType } from "@/constants";
 import { fetchSignupPricingPreview } from "@/lib/api/pricing";
@@ -64,6 +68,7 @@ function SignupSection({
 export default function SignUp() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [bootstrapped, setBootstrapped] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<{
     businessName: string;
     username: string;
@@ -94,6 +99,17 @@ export default function SignUp() {
   });
 
   useEffect(() => {
+    const receipt = readSignupRegistrationReceipt();
+    if (receipt) {
+      setPendingApproval({
+        businessName: receipt.businessName,
+        username: receipt.username,
+      });
+    }
+    setBootstrapped(true);
+  }, []);
+
+  useEffect(() => {
     if (isBusinessTypeComingSoon(businessType)) {
       form.setValue("type", "Cafe and Restaurant");
       return;
@@ -108,6 +124,20 @@ export default function SignUp() {
   const modulesForPricing =
     selectedModules ?? getDefaultSignupModules(businessType);
   const pricing = useSignupPricing(businessType, modulesForPricing);
+
+  if (!bootstrapped) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center"
+        style={{
+          backgroundImage: "url('/assets/signup.jpg')",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "cover",
+        }}
+      />
+    );
+  }
 
   if (pendingApproval) {
     return (
@@ -159,10 +189,10 @@ export default function SignUp() {
                     setIsLoading,
                   );
                   if (fees.setupFeeETB > 0) {
-                    setPendingApproval({
-                      businessName: values.HotelName.trim(),
-                      username: values.UserName.trim(),
-                    });
+                    const username = values.UserName.trim();
+                    const businessName = values.HotelName.trim();
+                    persistSignupRegistrationReceipt({ username, businessName });
+                    setPendingApproval({ businessName, username });
                     return;
                   }
                   form.reset({
@@ -330,7 +360,9 @@ export default function SignUp() {
                   Already have an account?
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
-                  Sign in with the username and password you registered.
+                  Sign in with the username and password you registered. If setup
+                  is still pending or was rejected, open Sign up again to see your
+                  status.
                 </p>
               </div>
             </div>
