@@ -88,6 +88,7 @@ import {
   billTotalFromLines,
   cafeOrderIdFromBillDescription,
   incompleteFoodDrinkLines,
+  incompleteLaundryLines,
   isCafeOrderCancelled,
   isCancelledFoodDrinkBillLine,
   isFoodDrinkLineKitchenComplete,
@@ -111,6 +112,7 @@ import {
   fetchLodgingDashboardStats,
   fetchLodgingRooms,
   fetchLodgingServiceItems,
+  issueLodgingGuestOtpApi,
   splitLodgingBillLineApi,
   transferLodgingBillLinesApi,
   updateLodgingStayApi,
@@ -313,7 +315,15 @@ export function ReceptionDashboard() {
     );
   }, [selectedStay, selectedStayActiveLines, liveCafeOrders]);
 
+  const incompleteLaundry = useMemo(
+    () => incompleteLaundryLines(selectedStayActiveLines),
+    [selectedStayActiveLines],
+  );
+
   const checkoutBlockedByIncompleteFnB = incompleteFnBLines.length > 0;
+  const checkoutBlockedByIncompleteLaundry = incompleteLaundry.length > 0;
+  const checkoutBlocked =
+    checkoutBlockedByIncompleteFnB || checkoutBlockedByIncompleteLaundry;
 
   useEffect(() => {
     if (!selectedStay?.bill || liveCafeOrders.length === 0) return;
@@ -665,6 +675,55 @@ export function ReceptionDashboard() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-5">
+                          {selectedStay.status === "checked_in" ? (
+                            <div className="rounded-xl border border-sky-500/25 bg-sky-500/5 px-4 py-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Guest room code (OTP)
+                              </p>
+                              {selectedStay.guestOtp ? (
+                                <>
+                                  <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.35em] tabular-nums">
+                                    {selectedStay.guestOtp}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Tell the guest this code at check-in. If they
+                                    forget it later, look it up here.
+                                  </p>
+                                </>
+                              ) : (
+                                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <p className="text-xs text-muted-foreground">
+                                    No room code yet — issue one for the guest
+                                    portal.
+                                  </p>
+                                  <PendingButton
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    pending={pending === "issue-otp"}
+                                    onClick={async () => {
+                                      setPending("issue-otp");
+                                      try {
+                                        await issueLodgingGuestOtpApi(
+                                          selectedStay.id,
+                                        );
+                                        await load(true);
+                                      } catch (e) {
+                                        notifyApiFailure(
+                                          e,
+                                          "Could not issue room code",
+                                        );
+                                      } finally {
+                                        setPending(null);
+                                      }
+                                    }}
+                                  >
+                                    Issue room code
+                                  </PendingButton>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-1.5">
                               <Label>Checked in</Label>
@@ -1158,8 +1217,8 @@ export function ReceptionDashboard() {
                               <p className="text-sm font-medium">Checkout</p>
                               <p className="text-xs text-muted-foreground">
                                 Departure is set automatically when you confirm
-                                checkout. All food &amp; drink on this stay must be
-                                Completed first.
+                                checkout. All food &amp; drink and laundry on this
+                                stay must be Completed first.
                               </p>
                               {checkoutBlockedByIncompleteFnB ? (
                                 <p className="text-xs text-amber-700 dark:text-amber-400">
@@ -1167,6 +1226,14 @@ export function ReceptionDashboard() {
                                   order
                                   {incompleteFnBLines.length === 1 ? "" : "s"}{" "}
                                   still pending in kitchen/bar — checkout locked.
+                                </p>
+                              ) : null}
+                              {checkoutBlockedByIncompleteLaundry ? (
+                                <p className="text-xs text-amber-700 dark:text-amber-400">
+                                  {incompleteLaundry.length} laundry order
+                                  {incompleteLaundry.length === 1 ? "" : "s"}{" "}
+                                  still pending — mark completed in Laundry
+                                  update before checkout.
                                 </p>
                               ) : null}
                             </div>
@@ -1183,11 +1250,17 @@ export function ReceptionDashboard() {
                                 type="button"
                                 className="h-11 w-full sm:w-auto sm:min-w-[220px]"
                                 pending={pending === "checkout"}
-                                disabled={checkoutBlockedByIncompleteFnB}
+                                disabled={checkoutBlocked}
                                 onClick={() => {
                                   if (checkoutBlockedByIncompleteFnB) {
                                     toast.error(
                                       "Complete all food & drink orders before checkout",
+                                    );
+                                    return;
+                                  }
+                                  if (checkoutBlockedByIncompleteLaundry) {
+                                    toast.error(
+                                      "Complete all laundry orders before checkout",
                                     );
                                     return;
                                   }

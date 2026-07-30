@@ -90,6 +90,9 @@ export type LodgingStay = {
   children: number;
   preferredRoomType: string;
   notes: string;
+  /** Guest room portal OTP (6 digits). Null after checkout. */
+  guestOtp?: string | null;
+  guestOtpIssuedAt?: string | null;
   guest: LodgingGuest | null;
   rooms: LodgingStayRoom[];
   bill: LodgingBill | null;
@@ -290,6 +293,8 @@ const STAY_FIELDS = `
   children
   preferredRoomType
   notes
+  guestOtp
+  guestOtpIssuedAt
   guest { ${GUEST_FIELDS} }
   rooms {
     id
@@ -827,7 +832,6 @@ export async function createLodgingStayApi(
   });
   gqlError(response, "Could not check in guest");
   invalidateLodgingCaches(["stays", "rooms", "stats", "logs", "guests"]);
-  toast.success("Check-in complete");
   return response.data.data.createLodgingStay as LodgingStay;
 }
 
@@ -1077,6 +1081,24 @@ export async function checkoutLodgingStayApi(
   invalidateLodgingCaches(["stays", "rooms", "stats", "logs"]);
   toast.success("Checkout complete");
   return response.data.data.checkoutLodgingStay as LodgingStay;
+}
+
+export async function issueLodgingGuestOtpApi(
+  stayId: number,
+): Promise<LodgingStay> {
+  const mutation = `
+    mutation IssueLodgingGuestOtp($stayId: Int!) {
+      issueLodgingGuestOtp(stayId: $stayId) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { stayId },
+  });
+  gqlError(response, "Could not issue room code");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success("Room code ready — tell the guest");
+  return response.data.data.issueLodgingGuestOtp as LodgingStay;
 }
 
 export async function registerLodgingServiceChargeApi(

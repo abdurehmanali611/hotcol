@@ -85,6 +85,7 @@ type BillLineRef = {
   description: string;
   quantity?: number;
   unitPriceETB?: number;
+  fulfillmentStatus?: string | null;
 };
 
 export function cancelledRoomServiceOrdersForStay(
@@ -214,6 +215,15 @@ export function incompleteFoodDrinkLines<T extends BillLineRef>(
     const order = resolveCafeOrderForFoodDrinkLine(l, stayId, cafeOrders);
     if (!order || isCafeOrderCancelled(order.status)) return false;
     return !isCafeOrderCompleted(order.status);
+  });
+}
+
+/** Laundry must be completed or cancelled before checkout (matches backend gate). */
+export function incompleteLaundryLines<T extends BillLineRef>(lines: T[]): T[] {
+  return lines.filter((l) => {
+    if (String(l.kind || "").toLowerCase() !== "laundry") return false;
+    const st = String(l.fulfillmentStatus || "pending").toLowerCase();
+    return st !== "completed" && st !== "cancelled";
   });
 }
 

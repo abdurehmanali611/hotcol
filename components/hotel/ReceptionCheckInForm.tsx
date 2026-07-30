@@ -23,6 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PhoneInput } from "@/components/phone-input";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { WORLD_COUNTRIES, statesForCountry } from "@/lib/countryStates";
@@ -131,6 +140,9 @@ export function ReceptionCheckInForm({
   const [stayNotes, setStayNotes] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [searchedEmpty, setSearchedEmpty] = useState(false);
+  const [issuedOtp, setIssuedOtp] = useState<string | null>(null);
+  const [otpGuestLabel, setOtpGuestLabel] = useState("");
+  const [otpDialogOpen, setOtpDialogOpen] = useState(false);
 
   const selectedRoomIds = useMemo(
     () =>
@@ -230,7 +242,8 @@ export function ReceptionCheckInForm({
     }
     setPending("check-in");
     try {
-      await createLodgingStayApi({
+      const guestName = guestLabel(guest);
+      const stay = await createLodgingStayApi({
         guestId: guestId ?? undefined,
         guest: {
           id: guestId ?? undefined,
@@ -264,7 +277,14 @@ export function ReceptionCheckInForm({
       setAdults(1);
       setChildren(0);
       setSearchedEmpty(false);
-      toast.success("Guest checked in");
+      const otp = String(stay.guestOtp || "").trim();
+      if (otp) {
+        setIssuedOtp(otp);
+        setOtpGuestLabel(guestName);
+        setOtpDialogOpen(true);
+      } else {
+        toast.success("Guest checked in");
+      }
       await onCompleted();
     } catch (e) {
       notifyApiFailure(e, "Check-in failed");
@@ -877,6 +897,38 @@ export function ReceptionCheckInForm({
           </HotelFormSection>
         </CardContent>
       </Card>
+
+      <AlertDialog open={otpDialogOpen} onOpenChange={setOtpDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tell the guest their room code</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  {otpGuestLabel
+                    ? `${otpGuestLabel} is checked in.`
+                    : "Guest is checked in."}{" "}
+                  Share this 6-digit code for the room portal (food, laundry,
+                  bill). You can look it up again on the stay bill if they forget.
+                </p>
+                <p className="rounded-lg border bg-muted/40 py-4 text-center font-mono text-3xl font-semibold tracking-[0.4em] text-foreground tabular-nums">
+                  {issuedOtp || "——————"}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => {
+                setOtpDialogOpen(false);
+                setIssuedOtp(null);
+              }}
+            >
+              Got it — told the guest
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
