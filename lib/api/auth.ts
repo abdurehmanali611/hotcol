@@ -339,7 +339,7 @@ export async function LoginAction(
       error.message?.includes("Connection Timeout") ||
       error.message?.includes("Network Error")
     ) {
-      errorMessage = `Could not reach the API at ${API_URL}. Stop and restart "npm run dev" after env changes. If using a local API, run "cd BackEnd && npm run dev" on port 4000.`;
+      errorMessage = `Could not reach the API at ${API_URL}. The server may be down, blocked, or still deploying. Check the backend on Vercel, then hard-refresh this page. For local API use NEXT_PUBLIC_GRAPHQL_URL=http://localhost:4000/graphql and restart npm run dev.`;
     } else if (error.message?.includes("User.Password")) {
       errorMessage = "The password you entered is incorrect. Please try again.";
     } else if (error.message?.includes("Invalid credentials")) {
