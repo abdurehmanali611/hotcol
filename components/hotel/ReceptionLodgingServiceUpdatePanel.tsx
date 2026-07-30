@@ -7,6 +7,7 @@ import { notifyApiFailure } from "@/lib/actions";
 import type { Item, Order } from "@/lib/api/types";
 import {
   deleteLodgingBillLineApi,
+  setLodgingBillLineFulfillmentApi,
   updateLodgingBillLineApi,
   type LodgingBillLine,
   type LodgingStay,
@@ -38,7 +39,18 @@ function stayCaption(stay: LodgingStay) {
 }
 
 function laundryLinesForStay(stay: LodgingStay): LodgingBillLine[] {
-  return (stay.bill?.lines ?? []).filter((l) => l.kind === "laundry");
+  return (stay.bill?.lines ?? []).filter((l) => {
+    if (l.kind !== "laundry") return false;
+    const st = String(l.fulfillmentStatus || "pending").toLowerCase();
+    return st !== "cancelled";
+  });
+}
+
+function displayFulfillmentStatus(raw: string | undefined): string {
+  const s = String(raw || "pending").toLowerCase();
+  if (s === "completed") return "Completed";
+  if (s === "cancelled") return "Cancelled";
+  return "Pending";
 }
 
 function laundryLineAsOrder(
@@ -58,7 +70,7 @@ function laundryLineAsOrder(
     price: Number(line.unitPriceETB) || 0,
     tableNo: roomServiceTableNo(stay.id),
     waiterName: "Reception",
-    status: "Pending",
+    status: displayFulfillmentStatus(line.fulfillmentStatus),
     payment: "Pending",
     serviceCaption: roomServiceCaption(rooms),
     createdAt: new Date(),
@@ -155,6 +167,17 @@ export function ReceptionLodgingServiceUpdatePanel({
                 throw new Error("Stay not found for this laundry line");
               }
               await deleteLodgingBillLineApi({ lineId: id, stayId: stay.id });
+            },
+            onComplete: async (id: number) => {
+              const stay = lineStayById.get(id);
+              if (!stay) {
+                throw new Error("Stay not found for this laundry line");
+              }
+              await setLodgingBillLineFulfillmentApi({
+                lineId: id,
+                status: "completed",
+                stayId: stay.id,
+              });
             },
           }
         : undefined,

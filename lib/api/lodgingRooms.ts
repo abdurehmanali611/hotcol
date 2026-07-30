@@ -52,6 +52,9 @@ export type LodgingBillLine = {
   unitPriceETB: number;
   amountETB: number;
   roomNumber: string;
+  fulfillmentStatus?: string;
+  fulfilledAt?: string | null;
+  fulfilledBy?: string;
 };
 
 export type LodgingBill = {
@@ -313,6 +316,9 @@ const STAY_FIELDS = `
       unitPriceETB
       amountETB
       roomNumber
+      fulfillmentStatus
+      fulfilledAt
+      fulfilledBy
     }
   }
 `;
@@ -960,7 +966,40 @@ export async function deleteLodgingBillLineApi(input: {
   });
   gqlError(response, "Could not remove bill line");
   invalidateLodgingCaches(["stays", "logs"]);
-  if (!input.silent) toast.success("Line removed");
+  if (!input.silent) toast.success("Line cancelled");
+  return refetchStayForUi(input.stayId);
+}
+
+export async function setLodgingBillLineFulfillmentApi(input: {
+  lineId: number;
+  status: "pending" | "completed" | "cancelled";
+  stayId: number;
+}): Promise<LodgingStay> {
+  const mutation = `
+    mutation SetLodgingBillLineFulfillment($lineId: Int!, $status: String!) {
+      setLodgingBillLineFulfillment(lineId: $lineId, status: $status) {
+        id
+        fulfillmentStatus
+        amountETB
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      lineId: input.lineId,
+      status: input.status,
+    },
+  });
+  gqlError(response, "Could not update fulfillment status");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success(
+    input.status === "completed"
+      ? "Marked completed"
+      : input.status === "cancelled"
+        ? "Marked cancelled"
+        : "Status updated",
+  );
   return refetchStayForUi(input.stayId);
 }
 

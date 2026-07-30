@@ -798,6 +798,16 @@ export function ReceptionDashboard() {
                                             const isFnB =
                                               String(line.kind || "").toLowerCase() ===
                                               "food_drink";
+                                            const isLaundry =
+                                              String(line.kind || "").toLowerCase() ===
+                                              "laundry";
+                                            const laundryStatus = String(
+                                              line.fulfillmentStatus || "pending",
+                                            ).toLowerCase();
+                                            const laundryComplete =
+                                              laundryStatus === "completed";
+                                            const laundryCancelled =
+                                              laundryStatus === "cancelled";
                                             const fnBComplete =
                                               isFoodDrinkLineKitchenComplete(
                                                 line,
@@ -820,11 +830,26 @@ export function ReceptionDashboard() {
                                                     checked={selectedLineIds.includes(
                                                       line.id,
                                                     )}
-                                                    disabled={isFnB && !fnBComplete}
+                                                    disabled={
+                                                      (isFnB && !fnBComplete) ||
+                                                      (isLaundry &&
+                                                        !laundryComplete &&
+                                                        !laundryCancelled)
+                                                    }
                                                     onCheckedChange={() => {
                                                       if (isFnB && !fnBComplete) {
                                                         toast.message(
                                                           "Wait until food & drink is Completed before transferring",
+                                                        );
+                                                        return;
+                                                      }
+                                                      if (
+                                                        isLaundry &&
+                                                        !laundryComplete &&
+                                                        !laundryCancelled
+                                                      ) {
+                                                        toast.message(
+                                                          "Wait until laundry is Completed before transferring",
                                                         );
                                                         return;
                                                       }
@@ -864,6 +889,13 @@ export function ReceptionDashboard() {
                                                       : fnBComplete
                                                         ? ` · ${cafeOrder?.status || "Completed"}`
                                                         : ` · ${cafeOrder?.status || "Pending"} — transfer/split locked`
+                                                    : ""}
+                                                  {isLaundry
+                                                    ? laundryCancelled
+                                                      ? " · Cancelled"
+                                                      : laundryComplete
+                                                        ? " · Completed"
+                                                        : " · Pending — mark completed in Laundry update"
                                                     : ""}
                                                 </p>
                                               </td>

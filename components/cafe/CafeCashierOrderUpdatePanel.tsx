@@ -107,6 +107,7 @@ interface Props {
       title: string;
     }) => Promise<void>;
     onRemove: (id: number) => Promise<void>;
+    onComplete?: (id: number) => Promise<void>;
   };
 }
 
@@ -184,6 +185,7 @@ export function CafeCashierOrderUpdatePanel({
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [completingId, setCompletingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [addItemsTarget, setAddItemsTarget] = useState<AddItemsTarget | null>(
     null,
@@ -529,7 +531,7 @@ export function CafeCashierOrderUpdatePanel({
     try {
       if (lodgingLineHandlers) {
         await lodgingLineHandlers.onRemove(orderId);
-        toast.success("Line removed");
+        toast.success("Line cancelled");
       } else {
         await cancelLiveOrder(orderId);
       }
@@ -544,6 +546,22 @@ export function CafeCashierOrderUpdatePanel({
       /* café cancel toasts in action */
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const handleComplete = async (orderId: number) => {
+    if (!lodgingLineHandlers?.onComplete) return;
+    setCompletingId(orderId);
+    try {
+      await lodgingLineHandlers.onComplete(orderId);
+      if (selectedId === orderId) setSelectedId(null);
+      await onRefresh();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Could not mark completed",
+      );
+    } finally {
+      setCompletingId(null);
     }
   };
 
@@ -1153,7 +1171,32 @@ export function CafeCashierOrderUpdatePanel({
                                       </div>
                                     </div>
                                   </button>
-                                  <div className="flex shrink-0 flex-col justify-center pr-2">
+                                  <div className="flex shrink-0 flex-col justify-center gap-1 pr-2">
+                                    {lodgingLineHandlers?.onComplete &&
+                                    String(status).toLowerCase() ===
+                                      "pending" ? (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700"
+                                        disabled={
+                                          completingId === order.id ||
+                                          removingId === order.id
+                                        }
+                                        aria-label={`Mark ${order.title} completed`}
+                                        title="Mark completed"
+                                        onClick={() =>
+                                          void handleComplete(order.id)
+                                        }
+                                      >
+                                        {completingId === order.id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <CheckCircle2 className="h-4 w-4" />
+                                        )}
+                                      </Button>
+                                    ) : null}
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button
@@ -1161,7 +1204,12 @@ export function CafeCashierOrderUpdatePanel({
                                           variant="ghost"
                                           size="icon"
                                           className="h-9 w-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                          disabled={removingId === order.id}
+                                          disabled={
+                                            removingId === order.id ||
+                                            completingId === order.id ||
+                                            String(status).toLowerCase() ===
+                                              "completed"
+                                          }
                                           aria-label={`Remove ${order.title}`}
                                         >
                                           {removingId === order.id ? (
