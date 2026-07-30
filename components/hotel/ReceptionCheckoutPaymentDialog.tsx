@@ -142,6 +142,8 @@ export function ReceptionCheckoutPaymentDialog({
     if (!open) return;
     const init: Record<number, StayLinePaymentChannel> = {};
     for (const line of lines) init[line.id] = "cash";
+    // Reset payment UI whenever the dialog opens or the stay bill changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional dialog reset on open/stay
     setLineChannels(init);
     setMode("order");
     setPrimaryChannel("cash");

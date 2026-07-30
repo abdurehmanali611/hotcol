@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -187,7 +187,6 @@ export function CafeCashierOrderUpdatePanel({
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
-  const [completingId, setCompletingId] = useState<number | null>(null);
   const [batchCompletingKey, setBatchCompletingKey] = useState<number | null>(null);
   const [selectedCompleteIds, setSelectedCompleteIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -284,18 +283,18 @@ export function CafeCashierOrderUpdatePanel({
     editableOrders,
   ]);
 
-  const resolveTableDisplay = (
-    tableNo: number,
-    serviceCaption?: string | null,
-  ) => {
-    const override = tableCaptionOverrides?.[Math.floor(Number(tableNo))];
-    if (override) return override;
-    return formatCafeTableDisplayFromRegistry(
-      tableNo,
-      tables,
-      serviceCaption,
-    );
-  };
+  const resolveTableDisplay = useCallback(
+    (tableNo: number, serviceCaption?: string | null) => {
+      const override = tableCaptionOverrides?.[Math.floor(Number(tableNo))];
+      if (override) return override;
+      return formatCafeTableDisplayFromRegistry(
+        tableNo,
+        tables,
+        serviceCaption,
+      );
+    },
+    [tableCaptionOverrides, tables],
+  );
 
   const filteredTableGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -333,12 +332,11 @@ export function CafeCashierOrderUpdatePanel({
   }, [
     openTableGroups,
     searchQuery,
-    tables,
     orders,
     hotelName,
-    tableCaptionOverrides,
     useLodgingHandlers,
     editableOrders,
+    resolveTableDisplay,
   ]);
 
   const openTotal = useMemo(
@@ -550,22 +548,6 @@ export function CafeCashierOrderUpdatePanel({
       /* café cancel toasts in action */
     } finally {
       setRemovingId(null);
-    }
-  };
-
-  const handleComplete = async (orderId: number) => {
-    if (!lodgingLineHandlers?.onComplete) return;
-    setCompletingId(orderId);
-    try {
-      await lodgingLineHandlers.onComplete(orderId);
-      if (selectedId === orderId) setSelectedId(null);
-      await onRefresh();
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Could not mark completed",
-      );
-    } finally {
-      setCompletingId(null);
     }
   };
 
@@ -1252,7 +1234,6 @@ export function CafeCashierOrderUpdatePanel({
                                           className="h-9 w-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                           disabled={
                                             removingId === order.id ||
-                                            completingId === order.id ||
                                             String(status).toLowerCase() ===
                                               "completed"
                                           }

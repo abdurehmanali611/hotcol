@@ -115,7 +115,7 @@ function formatMoney(n: number) {
   return `ETB ${Number(n || 0).toLocaleString()}`;
 }
 
-function guestLabel(g: LodgingGuest) {
+function guestLabel(g: { firstName: string; lastName: string }) {
   return `${g.firstName} ${g.lastName}`.trim() || "Guest";
 }
 

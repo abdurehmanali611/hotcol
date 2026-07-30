@@ -385,6 +385,8 @@ export function ReceptionDashboard() {
     return () => {
       cancelled = true;
     };
+    // Intentionally key off id/arrival/nights — full stay object identity churns on refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedStay fields listed above
   }, [selectedStay?.id, selectedStay?.arrivalAt, selectedStay?.nights, load]);
 
 

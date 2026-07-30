@@ -101,6 +101,7 @@ export default function SignUp() {
   useEffect(() => {
     const receipt = readSignupRegistrationReceipt();
     if (receipt) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration localStorage receipt
       setPendingApproval({
         businessName: receipt.businessName,
         username: receipt.username,
