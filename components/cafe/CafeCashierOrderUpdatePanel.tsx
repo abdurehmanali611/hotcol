@@ -1171,15 +1171,15 @@ export function CafeCashierOrderUpdatePanel({
                                       </div>
                                     </div>
                                   </button>
-                                  <div className="flex shrink-0 flex-col justify-center gap-1 pr-2">
+                                  <div className="flex shrink-0 flex-col justify-center gap-2 pr-2">
                                     {lodgingLineHandlers?.onComplete &&
                                     String(status).toLowerCase() ===
                                       "pending" ? (
                                       <Button
                                         type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 gap-2 border-emerald-500/30 bg-emerald-500/10 px-3 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800"
                                         disabled={
                                           completingId === order.id ||
                                           removingId === order.id
@@ -1191,9 +1191,15 @@ export function CafeCashierOrderUpdatePanel({
                                         }
                                       >
                                         {completingId === order.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Completing...
+                                          </>
                                         ) : (
-                                          <CheckCircle2 className="h-4 w-4" />
+                                          <>
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            Mark complete
+                                          </>
                                         )}
                                       </Button>
                                     ) : null}
