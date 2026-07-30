@@ -97,11 +97,13 @@ import {
   FileText,
   Store,
   UserMinus,
+  Phone,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
 import { LodgingRoomsPanel } from "@/components/hotel/LodgingRoomsPanel";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
+import { LodgingHotelContactPanel } from "@/components/hotel/LodgingHotelContactPanel";
 import {
   LodgingLaundryAddPanel,
   LodgingLaundryItemsPanel,
@@ -194,6 +196,7 @@ const managerSidebarIconMap: Record<
   Key,
   UserMinus,
   FileText,
+  Phone,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -226,6 +229,7 @@ const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
   "lodging-rooms",
   "lodging-reports",
+  "lodging-guest-call",
   ...MANAGER_LODGING_NESTED_TAB_IDS,
 ]);
 
@@ -522,7 +526,7 @@ function ManagerContent() {
   );
 
   const lodgingSidebarItems = useMemo(() => {
-    const order = ["lodging-reports", "lodging-rooms"] as const;
+    const order = ["lodging-reports", "lodging-rooms", "lodging-guest-call"] as const;
     return order
       .map((id) => sidebarItems.find((item) => item.id === id))
       .filter((item): item is (typeof sidebarItems)[number] => Boolean(item));
@@ -1480,6 +1484,13 @@ function ManagerContent() {
         return (
           <div className="p-4 md:p-6">
             <LodgingRoomsPanel />
+          </div>
+        );
+
+      case "lodging-guest-call":
+        return (
+          <div className="p-4 md:p-6">
+            <LodgingHotelContactPanel />
           </div>
         );
 

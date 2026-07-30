@@ -268,6 +268,7 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "cc-profiles": "Financial Management",
   "lodging-rooms": "Room Management",
   "lodging-reports": "Room Management",
+  "lodging-guest-call": "Room Management",
   "lodging-laundry-add": "Room Management",
   "lodging-laundry-items": "Room Management",
   /** @deprecated legacy flat tab */

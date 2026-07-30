@@ -157,6 +157,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   },
   { id: "lodging-reports", label: "Reports", icon: "FileText" },
   { id: "lodging-rooms", label: "Rooms", icon: "Building2" },
+  { id: "lodging-guest-call", label: "Guest call", icon: "Phone" },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },
   { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
 ] as const;
