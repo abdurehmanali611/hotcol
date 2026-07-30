@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Card,
   CardContent,
@@ -8,9 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 import { PendingButton } from "@/components/ui/pending-button";
+import CustomFormField, { formFieldTypes } from "@/components/customFormField";
 import { Phone } from "lucide-react";
 import {
   fetchTenantHotelContact,
@@ -18,37 +21,63 @@ import {
 } from "@/lib/api/lodgingHotelContact";
 import { notifyApiFailure } from "@/lib/actions";
 
+const hotelContactSchema = z.object({
+  hotelPhone: z
+    .string()
+    .trim()
+    .min(8, "Primary phone is required"),
+  hotelPhoneSecondary: z.string().trim().optional(),
+});
+
+type HotelContactForm = z.infer<typeof hotelContactSchema>;
+
 export function LodgingHotelContactPanel() {
-  const [phone, setPhone] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const form = useForm<HotelContactForm>({
+    resolver: zodResolver(hotelContactSchema),
+    defaultValues: {
+      hotelPhone: "",
+      hotelPhoneSecondary: "",
+    },
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const row = await fetchTenantHotelContact();
-      setPhone(row.hotelPhone || "");
+      form.reset({
+        hotelPhone: row.hotelPhone || "",
+        hotelPhoneSecondary: row.hotelPhoneSecondary || "",
+      });
       setDisplayName(row.hotelDisplayName || "");
     } catch (e) {
-      notifyApiFailure(e, "Could not load hotel phone");
+      notifyApiFailure(e, "Could not load hotel phones");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [form]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function onSave() {
+  async function onSubmit(data: HotelContactForm) {
     setSaving(true);
     try {
-      const row = await updateTenantHotelPhoneApi(phone);
-      setPhone(row.hotelPhone || "");
+      const row = await updateTenantHotelPhoneApi({
+        hotelPhone: data.hotelPhone,
+        hotelPhoneSecondary: data.hotelPhoneSecondary || "",
+      });
+      form.reset({
+        hotelPhone: row.hotelPhone || "",
+        hotelPhoneSecondary: row.hotelPhoneSecondary || "",
+      });
       setDisplayName(row.hotelDisplayName || displayName);
     } catch (e) {
-      notifyApiFailure(e, "Could not save hotel phone");
+      notifyApiFailure(e, "Could not save hotel phones");
     } finally {
       setSaving(false);
     }
@@ -63,9 +92,9 @@ export function LodgingHotelContactPanel() {
           Guest call center
         </CardTitle>
         <CardDescription>
-          Set the front-desk number guests dial from the HotCol Room app (phone
-          icon next to Exit). Include country code when possible, e.g.{" "}
-          <span className="font-medium text-foreground">+251911234567</span>.
+          Primary number is required. Guests dial from the HotCol Room phone
+          icon next to Exit. If you add a second line, guests choose which to
+          call.
           {displayName ? (
             <>
               {" "}
@@ -75,27 +104,37 @@ export function LodgingHotelContactPanel() {
           ) : null}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="hotel-phone">Hotel phone number</Label>
-              <Input
-                id="hotel-phone"
-                type="tel"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+251…"
-                autoComplete="tel"
+          <Form {...form}>
+            <form
+              className="space-y-5"
+              onSubmit={form.handleSubmit((data) => void onSubmit(data))}
+            >
+              <CustomFormField
+                name="hotelPhone"
+                control={form.control}
+                fieldType={formFieldTypes.PHONE_INPUT}
+                label="Primary phone (required)"
+                placeholder="Front desk"
+                required
+                inputClassName="h-fit w-full"
               />
-            </div>
-            <PendingButton pending={saving} onClick={() => void onSave()}>
-              Save number
-            </PendingButton>
-          </>
+              <CustomFormField
+                name="hotelPhoneSecondary"
+                control={form.control}
+                fieldType={formFieldTypes.PHONE_INPUT}
+                label="Secondary phone (optional)"
+                placeholder="Reception / alternate"
+                inputClassName="h-fit w-full"
+              />
+              <PendingButton type="submit" pending={saving}>
+                Save numbers
+              </PendingButton>
+            </form>
+          </Form>
         )}
       </CardContent>
     </Card>

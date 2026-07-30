@@ -4,6 +4,7 @@ import { api, API_URL, dedupeHotelListRead, invalidateGraphqlListCache } from ".
 export type TenantHotelContact = {
   tinNumber: string;
   hotelPhone: string;
+  hotelPhoneSecondary: string;
   hotelDisplayName: string;
 };
 
@@ -14,6 +15,7 @@ export async function fetchTenantHotelContact(): Promise<TenantHotelContact> {
         tenantHotelContact {
           tinNumber
           hotelPhone
+          hotelPhoneSecondary
           hotelDisplayName
         }
       }
@@ -28,21 +30,32 @@ export async function fetchTenantHotelContact(): Promise<TenantHotelContact> {
   });
 }
 
-export async function updateTenantHotelPhoneApi(
-  hotelPhone: string,
-): Promise<TenantHotelContact> {
+export async function updateTenantHotelPhoneApi(input: {
+  hotelPhone: string;
+  hotelPhoneSecondary?: string;
+}): Promise<TenantHotelContact> {
   const mutation = `
-    mutation UpdateTenantHotelPhone($hotelPhone: String!) {
-      updateTenantHotelPhone(hotelPhone: $hotelPhone) {
+    mutation UpdateTenantHotelPhone(
+      $hotelPhone: String!
+      $hotelPhoneSecondary: String
+    ) {
+      updateTenantHotelPhone(
+        hotelPhone: $hotelPhone
+        hotelPhoneSecondary: $hotelPhoneSecondary
+      ) {
         tinNumber
         hotelPhone
+        hotelPhoneSecondary
         hotelDisplayName
       }
     }
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { hotelPhone },
+    variables: {
+      hotelPhone: input.hotelPhone,
+      hotelPhoneSecondary: input.hotelPhoneSecondary ?? "",
+    },
   });
   if (response.data.errors?.length) {
     throw new Error(
@@ -50,6 +63,6 @@ export async function updateTenantHotelPhoneApi(
     );
   }
   invalidateGraphqlListCache("hotel:tenantHotelContact");
-  toast.success("Hotel phone saved for guest call center");
+  toast.success("Hotel phones saved for guest call center");
   return response.data.data.updateTenantHotelPhone as TenantHotelContact;
 }
