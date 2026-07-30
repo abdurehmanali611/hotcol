@@ -38,10 +38,12 @@ import { CafeCashierAddItemsDialog } from "@/components/cafe/CafeCashierAddItems
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Form } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { PendingButton } from "@/components/ui/pending-button";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
 import {
   Collapsible,
@@ -186,6 +188,8 @@ export function CafeCashierOrderUpdatePanel({
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [completingId, setCompletingId] = useState<number | null>(null);
+  const [batchCompletingKey, setBatchCompletingKey] = useState<number | null>(null);
+  const [selectedCompleteIds, setSelectedCompleteIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [addItemsTarget, setAddItemsTarget] = useState<AddItemsTarget | null>(
     null,
@@ -562,6 +566,26 @@ export function CafeCashierOrderUpdatePanel({
       );
     } finally {
       setCompletingId(null);
+    }
+  };
+
+  const handleBatchComplete = async (orderIds: number[], tableNo: number) => {
+    if (!lodgingLineHandlers?.onComplete || orderIds.length === 0) return;
+    setBatchCompletingKey(tableNo);
+    try {
+      await Promise.all(orderIds.map((id) => lodgingLineHandlers.onComplete!(id)));
+      setSelectedCompleteIds((prev) => prev.filter((id) => !orderIds.includes(id)));
+      if (selectedId != null && orderIds.includes(selectedId)) setSelectedId(null);
+      await onRefresh();
+      toast.success(
+        orderIds.length === 1 ? "Line marked completed" : "Selected lines marked completed",
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Could not mark selected lines completed",
+      );
+    } finally {
+      setBatchCompletingKey(null);
     }
   };
 
@@ -1040,8 +1064,14 @@ export function CafeCashierOrderUpdatePanel({
                     hotelName,
                     tableNo,
                   );
-                  const lineCount = pendingOrders.length;
+                  const pendingOnlyOrders = pendingOrders.filter(
+                    (order) => String(order.status || "Pending").toLowerCase() === "pending",
+                  );
+                  const lineCount = pendingOnlyOrders.length;
                   const allReady = lineCount === 0;
+                  const selectedPendingIds = pendingOnlyOrders
+                    .map((order) => order.id)
+                    .filter((id) => selectedCompleteIds.includes(id));
 
                   return (
                     <Collapsible
@@ -1111,9 +1141,33 @@ export function CafeCashierOrderUpdatePanel({
                                 shown here.
                               </p>
                             ) : null}
+                            {lodgingLineHandlers?.onComplete && lineCount > 0 ? (
+                              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+                                <p className="text-xs text-muted-foreground">
+                                  Select pending lines, then mark them completed.
+                                </p>
+                                <PendingButton
+                                  type="button"
+                                  size="sm"
+                                  className="h-9"
+                                  pending={batchCompletingKey === tableNo}
+                                  disabled={selectedPendingIds.length === 0}
+                                  onClick={() =>
+                                    void handleBatchComplete(selectedPendingIds, tableNo)
+                                  }
+                                >
+                                  Mark complete
+                                  {selectedPendingIds.length > 0
+                                    ? ` (${selectedPendingIds.length})`
+                                    : ""}
+                                </PendingButton>
+                              </div>
+                            ) : null}
                             {pendingOrders.map((order) => {
                               const status = String(order.status || "Pending");
                               const isSelected = selectedId === order.id;
+                              const isPending = status.toLowerCase() === "pending";
+                              const isChecked = selectedCompleteIds.includes(order.id);
 
                               return (
                                 <div
@@ -1125,6 +1179,23 @@ export function CafeCashierOrderUpdatePanel({
                                       : "hover:border-muted-foreground/25 hover:shadow-sm",
                                   )}
                                 >
+                                  {lodgingLineHandlers?.onComplete ? (
+                                    <div className="flex items-center pl-3">
+                                      <Checkbox
+                                        checked={isChecked}
+                                        disabled={!isPending || batchCompletingKey === tableNo}
+                                        onCheckedChange={(checked) => {
+                                          if (!isPending) return;
+                                          setSelectedCompleteIds((prev) =>
+                                            checked
+                                              ? [...prev, order.id]
+                                              : prev.filter((id) => id !== order.id),
+                                          );
+                                        }}
+                                        aria-label={`Select ${order.title} for completion`}
+                                      />
+                                    </div>
+                                  ) : null}
                                   <button
                                     type="button"
                                     onClick={() => selectOrder(order.id)}
@@ -1172,37 +1243,6 @@ export function CafeCashierOrderUpdatePanel({
                                     </div>
                                   </button>
                                   <div className="flex shrink-0 flex-col justify-center gap-2 pr-2">
-                                    {lodgingLineHandlers?.onComplete &&
-                                    String(status).toLowerCase() ===
-                                      "pending" ? (
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-9 gap-2 border-emerald-500/30 bg-emerald-500/10 px-3 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800"
-                                        disabled={
-                                          completingId === order.id ||
-                                          removingId === order.id
-                                        }
-                                        aria-label={`Mark ${order.title} completed`}
-                                        title="Mark completed"
-                                        onClick={() =>
-                                          void handleComplete(order.id)
-                                        }
-                                      >
-                                        {completingId === order.id ? (
-                                          <>
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            Completing...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <CheckCircle2 className="h-4 w-4" />
-                                            Mark complete
-                                          </>
-                                        )}
-                                      </Button>
-                                    ) : null}
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button
