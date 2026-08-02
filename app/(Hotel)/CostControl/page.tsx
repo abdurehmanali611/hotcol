@@ -225,6 +225,7 @@ function CostControlInner() {
     | "stock-movement-status"
     | "item-registration-status"
     | "beginnings"
+    | "payment-all"
     | "payment-credit"
     | "payment-paid"
     | "payment-with-vat"
@@ -378,6 +379,7 @@ function CostControlInner() {
       beginnings: ["kb"],
       registrations: ["regs"],
       "item-receipts": ["regs", "purchases", "stocks"],
+      "payment-all": ["regs"],
       "payment-credit": ["regs"],
       "payment-paid": ["regs"],
       "payment-with-vat": ["regs"],
@@ -817,6 +819,11 @@ function CostControlInner() {
       description:
         "All item registrations for this property with workflow approval status.",
       Icon: ClipboardList,
+    },
+    "payment-all": {
+      title: "All payment & tax lines",
+      description: HOTEL_INVENTORY_COPY.paymentAndTax,
+      Icon: Receipt,
     },
     "payment-credit": {
       title: "Credit receiving vouchers",

@@ -109,6 +109,7 @@ type FinanceSection =
   | "inventory"
   | "registrations"
   | "item-receipts"
+  | "payment-all"
   | "payment-credit"
   | "payment-paid"
   | "payment-with-vat"
