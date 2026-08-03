@@ -38,6 +38,12 @@ function receiptCaption(bundle: ReceiptBundle): string {
 }
 
 function receiptSignatureBlocks(bundle: ReceiptBundle): { label: string; name: string | null | undefined }[] {
+  if (bundle.signatureLayout === "store_purchaser") {
+    return [
+      { label: "Store", name: bundle.storeSignerName },
+      { label: "Purchaser", name: bundle.purchaserSignerName },
+    ];
+  }
   if (bundle.kind === "registration") {
     return [
       { label: "Received by", name: bundle.receivedByLabel },

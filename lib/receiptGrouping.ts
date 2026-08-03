@@ -95,6 +95,15 @@ export type ReceiptBundle = {
   approvedByLeaderName?: string | null;
   /** GM department head name frozen at submit. */
   authorizedByLeaderName?: string | null;
+  /**
+   * Review / goods-receiving print: Store + Purchaser ink lines.
+   * Default workflow receipts keep Received / Checked / Approved / Authorized.
+   */
+  signatureLayout?: "workflow" | "store_purchaser";
+  /** Name under the Store signature line (store clerk). */
+  storeSignerName?: string | null;
+  /** Name under the Purchaser signature line (optional; blank for ink). */
+  purchaserSignerName?: string | null;
 };
 
 function bundleIdFromKey(key: string): number {
@@ -604,6 +613,29 @@ export function buildRegistrationReceiptBundle(
     ]),
   );
   return mergeReceiptBundles(registrationBundles(rows, prById));
+}
+
+/**
+ * Group PENDING_STORE (or any pre-authorization) registration drafts for
+ * review-stage printing. Skips the authorized-only printable filter and uses
+ * Store + Purchaser signature lines.
+ */
+export function groupDraftRegistrationReceipts(
+  rows: ItemRegistration[],
+  options?: { storeSignerName?: string | null; purchaserSignerName?: string | null },
+): ReceiptBundle[] {
+  if (!rows.length) return [];
+  const bundles = registrationBundles(rows, new Map());
+  const storeSigner = options?.storeSignerName?.trim() || null;
+  const purchaserSigner = options?.purchaserSignerName?.trim() || null;
+  return bundles
+    .map((bundle) => ({
+      ...bundle,
+      signatureLayout: "store_purchaser" as const,
+      storeSignerName: storeSigner,
+      purchaserSignerName: purchaserSigner,
+    }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 export function buildRegistrationReceiptBundleForStatus(

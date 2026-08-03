@@ -581,6 +581,8 @@ export function StoreComponent({
               tenantScope={inventoryTenantKey}
               injectedPurchaseRows={pendingLocalPurchaseRows}
               injectedStockRows={pendingLocalStockRows}
+              propertyName={displayLabel}
+              logoUrl={logoUrl}
               onSubmitted={() => {
                 setPendingLocalPurchaseRows([]);
                 setPendingLocalStockRows([]);

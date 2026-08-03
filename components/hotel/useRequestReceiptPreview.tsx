@@ -67,7 +67,9 @@ export function useRequestReceiptPreview({
               </DialogTitle>
               <DialogDescription className="text-pretty">
                 {canPrint
-                  ? "This matches the authorized receipt. Use Print below when you are ready."
+                  ? bundle?.signatureLayout === "store_purchaser"
+                    ? "Draft goods-receiving receipt with Store and Purchaser signature lines. Use Print when ready."
+                    : "This matches the authorized receipt. Use Print below when you are ready."
                   : "Preview only. Printing unlocks after manager authorization."}
               </DialogDescription>
             </div>

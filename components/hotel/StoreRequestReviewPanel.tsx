@@ -46,10 +46,16 @@ import {
   buildRegistrationReviewColumns,
   buildStockReviewColumns,
 } from "@/components/hotel/storeReviewTableColumns";
+import { useRequestReceiptPreview } from "@/components/hotel/useRequestReceiptPreview";
+import {
+  groupDraftRegistrationReceipts,
+  type ReceiptBundle,
+} from "@/lib/receiptGrouping";
 import { unitPriceByRegistrationIdFromInventory } from "@/lib/inventoryLineTotals";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { notifyApiFailure } from "@/lib/actions";
-import { ClipboardCheck, Loader2 } from "lucide-react";
+import { ClipboardCheck, Loader2, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 type RegRow = ItemRegistration & { id: number };
@@ -74,6 +80,9 @@ export function StoreRequestReviewPanel({
   tenantScope = "",
   injectedPurchaseRows,
   injectedStockRows,
+  propertyName = "Property",
+  propertyTin,
+  logoUrl,
 }: {
   refreshSignal?: number;
   onDraftCountChange?: (count: number) => void;
@@ -81,6 +90,9 @@ export function StoreRequestReviewPanel({
   tenantScope?: string;
   injectedPurchaseRows?: PurchaseRequestRow[];
   injectedStockRows?: StockOutRequestRow[];
+  propertyName?: string;
+  propertyTin?: string | null;
+  logoUrl?: string | null;
 }) {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
@@ -95,6 +107,11 @@ export function StoreRequestReviewPanel({
     useState<StoreReviewDeleteTarget | null>(null);
 
   const { isPending, run } = useConcurrentActions();
+  const { openPreview, ReceiptPreviewDialog } = useRequestReceiptPreview({
+    propertyName,
+    propertyTin,
+    logoUrl,
+  });
 
   const tenantKey = useMemo(
     () => resolveCanonicalTenantKey(tenantScope),
@@ -367,6 +384,27 @@ export function StoreRequestReviewPanel({
     [openDeleteReg],
   );
 
+  const selectedRegistrationReceipts = useMemo(() => {
+    if (!selectedReg.length) return [] as ReceiptBundle[];
+    const selected = myReg.filter((r) => selectedReg.includes(r.id));
+    return groupDraftRegistrationReceipts(selected, {
+      storeSignerName: userName || null,
+    });
+  }, [myReg, selectedReg, userName]);
+
+  const printSelectedRegistrationReceipts = useCallback(() => {
+    if (!selectedRegistrationReceipts.length) {
+      toast.error("Select at least one registration line to print");
+      return;
+    }
+    openPreview(selectedRegistrationReceipts[0], true);
+    if (selectedRegistrationReceipts.length > 1) {
+      toast.message(
+        `${selectedRegistrationReceipts.length} vouchers selected — print one at a time`,
+      );
+    }
+  }, [openPreview, selectedRegistrationReceipts]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -529,6 +567,19 @@ export function StoreRequestReviewPanel({
             isPending={isPending}
             pendingApproveKey="review-reg-send"
             pendingRejectKey="review-reg-del"
+            leading={
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 shadow-sm"
+                disabled={selectedReg.length === 0}
+                onClick={printSelectedRegistrationReceipts}
+              >
+                <Printer className="h-4 w-4" />
+                Print receipt
+                {selectedReg.length > 0 ? ` (${selectedReg.length})` : ""}
+              </Button>
+            }
             onApproveSelected={() =>
               run("review-reg-send", async () => {
                 try {
@@ -555,7 +606,7 @@ export function StoreRequestReviewPanel({
             selectedIds={selectedReg}
             onSelectedIdsChange={setSelectedReg}
             searchColumnId="name"
-            searchPlaceholder="Search voucher, item, supplierâ€¦"
+            searchPlaceholder="Search voucher, item, supplier…"
             emptyMessage="No registration lines match your search."
           />
         </RequestTypeCollapsibleSection>
@@ -602,6 +653,7 @@ export function StoreRequestReviewPanel({
         onConfirm={confirmDeleteReview}
         isPending={isPending}
       />
+      {ReceiptPreviewDialog}
     </div>
   );
 }

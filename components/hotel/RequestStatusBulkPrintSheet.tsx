@@ -54,7 +54,7 @@ export function RequestStatusBulkPrintActions({
       </Button>
       <div
         aria-hidden
-        className="fixed left-[-9999px] top-0 w-0 h-0 overflow-hidden"
+        className="fixed -left-2499.75 top-0 w-0 h-0 overflow-hidden"
       >
         <div ref={bulkPrintRef} className="receipt-bulk-print-root">
           {printPages.map((pageBundles, pageIndex) => (
