@@ -35,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 
 type ReceiptSectionConfig = {
   kind: ReceiptBundle["kind"];
@@ -131,6 +132,7 @@ export function StoreItemReceiptPrinting({
     documentTitle: previewBundle
       ? `${previewBundle.title.replace(/\s+/g, "_")}_${previewBundle.date || "receipt"}`
       : "Store_Receipt",
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
   });
 
   const bundles = useMemo(

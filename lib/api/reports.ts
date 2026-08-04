@@ -20,13 +20,13 @@ import {
   cafeOrderLineTotalETB,
 } from "../cafeBankPayment";
 import {
-  findItemRecipeByTitle,
-  orderLineResolvedIngredientCost,
-  orderLineProfitETB,
+  buildCafeReportAnalytics,
+  resolveOrderLineCostForReport,
 } from "../cafeRecipe";
 import type {
   Order,
   ReportFilter,
+  CafeReportType,
   ExcelExportData,
   Waiter,
   Table,
@@ -122,7 +122,8 @@ export function prepareTableExportData(tables: Table[]): ExcelExportData {
 export async function generateReport(
   orders: Order[],
   cashouts: Cashout[],
-  filter: { date: Date; type: "Daily" | "Monthly"; HotelName: string },
+  filter: { date: Date; type: CafeReportType; HotelName: string },
+  items: Pick<Item, "name" | "recipeJson">[] = [],
 ): Promise<ReportData | null> {
   const reportFilter: ReportFilter = {
     HotelName: filter.HotelName,
@@ -139,6 +140,7 @@ export async function generateReport(
     0,
   );
   const netSales = totalSales - totalCashouts;
+  const analytics = buildCafeReportAnalytics(filteredOrders, items);
   const cashOrders = filteredOrders.filter(isCashPayment);
   const bankOrders = filteredOrders.filter(isBankPayment);
   const creditOrders = filteredOrders.filter(isCreditPayment);
@@ -158,6 +160,8 @@ export async function generateReport(
     totalSales,
     netSales,
     totalCashouts,
+    totalProfit: analytics.totalProfit,
+    analytics,
     cashPayments: {
       count: cashOrders.length,
       amount: netCashAmount,
@@ -184,7 +188,7 @@ export async function generateReport(
 
 export function prepareReportExportData(
   orders: Order[],
-  reportType: "Daily" | "Monthly",
+  reportType: CafeReportType,
   items: Pick<Item, "name" | "recipeJson">[] = [],
 ): ExcelExportData {
   const aggregated = new Map<
@@ -196,6 +200,8 @@ export function prepareReportExportData(
       totalSales: number;
       ingredientCost: number;
       profit: number;
+      profitKnown: boolean;
+      costKnown: boolean;
     }
   >();
 
@@ -204,10 +210,7 @@ export function prepareReportExportData(
     const key = itemName.toLowerCase();
     const lineTotal = cafeOrderLineTotalETB(order);
     const qty = Number(order.orderAmount) || 0;
-    const recipe = findItemRecipeByTitle(items, order.title);
-    const ingredientCost =
-      orderLineResolvedIngredientCost(order, recipe) ?? 0;
-    const profit = orderLineProfitETB(order, recipe) ?? 0;
+    const resolved = resolveOrderLineCostForReport(order);
     const existing = aggregated.get(key) ?? {
       itemName,
       category: String(order.category ?? "").trim() || "Uncategorized",
@@ -215,11 +218,20 @@ export function prepareReportExportData(
       totalSales: 0,
       ingredientCost: 0,
       profit: 0,
+      profitKnown: false,
+      costKnown: false,
     };
     existing.totalQty += qty;
     existing.totalSales += lineTotal;
-    existing.ingredientCost += ingredientCost;
-    existing.profit += profit;
+    // Snapshot only — same rule as report card and completed-order detail.
+    if (resolved.costETB != null) {
+      existing.ingredientCost += resolved.costETB;
+      existing.costKnown = true;
+    }
+    if (resolved.profitETB != null) {
+      existing.profit += resolved.profitETB;
+      existing.profitKnown = true;
+    }
     if (!existing.category && order.category) {
       existing.category = String(order.category).trim();
     }
@@ -238,10 +250,13 @@ export function prepareReportExportData(
         Category: row.category,
         "Unit Price": unitPrice,
         "Total Order Amount": row.totalQty,
-        "Ingredient Cost (ETB)":
-          Math.round(row.ingredientCost * 100) / 100,
+        "Ingredient Cost (ETB)": row.costKnown
+          ? Math.round(row.ingredientCost * 100) / 100
+          : "",
         "Total Sales (ETB)": Math.round(row.totalSales * 100) / 100,
-        "Profit (ETB)": Math.round(row.profit * 100) / 100,
+        "Profit (ETB)": row.profitKnown
+          ? Math.round(row.profit * 100) / 100
+          : "",
       };
     });
 

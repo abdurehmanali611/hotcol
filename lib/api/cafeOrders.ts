@@ -263,6 +263,7 @@ async function postOrderCreation(orderData: OrderCreationData) {
         type
         HotelName
         price
+        unitCostAtSale
         waiterName
         status
         payment
@@ -271,6 +272,8 @@ async function postOrderCreation(orderData: OrderCreationData) {
     }
   `;
 
+  // Backend freezes unitCostAtSale from the menu recipe at create time.
+  // Do not send unitCostAtSale as an input — OrderInput / OrderCreation reject it (400).
   const transformedData = {
     title: orderData.title || "",
     imageUrl: orderData.imageUrl || "",
@@ -325,22 +328,27 @@ export async function createBatchOrders(
   options?: { silent?: boolean },
 ) {
   try {
-    const orders = orderDataArray.map((o) => ({
-      title: String(o.title),
-      imageUrl: String(o.imageUrl || ""),
-      tableNo: Math.floor(Number(o.tableNo)),
-      orderAmount: Math.floor(Number(o.orderAmount)),
-      HotelName: String(o.HotelName),
-      category: String(o.category),
-      type: String(o.type),
-      price: parseFloat(Number(o.price).toFixed(2)),
-      waiterName: String(o.waiterName),
-      status: "Pending",
-      payment: "Unpaid",
-      ...(o.serviceCaption != null && String(o.serviceCaption).trim()
-        ? { serviceCaption: String(o.serviceCaption).trim() }
-        : {}),
-    }));
+    // Backend freezes unitCostAtSale from menu recipe at create time.
+    // Never include unitCostAtSale on OrderInput — schema rejects it (HTTP 400).
+    const orders = orderDataArray.map((o) => {
+      const row: Record<string, unknown> = {
+        title: String(o.title),
+        imageUrl: String(o.imageUrl || ""),
+        tableNo: Math.floor(Number(o.tableNo)),
+        orderAmount: Math.floor(Number(o.orderAmount)),
+        HotelName: String(o.HotelName),
+        category: String(o.category),
+        type: String(o.type),
+        price: parseFloat(Number(o.price).toFixed(2)),
+        waiterName: String(o.waiterName),
+        status: "Pending",
+        payment: "Unpaid",
+      };
+      if (o.serviceCaption != null && String(o.serviceCaption).trim()) {
+        row.serviceCaption = String(o.serviceCaption).trim();
+      }
+      return row;
+    });
 
     const mutation = `
       mutation BatchOrderCreation($orders: [OrderInput!]!) {
@@ -351,6 +359,7 @@ export async function createBatchOrders(
           waiterName
           orderAmount
           status
+          unitCostAtSale
           serviceCaption
           createdAt
         }
@@ -375,7 +384,10 @@ export async function createBatchOrders(
     refreshCafeOrdersFeed();
     return results;
   } catch (error: any) {
-    const message = error.response?.data?.errors?.[0]?.message || error.message;
+    const message =
+      error.response?.data?.errors?.[0]?.message ||
+      error.message ||
+      "Failed to create batch orders";
     if (!options?.silent) toast.error(message);
     throw error;
   }

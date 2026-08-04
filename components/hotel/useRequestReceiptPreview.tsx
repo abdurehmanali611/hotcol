@@ -16,6 +16,7 @@ import {
   bundleItemsToPrint,
   type ReceiptBundle,
 } from "@/lib/receiptGrouping";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 
 export function useRequestReceiptPreview({
   propertyName,
@@ -35,6 +36,7 @@ export function useRequestReceiptPreview({
     documentTitle: bundle
       ? `${bundle.title.replace(/\s+/g, "_")}_${bundle.date || "receipt"}`
       : "Request_Receipt",
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
   });
 
   const openPreview = useCallback(

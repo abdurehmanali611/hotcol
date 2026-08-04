@@ -4,21 +4,25 @@ import { ColumnDef } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import type { Item, Order } from "@/lib/api/types";
 import {
-  findItemRecipeByTitle,
   orderLineResolvedIngredientCost,
   orderLineProfitETB,
 } from "@/lib/cafeRecipe";
 
+/**
+ * Cost / profit columns for report detail tables.
+ * Uses only `unitCostAtSale` frozen when the order was placed — never the
+ * live menu recipe (so pre-ingredient lines stay blank and recipe updates
+ * do not rewrite older lines).
+ */
 export function cafeOrderProfitColumns(
-  items: Pick<Item, "name" | "recipeJson">[],
+  _items: Pick<Item, "name" | "recipeJson">[] = [],
 ): ColumnDef<Order>[] {
   return [
     {
       id: "ingredientCost",
-      header: "Ingredient cost",
+      header: "Cost at sale",
       cell: ({ row }) => {
-        const recipe = findItemRecipeByTitle(items, row.original.title);
-        const cost = orderLineResolvedIngredientCost(row.original, recipe);
+        const cost = orderLineResolvedIngredientCost(row.original);
         if (cost == null) {
           return <span className="text-xs text-muted-foreground">—</span>;
         }
@@ -31,12 +35,13 @@ export function cafeOrderProfitColumns(
     },
     {
       id: "profit",
-      header: "Est. profit",
+      header: "Profit at sale",
       cell: ({ row }) => {
-        const recipe = findItemRecipeByTitle(items, row.original.title);
-        const profit = orderLineProfitETB(row.original, recipe);
+        const profit = orderLineProfitETB(row.original);
         if (profit === null) {
-          return <span className="text-xs text-muted-foreground">No recipe</span>;
+          return (
+            <span className="text-xs text-muted-foreground">No cost at sale</span>
+          );
         }
         return (
           <span

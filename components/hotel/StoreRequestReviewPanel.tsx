@@ -18,6 +18,7 @@ import {
   type StoreReviewDeleteTarget,
 } from "@/components/hotel/StoreReviewDeleteAlert";
 import { fetchMe } from "@/lib/api/auth";
+import { fetchDepartmentLeaders } from "@/lib/api/departmentLeaders";
 import {
   deletePurchaseRequestStoreDraftApi,
   deleteStockOutRequestStoreDraftApi,
@@ -36,6 +37,7 @@ import {
   resolveCanonicalTenantKey,
   rowHotelMatchesTenantScope,
 } from "@/lib/tenantRowMatch";
+import { leadersByDepartment } from "@/lib/departments";
 import { invalidateGraphqlListCache } from "@/lib/api/client";
 import { useAllowedSelection } from "@/lib/voucherBatchSelection";
 import { RequestTypeCollapsibleSection } from "@/components/hotel/RequestTypeCollapsibleSection";
@@ -99,6 +101,8 @@ export function StoreRequestReviewPanel({
   const [purchases, setPurchases] = useState<PurchaseRequestRow[]>([]);
   const [stocks, setStocks] = useState<StockOutRequestRow[]>([]);
   const [registrations, setRegistrations] = useState<RegRow[]>([]);
+  const [storeLeaderName, setStoreLeaderName] = useState("");
+  const [purchaserLeaderName, setPurchaserLeaderName] = useState("");
 
   const [editPr, setEditPr] = useState<PurchaseRequestRow | null>(null);
   const [editSo, setEditSo] = useState<StockOutRequestRow | null>(null);
@@ -131,11 +135,12 @@ export function StoreRequestReviewPanel({
         typeof window !== "undefined"
           ? (localStorage.getItem("user_name")?.trim() ?? "")
           : "";
-      const [me, pr, so, reg] = await Promise.all([
+      const [me, pr, so, reg, leaders] = await Promise.all([
         fetchMe(),
         fetchPurchaseRequests(),
         fetchStockOutRequests(),
         fetchItemRegistrations(),
+        fetchDepartmentLeaders().catch(() => []),
       ]);
       const sessionName = me?.UserName?.trim() || storedName;
       if (sessionName && typeof window !== "undefined") {
@@ -145,10 +150,19 @@ export function StoreRequestReviewPanel({
       setPurchases(pr);
       setStocks(so);
       setRegistrations(reg as RegRow[]);
+      const byDept = leadersByDepartment(
+        leaders.filter((row) =>
+          rowHotelMatchesTenantScope(row.HotelName, tenantKey),
+        ),
+      );
+      setStoreLeaderName(String(byDept.get("STORE")?.leaderName ?? "").trim());
+      setPurchaserLeaderName(
+        String(byDept.get("PURCHASER")?.leaderName ?? "").trim(),
+      );
     } catch (e: unknown) {
       notifyApiFailure(e, "Could not load drafts for review");
     }
-  }, []);
+  }, [tenantKey]);
 
   const inTenant = useCallback(
     <T extends { HotelName?: string | null }>(rows: T[]) =>
@@ -388,9 +402,10 @@ export function StoreRequestReviewPanel({
     if (!selectedReg.length) return [] as ReceiptBundle[];
     const selected = myReg.filter((r) => selectedReg.includes(r.id));
     return groupDraftRegistrationReceipts(selected, {
-      storeSignerName: userName || null,
+      storeSignerName: storeLeaderName || null,
+      purchaserSignerName: purchaserLeaderName || null,
     });
-  }, [myReg, selectedReg, userName]);
+  }, [myReg, selectedReg, storeLeaderName, purchaserLeaderName]);
 
   const printSelectedRegistrationReceipts = useCallback(() => {
     if (!selectedRegistrationReceipts.length) {

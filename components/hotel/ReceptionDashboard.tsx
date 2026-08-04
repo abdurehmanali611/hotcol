@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useReactToPrint } from "react-to-print";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 import { Toaster, toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
@@ -210,6 +211,7 @@ export function ReceptionDashboard() {
   const handleDeparturePrint = useReactToPrint({
     contentRef: departurePrintRef,
     documentTitle: "Departure_receipt",
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
     onAfterPrint: () => {
       setPrintStay(null);
       setPrintPayment(null);

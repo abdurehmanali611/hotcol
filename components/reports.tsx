@@ -63,16 +63,65 @@ import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
 import PendingPaymentOrders from "@/components/cafe/PendingPaymentOrders";
 import { Cashout, fetchCashout, fetchTables, type Order, type Table } from "@/lib/actions";
-import type { Item } from "@/lib/api/types";
+import type { CafeReportType, Item } from "@/lib/api/types";
 import {
   isBankPayment,
   isCreditPayment,
 } from "@/lib/api/cafeOrders";
-import { filterCafeReportCashouts, filterCafeReportPeriodOrders } from "@/lib/cafeReportFilter";
+import {
+  cafeReportProfitLabel,
+  filterCafeReportCashouts,
+  filterCafeReportPeriodOrders,
+} from "@/lib/cafeReportFilter";
+import {
+  cafeBusinessHalfYear,
+  cafeBusinessQuarter,
+  cafeBusinessYear,
+  cafeBusinessYearMonth,
+} from "@/lib/cafeBusinessDay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
-import { cafeOrderLineTotalETB } from "@/lib/cafeBankPayment";
-import { findItemRecipeByTitle, orderLineProfitETB } from "@/lib/cafeRecipe";
+import { cafeReportProfitMessage } from "@/lib/cafeRecipe";
 import Cashouts from "@/app/CashoutTable/page";
+
+const CAFE_REPORT_TYPE_OPTIONS: { value: CafeReportType; label: string }[] = [
+  { value: "Daily", label: "Daily Report" },
+  { value: "Monthly", label: "Monthly Report" },
+  { value: "Quarterly", label: "Quarterly Report" },
+  { value: "HalfYearly", label: "Half-Yearly Report" },
+  { value: "Yearly", label: "Yearly Report" },
+];
+
+function cafeReportPeriodHint(type: CafeReportType, date: Date): string {
+  const year = cafeBusinessYear(date);
+  switch (type) {
+    case "Daily":
+      return "Includes paid sales for the selected day (Addis Ababa time).";
+    case "Monthly": {
+      const ym = cafeBusinessYearMonth(date);
+      return ym
+        ? `Includes paid sales for ${ym} (full month).`
+        : "Includes paid sales for the selected month.";
+    }
+    case "Quarterly": {
+      const q = cafeBusinessQuarter(date);
+      return q > 0
+        ? `Includes paid sales for Q${q} ${year}.`
+        : "Includes paid sales for the selected quarter.";
+    }
+    case "HalfYearly": {
+      const h = cafeBusinessHalfYear(date);
+      return h > 0
+        ? `Includes paid sales for H${h} ${year} (${h === 1 ? "Jan–Jun" : "Jul–Dec"}).`
+        : "Includes paid sales for the selected half-year.";
+    }
+    case "Yearly":
+      return year
+        ? `Includes paid sales for the full year ${year}.`
+        : "Includes paid sales for the selected year.";
+    default:
+      return "";
+  }
+}
 
 const COLORS = [
   "#3b82f6",
@@ -266,15 +315,15 @@ export default function Reports({
   hotelName,
   items = [],
 }: {
-  onGenerateReport: (opts: { date: Date; type: "Daily" | "Monthly" }) => Promise<any>;
-  onExportReport: (reportData: any, reportType: "Daily" | "Monthly") => Promise<void>;
+  onGenerateReport: (opts: { date: Date; type: CafeReportType }) => Promise<any>;
+  onExportReport: (reportData: any, reportType: CafeReportType) => Promise<void>;
   orders: Order[];
   hotelName: string;
   items?: Pick<Item, "name" | "recipeJson">[];
 }) {
   const [displayName, setDisplayName] = useState(hotelName);
   const [date, setDate] = useState<Date>(new Date());
-  const [reportType, setReportType] = useState<"Daily" | "Monthly">("Daily");
+  const [reportType, setReportType] = useState<CafeReportType>("Daily");
   const [reportData, setReportData] = useState<any>(null);
   const [cashouts, setCashouts] = useState<Cashout[]>([]);
   const [loading, setLoading] = useState(false);
@@ -336,66 +385,30 @@ export default function Reports({
   };
 
   const analyticsData = useMemo(() => {
-    const categoryMap: Record<string, { val: number; amt: number; profit: number }> = {};
-    const typeMap: Record<string, { val: number; amt: number; profit: number }> = {};
-    const itemMap: Record<string, { val: number; amt: number; profit: number }> = {};
-    let totalProfit = 0;
-
-    reportRevenueOrders.forEach((order: any) => {
-      const orderQty = Number(order.orderAmount) || 0;
-      const sales = cafeOrderLineTotalETB(order);
-      const recipe = findItemRecipeByTitle(items, order.title);
-      const profit = orderLineProfitETB(order, recipe) ?? 0;
-
-      const cat = order.category?.trim() || "Uncategorized";
-      const type = order.type?.trim() || "Others";
-      const title = order.title?.trim() || "Unknown Item";
-
-      const updateMap = (map: any, key: string) => {
-        if (!map[key]) map[key] = { val: 0, amt: 0, profit: 0 };
-        map[key].val += sales;
-        map[key].amt += orderQty;
-        map[key].profit += profit;
-      };
-
-      updateMap(categoryMap, cat);
-      updateMap(typeMap, type);
-      updateMap(itemMap, title);
-      totalProfit += profit;
-    });
-
-    const formatData = (
-      map: Record<string, { val: number; amt: number; profit: number }>,
-    ) =>
-      Object.entries(map).map(([name, data]) => ({
-        name: `${name} (${data.amt})`,
-        value: data.val,
-        totalAmount: data.amt,
-        profit: data.profit,
-      }));
-
-    return {
-      category: formatData(categoryMap),
-      type: formatData(typeMap),
-      titles: formatData(itemMap),
-      items: Object.entries(itemMap)
-        .map(([name, data]) => ({
-          name,
-          sales: data.val,
-          totalAmount: data.amt,
-          profit: data.profit,
-        }))
-        .sort((a, b) => b.sales - a.sales)
-        .slice(0, 10),
-      totalProfit,
-      totalOrderUnits: reportRevenueOrders.reduce(
-        (sum: number, order: { orderAmount?: number }) =>
-          sum + (Number(order.orderAmount) || 0),
-        0,
-      ),
-      paidLineCount: reportRevenueOrders.length,
+    const empty = {
+      category: [] as { name: string; value: number; totalAmount: number; profit: number }[],
+      type: [] as { name: string; value: number; totalAmount: number; profit: number }[],
+      titles: [] as { name: string; value: number; totalAmount: number; profit: number }[],
+      items: [] as {
+        name: string;
+        sales: number;
+        totalAmount: number;
+        profit: number;
+      }[],
+      totalProfit: 0,
+      profitIncludedLines: 0,
+      profitExcludedLines: 0,
+      totalOrderUnits: 0,
+      paidLineCount: 0,
     };
-  }, [items, reportRevenueOrders]);
+    if (!reportData?.analytics) return empty;
+    return reportData.analytics;
+  }, [reportData]);
+
+  const profitMessage = useMemo(
+    () => cafeReportProfitMessage(analyticsData),
+    [analyticsData],
+  );
 
   const paymentCategoryBreakdown = useMemo(() => {
     const byChannel = {
@@ -460,7 +473,8 @@ export default function Reports({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 px-3 pb-4 sm:flex-row sm:flex-wrap sm:gap-4 sm:px-6 sm:pb-6">
+        <CardContent className="flex flex-col gap-3 px-3 pb-4 sm:px-6 sm:pb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -485,17 +499,20 @@ export default function Reports({
           </Popover>
           <Select
             value={reportType}
-            onValueChange={(v: any) => {
+            onValueChange={(v: CafeReportType) => {
               setReportType(v);
               setReportData(null);
             }}
           >
-            <SelectTrigger className="w-full sm:w-45">
+            <SelectTrigger className="w-full sm:w-52">
               <SelectValue placeholder="Report Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Daily">Daily Report</SelectItem>
-              <SelectItem value="Monthly">Monthly Report</SelectItem>
+              {CAFE_REPORT_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button
@@ -519,6 +536,10 @@ export default function Reports({
               <Download className="mr-2 h-4 w-4" /> Export Excel
             </Button>
           )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {cafeReportPeriodHint(reportType, date)}
+          </p>
         </CardContent>
       </Card>
 
@@ -538,12 +559,13 @@ export default function Reports({
                 color: "text-emerald-500",
               },
               {
-                label:
-                  reportType === "Daily"
-                    ? "Total Profit Today"
-                    : "Total Profit This Month",
-                value: analyticsData.totalProfit,
+                label: cafeReportProfitLabel(reportType),
+                value: reportData.totalProfit ?? analyticsData.totalProfit,
                 color: "text-sky-500",
+                hint:
+                  analyticsData.paidLineCount > 0
+                    ? `From ${analyticsData.profitIncludedLines} of ${analyticsData.paidLineCount} paid lines`
+                    : undefined,
               },
               ...(reportData.bankTipCashDeductions?.amount > 0
                 ? [
@@ -575,10 +597,25 @@ export default function Reports({
                       ? stat.value
                       : `${stat.value.toLocaleString()} ETB`}
                   </p>
+                  {stat.hint ? (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {stat.hint}
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
           </div>
+          <p
+            className={cn(
+              "text-xs",
+              analyticsData.profitExcludedLines > 0
+                ? "text-amber-700 dark:text-amber-500"
+                : "text-muted-foreground",
+            )}
+          >
+            {profitMessage}
+          </p>
 
           {/* Payment Method Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

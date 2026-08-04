@@ -10,6 +10,7 @@ export const HOTEL_DEPARTMENT_CODES = [
   "GM",
   "FB_SERVICE",
   "STORE",
+  "PURCHASER",
 ] as const;
 
 export type HotelDepartmentCode = (typeof HOTEL_DEPARTMENT_CODES)[number];
@@ -27,10 +28,10 @@ export const REGISTRATION_RECEIVED_BY_CODES = [
   "BAR",
 ] as const satisfies readonly HotelDepartmentCode[];
 
-/** Stock movements — staff option plus all departments except Store. */
+/** Stock movements — staff option plus all departments except Store / Purchaser. */
 export const REQUESTED_BY_DEPARTMENT_CODES = [
   STAFF_REQUESTED_BY_CODE,
-  ...HOTEL_DEPARTMENT_CODES.filter((c) => c !== "STORE"),
+  ...HOTEL_DEPARTMENT_CODES.filter((c) => c !== "STORE" && c !== "PURCHASER"),
 ];
 
 /** Purchase requests — staff option plus all departments including Store. */
@@ -51,6 +52,7 @@ export const DEPARTMENT_LABELS: Record<HotelDepartmentCode, string> = {
   GM: "General Manager (GM)",
   FB_SERVICE: "Food and Beverage Service (F&B service)",
   STORE: "Store",
+  PURCHASER: "Purchaser",
 };
 
 const LEGACY_DEPARTMENT_LABELS: Record<string, string> = {

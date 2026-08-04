@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type { CafeReportAnalytics } from "../cafeRecipe";
+
 export interface LoginCredentials {
   UserName: string;
   Password: string;
@@ -199,12 +201,22 @@ export interface OrderCreationData {
   price: number;
   status?: string | null;
   payment?: string;
+  /** Optional client hint only — backend freezes cost from recipe on create; do not send on OrderInput. */
+  unitCostAtSale?: number | null;
+  serviceCaption?: string | null;
 }
+
+export type CafeReportType =
+  | "Daily"
+  | "Monthly"
+  | "Quarterly"
+  | "HalfYearly"
+  | "Yearly";
 
 export interface ReportFilter {
   HotelName: string;
   date: Date;
-  type: "Daily" | "Monthly";
+  type: CafeReportType;
 }
 
 export interface ExcelExportData {
@@ -218,6 +230,9 @@ export interface ReportData {
   totalSales: number;
   netSales: number;
   totalCashouts: number;
+  /** Frozen at Generate — single profit total. */
+  totalProfit: number;
+  analytics: CafeReportAnalytics;
   cashPayments: {
     count: number;
     amount: number;

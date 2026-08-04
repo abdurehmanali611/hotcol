@@ -1114,9 +1114,6 @@ function ManagerContent() {
               onGenerateReport={async ({
                 date,
                 type,
-              }: {
-                date: Date;
-                type: "Daily" | "Monthly";
               }) => {
                 try {
                   const cashouts = await fetchCashout(tenantScope || "");
@@ -1124,7 +1121,7 @@ function ManagerContent() {
                     date,
                     type,
                     HotelName: tenantScope || "",
-                  });
+                  }, menuItems);
                 } catch (error: any) {
                   toast.error("Failed to generate report: " + error.message);
                   throw error;
@@ -1132,7 +1129,7 @@ function ManagerContent() {
               }}
               onExportReport={async (
                 reportData: any,
-                reportType: "Daily" | "Monthly",
+                reportType,
               ) => {
                 try {
                   const exportData = prepareReportExportData(

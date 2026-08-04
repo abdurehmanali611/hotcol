@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 import {
   authorizeHotelCreditCompanyApi,
   fetchHotelCreditCompanies,
@@ -110,6 +111,7 @@ export function HotelManagerCompanyApprovals({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: "Corporate_meal_agreement",
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
     onAfterPrint: () => setPrintTarget(null),
   });
   const { isPending: actionPending, run } = useConcurrentActions();

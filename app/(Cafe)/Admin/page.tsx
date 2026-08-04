@@ -89,6 +89,7 @@ import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
 
 const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
+  reports: ["orders", "items"],
   "create-item": ["items"],
   "update-item": ["items"],
   "station-prep-qty": ["items"],
@@ -208,7 +209,7 @@ function AdminDashboardContent() {
         try {
           const keys: AdminDatasetKey[] = isRefresh
             ? ["items", "orders", "waiters", "tables", "credentials"]
-            : ["orders"];
+            : ["orders", "items"];
           await ensureAdminData(keys, { refresh: isRefresh });
           if (isStale()) return;
           try {
@@ -361,9 +362,6 @@ function AdminDashboardContent() {
               onGenerateReport={async ({
               date,
               type,
-            }: {
-              date: Date;
-              type: "Daily" | "Monthly";
             }) => {
               try {
                 const cashouts = await fetchCashout(tenantScope);
@@ -371,7 +369,7 @@ function AdminDashboardContent() {
                   date,
                   type,
                   HotelName: tenantScope,
-                });
+                }, items);
               } catch (error: any) {
                 toast.error("Failed to generate report: " + error.message);
                 throw error;
@@ -379,7 +377,7 @@ function AdminDashboardContent() {
             }}
             onExportReport={async (
               reportData: any,
-              reportType: "Daily" | "Monthly",
+              reportType,
             ) => {
               try {
                 const exportData = prepareReportExportData(

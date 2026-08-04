@@ -29,6 +29,7 @@ import {
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { useReactToPrint } from "react-to-print";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -368,6 +369,7 @@ const CreditRegistrationForm = ({
   const handlePrint = useReactToPrint({
     contentRef: agreementRef,
     documentTitle: `Credit_Agreement_${form.getValues("name")}`,
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
   });
 
   const handleDownloadPDF = async () => {

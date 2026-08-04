@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Printer } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 import {
   groupVoucherBatchesForQueue,
   voucherGroupStatusSummary,
@@ -62,7 +63,10 @@ export function HotelItemReceiptApprovals({
   const [ccProfileId, setCcProfileId] = useState<string>("");
   const [preview, setPreview] = useState<ItemRegistration | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
-  const handlePrint = useReactToPrint({ contentRef: printRef });
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
+  });
   const { isPending, run } = useConcurrentActions();
   const { requestRejectionReason, RejectionReasonDialog } =
     useRejectionReasonDialog();

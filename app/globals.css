@@ -190,10 +190,11 @@
     -webkit-print-color-adjust: exact;
   }
 
-  /* Prefer blank/minimal headers so the Reception app URL is not stamped */
+  /* Zero margin suppresses Chromium/Edge browser headers & footers
+     (date, title, URL, page #). Content padding stays on the receipt itself. */
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 0;
   }
 
   .corporate-meal-agreement {

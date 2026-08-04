@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StoreItemRegistrationReceipt } from "@/components/hotel/StoreItemRegistrationReceipt";
 import type { ReceiptBundle } from "@/lib/receiptGrouping";
 import { paginateBundlesForA4Print } from "@/lib/receiptPrintPagination";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 import { cn } from "@/lib/utils";
 
 export function RequestStatusBulkPrintActions({
@@ -35,6 +36,7 @@ export function RequestStatusBulkPrintActions({
   const handleBulkPrint = useReactToPrint({
     contentRef: bulkPrintRef,
     documentTitle: `Request_Receipts_${bundles.length || "batch"}`,
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
   });
 
   if (bundles.length === 0) return null;

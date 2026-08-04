@@ -8,7 +8,7 @@ import {
   prepareReportExportData,
   type Order,
 } from "@/lib/actions";
-import type { Item } from "@/lib/api/types";
+import type { CafeReportType, Item } from "@/lib/api/types";
 import { toast } from "sonner";
 
 export function CafeCashierReportsPanel({
@@ -30,7 +30,7 @@ export function CafeCashierReportsPanel({
           type,
         }: {
           date: Date;
-          type: "Daily" | "Monthly";
+          type: CafeReportType;
         }) => {
           try {
             const cashouts = await fetchCashout(hotelName);
@@ -38,7 +38,7 @@ export function CafeCashierReportsPanel({
               date,
               type,
               HotelName: hotelName,
-            });
+            }, items);
           } catch (error: unknown) {
             const msg =
               error instanceof Error ? error.message : "Report failed";
@@ -48,7 +48,7 @@ export function CafeCashierReportsPanel({
         }}
         onExportReport={async (
           reportData: unknown,
-          reportType: "Daily" | "Monthly",
+          reportType: CafeReportType,
         ) => {
           try {
             const data = reportData as { orders?: Order[] };

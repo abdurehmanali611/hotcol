@@ -10,6 +10,7 @@ import type {
   AuditPrintFilterLine,
   AuditPrintSummaryRow,
 } from "@/lib/brandedListPrint";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 
 export type AuditPrintColumn<T> = {
   header: string;
@@ -67,6 +68,7 @@ export function BrandedAuditListPrintActions<T>({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle,
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
   });
 
   return (
