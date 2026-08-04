@@ -65,17 +65,24 @@ function defaultAmountForRow(row: ItemRegistration): string {
 }
 
 function rowsToDrafts(selected: ItemRegistration[]): LineDraft[] {
-  return selected.map((row) => ({
-    registrationId: row.id,
-    itemName: row.name,
-    onHand: Number(row.amount) || 0,
-    measuredBy: row.measuredBy || "Piece",
-    movement: "STOCK_OUT",
-    amount: defaultAmountForRow(row),
-    stakeholder: "",
-    customStation: "",
-    reason: "",
-  }));
+  const seen = new Set<number>();
+  const drafts: LineDraft[] = [];
+  for (const row of selected) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    drafts.push({
+      registrationId: row.id,
+      itemName: row.name,
+      onHand: Number(row.amount) || 0,
+      measuredBy: row.measuredBy || "Piece",
+      movement: "STOCK_OUT",
+      amount: defaultAmountForRow(row),
+      stakeholder: "",
+      customStation: "",
+      reason: "",
+    });
+  }
+  return drafts;
 }
 
 function stockOutDestination(line: LineDraft): string {

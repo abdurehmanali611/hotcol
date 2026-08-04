@@ -198,15 +198,26 @@ export default function StoreItems({
 
   const expandSelection = useCallback((selected: ItemRegistration[]) => {
     const expanded: ItemRegistration[] = [];
+    const seen = new Set<number>();
     for (const row of selected as items[]) {
-      if (isAggregatedInventoryRow(row)) {
-        expanded.push(...row.registrationLines);
-      } else {
-        expanded.push(row);
+      const lines = isAggregatedInventoryRow(row)
+        ? row.registrationLines
+        : [row];
+      for (const line of lines) {
+        if (seen.has(line.id)) continue;
+        seen.add(line.id);
+        expanded.push(line);
       }
     }
     return expanded;
   }, []);
+
+  const handleBatchSelectionChange = useCallback(
+    (rows: ItemRegistration[]) => {
+      setBatchSelected(expandSelection(rows));
+    },
+    [expandSelection],
+  );
 
   const Root = embedded ? "div" : "main";
   const shellClass = embedded
@@ -369,9 +380,7 @@ export default function StoreItems({
           onHotelStockRequestCreated={onHotelStockRequestCreated}
           enableRowSelection={showStoreMovementActions}
           onRowSelectionChange={
-            showStoreMovementActions
-              ? (rows) => setBatchSelected(expandSelection(rows))
-              : undefined
+            showStoreMovementActions ? handleBatchSelectionChange : undefined
           }
         />
       </div>

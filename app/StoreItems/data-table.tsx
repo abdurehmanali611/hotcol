@@ -99,6 +99,10 @@ function DataTableInner<TData extends { id?: number }, TValue>(
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const lastSelectionSig = React.useRef("");
+  // Keep notify stable across parent re-renders so selection sync is driven only by
+  // rowSelection/data — not by an inline callback identity flip.
+  const onRowSelectionChangeRef = React.useRef(onRowSelectionChange);
+  onRowSelectionChangeRef.current = onRowSelectionChange;
 
   const selectColumn = React.useMemo<ColumnDef<TData, unknown>>(
     () => ({
@@ -123,7 +127,11 @@ function DataTableInner<TData extends { id?: number }, TValue>(
         return (
           <Checkbox
             checked={row.getIsSelected()}
-            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            // selectChildren: false — selecting a leaf must not cascade; parents are
+            // already non-selectable, but this keeps mixed top-level + nested picks additive.
+            onCheckedChange={(v) =>
+              row.toggleSelected(!!v, { selectChildren: false })
+            }
             aria-label={`Select ${String((row.original as { name?: string }).name ?? "row")}`}
           />
         );
@@ -161,20 +169,31 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     },
   });
 
-  React.useEffect(() => {
-    if (!enableRowSelection || !onRowSelectionChange) return;
-    const selected = table
-      .getFilteredSelectedRowModel()
-      .rows.map((r) => r.original);
-    const sig = selected
-      .map((r) => String((r as { id?: number }).id ?? ""))
-      .sort()
-      .join(",");
+  React.useLayoutEffect(() => {
+    const notify = onRowSelectionChangeRef.current;
+    if (!enableRowSelection || !notify) return;
+
+    // Resolve from rowSelection keys + core rowsById (includes nested leaves even
+    // when the aggregated parent is not selected). Mixing top-level rows with
+    // same-name group lines previously dropped one side in the batch bar/dialog.
+    const rowsById = table.getCoreRowModel().rowsById;
+    const selected: TData[] = [];
+    const ids: string[] = [];
+    for (const [id, isOn] of Object.entries(rowSelection)) {
+      if (!isOn) continue;
+      if (id.startsWith("agg-")) continue;
+      const row = rowsById[id];
+      if (!row) continue;
+      if ((row.original as { isAggregated?: boolean }).isAggregated) continue;
+      selected.push(row.original);
+      ids.push(id);
+    }
+    const sig = ids.slice().sort().join(",");
     if (sig === lastSelectionSig.current) return;
     lastSelectionSig.current = sig;
-    onRowSelectionChange(selected);
+    notify(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` from useReactTable changes identity each render
-  }, [enableRowSelection, onRowSelectionChange, rowSelection, data]);
+  }, [enableRowSelection, rowSelection, data]);
 
   React.useImperativeHandle(
     ref,

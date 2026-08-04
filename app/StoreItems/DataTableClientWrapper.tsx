@@ -1,5 +1,5 @@
 "use client";
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useCallback, useMemo } from "react";
 import { columns, items } from "./columns";
 import { DataTable, type DataTableRef } from "./data-table";
 import type { ItemRegistration } from "@/lib/actions";
@@ -46,12 +46,24 @@ export const DataTableClientWrapper = forwardRef<
   },
   ref,
 ) {
-  const resolveRowId = (row: items) => {
-    if (aggregateInventory && isAggregatedInventoryRow(row)) {
-      return `agg-${normalizeInventoryItemName(row.name)}`;
-    }
-    return String(row.id);
-  };
+  const resolveRowId = useCallback(
+    (row: items) => {
+      if (aggregateInventory && isAggregatedInventoryRow(row)) {
+        return `agg-${normalizeInventoryItemName(row.name)}`;
+      }
+      return String(row.id);
+    },
+    [aggregateInventory],
+  );
+
+  const getSubRows = useCallback(
+    (row: items) =>
+      aggregateInventory && isAggregatedInventoryRow(row)
+        ? row.registrationLines
+        : undefined,
+    [aggregateInventory],
+  );
+
   const memoizedColumns = useMemo(
     () =>
       columns(onEdit, refresh, {
@@ -81,12 +93,7 @@ export const DataTableClientWrapper = forwardRef<
       getRowId={resolveRowId}
       onRowSelectionChange={onRowSelectionChange}
       initialSorting={hotelStockApprovals ? VOUCHER_TABLE_SORT : undefined}
-      getSubRows={
-        aggregateInventory
-          ? (row) =>
-              isAggregatedInventoryRow(row) ? row.registrationLines : undefined
-          : undefined
-      }
+      getSubRows={aggregateInventory ? getSubRows : undefined}
     />
   );
 });
