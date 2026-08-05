@@ -189,7 +189,7 @@ export async function generateReport(
 export function prepareReportExportData(
   orders: Order[],
   reportType: CafeReportType,
-  items: Pick<Item, "name" | "recipeJson">[] = [],
+  _items: Pick<Item, "name" | "recipeJson">[] = [],
 ): ExcelExportData {
   const aggregated = new Map<
     string,

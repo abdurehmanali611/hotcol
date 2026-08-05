@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { UserPlus, Users } from "lucide-react";
@@ -90,12 +90,16 @@ export function HrEmployeesPanel({
   editingRef.current = editing;
 
   const form = useForm<HrEmployeeFormValues>({
-    resolver: async (values, context, options) => {
+    resolver: ((values, context, options) => {
       const schema = editingRef.current?.credentialUserName
         ? hrEmployeeEditFormSchema
         : hrEmployeeCreateFormSchema;
-      return zodResolver(schema)(values, context, options);
-    },
+      return (zodResolver(schema) as Resolver<HrEmployeeFormValues>)(
+        values,
+        context,
+        options,
+      );
+    }) as Resolver<HrEmployeeFormValues>,
     defaultValues: {
       fullName: "",
       phone: "",
@@ -139,26 +143,29 @@ export function HrEmployeesPanel({
     setOpen(true);
   };
 
-  const openEdit = (row: HrEmployee) => {
-    setEditing(row);
-    form.reset({
-      fullName: row.fullName,
-      phone: row.phone || "",
-      email: row.email || "",
-      department: row.department || departmentCodes[0] || "KITCHEN",
-      jobTitle: row.jobTitle || "",
-      wageType: (HR_WAGE_TYPES as readonly string[]).includes(row.wageType)
-        ? (row.wageType as HrEmployeeFormValues["wageType"])
-        : "monthly",
-      baseSalaryETB: row.baseSalaryETB || 0,
-      hireDate: row.hireDate || todayYmd(),
-      credentialUserName: row.credentialUserName || "",
-      credentialPassword: "",
-      credentialPasswordConfirm: "",
-      notes: row.notes || "",
-    });
-    setOpen(true);
-  };
+  const openEdit = useCallback(
+    (row: HrEmployee) => {
+      setEditing(row);
+      form.reset({
+        fullName: row.fullName,
+        phone: row.phone || "",
+        email: row.email || "",
+        department: row.department || departmentCodes[0] || "KITCHEN",
+        jobTitle: row.jobTitle || "",
+        wageType: (HR_WAGE_TYPES as readonly string[]).includes(row.wageType)
+          ? (row.wageType as HrEmployeeFormValues["wageType"])
+          : "monthly",
+        baseSalaryETB: row.baseSalaryETB || 0,
+        hireDate: row.hireDate || todayYmd(),
+        credentialUserName: row.credentialUserName || "",
+        credentialPassword: "",
+        credentialPasswordConfirm: "",
+        notes: row.notes || "",
+      });
+      setOpen(true);
+    },
+    [departmentCodes, form],
+  );
 
   const onSubmit = async (values: HrEmployeeFormValues) => {
     setPending(true);
@@ -295,7 +302,7 @@ export function HrEmployeesPanel({
         ),
       },
     ],
-    [onRefresh],
+    [onRefresh, openEdit],
   );
 
   return (

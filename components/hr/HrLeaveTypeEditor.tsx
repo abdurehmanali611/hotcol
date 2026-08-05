@@ -44,7 +44,7 @@ function settingsFromLines(lines: LeaveTypeLine[]): HrLeaveTypeSetting[] {
   for (const line of lines) {
     const label = line.label.trim();
     if (!label) continue;
-    let code = line.code || slugLeaveTypeCode(label);
+    const code = line.code || slugLeaveTypeCode(label);
     if (!code) continue;
     let unique = code;
     let n = 2;

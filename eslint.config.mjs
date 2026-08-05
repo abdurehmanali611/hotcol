@@ -15,6 +15,18 @@ const eslintConfig = defineConfig([
     // Node/Prisma backend and generated client (CommonJS + generated types)
     "BackEnd/**",
   ]),
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
