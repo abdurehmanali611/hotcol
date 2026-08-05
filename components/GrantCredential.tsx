@@ -53,6 +53,7 @@ const CAFE_ROLES: {
   { value: "Barista", label: "Bar (Barista)", module: "Cafe and Restaurant" },
   { value: "Cashier", label: "Cash (Cashier)", module: "Cafe and Restaurant" },
   { value: "Store", label: "Store Keeper", module: "Inventory" },
+  { value: "HR", label: "HR", module: "HR Module" },
 ];
 
 const HOTEL_ROLES: {
@@ -77,6 +78,7 @@ const HOTEL_ROLES: {
     label: "CM leader (Cleaning & Maintenance)",
     module: "Cleaning and Maintenance",
   },
+  { value: "HR", label: "HR", module: "HR Module" },
 ];
 
 export default function GrantCredential({

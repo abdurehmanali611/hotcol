@@ -70,6 +70,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "inventory", label: "Inventory", icon: "Store" },
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
+  { id: "hr-workforce", label: "HR workforce", icon: "Users" },
 ] as const;
 
 /** Café cashier terminal — sidebar section keys. */
@@ -150,6 +151,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "authorize-stock", label: "Authorize stock", icon: "ArrowRightLeft" },
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
+  { id: "hr-workforce", label: "HR workforce", icon: "Users" },
   {
     id: "inventory-payment-vat",
     label: "Inventory payment & tax",

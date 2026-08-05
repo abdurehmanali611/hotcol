@@ -23,6 +23,7 @@ import {
   Package,
   ShieldCheck,
   Sparkles,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import {
   fetchLodgingDashboardStats,
   type LodgingDashboardStats,
 } from "@/lib/api/lodgingRooms";
+import { fetchHrDashboardStats, type HrDashboardStats } from "@/lib/api/hr";
 import {
   MODULE_DESCRIPTIONS,
   tenantHasModule,
@@ -139,11 +141,13 @@ export function ManagerOverviewDashboard({
     modules as ModuleOption[],
     "Credentials(Common)",
   );
+  const hasHr = tenantHasModule(modules as ModuleOption[], "HR Module");
 
   const [lodgingStats, setLodgingStats] = useState<LodgingDashboardStats | null>(
     null,
   );
   const [lodgingLoading, setLodgingLoading] = useState(hasRooms || hasCm);
+  const [hrStats, setHrStats] = useState<HrDashboardStats | null>(null);
 
   const loadLodging = useCallback(async () => {
     if (!hasRooms && !hasCm) {
@@ -161,9 +165,25 @@ export function ManagerOverviewDashboard({
     }
   }, [hasRooms, hasCm]);
 
+  const loadHr = useCallback(async () => {
+    if (!hasHr) {
+      setHrStats(null);
+      return;
+    }
+    try {
+      setHrStats(await fetchHrDashboardStats());
+    } catch {
+      setHrStats(null);
+    }
+  }, [hasHr]);
+
   useEffect(() => {
     void loadLodging();
   }, [loadLodging]);
+
+  useEffect(() => {
+    void loadHr();
+  }, [loadHr]);
 
   const moduleCards = useMemo((): ModuleScoreCard[] => {
     const cards: ModuleScoreCard[] = [];
@@ -322,6 +342,37 @@ export function ManagerOverviewDashboard({
       });
     }
 
+    if (hasHr) {
+      const headcount = hrStats?.headcount ?? 0;
+      const pendingLeave = hrStats?.pendingLeave ?? 0;
+      const points = hrStats
+        ? clampPoints(
+            (headcount > 0 ? 55 : 15) +
+              Math.min(25, headcount * 2) -
+              pendingLeave * 8 +
+              (hrStats.openPayrollPeriods === 0 ? 10 : 0),
+          )
+        : 40;
+      cards.push({
+        module: "HR Module",
+        label: "HR workforce",
+        icon: Users,
+        points,
+        summary: !hrStats
+          ? "HR stats unavailable."
+          : headcount === 0
+            ? "Add employees to start workforce tracking."
+            : `${headcount} active · ${pendingLeave} leave pending.`,
+        metrics: [
+          { label: "Headcount", value: hrStats?.headcount ?? "—" },
+          { label: "On leave today", value: hrStats?.onLeaveToday ?? "—" },
+          { label: "Leave pending", value: hrStats?.pendingLeave ?? "—" },
+          { label: "Open payroll", value: hrStats?.openPayrollPeriods ?? "—" },
+        ],
+        accent: "from-rose-500/10 border-rose-500/20",
+      });
+    }
+
     if (hasCredentials) {
       const points = clampPoints(
         credentialCount === 0 ? 15 : Math.min(100, 40 + credentialCount * 8),
@@ -349,7 +400,9 @@ export function ManagerOverviewDashboard({
     hasCredit,
     hasFinance,
     hasCredentials,
+    hasHr,
     lodgingStats,
+    hrStats,
     inventoryItemCount,
     pendingPurchases,
     pendingStock,

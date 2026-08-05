@@ -21,6 +21,8 @@ import { refreshTenantSubscription } from "@/lib/actions";
 export function useTenantRouteGuard(options?: {
   requiredModule?: ModuleOption;
   role?: string;
+  /** Allow any of these terminal roles (e.g. HR page for HR | Admin | Manager). */
+  roles?: string[];
 }) {
   const router = useRouter();
 
@@ -56,7 +58,14 @@ export function useTenantRouteGuard(options?: {
         router.replace("/");
         return;
       }
-      if (options?.role) {
+      if (options?.roles && options.roles.length > 0) {
+        const ok = options.roles.some((r) => loggedInRoleMatchesTerminal(r));
+        if (!ok) {
+          toast.error("You do not have access to this terminal.");
+          router.replace("/");
+          return;
+        }
+      } else if (options?.role) {
         if (!canAccessTerminalRole(options.role)) {
           toast.error("This terminal is not included in your property subscription.");
           router.replace("/");
@@ -72,5 +81,5 @@ export function useTenantRouteGuard(options?: {
     return () => {
       cancelled = true;
     };
-  }, [options?.requiredModule, options?.role, router]);
+  }, [options?.requiredModule, options?.role, options?.roles, router]);
 }

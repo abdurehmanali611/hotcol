@@ -9,6 +9,7 @@ export * from "./hotelWorkflow";
 export * from "./storeRequestDraft";
 export * from "./departmentLeaders";
 export * from "./lodgingRooms";
+export * from "./hr";
 
 export {
   CreateCreditLevel,

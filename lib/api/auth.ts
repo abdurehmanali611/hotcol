@@ -317,6 +317,9 @@ export async function LoginAction(
       case "CMLeader":
         router.push(`/CMLeader?${queryParams}`);
         break;
+      case "HR":
+        router.push(`/HR?${queryParams}`);
+        break;
       default:
         toast.error("No Role Found");
     }
@@ -334,7 +337,14 @@ export async function LoginAction(
     })();
 
     if (fromGraphqlBody) {
-      errorMessage = fromGraphqlBody;
+      errorMessage = /pool timeout|failed to retrieve a connection/i.test(fromGraphqlBody)
+        ? "The API could not open a database connection. Redeploy hotcol-backend on Vercel and try again."
+        : fromGraphqlBody;
+    } else if (
+      /pool timeout|failed to retrieve a connection/i.test(String(error.message || ""))
+    ) {
+      errorMessage =
+        "The API could not open a database connection. Redeploy hotcol-backend on Vercel and try again.";
     } else if (
       error.message?.includes("Connection Timeout") ||
       error.message?.includes("Network Error")

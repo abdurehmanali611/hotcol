@@ -168,6 +168,7 @@ import WaiterAndTable from "@/components/Waiter_And_Table";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
+import { HrDashboard } from "@/components/hr/HrDashboard";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -1548,6 +1549,13 @@ function ManagerContent() {
         return (
           <div className="p-4 md:p-6">
             <LodgingLaundryItemsPanel />
+          </div>
+        );
+
+      case "hr-workforce":
+        return (
+          <div className="p-4 md:p-6">
+            <HrDashboard embedded />
           </div>
         );
 

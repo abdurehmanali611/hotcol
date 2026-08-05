@@ -69,6 +69,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
+import { HrDashboard } from "@/components/hr/HrDashboard";
 import AdminInventory from "@/components/AdminInventory";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
@@ -509,6 +510,12 @@ function AdminDashboardContent() {
               propertyLogo={logoUrl || null}
               propertyTin={propertyTin}
             />
+          </div>
+        );
+      case "hr-workforce":
+        return (
+          <div className="min-w-0 p-3 sm:p-5 md:p-6">
+            <HrDashboard embedded />
           </div>
         );
       default:

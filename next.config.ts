@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
+    // Windows: Turbopack FS cache compaction was blocking routes for minutes.
+    turbopackFileSystemCacheForDev: false,
     /** Tree-shake icon and chart imports instead of pulling full packages per route. */
     optimizePackageImports: [
       "lucide-react",

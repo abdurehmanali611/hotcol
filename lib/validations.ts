@@ -213,6 +213,7 @@ export const createCredentialSchema = z
         "HotelCashier",
         "Reception",
         "CMLeader",
+        "HR",
       ],
       {
         message: "Invalid role",
