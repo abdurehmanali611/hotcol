@@ -1,5 +1,6 @@
 "use client";
 
+import type * as React from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ export function HotelDayPicker({
   buttonClassName,
   placeholder = "Pick a date",
   disabled,
+  disabledDays,
+  popoverAlign = "start",
   compact = false,
 }: {
   label?: string;
@@ -28,6 +31,8 @@ export function HotelDayPicker({
   buttonClassName?: string;
   placeholder?: string;
   disabled?: boolean;
+  disabledDays?: React.ComponentProps<typeof Calendar>["disabled"];
+  popoverAlign?: React.ComponentProps<typeof PopoverContent>["align"];
   /** Shorter label + date text for dense inline form grids. */
   compact?: boolean;
 }) {
@@ -54,7 +59,7 @@ export function HotelDayPicker({
             disabled={disabled}
             className={cn(
               "h-10 w-full justify-start border-border/80 px-3 text-left font-normal shadow-sm",
-              compact ? "min-w-0 truncate text-sm" : "min-w-[170px]",
+              compact ? "min-w-0 truncate text-sm" : "min-w-42.5",
               buttonClassName,
             )}
           >
@@ -64,11 +69,12 @@ export function HotelDayPicker({
             </span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0" align={popoverAlign}>
           <Calendar
             mode="single"
             selected={selected}
             captionLayout="dropdown"
+            disabled={disabledDays}
             onSelect={(d) => {
               if (!d) return;
               onChange(toYmdLocal(d));

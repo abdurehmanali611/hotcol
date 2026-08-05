@@ -1,0 +1,586 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import type { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
+import { UserPlus, Users } from "lucide-react";
+import { DataTable } from "@/app/StoreItems/data-table";
+import { Button } from "@/components/ui/button";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FilterChipGroup, ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
+import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
+import { HrEmptyState, HrPanelShell, HrSectionCard, HrStatusBadge } from "@/components/hr/hrChrome";
+import {
+  HR_WAGE_LABELS,
+  HR_WAGE_TYPES,
+  hrEmployeeCreateFormSchema,
+  hrEmployeeEditFormSchema,
+  type HrEmployeeFormValues,
+} from "@/lib/hrConstraints";
+import { DEPARTMENT_LABELS, type HotelDepartmentCode } from "@/lib/departments";
+import { formatETB } from "@/lib/subscriptionModules";
+import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
+import { notifyApiFailure } from "@/lib/actions";
+import {
+  createHrEmployeeApi,
+  createHrEmployeeLoginApi,
+  terminateHrEmployeeApi,
+  updateHrEmployeeApi,
+  type HrEmployee,
+} from "@/lib/api/hr";
+import { PendingButton } from "@/components/ui/pending-button";
+
+const PhoneInput = dynamic(
+  () => import("@/components/phone-input").then((m) => m.PhoneInput),
+  { ssr: false },
+);
+
+type StatusFilter = "all" | "active" | "on_leave" | "terminated";
+
+const roleFieldClass = "min-w-0";
+const roleTriggerClass = "h-10 w-full min-w-0 justify-between bg-background";
+const roleInputClass = "h-10 w-full min-w-0 bg-background";
+
+function todayYmd() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function HrEmployeesPanel({
+  employees,
+  departmentCodes,
+  onRefresh,
+}: {
+  employees: HrEmployee[];
+  departmentCodes: readonly HotelDepartmentCode[];
+  onRefresh: () => Promise<void>;
+}) {
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<HrEmployee | null>(null);
+  const [pending, setPending] = useState(false);
+  const editingRef = useRef<HrEmployee | null>(null);
+  editingRef.current = editing;
+
+  const form = useForm<HrEmployeeFormValues>({
+    resolver: async (values, context, options) => {
+      const schema = editingRef.current?.credentialUserName
+        ? hrEmployeeEditFormSchema
+        : hrEmployeeCreateFormSchema;
+      return zodResolver(schema)(values, context, options);
+    },
+    defaultValues: {
+      fullName: "",
+      phone: "",
+      email: "",
+      department: departmentCodes[0] ?? "KITCHEN",
+      jobTitle: "",
+      wageType: "monthly",
+      baseSalaryETB: 0,
+      hireDate: todayYmd(),
+      credentialUserName: "",
+      credentialPassword: "",
+      credentialPasswordConfirm: "",
+      notes: "",
+    },
+  });
+
+  const filtered = useMemo(
+    () =>
+      employees.filter((e) =>
+        statusFilter === "all" ? true : e.status === statusFilter,
+      ),
+    [employees, statusFilter],
+  );
+
+  const openCreate = () => {
+    setEditing(null);
+    form.reset({
+      fullName: "",
+      phone: "",
+      email: "",
+      department: departmentCodes[0] ?? "KITCHEN",
+      jobTitle: "",
+      wageType: "monthly",
+      baseSalaryETB: 0,
+      hireDate: todayYmd(),
+      credentialUserName: "",
+      credentialPassword: "",
+      credentialPasswordConfirm: "",
+      notes: "",
+    });
+    setOpen(true);
+  };
+
+  const openEdit = (row: HrEmployee) => {
+    setEditing(row);
+    form.reset({
+      fullName: row.fullName,
+      phone: row.phone || "",
+      email: row.email || "",
+      department: row.department || departmentCodes[0] || "KITCHEN",
+      jobTitle: row.jobTitle || "",
+      wageType: (HR_WAGE_TYPES as readonly string[]).includes(row.wageType)
+        ? (row.wageType as HrEmployeeFormValues["wageType"])
+        : "monthly",
+      baseSalaryETB: row.baseSalaryETB || 0,
+      hireDate: row.hireDate || todayYmd(),
+      credentialUserName: row.credentialUserName || "",
+      credentialPassword: "",
+      credentialPasswordConfirm: "",
+      notes: row.notes || "",
+    });
+    setOpen(true);
+  };
+
+  const onSubmit = async (values: HrEmployeeFormValues) => {
+    setPending(true);
+    try {
+      const hotelName =
+        localStorage.getItem("tin_number")?.trim() ||
+        localStorage.getItem("hotel_name")?.trim() ||
+        "";
+      const logoUrl = localStorage.getItem("logo_url")?.trim() || "";
+      const username = values.credentialUserName.trim();
+      const shouldCreateLogin =
+        Boolean(username && values.credentialPassword) &&
+        (!editing || !editing.credentialUserName);
+
+      if (editing && shouldCreateLogin) {
+        await createHrEmployeeLoginApi({
+          UserName: username,
+          Password: values.credentialPassword,
+          HotelName: hotelName,
+          LogoUrl: logoUrl,
+        });
+      }
+
+      const payload = {
+        fullName: values.fullName,
+        phone: values.phone,
+        email: values.email || undefined,
+        department: values.department,
+        jobTitle: values.jobTitle,
+        wageType: values.wageType,
+        baseSalaryETB: values.baseSalaryETB,
+        hireDate: values.hireDate,
+        notes: values.notes,
+        credentialUserName: username || undefined,
+      };
+
+      if (editing) {
+        await updateHrEmployeeApi(editing.id, payload);
+        toast.success("Employee updated");
+      } else {
+        await createHrEmployeeApi({
+          ...payload,
+          credentialPassword: shouldCreateLogin
+            ? values.credentialPassword
+            : undefined,
+        });
+        toast.success("Employee added");
+      }
+      setOpen(false);
+      await onRefresh();
+    } catch (e) {
+      notifyApiFailure(e, editing ? "Could not update employee" : "Could not add employee");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const columns = useMemo<ColumnDef<HrEmployee>[]>(
+    () => [
+      {
+        accessorKey: "fullName",
+        header: "Employee",
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium">{row.original.fullName}</p>
+            <p className="text-xs text-muted-foreground">
+              {row.original.jobTitle || "No title"}
+              {row.original.credentialUserName
+                ? ` · login ${row.original.credentialUserName}`
+                : ""}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "department",
+        header: "Department",
+        cell: ({ row }) =>
+          DEPARTMENT_LABELS[
+            row.original.department as keyof typeof DEPARTMENT_LABELS
+          ] || row.original.department,
+      },
+      {
+        accessorKey: "phone",
+        header: "Phone",
+        cell: ({ row }) => row.original.phone || "—",
+      },
+      {
+        accessorKey: "baseSalaryETB",
+        header: "Salary",
+        cell: ({ row }) => formatETB(row.original.baseSalaryETB || 0),
+      },
+      {
+        accessorKey: "hireDate",
+        header: "Hired",
+        cell: ({ row }) => row.original.hireDate || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusBadge status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => openEdit(row.original)}>
+              Edit
+            </Button>
+            {row.original.status !== "terminated" ? (
+              <HrConfirmAction
+                destructive
+                title={`Terminate ${row.original.fullName}?`}
+                description="Marks this employee terminated from today. History stays on file."
+                confirmLabel="Terminate"
+                trigger={
+                  <Button size="sm" variant="ghost">
+                    Terminate
+                  </Button>
+                }
+                onConfirm={async () => {
+                  try {
+                    await terminateHrEmployeeApi(row.original.id, todayYmd());
+                    toast.success("Employee terminated");
+                    await onRefresh();
+                  } catch (e) {
+                    notifyApiFailure(e, "Terminate failed");
+                  }
+                }}
+              />
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [onRefresh],
+  );
+
+  return (
+    <HrPanelShell>
+      <HrSectionCard
+        title="Employee directory"
+        description="Search, filter, and maintain employment records. Add or edit from the same polished form used across HotCol."
+        icon={<Users className="h-5 w-5 text-rose-600 dark:text-rose-400" />}
+        accent="bg-linear-to-r from-rose-500 via-orange-400 to-primary/80"
+        actions={
+          <Button onClick={openCreate}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add employee
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <ListPanelFilterBar
+            title="Directory filters"
+            showClear={statusFilter !== "all"}
+            onClear={() => setStatusFilter("all")}
+          >
+            <FilterChipGroup
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { id: "all", label: "All" },
+                { id: "active", label: "Active" },
+                { id: "on_leave", label: "On leave" },
+                { id: "terminated", label: "Terminated" },
+              ]}
+            />
+          </ListPanelFilterBar>
+          {filtered.length ? (
+            <DataTable
+              columns={columns}
+              data={filtered}
+              searchColumnId="fullName"
+              searchPlaceholder="Search employees…"
+              emptyMessage="No employees match these filters."
+              pageSize={8}
+            />
+          ) : (
+            <HrEmptyState
+              title="No employees in this view"
+              description="Add the first employee or clear filters to see the full directory."
+            />
+          )}
+        </div>
+      </HrSectionCard>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className={responsiveFormDialogClassName}>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit employee" : "Add employee"}</DialogTitle>
+            <DialogDescription>
+              Employment master data for this property. New employees receive a login
+              for leave requests and payslips.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              <HotelFormSection title="Identity" description="Legal name and optional contact.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="fullName"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Full name</FormLabel>
+                        <FormControl>
+                          <Input className="h-10 bg-background" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <PhoneInput
+                            defaultCountry="ET"
+                            countryCallingCodeEditable
+                            international
+                            value={field.value || undefined}
+                            onChange={(value) => field.onChange(value || "")}
+                            className="w-full min-w-0"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input className="h-10 bg-background" type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </HotelFormSection>
+              <HotelFormSection title="Role & pay" description="Department, title, wage type, and hire date.">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="department"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Department</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className={roleTriggerClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent position="popper">
+                            {departmentCodes.map((code) => (
+                              <SelectItem key={code} value={code}>
+                                {DEPARTMENT_LABELS[code]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="jobTitle"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Job title</FormLabel>
+                        <FormControl>
+                          <Input className={roleInputClass} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="wageType"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Wage type</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className={roleTriggerClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent position="popper">
+                            {HR_WAGE_TYPES.map((w) => (
+                              <SelectItem key={w} value={w}>
+                                {HR_WAGE_LABELS[w]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="baseSalaryETB"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Gross Salary</FormLabel>
+                        <FormControl>
+                          <Input
+                            className={roleInputClass}
+                            type="number"
+                            min={0}
+                            value={field.value}
+                            onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="hireDate"
+                    render={({ field }) => (
+                      <FormItem className="w-fit justify-self-center sm:col-span-2">
+                        <FormLabel>Hire date</FormLabel>
+                        <FormControl>
+                          <HotelDayPicker
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </HotelFormSection>
+              <HotelFormSection
+                title="Employee login"
+                description="This username and password is how the employee requests leave and views payslips."
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="credentialUserName"
+                    render={({ field }) => (
+                      <FormItem className={editing?.credentialUserName ? "sm:col-span-2" : undefined}>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                          <Input
+                            className="h-10 bg-background"
+                            autoComplete="off"
+                            disabled={Boolean(editing?.credentialUserName)}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {!editing?.credentialUserName ? (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="credentialPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl>
+                              <Input
+                                className="h-10 bg-background"
+                                type="password"
+                                autoComplete="new-password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="credentialPasswordConfirm"
+                        render={({ field }) => (
+                          <FormItem className="w-full sm:col-span-2 sm:mx-auto sm:max-w-[calc(50%-0.5rem)]">
+                            <FormLabel>Confirm password</FormLabel>
+                            <FormControl>
+                              <Input
+                                className="h-10 bg-background"
+                                type="password"
+                                autoComplete="new-password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  ) : null}
+                </div>
+              </HotelFormSection>
+              <PendingButton type="submit" pending={pending} className="h-11 w-full shadow-md">
+                {editing ? "Save changes" : "Save employee"}
+              </PendingButton>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </HrPanelShell>
+  );
+}

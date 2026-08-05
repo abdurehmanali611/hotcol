@@ -214,6 +214,7 @@ export const createCredentialSchema = z
         "Reception",
         "CMLeader",
         "HR",
+        "Employee",
       ],
       {
         message: "Invalid role",
@@ -920,3 +921,15 @@ export const reservationSchema = z.object({
   reservationTime: z.date(),
   specialRequests: z.string().max(200).optional(),
 });
+
+export {
+  hrClockSchema,
+  hrDocumentFormSchema,
+  hrEmployeeFormSchema,
+  hrIncidentFormSchema,
+  hrLeaveBalanceSchema,
+  hrLeaveRequestSchema,
+  hrPayrollPeriodSchema,
+  hrPayslipAdjustSchema,
+  hrShiftFormSchema,
+} from "@/lib/hrConstraints";

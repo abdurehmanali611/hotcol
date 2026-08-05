@@ -21,11 +21,16 @@ export interface User {
     | "Admin"
     | "Manager"
     | "Cashier"
+    | "HotelCashier"
     | "Barista"
     | "Kitchen"
     | "Store"
     | "CostControl"
-    | "Finance";
+    | "Finance"
+    | "Reception"
+    | "CMLeader"
+    | "HR"
+    | "Employee";
   /** Tenant id (matches `tinNumber` / Item.Order `HotelName` column). */
   HotelName: string;
   tinNumber?: string | null;
@@ -98,12 +103,16 @@ export interface Credential {
     | "Kitchen"
     | "Barista"
     | "Cashier"
+    | "HotelCashier"
     | "Admin"
     | "Manager"
     | "Store"
     | "CostControl"
     | "Finance"
-    | "HotelCashier";
+    | "Reception"
+    | "CMLeader"
+    | "HR"
+    | "Employee";
   HotelName: string;
   LogoUrl?: string;
 }

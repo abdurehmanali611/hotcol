@@ -20,6 +20,17 @@ export type HrEmployee = {
   updatedAt: string;
 };
 
+export type HrLeaveType = {
+  id: number;
+  HotelName: string;
+  code: string;
+  label: string;
+  paid: boolean;
+  defaultDays: number;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type HrLeaveRequest = {
   id: number;
   HotelName: string;
@@ -161,6 +172,45 @@ export async function fetchHrEmployees(): Promise<HrEmployee[]> {
   return data.hrEmployees || [];
 }
 
+export async function createHrEmployeeLoginApi(input: {
+  UserName: string;
+  Password: string;
+  HotelName: string;
+  LogoUrl?: string;
+}) {
+  const data = await gql<{
+    CreateCredential: { id: number; UserName: string; Role: string };
+  }>(
+    `mutation CreateCredential(
+      $UserName: String!
+      $Password: String!
+      $Role: String!
+      $HotelName: String!
+      $LogoUrl: String
+    ) {
+      CreateCredential(
+        UserName: $UserName
+        Password: $Password
+        Role: $Role
+        HotelName: $HotelName
+        LogoUrl: $LogoUrl
+      ) {
+        id
+        UserName
+        Role
+      }
+    }`,
+    {
+      UserName: input.UserName,
+      Password: input.Password,
+      Role: "Employee",
+      HotelName: input.HotelName,
+      LogoUrl: input.LogoUrl || "",
+    },
+  );
+  return data.CreateCredential;
+}
+
 export async function createHrEmployeeApi(input: {
   fullName: string;
   phone?: string;
@@ -171,6 +221,7 @@ export async function createHrEmployeeApi(input: {
   wageType?: string;
   baseSalaryETB?: number;
   credentialUserName?: string;
+  credentialPassword?: string;
   notes?: string;
 }): Promise<HrEmployee> {
   const data = await gql<{ createHrEmployee: HrEmployee }>(
@@ -184,6 +235,7 @@ export async function createHrEmployeeApi(input: {
       $wageType: String
       $baseSalaryETB: Float
       $credentialUserName: String
+      $credentialPassword: String
       $notes: String
     ) {
       createHrEmployee(
@@ -196,12 +248,44 @@ export async function createHrEmployeeApi(input: {
         wageType: $wageType
         baseSalaryETB: $baseSalaryETB
         credentialUserName: $credentialUserName
+        credentialPassword: $credentialPassword
         notes: $notes
       ) { ${EMP_FIELDS} }
     }`,
     { ...input },
   );
   return data.createHrEmployee;
+}
+
+export async function fetchHrLeaveTypes(): Promise<HrLeaveType[]> {
+  const data = await gql<{ hrLeaveTypes: HrLeaveType[] }>(`
+    query {
+      hrLeaveTypes {
+        id HotelName code label paid defaultDays active sortOrder
+      }
+    }
+  `);
+  return data.hrLeaveTypes || [];
+}
+
+export async function replaceHrLeaveTypesApi(
+  types: Array<{
+    code?: string;
+    label: string;
+    paid?: boolean;
+    defaultDays?: number;
+    active?: boolean;
+  }>,
+): Promise<HrLeaveType[]> {
+  const data = await gql<{ replaceHrLeaveTypes: HrLeaveType[] }>(
+    `mutation ($types: [HrLeaveTypeInput!]!) {
+      replaceHrLeaveTypes(types: $types) {
+        id HotelName code label paid defaultDays active sortOrder
+      }
+    }`,
+    { types },
+  );
+  return data.replaceHrLeaveTypes || [];
 }
 
 export async function updateHrEmployeeApi(

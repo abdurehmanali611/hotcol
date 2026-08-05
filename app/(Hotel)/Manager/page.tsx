@@ -61,6 +61,7 @@ import {
   MANAGER_SERVICE_SIDEBAR_ITEMS,
   MANAGER_SERVICE_LEGACY_TAB_IDS,
   MANAGER_LODGING_NESTED_TAB_IDS,
+  MANAGER_HR_TAB_IDS,
 } from "@/constants";
 import {
   filterManagerServiceTabId,
@@ -101,6 +102,9 @@ import {
   Store,
   UserMinus,
   Phone,
+  CalendarDays,
+  Wallet,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -168,7 +172,7 @@ import WaiterAndTable from "@/components/Waiter_And_Table";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
-import { HrDashboard } from "@/components/hr/HrDashboard";
+import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -201,6 +205,9 @@ const managerSidebarIconMap: Record<
   UserMinus,
   FileText,
   Phone,
+  CalendarDays,
+  Wallet,
+  AlertTriangle,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -229,6 +236,18 @@ const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
   "grant-credential",
   "delete-credential",
 ]);
+
+const MANAGER_HR_NAV_TAB_IDS = new Set<TabId>([...MANAGER_HR_TAB_IDS]);
+
+const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> = {
+  "hr-overview": "dashboard",
+  "hr-employees": "employees",
+  "hr-leave": "leave",
+  "hr-attendance": "attendance",
+  "hr-documents": "documents",
+  "hr-payroll": "payroll",
+  "hr-incidents": "incidents",
+};
 
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
   "lodging-rooms",
@@ -476,6 +495,10 @@ function ManagerContent() {
   }, [tenantScope, loadData]);
 
   useEffect(() => {
+    if (activeTab === "hr-workforce") {
+      setActiveTab("hr-overview");
+      return;
+    }
     const remapped =
       LEGACY_SERVICE_TAB_REMAP[
         activeTab as (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
@@ -522,6 +545,12 @@ function ManagerContent() {
 
   const dashboardNavItem = useMemo(
     () => sidebarItems.find((item) => item.id === "dashboard") ?? null,
+    [sidebarItems],
+  );
+
+  const hrSidebarItems = useMemo(
+    () =>
+      sidebarItems.filter((item) => MANAGER_HR_NAV_TAB_IDS.has(item.id)),
     [sidebarItems],
   );
 
@@ -611,11 +640,19 @@ function ManagerContent() {
   const lodgingGroupActive =
     MANAGER_LODGING_TAB_IDS.has(activeTab) || isLodgingServiceNestedTab(activeTab);
   const accessGroupActive = MANAGER_ACCESS_TAB_IDS.has(activeTab);
+  const hrGroupActive = MANAGER_HR_NAV_TAB_IDS.has(activeTab);
 
   const activeNavLabel = useMemo(() => {
     const nestedLabels: Record<string, string> = {
       "lodging-laundry-add": "Laundry · Add item",
       "lodging-laundry-items": "Laundry · Menu items",
+      "hr-overview": "HR · Overview",
+      "hr-employees": "HR · Employees",
+      "hr-leave": "HR · Leave",
+      "hr-attendance": "HR · Time & shifts",
+      "hr-documents": "HR · Documents",
+      "hr-payroll": "HR · Payroll",
+      "hr-incidents": "HR · Incidents",
     };
     if (nestedLabels[activeTab]) return nestedLabels[activeTab];
     return (
@@ -628,6 +665,20 @@ function ManagerContent() {
     const byTab: Record<string, string> = {
       dashboard:
         "Module scorecard and charts for rooms, inventory, café, and other subscribed areas.",
+      "hr-overview":
+        "Workforce snapshot: headcount, leave, shifts, and open payroll periods.",
+      "hr-employees":
+        "Add, update, and terminate employee records for this property.",
+      "hr-leave":
+        "Leave balances and approve or reject leave requests.",
+      "hr-attendance":
+        "Clock in/out attendance and scheduled shifts.",
+      "hr-documents":
+        "Employee document metadata (contracts, IDs, certificates).",
+      "hr-payroll":
+        "Payroll periods, payslips, tips, and deductions.",
+      "hr-incidents":
+        "Warnings, complaints, and commendations on file.",
       "lodging-reports":
         "Occupancy snapshot, stay history by date, past guests, and lodging action trail.",
       "lodging-rooms":
@@ -1552,11 +1603,22 @@ function ManagerContent() {
           </div>
         );
 
-      case "hr-workforce":
+      case "hr-overview":
+      case "hr-employees":
+      case "hr-leave":
+      case "hr-attendance":
+      case "hr-documents":
+      case "hr-payroll":
+      case "hr-incidents":
         return (
-          <div className="p-4 md:p-6">
-            <HrDashboard embedded />
-          </div>
+          <HrDashboard
+            embedded
+            section={
+              HR_TAB_TO_SECTION[
+                activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+              ]
+            }
+          />
         );
 
       case "grant-credential":
@@ -1665,7 +1727,11 @@ function ManagerContent() {
               {serviceSidebarItems.length > 0 &&
               tenantHasServiceModuleGroup(tenantModules) ? (
                 <ManagerCollapsibleSidebarGroup
-                  label="Cafe & Restaurant"
+                  label={
+                    tenantHasModule(tenantModules, "Credit Management")
+                      ? "Cafe and Restaurant/Credit"
+                      : "Cafe and Restaurant"
+                  }
                   icon={Building2}
                   items={serviceSidebarItems}
                   activeSection={activeTab}
@@ -1690,6 +1756,18 @@ function ManagerContent() {
                     onSelect={(id) => setActiveTab(id as TabId)}
                   />
                 </ManagerCollapsibleSidebarGroup>
+              ) : null}
+
+              {hrSidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="HR"
+                  icon={Users}
+                  items={hrSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={hrGroupActive}
+                  onSelect={(id) => setActiveTab(id as TabId)}
+                  layout="flat"
+                />
               ) : null}
 
               {accessSidebarItems.length > 0 ? (

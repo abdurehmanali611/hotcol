@@ -50,18 +50,20 @@ import {
   Building2,
   Receipt,
   ClipboardList,
+  Coffee,
+  CalendarDays,
+  Wallet,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
-import { ADMIN_SIDEBAR_ITEMS } from "@/constants";
-import { filterAdminTabId } from "@/lib/subscriptionModules";
+import { ADMIN_SIDEBAR_ITEMS, MANAGER_HR_TAB_IDS } from "@/constants";
+import { filterAdminTabId, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
@@ -69,7 +71,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
-import { HrDashboard } from "@/components/hr/HrDashboard";
+import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
+import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
+import { ManagerCollapsibleSidebarGroup } from "@/components/hotel/ManagerCollapsibleSidebarGroup";
 import AdminInventory from "@/components/AdminInventory";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
@@ -88,6 +92,31 @@ import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStation
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
+
+const ADMIN_CAFE_TAB_IDS = new Set([
+  "reports",
+  "create-item",
+  "update-item",
+  "station-prep-qty",
+  "waiter-table",
+  "credit-registrations",
+]);
+const ADMIN_INVENTORY_TAB_IDS = new Set(["inventory", "item-receipts"]);
+const ADMIN_ACCESS_TAB_IDS = new Set([
+  "grant-credential",
+  "delete-credential",
+]);
+const ADMIN_HR_TAB_IDS = new Set<string>([...MANAGER_HR_TAB_IDS]);
+const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> =
+  {
+    "hr-overview": "dashboard",
+    "hr-employees": "employees",
+    "hr-leave": "leave",
+    "hr-attendance": "attendance",
+    "hr-documents": "documents",
+    "hr-payroll": "payroll",
+    "hr-incidents": "incidents",
+  };
 
 const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
   reports: ["orders", "items"],
@@ -296,6 +325,10 @@ function AdminDashboardContent() {
     Building2,
     Receipt,
     ClipboardList,
+    LayoutDashboard,
+    CalendarDays,
+    Wallet,
+    AlertTriangle,
   };
 
   const tenantModules = useTenantModules();
@@ -311,7 +344,24 @@ function AdminDashboardContent() {
     };
   });
 
+  const cafeSidebarItems = sidebarItems.filter((item) =>
+    ADMIN_CAFE_TAB_IDS.has(item.id),
+  );
+  const inventorySidebarItems = sidebarItems.filter((item) =>
+    ADMIN_INVENTORY_TAB_IDS.has(item.id),
+  );
+  const accessSidebarItems = sidebarItems.filter((item) =>
+    ADMIN_ACCESS_TAB_IDS.has(item.id),
+  );
+  const hrSidebarItems = sidebarItems.filter((item) =>
+    ADMIN_HR_TAB_IDS.has(item.id),
+  );
+
   useEffect(() => {
+    if (activeTab === "hr-workforce") {
+      setActiveTab("hr-overview");
+      return;
+    }
     if (
       sidebarItems.length > 0 &&
       !sidebarItems.some((item) => item.id === activeTab)
@@ -512,11 +562,22 @@ function AdminDashboardContent() {
             />
           </div>
         );
-      case "hr-workforce":
+      case "hr-overview":
+      case "hr-employees":
+      case "hr-leave":
+      case "hr-attendance":
+      case "hr-documents":
+      case "hr-payroll":
+      case "hr-incidents":
         return (
-          <div className="min-w-0 p-3 sm:p-5 md:p-6">
-            <HrDashboard embedded />
-          </div>
+          <HrDashboard
+            embedded
+            section={
+              HR_TAB_TO_SECTION[
+                activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+              ]
+            }
+          />
         );
       default:
         return null;
@@ -536,20 +597,55 @@ function AdminDashboardContent() {
             </div>
           </SidebarHeader>
           <SidebarContent className="py-4">
-            <SidebarMenu>
-              {sidebarItems.map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <SidebarMenuButton
-                    isActive={activeTab === item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    tooltip={item.label}
-                    className="cursor-pointer"
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+            <SidebarMenu className="gap-1">
+              {cafeSidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label={
+                    tenantHasModule(tenantModules, "Credit Management")
+                      ? "Cafe and Restaurant/Credit"
+                      : "Cafe and Restaurant"
+                  }
+                  icon={Coffee}
+                  items={cafeSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={ADMIN_CAFE_TAB_IDS.has(activeTab)}
+                  onSelect={setActiveTab}
+                  layout="flat"
+                />
+              ) : null}
+              {inventorySidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="Inventory"
+                  icon={Store}
+                  items={inventorySidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={ADMIN_INVENTORY_TAB_IDS.has(activeTab)}
+                  onSelect={setActiveTab}
+                  layout="flat"
+                />
+              ) : null}
+              {hrSidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="HR"
+                  icon={Users}
+                  items={hrSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={ADMIN_HR_TAB_IDS.has(activeTab)}
+                  onSelect={setActiveTab}
+                  layout="flat"
+                />
+              ) : null}
+              {accessSidebarItems.length > 0 ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="Access"
+                  icon={Key}
+                  items={accessSidebarItems}
+                  activeSection={activeTab}
+                  isGroupActive={ADMIN_ACCESS_TAB_IDS.has(activeTab)}
+                  onSelect={setActiveTab}
+                  layout="flat"
+                />
+              ) : null}
             </SidebarMenu>
             <div className="mt-auto px-4 pb-4">
               <Button
@@ -605,17 +701,44 @@ function AdminDashboardContent() {
           <main className="min-h-0 flex-1 overflow-x-hidden p-2 pb-4 sm:p-4 md:p-6 lg:p-8">
             <div className="mx-auto w-full min-w-0 max-w-6xl space-y-3 sm:space-y-4">
               <SubscriptionAlertBanner />
-              <div className="flex min-w-0 items-center gap-2 px-0.5">
-                <h2 className="min-w-0 truncate text-base font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
-                  {sidebarItems.find((i) => i.id === activeTab)?.label}
-                </h2>
-              </div>
-
-              <Card className="min-w-0 overflow-hidden border border-border/40 bg-card shadow-sm sm:border-none sm:shadow-xl">
-                <CardContent className="min-w-0 p-0">
+              {ADMIN_HR_TAB_IDS.has(activeTab) ? (
+                <>
+                  <div className="space-y-1.5 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-rose-500/8 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
+                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
+                      {
+                        HR_SECTION_COPY[
+                          HR_TAB_TO_SECTION[
+                            activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+                          ]
+                        ]?.title
+                      }
+                    </h2>
+                    <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                      {
+                        HR_SECTION_COPY[
+                          HR_TAB_TO_SECTION[
+                            activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+                          ]
+                        ]?.description
+                      }
+                    </p>
+                  </div>
                   {renderContent()}
-                </CardContent>
-              </Card>
+                </>
+              ) : (
+                <>
+                  <div className="flex min-w-0 items-center gap-2 px-0.5">
+                    <h2 className="min-w-0 truncate text-base font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
+                      {sidebarItems.find((i) => i.id === activeTab)?.label}
+                    </h2>
+                  </div>
+                  <Card className="min-w-0 overflow-hidden border border-border/40 bg-card shadow-sm sm:border-none sm:shadow-xl">
+                    <CardContent className="min-w-0 p-0">
+                      {renderContent()}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
             </div>
           </main>
         </SidebarInset>

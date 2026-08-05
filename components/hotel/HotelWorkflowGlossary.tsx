@@ -25,6 +25,7 @@ export type ManagerGlossaryTopic =
   | "credentials"
   | "cafe"
   | "credit"
+  | "hr"
   | "general";
 
 type GlossarySection = {
@@ -498,6 +499,73 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
       ],
     },
   ],
+  hr: [
+    {
+      title: "Workforce",
+      items: [
+        {
+          term: "Employee master",
+          definition:
+            "HR employment record for this property. Registration creates a username and password so the person can request leave and view payslips.",
+        },
+        {
+          term: "Headcount",
+          definition:
+            "Active and on-leave employees. Terminated people stay on file but drop out of headcount.",
+        },
+        {
+          term: "Terminate",
+          definition:
+            "Ends employment from a chosen date. History, leave, and payslips remain. Deleting a credential is a separate Access action.",
+        },
+      ],
+    },
+    {
+      title: "Leave, time & pay",
+      items: [
+        {
+          term: "Leave types",
+          definition:
+            "HR settings for the leave categories staff can request. Default days become the starting balance for new employees. Paid types consume that balance.",
+        },
+        {
+          term: "Leave queue",
+          definition:
+            "Requests submitted by employees from their own login. Approve or reject here. Approved paid leave reduces the matching balance.",
+        },
+        {
+          term: "Clock in/out",
+          definition:
+            "Attendance punch for today. Shifts are the planned roster and can run overnight.",
+        },
+        {
+          term: "Open payroll period",
+          definition:
+            "A calendar month that is still editable. Closing generates payslips from current salaries.",
+        },
+        {
+          term: "Payslip",
+          definition:
+            "Period pay line: base, overtime, tips, deductions, and net ETB. Adjust after close if tips or deductions change.",
+        },
+      ],
+    },
+    {
+      title: "File & incidents",
+      items: [
+        {
+          term: "Document metadata",
+          definition:
+            "Title, type, and optional file link on the employee file. Binaries stay outside HR Phase 2.",
+        },
+        {
+          term: "Incident",
+          definition:
+            "Warning, complaint, or commendation kept on the employee record.",
+        },
+      ],
+    },
+  ],
   credit: [
     {
       title: "Corporate credit",
@@ -546,6 +614,7 @@ const SECTIONS: Record<Variant, GlossarySection[]> = {
 
 export function resolveManagerGlossaryTopic(tabId: string): ManagerGlossaryTopic {
   if (tabId === "dashboard") return "dashboard";
+  if (tabId.startsWith("hr-")) return "hr";
   if (tabId === "lodging-reports") return "lodging-reports";
   if (tabId === "lodging-rooms") return "lodging-rooms";
   if (

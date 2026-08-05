@@ -320,6 +320,9 @@ export async function LoginAction(
       case "HR":
         router.push(`/HR?${queryParams}`);
         break;
+      case "Employee":
+        router.push(`/Employee?${queryParams}`);
+        break;
       default:
         toast.error("No Role Found");
     }

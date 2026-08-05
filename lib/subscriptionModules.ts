@@ -36,7 +36,7 @@ export const MODULE_DESCRIPTIONS: Record<ModuleOption, string> = {
   "Financial Management":
     "Cost control and finance roles; purchase, registration, and stock movement approvals.",
   "HR Module":
-    "Employees, leave, attendance/shifts, documents, payroll, and incidents.",
+    "Employees, leave types, attendance/shifts, documents, payroll, incidents, and employee self-service login.",
   "Room Management":
     "Rooms, reception check-in/out, guest stays, billing, and laundry. In-room F&B uses the Cafe and Restaurant module.",
   "Cleaning and Maintenance":
@@ -242,6 +242,13 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   inventory: "Inventory",
   "item-receipts": "Inventory",
   "credit-registrations": "Credit Management",
+  "hr-overview": "HR Module",
+  "hr-employees": "HR Module",
+  "hr-leave": "HR Module",
+  "hr-attendance": "HR Module",
+  "hr-documents": "HR Module",
+  "hr-payroll": "HR Module",
+  "hr-incidents": "HR Module",
   "hr-workforce": "HR Module",
 };
 
@@ -273,6 +280,13 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "authorize-stock": "Financial Management",
   "item-receipts": "Inventory",
   "reports-beginnings": "Inventory",
+  "hr-overview": "HR Module",
+  "hr-employees": "HR Module",
+  "hr-leave": "HR Module",
+  "hr-attendance": "HR Module",
+  "hr-documents": "HR Module",
+  "hr-payroll": "HR Module",
+  "hr-incidents": "HR Module",
   "hr-workforce": "HR Module",
   "inventory-payment-vat": "Financial Management",
   "cc-profiles": "Financial Management",
@@ -296,6 +310,7 @@ export const ROLE_REQUIRED_MODULE: Partial<Record<string, ModuleOption>> = {
   Reception: "Room Management",
   CMLeader: "Cleaning and Maintenance",
   HR: "HR Module",
+  Employee: "HR Module",
 };
 
 export const HOTEL_STORE_FINANCE_VIEWS = new Set([

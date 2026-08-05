@@ -1,18 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import {
+  AlertTriangle,
+  CalendarDays,
   ClipboardList,
   FileText,
   LayoutDashboard,
   Loader2,
   LogOut,
   Users,
-  CalendarDays,
   Wallet,
-  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,6 +22,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -29,42 +31,22 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { PendingButton } from "@/components/ui/pending-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
-import { HOTEL_DEPARTMENT_CODES, DEPARTMENT_LABELS } from "@/lib/departments";
+import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
+import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
+import { addDaysYmd, hrDepartmentCodesForBusiness } from "@/lib/hrConstraints";
+import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
+import { HrOverviewPanel } from "@/components/hr/HrOverviewPanel";
+import { HrEmployeesPanel } from "@/components/hr/HrEmployeesPanel";
+import { HrLeavePanel } from "@/components/hr/HrLeavePanel";
+import { HrAttendancePanel } from "@/components/hr/HrAttendancePanel";
+import { HrDocumentsPanel } from "@/components/hr/HrDocumentsPanel";
+import { HrPayrollPanel } from "@/components/hr/HrPayrollPanel";
+import { HrIncidentsPanel } from "@/components/hr/HrIncidentsPanel";
 import {
-  clockHrAttendanceApi,
-  closeHrPayrollPeriodApi,
-  createHrDocumentApi,
-  createHrEmployeeApi,
-  createHrIncidentApi,
-  createHrLeaveRequestApi,
-  createHrPayrollPeriodApi,
-  createHrShiftApi,
-  decideHrLeaveRequestApi,
-  deleteHrDocumentApi,
-  deleteHrIncidentApi,
-  deleteHrShiftApi,
   fetchHrAttendance,
   fetchHrDashboardStats,
   fetchHrDocuments,
@@ -74,9 +56,6 @@ import {
   fetchHrPayrollPeriods,
   fetchHrPayslips,
   fetchHrShifts,
-  terminateHrEmployeeApi,
-  upsertHrLeaveBalanceApi,
-  upsertHrPayslipApi,
   type HrAttendance,
   type HrDashboardStats,
   type HrDocument,
@@ -88,7 +67,7 @@ import {
   type HrShift,
 } from "@/lib/api/hr";
 
-type HrSection =
+export type HrSection =
   | "dashboard"
   | "employees"
   | "leave"
@@ -100,7 +79,7 @@ type HrSection =
 const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "employees", label: "Employees", icon: Users },
-  { id: "leave", label: "Leave", icon: CalendarDays },
+  { id: "leave", label: "Leave types", icon: CalendarDays },
   { id: "attendance", label: "Time & shifts", icon: ClipboardList },
   { id: "documents", label: "Documents", icon: FileText },
   { id: "payroll", label: "Payroll", icon: Wallet },
@@ -108,14 +87,17 @@ const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
 ];
 
 function todayYmd() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function monthKey() {
-  return todayYmd().slice(0, 7);
-}
-
-export function HrDashboard({ embedded = false }: { embedded?: boolean }) {
+export function HrDashboard({
+  embedded = false,
+  section: sectionProp,
+}: {
+  embedded?: boolean;
+  section?: HrSection;
+}) {
   useTenantRouteGuard({
     requiredModule: "HR Module",
     roles: embedded ? undefined : ["HR", "Admin", "Manager"],
@@ -123,11 +105,19 @@ export function HrDashboard({ embedded = false }: { embedded?: boolean }) {
   const searchParams = useSearchParams();
   const { displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const logoUrl = searchParams.get("logo") || "";
+  const headerLabel = displayName || "HR";
 
-  const [section, setSection] = useState<HrSection>("dashboard");
+  const [internalSection, setInternalSection] = useState<HrSection>("dashboard");
+  const section = sectionProp ?? internalSection;
+  const setSection = (next: HrSection) => {
+    if (!sectionProp) setInternalSection(next);
+  };
+  const showEmbeddedTabs = embedded && !sectionProp;
+  const copy = HR_SECTION_COPY[section] ?? HR_SECTION_COPY.dashboard;
+
   const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
-
+  const [refreshing, setRefreshing] = useState(false);
+  const [businessType, setBusinessType] = useState("");
   const [stats, setStats] = useState<HrDashboardStats | null>(null);
   const [employees, setEmployees] = useState<HrEmployee[]>([]);
   const [leave, setLeave] = useState<HrLeaveRequest[]>([]);
@@ -138,91 +128,57 @@ export function HrDashboard({ embedded = false }: { embedded?: boolean }) {
   const [payslips, setPayslips] = useState<HrPayslip[]>([]);
   const [incidents, setIncidents] = useState<HrIncident[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+  const [timeFrom, setTimeFrom] = useState(() => addDaysYmd(todayYmd(), -14));
+  const [timeTo, setTimeTo] = useState(() => addDaysYmd(todayYmd(), 14));
 
-  const [empForm, setEmpForm] = useState({
-    fullName: "",
-    phone: "",
-    department: "KITCHEN",
-    jobTitle: "",
-    wageType: "monthly",
-    baseSalaryETB: 0,
-    hireDate: todayYmd(),
-  });
-  const [leaveForm, setLeaveForm] = useState({
-    employeeId: "",
-    leaveType: "annual",
-    fromYmd: todayYmd(),
-    toYmd: todayYmd(),
-    days: 1,
-    reason: "",
-  });
-  const [shiftForm, setShiftForm] = useState({
-    employeeId: "",
-    workDate: todayYmd(),
-    department: "",
-    startTime: "08:00",
-    endTime: "17:00",
-  });
-  const [docForm, setDocForm] = useState({
-    employeeId: "",
-    title: "",
-    docType: "contract",
-    fileUrl: "",
-  });
-  const [incidentForm, setIncidentForm] = useState({
-    employeeId: "",
-    kind: "warning",
-    title: "",
-    detail: "",
-    occurredYmd: todayYmd(),
-  });
-  const [balanceForm, setBalanceForm] = useState({
-    employeeId: "",
-    leaveType: "annual",
-    balanceDays: 0,
-  });
-
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
     try {
-      const day = todayYmd();
-      const weekStart = day;
-      const [
-        st,
-        emps,
-        lv,
-        att,
-        sh,
-        documents,
-        pr,
-        inc,
-      ] = await Promise.all([
-        fetchHrDashboardStats(),
-        fetchHrEmployees(),
-        fetchHrLeaveRequests(),
-        fetchHrAttendance(weekStart, day),
-        fetchHrShifts(weekStart, day),
-        fetchHrDocuments(),
-        fetchHrPayrollPeriods(),
-        fetchHrIncidents(),
-      ]);
-      setStats(st);
-      setEmployees(emps);
-      setLeave(lv);
-      setAttendance(att);
-      setShifts(sh);
-      setDocs(documents);
-      setPeriods(pr);
-      setIncidents(inc);
-      if (pr.length && selectedPeriodId == null) {
-        setSelectedPeriodId(pr[0].id);
-      }
-    } catch (e) {
-      notifyApiFailure(e, "Could not load HR data");
-    } finally {
-      setLoading(false);
+      setBusinessType(localStorage.getItem("business_type")?.trim() || "");
+    } catch {
+      setBusinessType("");
     }
-  }, [selectedPeriodId]);
+  }, []);
+
+  const departmentCodes = useMemo(
+    () => hrDepartmentCodesForBusiness(businessType),
+    [businessType],
+  );
+
+  const loadAll = useCallback(
+    async (soft = false) => {
+      if (soft) setRefreshing(true);
+      else setLoading(true);
+      try {
+        const from = timeFrom <= timeTo ? timeFrom : timeTo;
+        const to = timeFrom <= timeTo ? timeTo : timeFrom;
+        const [st, emps, lv, att, sh, documents, pr, inc] = await Promise.all([
+          fetchHrDashboardStats(),
+          fetchHrEmployees(),
+          fetchHrLeaveRequests(),
+          fetchHrAttendance(from, to),
+          fetchHrShifts(from, to),
+          fetchHrDocuments(),
+          fetchHrPayrollPeriods(),
+          fetchHrIncidents(),
+        ]);
+        setStats(st);
+        setEmployees(emps);
+        setLeave(lv);
+        setAttendance(att);
+        setShifts(sh);
+        setDocs(documents);
+        setPeriods(pr);
+        setIncidents(inc);
+        setSelectedPeriodId((current) => current ?? pr[0]?.id ?? null);
+      } catch (e) {
+        notifyApiFailure(e, "Could not load HR data");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [timeFrom, timeTo],
+  );
 
   useEffect(() => {
     void loadAll();
@@ -238,966 +194,120 @@ export function HrDashboard({ embedded = false }: { embedded?: boolean }) {
       .catch((e) => notifyApiFailure(e, "Could not load payslips"));
   }, [selectedPeriodId]);
 
-  const activeEmployees = useMemo(
-    () => employees.filter((e) => e.status === "active" || e.status === "on_leave"),
-    [employees],
-  );
-
-  const body = (
-    <div className="space-y-6 p-4 md:p-6">
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground py-16 justify-center">
-          <Loader2 className="h-5 w-5 animate-spin" /> Loading HR…
-        </div>
-      ) : null}
-
-      {!loading && section === "dashboard" && stats ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            ["Headcount", stats.headcount],
-            ["On leave today", stats.onLeaveToday],
-            ["Pending leave", stats.pendingLeave],
-            ["Shifts today", stats.openShiftsToday],
-            ["Open payroll", stats.openPayrollPeriods],
-          ].map(([label, value]) => (
-            <Card key={String(label)}>
-              <CardHeader className="pb-2">
-                <CardDescription>{label}</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      ) : null}
-
-      {!loading && section === "employees" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Add employee</CardTitle>
-              <CardDescription>
-                Phase 2 employee master — link to credentials later via username.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label>Full name</Label>
-                <Input
-                  value={empForm.fullName}
-                  onChange={(e) =>
-                    setEmpForm((f) => ({ ...f, fullName: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Phone</Label>
-                <Input
-                  value={empForm.phone}
-                  onChange={(e) =>
-                    setEmpForm((f) => ({ ...f, phone: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Department</Label>
-                <Select
-                  value={empForm.department}
-                  onValueChange={(v) =>
-                    setEmpForm((f) => ({ ...f, department: v }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOTEL_DEPARTMENT_CODES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {DEPARTMENT_LABELS[c]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Job title</Label>
-                <Input
-                  value={empForm.jobTitle}
-                  onChange={(e) =>
-                    setEmpForm((f) => ({ ...f, jobTitle: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Wage type</Label>
-                <Select
-                  value={empForm.wageType}
-                  onValueChange={(v) =>
-                    setEmpForm((f) => ({ ...f, wageType: v }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="tip_eligible">Tip eligible</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Base salary (ETB)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={empForm.baseSalaryETB}
-                  onChange={(e) =>
-                    setEmpForm((f) => ({
-                      ...f,
-                      baseSalaryETB: Number(e.target.value) || 0,
-                    }))
-                  }
-                />
-              </div>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <PendingButton
-                  pending={pending}
-                  onClick={async () => {
-                    if (!empForm.fullName.trim()) {
-                      toast.error("Enter a name");
-                      return;
-                    }
-                    setPending(true);
-                    try {
-                      await createHrEmployeeApi(empForm);
-                      toast.success("Employee added");
-                      setEmpForm({
-                        fullName: "",
-                        phone: "",
-                        department: "KITCHEN",
-                        jobTitle: "",
-                        wageType: "monthly",
-                        baseSalaryETB: 0,
-                        hireDate: todayYmd(),
-                      });
-                      await loadAll();
-                    } catch (e) {
-                      notifyApiFailure(e, "Could not add employee");
-                    } finally {
-                      setPending(false);
-                    }
-                  }}
-                >
-                  Save employee
-                </PendingButton>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Directory</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {employees.map((e) => (
-                <div
-                  key={e.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2"
-                >
-                  <div>
-                    <p className="font-medium">{e.fullName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {DEPARTMENT_LABELS[e.department as keyof typeof DEPARTMENT_LABELS] ||
-                        e.department}{" "}
-                      · {e.jobTitle || "—"} · {e.status} ·{" "}
-                      {e.baseSalaryETB.toLocaleString()} ETB
-                    </p>
-                  </div>
-                  {e.status !== "terminated" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          await terminateHrEmployeeApi(e.id, todayYmd());
-                          toast.success("Terminated");
-                          await loadAll();
-                        } catch (err) {
-                          notifyApiFailure(err, "Terminate failed");
-                        }
-                      }}
-                    >
-                      Terminate
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-              {!employees.length ? (
-                <p className="text-sm text-muted-foreground">No employees yet.</p>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {!loading && section === "leave" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Set leave balance</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-4">
-              <Select
-                value={balanceForm.employeeId}
-                onValueChange={(v) =>
-                  setBalanceForm((f) => ({ ...f, employeeId: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeEmployees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={balanceForm.leaveType}
-                onValueChange={(v) =>
-                  setBalanceForm((f) => ({ ...f, leaveType: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="annual">Annual</SelectItem>
-                  <SelectItem value="sick">Sick</SelectItem>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                value={balanceForm.balanceDays}
-                onChange={(e) =>
-                  setBalanceForm((f) => ({
-                    ...f,
-                    balanceDays: Number(e.target.value) || 0,
-                  }))
-                }
-              />
-              <PendingButton
-                pending={pending}
-                onClick={async () => {
-                  if (!balanceForm.employeeId) return;
-                  setPending(true);
-                  try {
-                    await upsertHrLeaveBalanceApi({
-                      employeeId: Number(balanceForm.employeeId),
-                      leaveType: balanceForm.leaveType,
-                      balanceDays: balanceForm.balanceDays,
-                    });
-                    toast.success("Balance saved");
-                  } catch (e) {
-                    notifyApiFailure(e, "Balance failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Save balance
-              </PendingButton>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Request leave</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Select
-                value={leaveForm.employeeId}
-                onValueChange={(v) =>
-                  setLeaveForm((f) => ({ ...f, employeeId: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeEmployees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={leaveForm.leaveType}
-                onValueChange={(v) =>
-                  setLeaveForm((f) => ({ ...f, leaveType: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="annual">Annual</SelectItem>
-                  <SelectItem value="sick">Sick</SelectItem>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="date"
-                value={leaveForm.fromYmd}
-                onChange={(e) =>
-                  setLeaveForm((f) => ({ ...f, fromYmd: e.target.value }))
-                }
-              />
-              <Input
-                type="date"
-                value={leaveForm.toYmd}
-                onChange={(e) =>
-                  setLeaveForm((f) => ({ ...f, toYmd: e.target.value }))
-                }
-              />
-              <Input
-                type="number"
-                min={0.5}
-                step={0.5}
-                value={leaveForm.days}
-                onChange={(e) =>
-                  setLeaveForm((f) => ({
-                    ...f,
-                    days: Number(e.target.value) || 1,
-                  }))
-                }
-              />
-              <Textarea
-                placeholder="Reason"
-                value={leaveForm.reason}
-                onChange={(e) =>
-                  setLeaveForm((f) => ({ ...f, reason: e.target.value }))
-                }
-              />
-              <PendingButton
-                pending={pending}
-                onClick={async () => {
-                  if (!leaveForm.employeeId) return;
-                  setPending(true);
-                  try {
-                    await createHrLeaveRequestApi({
-                      employeeId: Number(leaveForm.employeeId),
-                      leaveType: leaveForm.leaveType,
-                      fromYmd: leaveForm.fromYmd,
-                      toYmd: leaveForm.toYmd,
-                      days: leaveForm.days,
-                      reason: leaveForm.reason,
-                    });
-                    toast.success("Leave requested");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Leave request failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Submit request
-              </PendingButton>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Leave queue</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {leave.map((r) => (
-                <div
-                  key={r.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {r.employee?.fullName || `#${r.employeeId}`} · {r.leaveType}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.fromYmd} → {r.toYmd} ({r.days}d) · {r.status}
-                    </p>
-                  </div>
-                  {r.status === "pending" ? (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await decideHrLeaveRequestApi(r.id, true);
-                            toast.success("Approved");
-                            await loadAll();
-                          } catch (e) {
-                            notifyApiFailure(e, "Approve failed");
-                          }
-                        }}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            await decideHrLeaveRequestApi(r.id, false);
-                            toast.success("Rejected");
-                            await loadAll();
-                          } catch (e) {
-                            notifyApiFailure(e, "Reject failed");
-                          }
-                        }}
-                      >
-                        Reject
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {!loading && section === "attendance" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Clock / shift</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Select
-                value={shiftForm.employeeId}
-                onValueChange={(v) =>
-                  setShiftForm((f) => ({ ...f, employeeId: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeEmployees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="date"
-                value={shiftForm.workDate}
-                onChange={(e) =>
-                  setShiftForm((f) => ({ ...f, workDate: e.target.value }))
-                }
-              />
-              <Input
-                value={shiftForm.startTime}
-                onChange={(e) =>
-                  setShiftForm((f) => ({ ...f, startTime: e.target.value }))
-                }
-                placeholder="08:00"
-              />
-              <Input
-                value={shiftForm.endTime}
-                onChange={(e) =>
-                  setShiftForm((f) => ({ ...f, endTime: e.target.value }))
-                }
-                placeholder="17:00"
-              />
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (!shiftForm.employeeId) return;
-                  try {
-                    await clockHrAttendanceApi({
-                      employeeId: Number(shiftForm.employeeId),
-                      action: "in",
-                    });
-                    toast.success("Clocked in");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Clock in failed");
-                  }
-                }}
-              >
-                Clock in
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (!shiftForm.employeeId) return;
-                  try {
-                    await clockHrAttendanceApi({
-                      employeeId: Number(shiftForm.employeeId),
-                      action: "out",
-                    });
-                    toast.success("Clocked out");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Clock out failed");
-                  }
-                }}
-              >
-                Clock out
-              </Button>
-              <PendingButton
-                pending={pending}
-                onClick={async () => {
-                  if (!shiftForm.employeeId) return;
-                  setPending(true);
-                  try {
-                    await createHrShiftApi({
-                      employeeId: Number(shiftForm.employeeId),
-                      workDate: shiftForm.workDate,
-                      department: shiftForm.department,
-                      startTime: shiftForm.startTime,
-                      endTime: shiftForm.endTime,
-                    });
-                    toast.success("Shift added");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Shift failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Add shift
-              </PendingButton>
-            </CardContent>
-          </Card>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Attendance</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {attendance.map((a) => (
-                  <div key={a.id} className="rounded border px-3 py-2">
-                    {a.employee?.fullName} · {a.workDate} · {a.status}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Shifts</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {shifts.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between rounded border px-3 py-2"
-                  >
-                    <span>
-                      {s.employee?.fullName} · {s.workDate} · {s.startTime}–
-                      {s.endTime}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={async () => {
-                        try {
-                          await deleteHrShiftApi(s.id);
-                          await loadAll();
-                        } catch (e) {
-                          notifyApiFailure(e, "Delete failed");
-                        }
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      ) : null}
-
-      {!loading && section === "documents" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Add document metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <Select
-                value={docForm.employeeId}
-                onValueChange={(v) =>
-                  setDocForm((f) => ({ ...f, employeeId: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Title"
-                value={docForm.title}
-                onChange={(e) =>
-                  setDocForm((f) => ({ ...f, title: e.target.value }))
-                }
-              />
-              <Select
-                value={docForm.docType}
-                onValueChange={(v) =>
-                  setDocForm((f) => ({ ...f, docType: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="contract">Contract</SelectItem>
-                  <SelectItem value="id">ID</SelectItem>
-                  <SelectItem value="certificate">Certificate</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="File URL"
-                value={docForm.fileUrl}
-                onChange={(e) =>
-                  setDocForm((f) => ({ ...f, fileUrl: e.target.value }))
-                }
-              />
-              <PendingButton
-                pending={pending}
-                onClick={async () => {
-                  if (!docForm.employeeId || !docForm.title.trim()) return;
-                  setPending(true);
-                  try {
-                    await createHrDocumentApi({
-                      employeeId: Number(docForm.employeeId),
-                      title: docForm.title,
-                      docType: docForm.docType,
-                      fileUrl: docForm.fileUrl,
-                    });
-                    toast.success("Document saved");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Document failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Save document
-              </PendingButton>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 space-y-2">
-              {docs.map((d) => (
-                <div
-                  key={d.id}
-                  className="flex items-center justify-between rounded border px-3 py-2 text-sm"
-                >
-                  <span>
-                    {d.employee?.fullName} · {d.title} ({d.docType})
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={async () => {
-                      try {
-                        await deleteHrDocumentApi(d.id);
-                        await loadAll();
-                      } catch (e) {
-                        notifyApiFailure(e, "Delete failed");
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {!loading && section === "payroll" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Payroll period</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <PendingButton
-                pending={pending}
-                onClick={async () => {
-                  const key = monthKey();
-                  setPending(true);
-                  try {
-                    await createHrPayrollPeriodApi({
-                      periodKey: key,
-                      fromYmd: `${key}-01`,
-                      toYmd: todayYmd(),
-                    });
-                    toast.success("Period created");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Period failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Create this month
-              </PendingButton>
-              <Select
-                value={selectedPeriodId ? String(selectedPeriodId) : ""}
-                onValueChange={(v) => setSelectedPeriodId(Number(v))}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Select period" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.periodKey} ({p.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedPeriodId ? (
-                <Button
-                  variant="secondary"
-                  onClick={async () => {
-                    try {
-                      await closeHrPayrollPeriodApi(selectedPeriodId);
-                      toast.success("Period closed — payslips generated");
-                      await loadAll();
-                    } catch (e) {
-                      notifyApiFailure(e, "Close failed");
-                    }
-                  }}
-                >
-                  Close & generate payslips
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Payslips</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {payslips.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2"
-                >
-                  <span>
-                    {p.employee?.fullName} · base {p.basePayETB} · tips {p.tipsETB}{" "}
-                    · ded {p.deductionsETB} · net{" "}
-                    <strong>{p.netPayETB}</strong>
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      const tips = Number(
-                        prompt("Tips ETB", String(p.tipsETB)) ?? p.tipsETB,
-                      );
-                      try {
-                        await upsertHrPayslipApi({
-                          periodId: p.periodId,
-                          employeeId: p.employeeId,
-                          basePayETB: p.basePayETB,
-                          overtimeETB: p.overtimeETB,
-                          tipsETB: tips,
-                          deductionsETB: p.deductionsETB,
-                        });
-                        const rows = await fetchHrPayslips(p.periodId);
-                        setPayslips(rows);
-                      } catch (e) {
-                        notifyApiFailure(e, "Update failed");
-                      }
-                    }}
-                  >
-                    Edit tips
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {!loading && section === "incidents" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Record incident</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <Select
-                value={incidentForm.employeeId}
-                onValueChange={(v) =>
-                  setIncidentForm((f) => ({ ...f, employeeId: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={incidentForm.kind}
-                onValueChange={(v) =>
-                  setIncidentForm((f) => ({ ...f, kind: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="complaint">Complaint</SelectItem>
-                  <SelectItem value="commendation">Commendation</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Title"
-                value={incidentForm.title}
-                onChange={(e) =>
-                  setIncidentForm((f) => ({ ...f, title: e.target.value }))
-                }
-              />
-              <Textarea
-                placeholder="Detail"
-                value={incidentForm.detail}
-                onChange={(e) =>
-                  setIncidentForm((f) => ({ ...f, detail: e.target.value }))
-                }
-              />
-              <PendingButton
-                pending={pending}
-                onClick={async () => {
-                  if (!incidentForm.employeeId || !incidentForm.title.trim())
-                    return;
-                  setPending(true);
-                  try {
-                    await createHrIncidentApi({
-                      employeeId: Number(incidentForm.employeeId),
-                      kind: incidentForm.kind,
-                      title: incidentForm.title,
-                      detail: incidentForm.detail,
-                      occurredYmd: incidentForm.occurredYmd,
-                    });
-                    toast.success("Incident recorded");
-                    await loadAll();
-                  } catch (e) {
-                    notifyApiFailure(e, "Incident failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Save
-              </PendingButton>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 space-y-2 text-sm">
-              {incidents.map((i) => (
-                <div
-                  key={i.id}
-                  className="flex items-center justify-between rounded border px-3 py-2"
-                >
-                  <span>
-                    {i.employee?.fullName} · {i.kind} · {i.title}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={async () => {
-                      try {
-                        await deleteHrIncidentApi(i.id);
-                        await loadAll();
-                      } catch (e) {
-                        notifyApiFailure(e, "Delete failed");
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+  const panel = loading ? (
+    <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin" /> Loading HR workspace…
     </div>
+  ) : (
+    <>
+      {section === "dashboard" && stats ? (
+        <HrOverviewPanel
+          stats={stats}
+          employees={employees}
+          leave={leave}
+          shifts={shifts}
+        />
+      ) : null}
+      {section === "employees" ? (
+        <HrEmployeesPanel
+          employees={employees}
+          departmentCodes={departmentCodes}
+          onRefresh={() => loadAll(true)}
+        />
+      ) : null}
+      {section === "leave" ? (
+        <HrLeavePanel leave={leave} onRefresh={() => loadAll(true)} />
+      ) : null}
+      {section === "attendance" ? (
+        <HrAttendancePanel
+          employees={employees}
+          attendance={attendance}
+          shifts={shifts}
+          timeFrom={timeFrom}
+          timeTo={timeTo}
+          onTimeFromChange={setTimeFrom}
+          onTimeToChange={setTimeTo}
+          onRefresh={() => loadAll(true)}
+        />
+      ) : null}
+      {section === "documents" ? (
+        <HrDocumentsPanel
+          employees={employees}
+          documents={docs}
+          onRefresh={() => loadAll(true)}
+        />
+      ) : null}
+      {section === "payroll" ? (
+        <HrPayrollPanel
+          periods={periods}
+          payslips={payslips}
+          selectedPeriodId={selectedPeriodId}
+          onSelectedPeriodChange={setSelectedPeriodId}
+          onPayslipsChange={setPayslips}
+          onRefresh={() => loadAll(true)}
+        />
+      ) : null}
+      {section === "incidents" ? (
+        <HrIncidentsPanel
+          employees={employees}
+          incidents={incidents}
+          onRefresh={() => loadAll(true)}
+        />
+      ) : null}
+    </>
   );
 
   if (embedded) {
     return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {NAV.map((n) => (
-            <Button
-              key={n.id}
-              size="sm"
-              variant={section === n.id ? "default" : "outline"}
-              onClick={() => setSection(n.id)}
-            >
-              {n.label}
-            </Button>
-          ))}
-          <Button size="sm" variant="ghost" onClick={() => void loadAll()}>
-            Refresh
-          </Button>
-        </div>
-        {body}
+      <div className="space-y-6">
+        {showEmbeddedTabs ? (
+          <div className="flex flex-wrap gap-2">
+            {NAV.map((item) => (
+              <Button
+                key={item.id}
+                size="sm"
+                variant={section === item.id ? "default" : "outline"}
+                onClick={() => setSection(item.id)}
+              >
+                {item.label}
+              </Button>
+            ))}
+            <RefreshIconButton
+              busy={refreshing}
+              disabled={loading}
+              onClick={() => void loadAll(true)}
+            />
+          </div>
+        ) : null}
+        {panel}
       </div>
     );
   }
 
   return (
     <>
-      <Toaster position="top-center" richColors />
+      <Toaster position="top-right" richColors />
       <SidebarProvider>
-        <div className="flex min-h-svh w-full">
-          <Sidebar collapsible="icon">
-            <SidebarHeader className="gap-3 border-b border-sidebar-border px-3 py-4">
-              <div className="flex items-center gap-2">
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={logoUrl || undefined} alt="" />
-                  <AvatarFallback>HR</AvatarFallback>
-                </Avatar>
+        <div className="flex min-h-svh w-full bg-muted/40">
+          <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
+            <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
+              <div className="flex h-full min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+                  <Users className="h-4.5 w-4.5" />
+                </div>
                 <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-                  <p className="truncate text-sm font-semibold">{displayName}</p>
-                  <p className="text-xs text-muted-foreground">HR Module</p>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+                    Terminal
+                  </p>
+                  <span className="block truncate font-semibold leading-tight">HR</span>
                 </div>
               </div>
             </SidebarHeader>
-            <SidebarContent>
-              <SidebarMenu>
+            <div className="shrink-0 px-3 pb-2 pt-3">
+              <SidebarSeparator className="bg-sidebar-border/80" />
+            </div>
+            <SidebarContent className="flex-1 gap-0 px-0 pb-4 pt-2">
+              <SidebarMenu className="gap-1 px-2">
                 {NAV.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -1206,6 +316,8 @@ export function HrDashboard({ embedded = false }: { embedded?: boolean }) {
                         isActive={section === item.id}
                         onClick={() => setSection(item.id)}
                         tooltip={item.label}
+                        size="lg"
+                        className="h-10 cursor-pointer text-[13px]"
                       >
                         <Icon />
                         <span>{item.label}</span>
@@ -1215,38 +327,67 @@ export function HrDashboard({ embedded = false }: { embedded?: boolean }) {
                 })}
               </SidebarMenu>
             </SidebarContent>
-            <SidebarFooter>
-              <SidebarSeparator />
+            <SidebarFooter className="p-4 pt-2">
+              <SidebarSeparator className="mb-3" />
               <ChangeOwnPasswordButton />
               <Button
-                variant="ghost"
-                className="w-full justify-start gap-2"
+                variant="outline"
+                className="mt-2 w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 onClick={() => logoutAction()}
               >
                 <LogOut className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">
-                  Log out
-                </span>
+                Sign out
               </Button>
             </SidebarFooter>
           </Sidebar>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <header className="flex h-14 items-center gap-2 border-b px-4">
+
+          <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
+            <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
               <SidebarTrigger />
-              <h1 className="text-sm font-semibold">
-                {NAV.find((n) => n.id === section)?.label || "HR"}
-              </h1>
-              <Button
-                size="sm"
-                variant="outline"
-                className="ml-auto"
-                onClick={() => void loadAll()}
+              <div className="min-w-0 flex-1">
+                <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
+                  {headerLabel}
+                </h1>
+              </div>
+              <RefreshIconButton
+                busy={refreshing}
+                disabled={loading}
+                onClick={() => void loadAll(true)}
+              />
+              <ChangeOwnPasswordButton />
+              <Link
+                href="/TenantProfile"
+                className="rounded-full outline-none transition-transform hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-label="Open tenant profile"
               >
-                Refresh
-              </Button>
+                <Avatar className="h-8 w-8 border shadow-sm">
+                  <AvatarImage src={logoUrl || undefined} alt={headerLabel} />
+                  <AvatarFallback>{headerLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              </Link>
             </header>
-            {body}
-          </div>
+            <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
+              <div className="mx-auto max-w-6xl space-y-8 pb-10">
+                <div className="space-y-4 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-rose-500/8 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-700 ring-1 ring-rose-500/20 dark:text-rose-400">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
+                        {copy.title}
+                      </h2>
+                      <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                        {copy.description}
+                      </p>
+                    </div>
+                  </div>
+                  <HotelWorkflowGlossary variant="manager" topic="hr" />
+                </div>
+                {panel}
+              </div>
+            </main>
+          </SidebarInset>
         </div>
       </SidebarProvider>
     </>
