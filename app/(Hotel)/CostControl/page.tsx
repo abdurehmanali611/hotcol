@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -15,7 +15,6 @@ import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   approvePurchaseRequestsCCBatchApi,
   approveStockOutRequestsBatchApi,
-  createKitchenBarBeginningApi,
   deleteKitchenBarBeginningApi,
   fetchCostControllerProfiles,
   fetchItemRegistrations,
@@ -28,7 +27,6 @@ import {
   syncKitchenBarRollupApi,
   rejectPurchaseRequestsCCBatchApi,
   rejectStockOutRequestsBatchApi,
-  updateKitchenBarBeginningApi,
   logoutAction,
   notifyApiFailure,
   invalidateGraphqlListCache,
@@ -68,16 +66,6 @@ import {
   buildKitchenBarRollupColumns,
 } from "@/lib/dataTableColumns/kitchenBar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
   CheckCircle2,
   ClipboardList,
   LayoutGrid,
@@ -92,10 +80,15 @@ import {
 } from "lucide-react";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import {
-  HOTEL_DAILY_COUNT_STATIONS,
+  displayKitchenBarStation,
+  matchesDailyCountStationFilter,
   normalizeKitchenBarStationKey,
-  summarizeApprovedStockOutForDay,
+  type HotelDailyCountStationFilter,
 } from "@/lib/hotelDailyStation";
+import {
+  DailyCountStationFilterBar,
+} from "@/components/hotel/DailyCountStationUi";
+import { DailyCountBatchForm } from "@/components/hotel/DailyCountBatchForm";
 import {
   CostControlPurchaseVoucherGroups,
   CostControlStockVoucherGroups,
@@ -104,7 +97,6 @@ import { CostControllerIdentitySelect } from "@/components/hotel/CostControllerI
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   HotelFormFieldStack,
-  HotelFormSection,
 } from "@/components/hotel/HotelTerminalInitFormLayout";
 import StoreItems from "@/app/StoreItems/page";
 import Inactive from "@/app/Inactive/page";
@@ -127,7 +119,6 @@ import { HOTEL_INVENTORY_COPY } from "@/lib/hotelDisplayLabels";
 import { filterInventoryListRegistrations } from "@/lib/hotelApproval";
 import { filterCostControlSectionId } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
-import { INVENTORY_UNIT_NAMES } from "@/lib/inventoryUnits";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
 import {
@@ -195,20 +186,15 @@ function CostControlInner() {
   useEffect(() => {
     rollupRangeRef.current = { from: rollupFromYmd, to: rollupToYmd };
   }, [rollupFromYmd, rollupToYmd]);
-  const [beginForm, setBeginForm] = useState({
-    station: "KITCHEN",
-    itemName: "",
-    amount: 0,
-    managementTakenDay: 0,
-    measuredBy: "Piece",
-    monthPeriod: new Date().toISOString().slice(0, 7),
-    calendarDate: new Date().toISOString().slice(0, 10),
-    notes: "",
-  });
   const [selectedDailyDate, setSelectedDailyDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [dailyStationFilter, setDailyStationFilter] =
+    useState<HotelDailyCountStationFilter>("ALL");
+  const [rollupStationFilter, setRollupStationFilter] =
+    useState<HotelDailyCountStationFilter>("ALL");
+  const [editingBeginning, setEditingBeginning] =
+    useState<KitchenBarBeginningRow | null>(null);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const activeInventoryRows = useMemo(
     () => filterInventoryListRegistrations(inventoryRows),
@@ -238,7 +224,6 @@ function CostControlInner() {
   const [rollupSyncPending, setRollupSyncPending] = useState(false);
   const { isPending: isCcPending, run: runCcAction } = useConcurrentActions();
   const loadCoordinator = useLoadCoordinator();
-  const [beginningSavePending, setBeginningSavePending] = useState(false);
   const [beginningDeleteId, setBeginningDeleteId] = useState<number | null>(
     null,
   );
@@ -247,15 +232,6 @@ function CostControlInner() {
   const [batchCcProfileId, setBatchCcProfileId] = useState<string>("");
   const { requestRejectionReason, RejectionReasonDialog } =
     useRejectionReasonDialog();
-
-  const dailyUnitOptions = useMemo(() => {
-    const current = String(beginForm.measuredBy || "").trim();
-    if (!current) return [...INVENTORY_UNIT_NAMES];
-    if ((INVENTORY_UNIT_NAMES as readonly string[]).includes(current)) {
-      return [...INVENTORY_UNIT_NAMES];
-    }
-    return [current, ...INVENTORY_UNIT_NAMES];
-  }, [beginForm.measuredBy]);
 
   const beginningDerivedById = useMemo(() => {
     const daySales = new Map<number, number | null>();
@@ -282,7 +258,7 @@ function CostControlInner() {
             Number(prev.closingOnHand) > 0
               ? Number(prev.closingOnHand)
               : Number(prev.amount);
-          // Sales = beginning today − prior On Hand (does not subtract Management).
+          // Sales = beginning today − prior On Hand (does not subtract Management or Invitation).
           daySales.set(list[i].id, round2(Number(list[i].amount) - prevOnHand));
         }
       }
@@ -290,25 +266,19 @@ function CostControlInner() {
     return { daySales };
   }, [beginnings, tenantScope]);
 
-  const dailyFormPreview = useMemo(() => {
-    const stationKey = normalizeKitchenBarStationKey(beginForm.station);
-    const item = beginForm.itemName.trim();
-    const cal = selectedDailyDate;
-    const stockOut =
-      item === ""
-        ? 0
-        : round2(summarizeApprovedStockOutForDay(stocks, stationKey, item, cal));
-    const opening = round2(Number(beginForm.amount));
-    // Total = Beginning (BB) + Store (does not subtract Management).
-    const total = round2(opening + stockOut);
-    return { stockOut, total };
-  }, [beginForm, stocks, selectedDailyDate]);
-
   const visibleBeginnings = useMemo(() => {
     const day = String(selectedDailyDate || "").slice(0, 10);
-    if (!day) return beginnings;
-    return beginnings.filter((b) => String(b.calendarDate || "").slice(0, 10) === day);
-  }, [beginnings, selectedDailyDate]);
+    return beginnings.filter((b) => {
+      if (day && String(b.calendarDate || "").slice(0, 10) !== day) return false;
+      return matchesDailyCountStationFilter(b.station, dailyStationFilter);
+    });
+  }, [beginnings, selectedDailyDate, dailyStationFilter]);
+
+  const visibleMonthlySnapshots = useMemo(() => {
+    return monthlySnapshots.filter((row) =>
+      matchesDailyCountStationFilter(row.station, rollupStationFilter),
+    );
+  }, [monthlySnapshots, rollupStationFilter]);
 
   const unitPriceByItemName = useMemo(() => {
     const byName = new Map<string, number>();
@@ -333,13 +303,13 @@ function CostControlInner() {
 
   /** Sum over monthly snapshot rows: unit price × Σ Sales for that station/item in the range. */
   const monthlyTotalEtb = useMemo(() => {
-    return monthlySnapshots.reduce((sum, row) => {
+    return visibleMonthlySnapshots.reduce((sum, row) => {
       const key = normalizeItemNameForValueKey(row.itemName);
       const price = unitPriceByItemName.get(key) || 0;
       const salesSum = Number(row.totalImpliedSales) || 0;
       return sum + salesSum * price;
     }, 0);
-  }, [monthlySnapshots, unitPriceByItemName]);
+  }, [visibleMonthlySnapshots, unitPriceByItemName]);
 
   const monthlyRollupColumns = useMemo(
     () =>
@@ -348,16 +318,6 @@ function CostControlInner() {
       }),
     [],
   );
-
-  useEffect(() => {
-    const day = String(selectedDailyDate || "").slice(0, 10);
-    if (!day) return;
-    setBeginForm((f) => ({
-      ...f,
-      calendarDate: day,
-      monthPeriod: day.slice(0, 7),
-    }));
-  }, [selectedDailyDate]);
 
   type DataSlice =
     | "profiles"
@@ -376,7 +336,7 @@ function CostControlInner() {
       stock: ["profiles", "stocks"],
       inventory: ["regs", "stats"],
       inactive: ["stats"],
-      beginnings: ["kb"],
+      beginnings: ["kb", "stocks"],
       registrations: ["regs"],
       "item-receipts": ["regs", "purchases", "stocks"],
       "payment-all": ["regs"],
@@ -620,22 +580,12 @@ function CostControlInner() {
   );
 
   const handleEditBeginning = useCallback((b: KitchenBarBeginningRow) => {
-    setEditingId(b.id);
     const cd =
       b.calendarDate && b.calendarDate.length >= 10
         ? b.calendarDate.slice(0, 10)
         : `${b.monthPeriod}-01`;
     setSelectedDailyDate(cd);
-    setBeginForm({
-      station: normalizeKitchenBarStationKey(b.station),
-      itemName: b.itemName,
-      amount: b.amount,
-      managementTakenDay: Number(b.managementTakenDay ?? 0),
-      measuredBy: b.measuredBy,
-      monthPeriod: b.monthPeriod,
-      calendarDate: cd,
-      notes: b.notes,
-    });
+    setEditingBeginning(b);
   }, []);
 
   const handleDeleteBeginning = useCallback(
@@ -877,7 +827,7 @@ function CostControlInner() {
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
-                <LayoutGrid className="h-[18px] w-[18px]" />
+                <LayoutGrid className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -1631,7 +1581,7 @@ function CostControlInner() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
-                  <HotelFormFieldStack className="min-w-[200px]">
+                  <HotelFormFieldStack className="min-w-50">
                     <HotelDayPicker
                       label="From"
                       id="rollup-from"
@@ -1639,7 +1589,7 @@ function CostControlInner() {
                       onChange={setRollupFromYmd}
                     />
                   </HotelFormFieldStack>
-                  <HotelFormFieldStack className="min-w-[200px]">
+                  <HotelFormFieldStack className="min-w-50">
                     <HotelDayPicker
                       label="To"
                       id="rollup-to"
@@ -1696,18 +1646,25 @@ function CostControlInner() {
                     )}
                   </Button>
                 </div>
+                <DailyCountStationFilterBar
+                  value={rollupStationFilter}
+                  onChange={setRollupStationFilter}
+                />
               </CardHeader>
               <CardContent className="pt-0 pb-6 px-5 sm:px-6">
-                {monthlySnapshots.length > 0 ? (
+                {visibleMonthlySnapshots.length > 0 ? (
                   <>
-                    <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                    <div className="mb-4 rounded-xl border border-emerald-500/25 bg-linear-to-br from-emerald-500/10 via-emerald-500/5 to-transparent px-4 py-3.5 shadow-sm">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Total Sales value — {rollupRangeLabel}
+                        {rollupStationFilter !== "ALL"
+                          ? ` · ${displayKitchenBarStation(rollupStationFilter)}`
+                          : ""}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Σ (unit price × Σ Sales) per item row below
                       </p>
-                      <p className="text-xl font-semibold tabular-nums mt-1">
+                      <p className="text-2xl font-semibold tabular-nums mt-1.5 tracking-tight">
                         {monthlyTotalEtb.toLocaleString()}{" "}
                         <span className="text-sm font-medium text-muted-foreground">
                           ETB
@@ -1719,7 +1676,7 @@ function CostControlInner() {
                     </p>
                     <DataTable
                       columns={monthlyRollupColumns}
-                      data={monthlySnapshots}
+                      data={visibleMonthlySnapshots}
                       getRowId={(row) => String(row.id)}
                       searchColumnId="itemName"
                       emptyMessage={`No stored roll-ups for ${rollupRangeLabel}. Adjust From / To or run Sync Monthly Data.`}
@@ -1728,286 +1685,55 @@ function CostControlInner() {
                 ) : (
                   <p className="text-sm text-muted-foreground py-8 text-center text-pretty max-w-lg mx-auto">
                     No stored roll-ups for{" "}
-                    <span className="font-medium text-foreground">{rollupRangeLabel}</span>.
-                    Adjust <strong className="text-foreground">From</strong> /{" "}
-                    <strong className="text-foreground">To</strong> or run{" "}
+                    <span className="font-medium text-foreground">{rollupRangeLabel}</span>
+                    {rollupStationFilter !== "ALL"
+                      ? ` (${displayKitchenBarStation(rollupStationFilter)})`
+                      : ""}
+                    . Adjust <strong className="text-foreground">From</strong> /{" "}
+                    <strong className="text-foreground">To</strong>, station filter, or run{" "}
                     <strong className="text-foreground">Sync Monthly Data</strong>.
                   </p>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
-              <CardHeader>
-                <CardTitle className="text-lg">Register a day</CardTitle>
-                <CardDescription>
-                  <strong className="text-foreground">Beginning (BB)</strong> is the
-                  count when the day starts at the station.{" "}
-                  <strong className="text-foreground">Store</strong> is summed from{" "}
-                  <em>approved</em> store requests to that station for the same calendar day (you do not type it).{" "}
-                  <strong className="text-foreground">Total</strong> is Beginning + Store.{" "}
-                  <strong className="text-foreground">Sales</strong> is Beginning today minus prior On Hand (Management is not part of Sales).{" "}
-                  <strong className="text-foreground">Management</strong> is entered when station stock is taken by management.{" "}
-                  <strong className="text-foreground">On Hand</strong> is Total − (Sales + Management).
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6 pt-1 pb-8 px-5 sm:px-6">
-                <HotelFormSection
-                  title="Station & calendar day"
-                  description="One row per station and item on the selected calendar day. Date is selected from the first Date cell in the grid below."
-                >
-                  <div className="grid gap-4 sm:grid-cols-1">
-                    <HotelFormFieldStack>
-                      <Label htmlFor="kb-station">Station</Label>
-                      <Select
-                        value={beginForm.station}
-                        onValueChange={(v) =>
-                          setBeginForm((f) => ({ ...f, station: v }))
-                        }
-                      >
-                        <SelectTrigger
-                          id="kb-station"
-                          className="h-10 w-full border-border/80 shadow-sm"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {HOTEL_DAILY_COUNT_STATIONS.map((s) => (
-                            <SelectItem key={s.value} value={s.value}>
-                              {s.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </HotelFormFieldStack>
-                  </div>
-                </HotelFormSection>
-
-                <HotelFormSection
-                  title="Item & counts"
-                  description="Type the item name counted at the station. Store stock-out for matching names still fills in automatically."
-                >
-                  <HotelFormFieldStack>
-                    <Label htmlFor="kb-item">Items</Label>
-                    <Input
-                      id="kb-item"
-                      value={beginForm.itemName}
-                      onChange={(e) =>
-                        setBeginForm((f) => ({
-                          ...f,
-                          itemName: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter item name"
-                      className="h-10 border-border/80 shadow-sm"
-                    />
-                  </HotelFormFieldStack>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2">
-                    <HotelFormFieldStack>
-                      <Label htmlFor="kb-opening">Beginning (BB)</Label>
-                      <Input
-                        id="kb-opening"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={beginForm.amount}
-                        onChange={(e) =>
-                          setBeginForm((f) => ({
-                            ...f,
-                            amount: Number.isFinite(Number(e.target.value))
-                              ? Number(e.target.value)
-                              : 0,
-                          }))
-                        }
-                        onBlur={() =>
-                          setBeginForm((f) => ({
-                            ...f,
-                            amount: round2(Number(f.amount) || 0),
-                          }))
-                        }
-                        className="h-10 tabular-nums border-border/80 shadow-sm"
-                      />
-                    </HotelFormFieldStack>
-                    <HotelFormFieldStack>
-                      <Label>Store</Label>
-                      <div className="h-10 flex items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums">
-                        {dailyFormPreview.stockOut.toFixed(2)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        From store requests you approved for this station, item, and date.
-                      </p>
-                    </HotelFormFieldStack>
-                    <HotelFormFieldStack>
-                      <Label>Total</Label>
-                      <div className="h-10 flex items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums">
-                        {dailyFormPreview.total.toFixed(2)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Beginning (BB) + Store
-                      </p>
-                    </HotelFormFieldStack>
-                    <HotelFormFieldStack>
-                      <Label htmlFor="kb-management-taken">Management</Label>
-                      <Input
-                        id="kb-management-taken"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={beginForm.managementTakenDay}
-                        onChange={(e) =>
-                          setBeginForm((f) => ({
-                            ...f,
-                            managementTakenDay: Number.isFinite(Number(e.target.value))
-                              ? Number(e.target.value)
-                              : 0,
-                          }))
-                        }
-                        className="h-10 tabular-nums border-border/80 shadow-sm"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Units issued from station stock to management.
-                      </p>
-                    </HotelFormFieldStack>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-1 pt-2 max-w-xs">
-                    <HotelFormFieldStack>
-                      <Label>Unit</Label>
-                      <Select
-                        value={beginForm.measuredBy}
-                        onValueChange={(v) =>
-                          setBeginForm((f) => ({ ...f, measuredBy: v }))
-                        }
-                      >
-                        <SelectTrigger className="h-10 w-full border-border/80 shadow-sm">
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dailyUnitOptions.map((u) => (
-                            <SelectItem key={u} value={u}>
-                              {u}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </HotelFormFieldStack>
-                  </div>
-                </HotelFormSection>
-
-                <HotelFormSection
-                  title="Notes"
-                  description="Optional — batch references or who counted."
-                >
-                  <HotelFormFieldStack>
-                    <Label htmlFor="kb-notes">Notes</Label>
-                    <Textarea
-                      id="kb-notes"
-                      value={beginForm.notes}
-                      onChange={(e) =>
-                        setBeginForm((f) => ({ ...f, notes: e.target.value }))
-                      }
-                      rows={3}
-                      placeholder="Optional detail"
-                      className="min-h-22 resize-y border-border/80 shadow-sm"
-                    />
-                  </HotelFormFieldStack>
-                </HotelFormSection>
-
-                <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
-                  <PendingButton
-                    type="button"
-                    className="shadow-sm"
-                    pending={beginningSavePending}
-                    onClick={async () => {
-                      setBeginningSavePending(true);
-                      try {
-                        if (editingId) {
-                          await updateKitchenBarBeginningApi({
-                            id: editingId,
-                            ...beginForm,
-                            amount: round2(Number(beginForm.amount) || 0),
-                            managementTakenDay: round2(
-                              Number(beginForm.managementTakenDay) || 0,
-                            ),
-                          });
-                          setEditingId(null);
-                        } else {
-                          await createKitchenBarBeginningApi({
-                            ...beginForm,
-                            amount: round2(Number(beginForm.amount) || 0),
-                            managementTakenDay: round2(
-                              Number(beginForm.managementTakenDay) || 0,
-                            ),
-                          });
-                        }
-                        const day = selectedDailyDate || new Date().toISOString().slice(0, 10);
-                        setBeginForm({
-                          station: "KITCHEN",
-                          itemName: "",
-                          amount: 0,
-                          managementTakenDay: 0,
-                          measuredBy: "Piece",
-                          monthPeriod: day.slice(0, 7),
-                          calendarDate: day,
-                          notes: "",
-                        });
-                        load(true, false);
-                      } catch (e: unknown) {
-                        notifyApiFailure(e, "Could not save daily row");
-                      } finally {
-                        setBeginningSavePending(false);
-                      }
-                    }}
-                  >
-                    {editingId ? "Save changes" : "Add daily row"}
-                  </PendingButton>
-                  {editingId && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingId(null);
-                        const day = selectedDailyDate || new Date().toISOString().slice(0, 10);
-                        setBeginForm({
-                          station: "KITCHEN",
-                          itemName: "",
-                          amount: 0,
-                          managementTakenDay: 0,
-                          measuredBy: "Piece",
-                          monthPeriod: day.slice(0, 7),
-                          calendarDate: day,
-                          notes: "",
-                        });
-                      }}
-                    >
-                      Cancel edit
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <DailyCountBatchForm
+              calendarDate={selectedDailyDate}
+              stocks={stocks}
+              editingRow={editingBeginning}
+              onClearEdit={() => setEditingBeginning(null)}
+              onSaved={() => load(true, false)}
+            />
 
             <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
-              <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
+              <div className="border-b border-border/60 bg-linear-to-br from-muted/40 via-muted/20 to-transparent px-4 py-3.5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Total Sales value (selected day)
+                  {dailyStationFilter !== "ALL"
+                    ? ` · ${displayKitchenBarStation(dailyStationFilter)}`
+                    : ""}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Σ (unit price × Sales) per row; first-in-series rows have no Sales yet
                 </p>
-                <p className="text-lg font-semibold tabular-nums mt-1">
+                <p className="text-xl font-semibold tabular-nums mt-1.5 tracking-tight">
                   {selectedDayTotalCountedEtb.toLocaleString()}{" "}
                   <span className="text-sm font-medium text-muted-foreground">
                     ETB
                   </span>
                 </p>
               </div>
-              <div className="px-4 py-3 border-b border-border/60">
+              <div className="px-4 py-3 border-b border-border/60 space-y-3">
                 <HotelDayPicker
                   label="Date"
                   id="kb-grid-day"
                   value={selectedDailyDate}
                   onChange={setSelectedDailyDate}
-                  className="min-w-[200px]"
+                  className="min-w-50"
+                />
+                <DailyCountStationFilterBar
+                  value={dailyStationFilter}
+                  onChange={setDailyStationFilter}
                 />
               </div>
               <div className="p-4">
@@ -2016,7 +1742,11 @@ function CostControlInner() {
                   data={visibleBeginnings}
                   getRowId={(row) => String(row.id)}
                   searchColumnId="itemName"
-                  emptyMessage={`No daily rows for ${selectedDailyDate}. Add a row above or pick another date.`}
+                  emptyMessage={`No daily rows for ${selectedDailyDate}${
+                    dailyStationFilter !== "ALL"
+                      ? ` (${displayKitchenBarStation(dailyStationFilter)})`
+                      : ""
+                  }. Add a row above or pick another date / station.`}
                 />
               </div>
             </div>

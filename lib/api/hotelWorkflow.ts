@@ -353,6 +353,7 @@ export async function fetchKitchenBarBeginnings(): Promise<
         calendarDate
         stockOutDay
         managementTakenDay
+        invitationTakenDay
         closingOnHand
         notes
         createdAt
@@ -2178,16 +2179,20 @@ export async function deleteCostControllerProfileApi(id: number) {
   toast.success("Profile removed");
 }
 
-export async function createKitchenBarBeginningApi(vars: {
-  station: string;
-  itemName: string;
-  amount: number;
-  measuredBy: string;
-  managementTakenDay?: number;
-  monthPeriod?: string;
-  calendarDate: string;
-  notes?: string;
-}) {
+export async function createKitchenBarBeginningApi(
+  vars: {
+    station: string;
+    itemName: string;
+    amount: number;
+    measuredBy: string;
+    managementTakenDay?: number;
+    invitationTakenDay?: number;
+    monthPeriod?: string;
+    calendarDate: string;
+    notes?: string;
+  },
+  opts?: { quiet?: boolean },
+) {
   const mutation = `
     mutation Kbb(
       $station: String!
@@ -2195,6 +2200,7 @@ export async function createKitchenBarBeginningApi(vars: {
       $amount: Float!
       $measuredBy: String!
       $managementTakenDay: Float
+      $invitationTakenDay: Float
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -2205,6 +2211,7 @@ export async function createKitchenBarBeginningApi(vars: {
         amount: $amount
         measuredBy: $measuredBy
         managementTakenDay: $managementTakenDay
+        invitationTakenDay: $invitationTakenDay
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes
@@ -2217,21 +2224,25 @@ export async function createKitchenBarBeginningApi(vars: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Save failed");
   }
-  toast.success("Beginning recorded");
+  if (!opts?.quiet) toast.success("Beginning recorded");
   return response.data.data.createKitchenBarBeginning;
 }
 
-export async function updateKitchenBarBeginningApi(vars: {
-  id: number;
-  station: string;
-  itemName: string;
-  amount: number;
-  measuredBy: string;
-  managementTakenDay?: number;
-  monthPeriod?: string;
-  calendarDate: string;
-  notes?: string;
-}) {
+export async function updateKitchenBarBeginningApi(
+  vars: {
+    id: number;
+    station: string;
+    itemName: string;
+    amount: number;
+    measuredBy: string;
+    managementTakenDay?: number;
+    invitationTakenDay?: number;
+    monthPeriod?: string;
+    calendarDate: string;
+    notes?: string;
+  },
+  opts?: { quiet?: boolean },
+) {
   const mutation = `
     mutation Ukbb(
       $id: Int!
@@ -2240,6 +2251,7 @@ export async function updateKitchenBarBeginningApi(vars: {
       $amount: Float!
       $measuredBy: String!
       $managementTakenDay: Float
+      $invitationTakenDay: Float
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -2251,6 +2263,7 @@ export async function updateKitchenBarBeginningApi(vars: {
         amount: $amount
         measuredBy: $measuredBy
         managementTakenDay: $managementTakenDay
+        invitationTakenDay: $invitationTakenDay
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes
@@ -2263,7 +2276,7 @@ export async function updateKitchenBarBeginningApi(vars: {
   if (response.data.errors) {
     throw new Error(response.data.errors[0]?.message || "Update failed");
   }
-  toast.success("Updated");
+  if (!opts?.quiet) toast.success("Updated");
   return response.data.data.updateKitchenBarBeginning;
 }
 

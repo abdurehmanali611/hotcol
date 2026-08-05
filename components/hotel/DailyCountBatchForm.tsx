@@ -1,0 +1,580 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  createKitchenBarBeginningApi,
+  updateKitchenBarBeginningApi,
+  notifyApiFailure,
+  type KitchenBarBeginningRow,
+  type StockOutRequestRow,
+} from "@/lib/actions";
+import {
+  HOTEL_DAILY_COUNT_STATIONS,
+  normalizeKitchenBarStationKey,
+  summarizeApprovedStockOutForDay,
+} from "@/lib/hotelDailyStation";
+import { inventoryUnitSelectValues } from "@/lib/inventoryUnits";
+import {
+  DailyCountFormulaStrip,
+  DailyCountMetricTile,
+  DailyCountStationPicker,
+} from "@/components/hotel/DailyCountStationUi";
+import {
+  HotelFormFieldStack,
+  HotelFormSection,
+} from "@/components/hotel/HotelTerminalInitFormLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PendingButton } from "@/components/ui/pending-button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+function round2(n: number): number {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+function newLineKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `kb-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export type DailyCountLine = {
+  key: string;
+  itemName: string;
+  amount: number;
+  managementTakenDay: number;
+  invitationTakenDay: number;
+  measuredBy: string;
+};
+
+function emptyLine(measuredBy = "Piece"): DailyCountLine {
+  return {
+    key: newLineKey(),
+    itemName: "",
+    amount: 0,
+    managementTakenDay: 0,
+    invitationTakenDay: 0,
+    measuredBy,
+  };
+}
+
+function stationFromRow(station: string): string {
+  const key = normalizeKitchenBarStationKey(station);
+  return HOTEL_DAILY_COUNT_STATIONS.some((s) => s.value === key)
+    ? key
+    : "KITCHEN";
+}
+
+function linePreview(
+  line: DailyCountLine,
+  station: string,
+  calendarDate: string,
+  stocks: StockOutRequestRow[],
+) {
+  const item = line.itemName.trim();
+  const stockOut =
+    item === ""
+      ? 0
+      : round2(
+          summarizeApprovedStockOutForDay(
+            stocks,
+            normalizeKitchenBarStationKey(station),
+            item,
+            calendarDate,
+          ),
+        );
+  const opening = round2(Number(line.amount) || 0);
+  const total = round2(opening + stockOut);
+  const management = round2(Number(line.managementTakenDay) || 0);
+  const invitation = round2(Number(line.invitationTakenDay) || 0);
+  const onHandPreview = round2(total - management - invitation);
+  return { stockOut, total, management, invitation, onHandPreview };
+}
+
+export function DailyCountBatchForm({
+  calendarDate,
+  stocks,
+  editingRow,
+  onClearEdit,
+  onSaved,
+}: {
+  calendarDate: string;
+  stocks: StockOutRequestRow[];
+  editingRow: KitchenBarBeginningRow | null;
+  onClearEdit: () => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const day = String(calendarDate || "").slice(0, 10);
+  const [station, setStation] = useState("KITCHEN");
+  const [notes, setNotes] = useState("");
+  const [lines, setLines] = useState<DailyCountLine[]>([emptyLine()]);
+  const [savePending, setSavePending] = useState(false);
+
+  const editingId = editingRow?.id ?? null;
+
+  useEffect(() => {
+    if (!editingRow) return;
+    const cd =
+      editingRow.calendarDate && editingRow.calendarDate.length >= 10
+        ? editingRow.calendarDate.slice(0, 10)
+        : `${editingRow.monthPeriod}-01`;
+    setStation(stationFromRow(editingRow.station));
+    setNotes(editingRow.notes || "");
+    setLines([
+      {
+        key: newLineKey(),
+        itemName: editingRow.itemName,
+        amount: Number(editingRow.amount) || 0,
+        managementTakenDay: Number(editingRow.managementTakenDay ?? 0),
+        invitationTakenDay: Number(editingRow.invitationTakenDay ?? 0),
+        measuredBy: editingRow.measuredBy || "Piece",
+      },
+    ]);
+    void cd;
+  }, [editingRow]);
+
+  const validLines = useMemo(
+    () => lines.filter((l) => l.itemName.trim().length >= 1),
+    [lines],
+  );
+
+  const batchPreview = useMemo(() => {
+    let stockOut = 0;
+    let total = 0;
+    let management = 0;
+    let invitation = 0;
+    let onHandPreview = 0;
+    for (const line of validLines) {
+      const p = linePreview(line, station, day, stocks);
+      stockOut += p.stockOut;
+      total += p.total;
+      management += p.management;
+      invitation += p.invitation;
+      onHandPreview += p.onHandPreview;
+    }
+    return {
+      stockOut: round2(stockOut),
+      total: round2(total),
+      management: round2(management),
+      invitation: round2(invitation),
+      onHandPreview: round2(onHandPreview),
+      lineCount: validLines.length,
+    };
+  }, [validLines, station, day, stocks]);
+
+  const updateLine = useCallback(
+    (key: string, patch: Partial<DailyCountLine>) => {
+      setLines((prev) =>
+        prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+      );
+    },
+    [],
+  );
+
+  const addLine = useCallback(() => {
+    setLines((prev) => [...prev, emptyLine()]);
+  }, []);
+
+  const removeLine = useCallback((key: string) => {
+    setLines((prev) =>
+      prev.length <= 1 ? prev : prev.filter((l) => l.key !== key),
+    );
+  }, []);
+
+  const resetCreateForm = useCallback(() => {
+    setStation("KITCHEN");
+    setNotes("");
+    setLines([emptyLine()]);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    onClearEdit();
+    resetCreateForm();
+  }, [onClearEdit, resetCreateForm]);
+
+  const handleSave = useCallback(async () => {
+    if (!day) {
+      toast.error("Pick a calendar day in the grid below");
+      return;
+    }
+    if (validLines.length === 0) {
+      toast.error("Add at least one line with an item name");
+      return;
+    }
+
+    setSavePending(true);
+    try {
+      const shared = {
+        station,
+        calendarDate: day,
+        monthPeriod: day.slice(0, 7),
+        notes: notes.trim(),
+      };
+
+      if (editingId != null) {
+        const line = validLines[0];
+        await updateKitchenBarBeginningApi(
+          {
+            id: editingId,
+            ...shared,
+            itemName: line.itemName.trim(),
+            amount: round2(Number(line.amount) || 0),
+            measuredBy: line.measuredBy,
+            managementTakenDay: round2(Number(line.managementTakenDay) || 0),
+            invitationTakenDay: round2(Number(line.invitationTakenDay) || 0),
+          },
+          { quiet: true },
+        );
+        toast.success("Updated");
+        onClearEdit();
+        resetCreateForm();
+        await onSaved();
+        return;
+      }
+
+      let ok = 0;
+      let failed = 0;
+      const seen = new Set<string>();
+      for (const line of validLines) {
+        const item = line.itemName.trim();
+        const dupKey = `${normalizeKitchenBarStationKey(station)}\t${item.toLowerCase()}`;
+        if (seen.has(dupKey)) {
+          failed += 1;
+          toast.error(`Duplicate item in this batch: ${item}`);
+          continue;
+        }
+        seen.add(dupKey);
+        try {
+          await createKitchenBarBeginningApi(
+            {
+              ...shared,
+              itemName: item,
+              amount: round2(Number(line.amount) || 0),
+              measuredBy: line.measuredBy,
+              managementTakenDay: round2(Number(line.managementTakenDay) || 0),
+              invitationTakenDay: round2(Number(line.invitationTakenDay) || 0),
+            },
+            { quiet: true },
+          );
+          ok += 1;
+        } catch (e: unknown) {
+          failed += 1;
+          notifyApiFailure(e, `Could not save “${item}”`);
+        }
+      }
+
+      if (ok > 0) {
+        toast.success(
+          `Saved ${ok} daily count${ok === 1 ? "" : "s"}${
+            failed ? ` (${failed} failed)` : ""
+          }`,
+        );
+        resetCreateForm();
+        await onSaved();
+      }
+    } catch (e: unknown) {
+      notifyApiFailure(e, "Could not save daily rows");
+    } finally {
+      setSavePending(false);
+    }
+  }, [
+    day,
+    validLines,
+    station,
+    notes,
+    editingId,
+    onClearEdit,
+    resetCreateForm,
+    onSaved,
+  ]);
+
+  return (
+    <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+      <div className="h-1 bg-linear-to-r from-amber-500/50 via-sky-500/40 to-emerald-500/50" />
+      <CardHeader>
+        <CardTitle className="text-lg">
+          {editingId != null ? "Edit daily row" : "Register a day"}
+        </CardTitle>
+        <CardDescription>
+          {editingId != null
+            ? "Update this station item for the selected calendar day."
+            : "Shared station and date for the whole batch. Add multiple item lines at once — Store fills from approved stock-outs per line."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6 pt-1 pb-8 px-5 sm:px-6">
+        <DailyCountFormulaStrip />
+
+        <HotelFormSection
+          title="Station"
+          description="Applies to every line below. Date comes from the day picker on the grid."
+        >
+          <DailyCountStationPicker value={station} onChange={setStation} />
+          <p className="text-xs text-muted-foreground pt-1">
+            Calendar day:{" "}
+            <span className="font-medium tabular-nums text-foreground">
+              {day || "—"}
+            </span>
+          </p>
+        </HotelFormSection>
+
+        <HotelFormSection
+          title={editingId != null ? "Item & counts" : "Item lines"}
+          description={
+            editingId != null
+              ? "Edit beginning, management, and invitation for this item."
+              : "One card per item. Add as many lines as you need for this station and day."
+          }
+        >
+          <div className="space-y-4">
+            {lines.map((line, index) => {
+              const preview = linePreview(line, station, day, stocks);
+              const unitOptions = inventoryUnitSelectValues(line.measuredBy);
+              return (
+                <div
+                  key={line.key}
+                  className="rounded-xl border border-border/70 bg-muted/15 p-4 space-y-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Line {index + 1}
+                    </p>
+                    {editingId == null ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-destructive hover:text-destructive"
+                        disabled={lines.length <= 1}
+                        onClick={() => removeLine(line.key)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <HotelFormFieldStack>
+                    <Label htmlFor={`kb-item-${line.key}`}>Item</Label>
+                    <Input
+                      id={`kb-item-${line.key}`}
+                      value={line.itemName}
+                      onChange={(e) =>
+                        updateLine(line.key, { itemName: e.target.value })
+                      }
+                      placeholder="Enter item name"
+                      className="h-10 border-border/80 shadow-sm"
+                    />
+                  </HotelFormFieldStack>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <HotelFormFieldStack>
+                      <Label htmlFor={`kb-bb-${line.key}`}>Beginning (BB)</Label>
+                      <Input
+                        id={`kb-bb-${line.key}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={line.amount}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            amount: Number.isFinite(Number(e.target.value))
+                              ? Number(e.target.value)
+                              : 0,
+                          })
+                        }
+                        onBlur={() =>
+                          updateLine(line.key, {
+                            amount: round2(Number(line.amount) || 0),
+                          })
+                        }
+                        className="h-10 tabular-nums border-border/80 shadow-sm"
+                      />
+                    </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label htmlFor={`kb-mgmt-${line.key}`}>Management</Label>
+                      <Input
+                        id={`kb-mgmt-${line.key}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={line.managementTakenDay}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            managementTakenDay: Number.isFinite(
+                              Number(e.target.value),
+                            )
+                              ? Number(e.target.value)
+                              : 0,
+                          })
+                        }
+                        className="h-10 tabular-nums border-violet-500/30 bg-violet-500/5 shadow-sm"
+                      />
+                    </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label htmlFor={`kb-inv-${line.key}`}>Invitation</Label>
+                      <Input
+                        id={`kb-inv-${line.key}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={line.invitationTakenDay}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            invitationTakenDay: Number.isFinite(
+                              Number(e.target.value),
+                            )
+                              ? Number(e.target.value)
+                              : 0,
+                          })
+                        }
+                        className="h-10 tabular-nums border-rose-500/30 bg-rose-500/5 shadow-sm"
+                      />
+                    </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label>Unit</Label>
+                      <Select
+                        value={line.measuredBy}
+                        onValueChange={(v) =>
+                          updateLine(line.key, { measuredBy: v })
+                        }
+                      >
+                        <SelectTrigger className="h-10 w-full border-border/80 shadow-sm">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unitOptions.map((u) => (
+                            <SelectItem key={u} value={u}>
+                              {u}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </HotelFormFieldStack>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <DailyCountMetricTile
+                      label="Store"
+                      value={preview.stockOut.toFixed(2)}
+                      hint="Approved stock-outs"
+                    />
+                    <DailyCountMetricTile
+                      label="Total"
+                      value={preview.total.toFixed(2)}
+                      hint="Beginning + Store"
+                      tone="primary"
+                    />
+                    <DailyCountMetricTile
+                      label="On Hand preview"
+                      value={preview.onHandPreview.toFixed(2)}
+                      hint="Before Sales"
+                      tone="onhand"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {editingId == null ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 gap-2 font-medium"
+              onClick={addLine}
+            >
+              <Plus className="h-4 w-4" />
+              Add line
+            </Button>
+          ) : null}
+        </HotelFormSection>
+
+        {editingId == null && validLines.length > 1 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <DailyCountMetricTile
+              label="Batch Store"
+              value={batchPreview.stockOut.toFixed(2)}
+              hint={`${batchPreview.lineCount} lines`}
+            />
+            <DailyCountMetricTile
+              label="Batch Total"
+              value={batchPreview.total.toFixed(2)}
+              hint="All beginnings + store"
+              tone="primary"
+            />
+            <DailyCountMetricTile
+              label="Batch Issues"
+              value={(
+                batchPreview.management + batchPreview.invitation
+              ).toFixed(2)}
+              hint="Management + Invitation"
+              tone="management"
+            />
+            <DailyCountMetricTile
+              label="Batch On Hand"
+              value={batchPreview.onHandPreview.toFixed(2)}
+              hint="Before Sales"
+              tone="onhand"
+            />
+          </div>
+        ) : null}
+
+        <HotelFormSection
+          title="Notes"
+          description="Optional — applies to every line in this save."
+        >
+          <HotelFormFieldStack>
+            <Label htmlFor="kb-notes">Notes</Label>
+            <Textarea
+              id="kb-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Optional detail"
+              className="min-h-22 resize-y border-border/80 shadow-sm"
+            />
+          </HotelFormFieldStack>
+        </HotelFormSection>
+
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
+          <PendingButton
+            type="button"
+            className="shadow-sm"
+            pending={savePending}
+            onClick={() => void handleSave()}
+          >
+            {editingId != null
+              ? "Save changes"
+              : validLines.length > 1
+                ? `Add ${validLines.length} daily rows`
+                : "Add daily row"}
+          </PendingButton>
+          {editingId != null ? (
+            <Button type="button" variant="ghost" onClick={handleCancelEdit}>
+              Cancel edit
+            </Button>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

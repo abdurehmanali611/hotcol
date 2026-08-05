@@ -1,24 +1,37 @@
 /**
- * Canonical station keys for hotel daily counts (kitchen/bar/etc.).
+ * Canonical station keys for hotel daily counts (kitchen/bar/room).
  * Aligns store stock-out stakeholders with Cost Control daily rows.
  */
 
 export const HOTEL_DAILY_COUNT_STATIONS = [
-  { value: "KITCHEN", label: "Kitchen / Chef" },
+  { value: "KITCHEN", label: "Kitchen" },
   /** Canonical key stays `BAR` (DB / APIs); label matches store stock-out stakeholder "Barista". */
-  { value: "BAR", label: "Barista" },
-  { value: "JUICER", label: "Juicer" },
-  { value: "CLEANING", label: "Cleaning" },
-  { value: "HOUSEKEEPING", label: "Housekeeping" },
-  { value: "MANAGEMENT", label: "Management" },
-  { value: "MAINTENANCE", label: "Maintenance" },
-  { value: "OTHER", label: "Other" },
+  { value: "BAR", label: "Bar" },
+  { value: "ROOM", label: "Room" },
 ] as const;
+
+export type HotelDailyCountStation =
+  (typeof HOTEL_DAILY_COUNT_STATIONS)[number]["value"];
+
+/** Filter chip ids for day / from–to daily-count reports. */
+export type HotelDailyCountStationFilter = "ALL" | HotelDailyCountStation;
+
+export const HOTEL_DAILY_COUNT_STATION_FILTER_OPTIONS: {
+  id: HotelDailyCountStationFilter;
+  label: string;
+}[] = [
+  { id: "ALL", label: "All stations" },
+  ...HOTEL_DAILY_COUNT_STATIONS.map((s) => ({
+    id: s.value as HotelDailyCountStationFilter,
+    label: s.label,
+  })),
+];
 
 /** Store UI: value stored on StockOutRequest.stakeHolderOrReason (must map via normalize). */
 export const HOTEL_STORE_STOCK_OUT_STAKEHOLDERS = [
   "Kitchen",
   "Barista",
+  "Room",
   "Juicer",
   "Cleaning Service",
   "Housekeeping",
@@ -37,6 +50,9 @@ export function normalizeKitchenBarStationKey(raw: string): string {
   if (!s) return "OTHER";
   if (s === "chef" || s === "kitchen" || s === "chef (kitchen)") return "KITCHEN";
   if (s === "bar" || s === "barista") return "BAR";
+  if (s === "room" || s === "rooms" || s === "in room" || s === "in-room") {
+    return "ROOM";
+  }
   if (s === "juicer") return "JUICER";
   if (s === "cleaning service" || s === "cleaning") return "CLEANING";
   if (s === "housekeeping") return "HOUSEKEEPING";
@@ -45,6 +61,7 @@ export function normalizeKitchenBarStationKey(raw: string): string {
   const up = String(raw ?? "").trim().toUpperCase();
   if (up === "CHEF" || up === "KITCHEN") return "KITCHEN";
   if (up === "BAR") return "BAR";
+  if (up === "ROOM") return "ROOM";
   return up.replace(/\s+/g, "_") || "OTHER";
 }
 
@@ -52,6 +69,14 @@ export function displayKitchenBarStation(station: string): string {
   const key = normalizeKitchenBarStationKey(station);
   const row = HOTEL_DAILY_COUNT_STATIONS.find((x) => x.value === key);
   return row?.label ?? station;
+}
+
+export function matchesDailyCountStationFilter(
+  station: string,
+  filter: HotelDailyCountStationFilter,
+): boolean {
+  if (filter === "ALL") return true;
+  return normalizeKitchenBarStationKey(station) === filter;
 }
 
 export type StockOutLike = {

@@ -75,6 +75,7 @@ export function stockOutDepartmentCode(
   if (!stake) return "";
   if (stake === "kitchen") return "KITCHEN";
   if (stake === "barista" || stake === "bar") return "BAR";
+  if (stake === "room" || stake === "rooms") return "ROOM";
   if (stake.includes("house")) return "HOUSE_KEEPING_ROOM";
   if (stake === "maintenance") return "MAINTENANCE";
   if (stake.includes("clean")) return "HOUSE_KEEPING_PUBLIC";

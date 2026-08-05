@@ -50,9 +50,12 @@ import {
 } from "@/lib/actions";
 import {
   displayKitchenBarStation,
+  matchesDailyCountStationFilter,
   normalizeKitchenBarStationKey,
   summarizeApprovedStockOutForDay,
+  type HotelDailyCountStationFilter,
 } from "@/lib/hotelDailyStation";
+import { DailyCountStationFilterBar } from "@/components/hotel/DailyCountStationUi";
 import {
   MANAGER_SIDEBAR_ITEMS,
   MANAGER_SERVICE_SIDEBAR_ITEMS,
@@ -356,6 +359,10 @@ function ManagerContent() {
   const [managerDailyReportDate, setManagerDailyReportDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
+  const [managerDailyStationFilter, setManagerDailyStationFilter] =
+    useState<HotelDailyCountStationFilter>("ALL");
+  const [managerRollupStationFilter, setManagerRollupStationFilter] =
+    useState<HotelDailyCountStationFilter>("ALL");
 
   const loadData = useCallback(
     async (isRefresh = false) => {
@@ -647,7 +654,7 @@ function ManagerContent() {
       "item-receipts":
         "Confirm goods received into inventory after finance clears a purchase.",
       "reports-beginnings":
-        "Station daily counts (Beginning, Store, Total, Sales, Management, On Hand) and roll-up views.",
+        "Station daily counts (Beginning, Store, Total, Sales, Management, Invitation, On Hand) and roll-up views.",
       "cc-profiles":
         "Named cost-controller identities used for approval audit trails.",
       "department-leaders":
@@ -769,7 +776,8 @@ function ManagerContent() {
       const cd =
         String(b.calendarDate || "").slice(0, 10) ||
         (b.monthPeriod ? `${b.monthPeriod}-01` : "");
-      return cd === day;
+      if (cd !== day) return false;
+      return matchesDailyCountStationFilter(b.station, managerDailyStationFilter);
     });
     const map = new Map<string, KitchenBarBeginningRow>();
     for (const b of dayRows) {
@@ -790,7 +798,7 @@ function ManagerContent() {
         sensitivity: "base",
       }),
     );
-  }, [beginningsScoped, managerDailyReportDate]);
+  }, [beginningsScoped, managerDailyReportDate, managerDailyStationFilter]);
 
   const stockOutRowsForProperty = useMemo(
     () =>
@@ -867,12 +875,21 @@ function ManagerContent() {
         const sales = beginningDerivedById.daySales.get(row.id);
         const salesQty = sales == null ? 0 : Number(sales);
         const management = Number(row.managementTakenDay ?? 0);
-        return round2(total - salesQty - management);
+        const invitation = Number(row.invitationTakenDay ?? 0);
+        return round2(total - salesQty - management - invitation);
       };
 
       const out: KitchenBarMonthlySnapshotRow[] = [];
 
       for (const [key, rows] of rowsByKey) {
+        if (
+          !matchesDailyCountStationFilter(
+            rows[0]?.station ?? key.split("\t")[0] ?? "",
+            managerRollupStationFilter,
+          )
+        ) {
+          continue;
+        }
         let hasInRange = false;
         for (const d of eachYmdInclusive(fromYmd, toYmd)) {
           if (pickForDay(rows, d)) {
@@ -945,6 +962,7 @@ function ManagerContent() {
     tenantScope,
     beginningDerivedById,
     stockOutRowsForProperty,
+    managerRollupStationFilter,
   ]);
 
   const managerRollupTotalEtb = useMemo(() => {
@@ -1369,14 +1387,14 @@ function ManagerContent() {
                     id="manager-rollup-from"
                     value={rollupFromYmd}
                     onChange={setRollupFromYmd}
-                    className="min-w-[200px]"
+                    className="min-w-50"
                   />
                   <HotelDayPicker
                     label="To"
                     id="manager-rollup-to"
                     value={rollupToYmd}
                     onChange={setRollupToYmd}
-                    className="min-w-[200px]"
+                    className="min-w-50"
                   />
                   <Button
                     variant="secondary"
@@ -1393,20 +1411,30 @@ function ManagerContent() {
                     )}
                   </Button>
                 </div>
+                <DailyCountStationFilterBar
+                  value={managerRollupStationFilter}
+                  onChange={setManagerRollupStationFilter}
+                />
                 <p className="text-xs text-muted-foreground">
                   Showing computed roll-up for{" "}
-                  <span className="font-medium text-foreground">{rollupRangeLabel}</span> from
-                  daily rows (no server sync on this screen).
+                  <span className="font-medium text-foreground">{rollupRangeLabel}</span>
+                  {managerRollupStationFilter !== "ALL"
+                    ? ` · ${displayKitchenBarStation(managerRollupStationFilter)}`
+                    : ""}{" "}
+                  from daily rows (no server sync on this screen).
                 </p>
                 {managerRollupFromDailyRows.length > 0 ? (
-                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                  <div className="rounded-xl border border-emerald-500/25 bg-linear-to-br from-emerald-500/10 via-emerald-500/5 to-transparent px-4 py-3.5 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Total Sales value — {rollupRangeLabel}
+                      {managerRollupStationFilter !== "ALL"
+                        ? ` · ${displayKitchenBarStation(managerRollupStationFilter)}`
+                        : ""}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Σ (unit price × Σ Sales) per row below
                     </p>
-                    <p className="text-xl font-semibold tabular-nums mt-1">
+                    <p className="text-2xl font-semibold tabular-nums mt-1.5 tracking-tight">
                       {managerRollupTotalEtb.toLocaleString()}{" "}
                       <span className="text-sm font-medium text-muted-foreground">ETB</span>
                     </p>
@@ -1417,7 +1445,7 @@ function ManagerContent() {
                   data={managerRollupFromDailyRows}
                   getRowId={(row) => String(row.id)}
                   searchColumnId="itemName"
-                  emptyMessage={`No daily rows in range ${rollupRangeLabel} yet. Enter counts in Cost Control for those days, adjust the dates, or click Reload data.`}
+                  emptyMessage={`No daily rows in range ${rollupRangeLabel} yet. Enter counts in Cost Control for those days, adjust the dates or station filter, or click Reload data.`}
                 />
               </CardContent>
             </Card>
@@ -1434,25 +1462,32 @@ function ManagerContent() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6 mb-4">
-                  <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
+                  <div className="border-b border-border/60 bg-linear-to-br from-muted/40 via-muted/20 to-transparent px-4 py-3.5">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Total Sales value (selected day)
+                      {managerDailyStationFilter !== "ALL"
+                        ? ` · ${displayKitchenBarStation(managerDailyStationFilter)}`
+                        : ""}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Σ (unit price × Sales) for rows on this day; first-in-series rows have no Sales yet
                     </p>
-                    <p className="text-lg font-semibold tabular-nums mt-1">
+                    <p className="text-xl font-semibold tabular-nums mt-1.5 tracking-tight">
                       {managerDailySalesValueEtb.toLocaleString()}{" "}
                       <span className="text-sm font-medium text-muted-foreground">ETB</span>
                     </p>
                   </div>
-                  <div className="px-4 py-3 border-b border-border/60">
+                  <div className="px-4 py-3 border-b border-border/60 space-y-3">
                     <HotelDayPicker
                       label="Date"
                       id="manager-daily-report-day"
                       value={managerDailyReportDate}
                       onChange={setManagerDailyReportDate}
-                      className="min-w-[200px]"
+                      className="min-w-50"
+                    />
+                    <DailyCountStationFilterBar
+                      value={managerDailyStationFilter}
+                      onChange={setManagerDailyStationFilter}
                     />
                   </div>
                   <div className="p-4">
@@ -1461,7 +1496,11 @@ function ManagerContent() {
                       data={visibleManagerDailyRows}
                       getRowId={(row) => String(row.id)}
                       searchColumnId="itemName"
-                      emptyMessage={`No daily rows for ${managerDailyReportDate}. Enter counts in Cost Control for this day, or pick another date.`}
+                      emptyMessage={`No daily rows for ${managerDailyReportDate}${
+                        managerDailyStationFilter !== "ALL"
+                          ? ` (${displayKitchenBarStation(managerDailyStationFilter)})`
+                          : ""
+                      }. Enter counts in Cost Control for this day, or pick another date / station.`}
                     />
                   </div>
                 </div>
@@ -1568,7 +1607,7 @@ function ManagerContent() {
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
-                <LayoutDashboard className="h-[18px] w-[18px]" />
+                <LayoutDashboard className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">

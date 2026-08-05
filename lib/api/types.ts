@@ -522,6 +522,8 @@ export interface KitchenBarBeginningRow {
   calendarDate: string;
   stockOutDay: number;
   managementTakenDay: number;
+  /** Units taken from station stock for invitations (same ONHAND treatment as management). */
+  invitationTakenDay?: number;
   closingOnHand: number;
   notes: string;
   createdAt: string;

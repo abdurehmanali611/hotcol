@@ -13,9 +13,32 @@ import {
 } from "@/lib/hotelDailyStation";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
+import { cn } from "@/lib/utils";
 
 function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+function StationBadge({ station }: { station: string }) {
+  const key = normalizeKitchenBarStationKey(station);
+  const tone =
+    key === "KITCHEN"
+      ? "border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+      : key === "BAR"
+        ? "border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-200"
+        : key === "ROOM"
+          ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
+          : "border-border/70 bg-muted/40 text-muted-foreground";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+        tone,
+      )}
+    >
+      {displayKitchenBarStation(station)}
+    </span>
+  );
 }
 
 export type KitchenBarDerivedMaps = {
@@ -35,7 +58,7 @@ export function buildKitchenBarRollupColumns(
     {
       id: "station",
       header: "Station",
-      cell: ({ row }) => displayKitchenBarStation(row.original.station),
+      cell: ({ row }) => <StationBadge station={row.original.station} />,
     },
     {
       accessorKey: "itemName",
@@ -61,7 +84,7 @@ export function buildKitchenBarRollupColumns(
         <span className="block text-right w-full">On Hand</span>
       ),
       cell: ({ row }) => (
-        <span className="block text-right tabular-nums">
+        <span className="block text-right tabular-nums font-medium text-emerald-700 dark:text-emerald-300">
           {Number(row.original.lastDayClosingOnHand).toFixed(2)}
         </span>
       ),
@@ -146,7 +169,7 @@ export function buildKitchenBarDailyColumns(
     {
       id: "station",
       header: "Station",
-      cell: ({ row }) => displayKitchenBarStation(row.original.station),
+      cell: ({ row }) => <StationBadge station={row.original.station} />,
     },
     {
       accessorKey: "itemName",
@@ -182,7 +205,9 @@ export function buildKitchenBarDailyColumns(
         const b = row.original;
         const total = round2(Number(b.amount || 0) + storeFor(b));
         return (
-          <span className="block text-right tabular-nums">{total.toFixed(2)}</span>
+          <span className="block text-right tabular-nums font-medium">
+            {total.toFixed(2)}
+          </span>
         );
       },
     },
@@ -190,8 +215,17 @@ export function buildKitchenBarDailyColumns(
       id: "management",
       header: () => <span className="block text-right w-full">Management</span>,
       cell: ({ row }) => (
-        <span className="block text-right tabular-nums">
+        <span className="block text-right tabular-nums text-violet-700 dark:text-violet-300">
           {Number(row.original.managementTakenDay ?? 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      id: "invitation",
+      header: () => <span className="block text-right w-full">Invitation</span>,
+      cell: ({ row }) => (
+        <span className="block text-right tabular-nums text-rose-700 dark:text-rose-300">
+          {Number(row.original.invitationTakenDay ?? 0).toFixed(2)}
         </span>
       ),
     },
@@ -217,9 +251,12 @@ export function buildKitchenBarDailyColumns(
         const sales = derived.daySales.get(b.id);
         const salesQty = sales == null ? 0 : Number(sales);
         const management = Number(b.managementTakenDay ?? 0);
-        const onHand = round2(total - salesQty - management);
+        const invitation = Number(b.invitationTakenDay ?? 0);
+        const onHand = round2(total - salesQty - management - invitation);
         return (
-          <span className="block text-right tabular-nums">{onHand.toFixed(2)}</span>
+          <span className="block text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-300">
+            {onHand.toFixed(2)}
+          </span>
         );
       },
     },
