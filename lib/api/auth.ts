@@ -318,6 +318,13 @@ export async function LoginAction(
         router.push(`/CMLeader?${queryParams}`);
         break;
       case "HR":
+        if (!lodgingStore) {
+          toast.message(
+            "Café properties use Admin for HR. Opening the Admin workspace.",
+          );
+          router.push(`/Admin?${queryParams}`);
+          break;
+        }
         router.push(`/HR?${queryParams}`);
         break;
       default:

@@ -526,7 +526,7 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Leave types",
           definition:
-            "Manager settings for leave categories. Default days become the starting balance for new employees. Paid types consume that balance when approved.",
+            "Manager settings for leave categories (hotel). Café Admin configures leave types in the Admin HR group. Default days become the starting balance for new employees. Paid types consume that balance when approved.",
         },
         {
           term: "Leave queue",
@@ -536,12 +536,17 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Clock in/out",
           definition:
-            "Attendance punch for today. Shifts are the planned roster and can run overnight.",
+            "HR records an employee’s start or end of work for today. Staff do not punch themselves in the app. Later, devices such as ZKTeco can feed those punches automatically. Shifts are the planned roster and can run overnight. Manager and HR both review attendance and shift reports.",
+        },
+        {
+          term: "Incident types",
+          definition:
+            "Manager-defined categories with optional Deduct (salary deduction) and Amount (ETB). The list starts empty. HR records incidents against those types. If Manager has not created a type named Other, HR also gets an Other option to set deduct/amount for one-off cases such as paying for a lost item.",
         },
         {
           term: "Open payroll period",
           definition:
-            "A calendar month that is still editable. Closing generates payslips from current salaries.",
+            "A calendar month that HR can still edit. Closing generates payslips from current salaries. Managers review the result as a read-only payroll report.",
         },
         {
           term: "Payslip",

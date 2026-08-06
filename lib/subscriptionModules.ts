@@ -249,6 +249,7 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-documents": "HR Module",
   "hr-payroll": "HR Module",
   "hr-incidents": "HR Module",
+  "hr-departments": "HR Module",
   "hr-workforce": "HR Module",
 };
 
@@ -287,6 +288,7 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-documents": "HR Module",
   "hr-payroll": "HR Module",
   "hr-incidents": "HR Module",
+  "hr-departments": "HR Module",
   "hr-workforce": "HR Module",
   "inventory-payment-vat": "Financial Management",
   "cc-profiles": "Financial Management",

@@ -31,6 +31,26 @@ export type HrLeaveType = {
   sortOrder: number;
 };
 
+export type HrDepartment = {
+  id: number;
+  HotelName: string;
+  code: string;
+  label: string;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type HrIncidentType = {
+  id: number;
+  HotelName: string;
+  code: string;
+  label: string;
+  deduct: boolean;
+  amountETB: number;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type HrLeaveRequest = {
   id: number;
   HotelName: string;
@@ -132,6 +152,8 @@ export type HrIncident = {
   detail: string;
   occurredYmd: string;
   recordedBy: string;
+  salaryDeduct?: boolean;
+  amountETB?: number;
   createdAt: string;
   employee?: HrEmployee | null;
 };
@@ -241,6 +263,66 @@ export async function replaceHrLeaveTypesApi(
     { types },
   );
   return data.replaceHrLeaveTypes || [];
+}
+
+export async function fetchHrDepartments(): Promise<HrDepartment[]> {
+  const data = await gql<{ hrDepartments: HrDepartment[] }>(`
+    query {
+      hrDepartments {
+        id HotelName code label active sortOrder
+      }
+    }
+  `);
+  return data.hrDepartments || [];
+}
+
+export async function replaceHrDepartmentsApi(
+  departments: Array<{
+    code?: string;
+    label: string;
+    active?: boolean;
+  }>,
+): Promise<HrDepartment[]> {
+  const data = await gql<{ replaceHrDepartments: HrDepartment[] }>(
+    `mutation ($departments: [HrDepartmentInput!]!) {
+      replaceHrDepartments(departments: $departments) {
+        id HotelName code label active sortOrder
+      }
+    }`,
+    { departments },
+  );
+  return data.replaceHrDepartments || [];
+}
+
+export async function fetchHrIncidentTypes(): Promise<HrIncidentType[]> {
+  const data = await gql<{ hrIncidentTypes: HrIncidentType[] }>(`
+    query {
+      hrIncidentTypes {
+        id HotelName code label deduct amountETB active sortOrder
+      }
+    }
+  `);
+  return data.hrIncidentTypes || [];
+}
+
+export async function replaceHrIncidentTypesApi(
+  types: Array<{
+    code?: string;
+    label: string;
+    deduct?: boolean;
+    amountETB?: number;
+    active?: boolean;
+  }>,
+): Promise<HrIncidentType[]> {
+  const data = await gql<{ replaceHrIncidentTypes: HrIncidentType[] }>(
+    `mutation ($types: [HrIncidentTypeInput!]!) {
+      replaceHrIncidentTypes(types: $types) {
+        id HotelName code label deduct amountETB active sortOrder
+      }
+    }`,
+    { types },
+  );
+  return data.replaceHrIncidentTypes || [];
 }
 
 export async function updateHrEmployeeApi(
@@ -603,7 +685,8 @@ export async function fetchHrIncidents(employeeId?: number): Promise<HrIncident[
   const data = await gql<{ hrIncidents: HrIncident[] }>(
     `query ($employeeId: Int) {
       hrIncidents(employeeId: $employeeId) {
-        id employeeId kind title detail occurredYmd recordedBy createdAt
+        id employeeId kind title detail occurredYmd recordedBy
+        salaryDeduct amountETB createdAt
         employee { id fullName }
       }
     }`,
@@ -618,6 +701,8 @@ export async function createHrIncidentApi(input: {
   title: string;
   detail?: string;
   occurredYmd?: string;
+  salaryDeduct?: boolean;
+  amountETB?: number;
 }) {
   const data = await gql<{ createHrIncident: HrIncident }>(
     `mutation (
@@ -626,6 +711,8 @@ export async function createHrIncidentApi(input: {
       $title: String!
       $detail: String
       $occurredYmd: String
+      $salaryDeduct: Boolean
+      $amountETB: Float
     ) {
       createHrIncident(
         employeeId: $employeeId
@@ -633,7 +720,9 @@ export async function createHrIncidentApi(input: {
         title: $title
         detail: $detail
         occurredYmd: $occurredYmd
-      ) { id kind title }
+        salaryDeduct: $salaryDeduct
+        amountETB: $amountETB
+      ) { id kind title salaryDeduct amountETB }
     }`,
     { ...input },
   );

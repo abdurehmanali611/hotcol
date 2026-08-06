@@ -159,7 +159,11 @@ export const hrDocumentFormSchema = z.object({
 
 export const hrIncidentFormSchema = z.object({
   employeeId: z.coerce.number().min(1, "Select an employee"),
-  kind: z.enum(HR_INCIDENT_KINDS, { message: "Select an incident type" }),
+  kind: z
+    .string()
+    .trim()
+    .min(1, "Select an incident type")
+    .max(40, "Incident type code is too long"),
   title: z
     .string()
     .trim()
@@ -167,6 +171,12 @@ export const hrIncidentFormSchema = z.object({
     .max(160, "Title is too long"),
   detail: z.string().trim().max(2000, "Detail is too long").optional().or(z.literal("")),
   occurredYmd: ymdSchema,
+  salaryDeduct: z.boolean().optional(),
+  amountETB: z.coerce
+    .number({ message: "Enter a valid amount" })
+    .min(0, "Amount cannot be negative")
+    .max(10_000_000, "Amount is too high")
+    .optional(),
 });
 
 export const hrPayslipAdjustSchema = z.object({

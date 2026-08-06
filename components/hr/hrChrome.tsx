@@ -155,12 +155,12 @@ export const HR_SECTION_COPY: Record<
   leave: {
     title: "HR · Leave",
     description:
-      "Manager sets leave types. HR files requests for employees. Manager approves or rejects them.",
+      "Configure leave types and approve requests (Manager/Admin). HR files leave for employees. On café properties, Admin handles the full leave workflow.",
   },
   attendance: {
     title: "HR · Attendance",
     description:
-      "Clock people in and out, schedule shifts, and review attendance for a chosen date range.",
+      "HR records clock in/out and schedules shifts. Manager and HR both review attendance and shift reports. On café properties, Admin owns the full attendance desk. Device punches (e.g. ZKTeco) can replace manual clocking later.",
   },
   documents: {
     title: "HR · Documents",
@@ -170,11 +170,16 @@ export const HR_SECTION_COPY: Record<
   payroll: {
     title: "HR · Payroll",
     description:
-      "Open a monthly period, close it to generate payslips, then adjust tips, overtime, and deductions.",
+      "HR opens and closes periods and adjusts payslips. Managers review a read-only payroll report. On café properties, Admin runs payroll.",
   },
   incidents: {
     title: "HR · Incidents",
     description:
-      "Record warnings, complaints, and commendations against an employee file.",
+      "Configure incident types (Manager/Admin). HR records warnings and pay impacts. On café properties, Admin handles both.",
+  },
+  departments: {
+    title: "HR · Departments",
+    description:
+      "Manager/Admin registers departments. HR selects them when scheduling shifts.",
   },
 };

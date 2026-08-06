@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Toaster } from "sonner";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Toaster, toast } from "sonner";
 import {
   AlertTriangle,
+  Building2,
   CalendarDays,
   ClipboardList,
   LayoutDashboard,
@@ -37,6 +38,8 @@ import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import { addDaysYmd, hrDepartmentCodesForBusiness } from "@/lib/hrConstraints";
+import { hrCapabilities } from "@/lib/hrCapabilities";
+import { isLodgingBusinessType, type BusinessType } from "@/constants";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
 import { HrOverviewPanel } from "@/components/hr/HrOverviewPanel";
 import { HrEmployeesPanel } from "@/components/hr/HrEmployeesPanel";
@@ -45,6 +48,7 @@ import { HrAttendancePanel } from "@/components/hr/HrAttendancePanel";
 import { HrDocumentsPanel } from "@/components/hr/HrDocumentsPanel";
 import { HrPayrollPanel } from "@/components/hr/HrPayrollPanel";
 import { HrIncidentsPanel } from "@/components/hr/HrIncidentsPanel";
+import { HrDepartmentsPanel } from "@/components/hr/HrDepartmentsPanel";
 import {
   fetchHrAttendance,
   fetchHrDashboardStats,
@@ -73,7 +77,8 @@ export type HrSection =
   | "attendance"
   | "documents"
   | "payroll"
-  | "incidents";
+  | "incidents"
+  | "departments";
 
 const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
@@ -82,7 +87,29 @@ const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "attendance", label: "Attendance", icon: ClipboardList },
   { id: "payroll", label: "Payroll", icon: Wallet },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
+  { id: "departments", label: "Departments", icon: Building2 },
 ];
+
+function navForRole(role: string) {
+  const caps = hrCapabilities(role);
+  return NAV.filter((item) => {
+    if (item.id === "employees") return caps.canManageEmployees;
+    if (item.id === "payroll") return caps.canViewPayrollReport;
+    if (item.id === "departments") return caps.canConfigureDepartments;
+    return true;
+  }).map((item) => {
+    if (item.id === "leave" && role === "Manager") {
+      return { ...item, label: "Leave types" };
+    }
+    if (item.id === "payroll" && role === "Manager") {
+      return { ...item, label: "Payroll report" };
+    }
+    if (item.id === "incidents" && role === "Manager") {
+      return { ...item, label: "Incident types" };
+    }
+    return item;
+  });
+}
 
 function todayYmd() {
   const d = new Date();
@@ -101,6 +128,7 @@ export function HrDashboard({
     roles: embedded ? undefined : ["HR", "Admin", "Manager"],
   });
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const logoUrl = searchParams.get("logo") || "";
   const headerLabel = displayName || "HR";
@@ -129,6 +157,8 @@ export function HrDashboard({
   const [timeFrom, setTimeFrom] = useState(() => addDaysYmd(todayYmd(), -14));
   const [timeTo, setTimeTo] = useState(() => addDaysYmd(todayYmd(), 14));
   const [actorRole, setActorRole] = useState("");
+  const caps = useMemo(() => hrCapabilities(actorRole), [actorRole]);
+  const navItems = useMemo(() => navForRole(actorRole), [actorRole]);
 
   useEffect(() => {
     try {
@@ -139,6 +169,23 @@ export function HrDashboard({
       setActorRole("");
     }
   }, []);
+
+  /** Café properties use Admin for HR — no standalone /HR terminal. */
+  useEffect(() => {
+    if (embedded || !businessType) return;
+    if (isLodgingBusinessType(businessType as BusinessType)) return;
+    const q = searchParams.toString();
+    toast.message("Café HR lives under Admin.");
+    router.replace(q ? `/Admin?${q}` : "/Admin");
+  }, [embedded, businessType, router, searchParams]);
+
+  useEffect(() => {
+    if (!actorRole) return;
+    const allowed = new Set(navForRole(actorRole).map((n) => n.id));
+    if (!allowed.has(section)) {
+      setSection("dashboard");
+    }
+  }, [actorRole, section]);
 
   const departmentCodes = useMemo(
     () => hrDepartmentCodesForBusiness(businessType),
@@ -209,7 +256,7 @@ export function HrDashboard({
           shifts={shifts}
         />
       ) : null}
-      {section === "employees" ? (
+      {section === "employees" && caps.canManageEmployees ? (
         <HrEmployeesPanel
           employees={employees}
           departmentCodes={departmentCodes}
@@ -234,6 +281,7 @@ export function HrDashboard({
           onTimeFromChange={setTimeFrom}
           onTimeToChange={setTimeTo}
           onRefresh={() => loadAll(true)}
+          canManageTime={caps.canManageTime}
         />
       ) : null}
       {section === "documents" ? (
@@ -243,7 +291,7 @@ export function HrDashboard({
           onRefresh={() => loadAll(true)}
         />
       ) : null}
-      {section === "payroll" ? (
+      {section === "payroll" && caps.canViewPayrollReport ? (
         <HrPayrollPanel
           periods={periods}
           payslips={payslips}
@@ -251,14 +299,19 @@ export function HrDashboard({
           onSelectedPeriodChange={setSelectedPeriodId}
           onPayslipsChange={setPayslips}
           onRefresh={() => loadAll(true)}
+          canRunPayroll={caps.canRunPayroll}
         />
       ) : null}
       {section === "incidents" ? (
         <HrIncidentsPanel
           employees={employees}
           incidents={incidents}
+          actorRole={actorRole}
           onRefresh={() => loadAll(true)}
         />
+      ) : null}
+      {section === "departments" && caps.canConfigureDepartments ? (
+        <HrDepartmentsPanel />
       ) : null}
     </>
   );
@@ -268,7 +321,7 @@ export function HrDashboard({
       <div className="space-y-6">
         {showEmbeddedTabs ? (
           <div className="flex flex-wrap gap-2">
-            {NAV.map((item) => (
+            {navItems.map((item) => (
               <Button
                 key={item.id}
                 size="sm"
@@ -294,7 +347,7 @@ export function HrDashboard({
     <>
       <Toaster position="top-right" richColors />
       <SidebarProvider>
-        <div className="flex min-h-svh w-full bg-muted/40">
+        <div className="flex min-h-svh w-full bg-muted/40 text-foreground">
           <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
             <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
               <div className="flex h-full min-w-0 items-center gap-3">
@@ -305,16 +358,18 @@ export function HrDashboard({
                   <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
                     Terminal
                   </p>
-                  <span className="block truncate font-semibold leading-tight">HR</span>
+                  <span className="block truncate font-semibold leading-tight">
+                    HR
+                  </span>
                 </div>
               </div>
             </SidebarHeader>
             <div className="shrink-0 px-3 pb-2 pt-3">
               <SidebarSeparator className="bg-sidebar-border/80" />
             </div>
-            <SidebarContent className="flex-1 gap-0 px-0 pb-4 pt-2">
-              <SidebarMenu className="gap-1 px-2">
-                {NAV.map((item) => {
+            <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
+              <SidebarMenu className="gap-1">
+                {navItems.map((item) => {
                   const Icon = item.icon;
                   return (
                     <SidebarMenuItem key={item.id}>
@@ -323,9 +378,9 @@ export function HrDashboard({
                         onClick={() => setSection(item.id)}
                         tooltip={item.label}
                         size="lg"
-                        className="h-10 cursor-pointer text-[13px]"
+                        className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
                       >
-                        <Icon />
+                        <Icon className="opacity-80" />
                         <span>{item.label}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -334,21 +389,19 @@ export function HrDashboard({
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-4 pt-2">
-              <SidebarSeparator className="mb-3" />
-              <ChangeOwnPasswordButton />
               <Button
                 variant="outline"
-                className="mt-2 w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="w-full cursor-pointer justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 onClick={() => logoutAction()}
               >
                 <LogOut className="h-4 w-4" />
-                Sign out
+                <span>Sign out</span>
               </Button>
             </SidebarFooter>
           </Sidebar>
 
           <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-            <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
+            <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
               <SidebarTrigger />
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
@@ -368,25 +421,22 @@ export function HrDashboard({
               >
                 <Avatar className="h-8 w-8 border shadow-sm">
                   <AvatarImage src={logoUrl || undefined} alt={headerLabel} />
-                  <AvatarFallback>{headerLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback>
+                    {headerLabel.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
               </Link>
             </header>
-            <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
+            <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6 [scrollbar-gutter:stable]">
               <div className="mx-auto max-w-6xl space-y-8 pb-10">
-                <div className="space-y-4 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-rose-500/8 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-700 ring-1 ring-rose-500/20 dark:text-rose-400">
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
-                        {copy.title}
-                      </h2>
-                      <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                        {copy.description}
-                      </p>
-                    </div>
+                <div className="space-y-4 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
+                  <div className="space-y-1.5">
+                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
+                      {copy.title}
+                    </h2>
+                    <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                      {copy.description}
+                    </p>
                   </div>
                   <HotelWorkflowGlossary variant="manager" topic="hr" />
                 </div>

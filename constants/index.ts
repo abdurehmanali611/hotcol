@@ -72,10 +72,11 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
   { id: "hr-employees", label: "Employees", icon: "Users" },
-  { id: "hr-leave", label: "Leave types", icon: "CalendarDays" },
+  { id: "hr-leave", label: "Leave", icon: "CalendarDays" },
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-payroll", label: "Payroll", icon: "Wallet" },
   { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
+  { id: "hr-departments", label: "Departments", icon: "Building2" },
 ] as const;
 
 /** Café cashier terminal — sidebar section keys. */
@@ -157,11 +158,11 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
-  { id: "hr-employees", label: "Employees", icon: "Users" },
   { id: "hr-leave", label: "Leave types", icon: "CalendarDays" },
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
-  { id: "hr-payroll", label: "Payroll", icon: "Wallet" },
-  { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
+  { id: "hr-payroll", label: "Payroll report", icon: "Wallet" },
+  { id: "hr-incidents", label: "Incident types", icon: "AlertTriangle" },
+  { id: "hr-departments", label: "Departments", icon: "Building2" },
   {
     id: "inventory-payment-vat",
     label: "Inventory payment & tax",
@@ -183,16 +184,29 @@ export const MANAGER_LODGING_NESTED_TAB_IDS = [
 export type ManagerSidebarItemId =
   (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
 
+/** Manager HR: reports, leave/incident types, departments, attendance + payroll reports. */
 export const MANAGER_HR_TAB_IDS = [
+  "hr-overview",
+  "hr-leave",
+  "hr-attendance",
+  "hr-payroll",
+  "hr-incidents",
+  "hr-departments",
+] as const;
+
+/** Full HR workspace (standalone HR terminal + Admin oversight). */
+export const HR_WORKSPACE_TAB_IDS = [
   "hr-overview",
   "hr-employees",
   "hr-leave",
   "hr-attendance",
   "hr-payroll",
   "hr-incidents",
+  "hr-departments",
 ] as const;
 
 export type ManagerHrTabId = (typeof MANAGER_HR_TAB_IDS)[number];
+export type HrWorkspaceTabId = (typeof HR_WORKSPACE_TAB_IDS)[number];
 
 /** Hotel cashier terminal — sidebar keys match Lucide icon names used in the page. */
 export const HOTEL_CASHIER_NAV_ITEMS = [

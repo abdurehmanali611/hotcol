@@ -56,16 +56,18 @@ import {
   AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
-import { ADMIN_SIDEBAR_ITEMS, MANAGER_HR_TAB_IDS } from "@/constants";
+import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS } from "@/constants";
 import { filterAdminTabId, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarProvider,
   SidebarInset,
+  SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -106,8 +108,8 @@ const ADMIN_ACCESS_TAB_IDS = new Set([
   "grant-credential",
   "delete-credential",
 ]);
-const ADMIN_HR_TAB_IDS = new Set<string>([...MANAGER_HR_TAB_IDS]);
-const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> =
+const ADMIN_HR_TAB_IDS = new Set<string>([...HR_WORKSPACE_TAB_IDS]);
+const HR_TAB_TO_SECTION: Record<(typeof HR_WORKSPACE_TAB_IDS)[number], HrSection> =
   {
     "hr-overview": "dashboard",
     "hr-employees": "employees",
@@ -115,6 +117,7 @@ const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> 
     "hr-attendance": "attendance",
     "hr-payroll": "payroll",
     "hr-incidents": "incidents",
+    "hr-departments": "departments",
   };
 
 const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
@@ -567,12 +570,13 @@ function AdminDashboardContent() {
       case "hr-attendance":
       case "hr-payroll":
       case "hr-incidents":
+      case "hr-departments":
         return (
           <HrDashboard
             embedded
             section={
               HR_TAB_TO_SECTION[
-                activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+                activeTab as (typeof HR_WORKSPACE_TAB_IDS)[number]
               ]
             }
           />
@@ -584,17 +588,27 @@ function AdminDashboardContent() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-muted/40">
-        <Sidebar collapsible="icon" className="border-r">
-          <SidebarHeader className="h-16 flex items-center px-4 border-b">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary rounded-lg p-1.5 text-primary-foreground">
-                <LayoutDashboard className="h-5 w-5" />
+      <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
+        <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
+          <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
+            <div className="flex h-full min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+                <LayoutDashboard className="h-4.5 w-4.5" />
               </div>
-              <span className="font-bold text-lg truncate">Admin Pro</span>
+              <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+                  Terminal
+                </p>
+                <span className="block truncate font-semibold leading-tight">
+                  Admin
+                </span>
+              </div>
             </div>
           </SidebarHeader>
-          <SidebarContent className="py-4">
+          <div className="shrink-0 px-3 pb-2 pt-3">
+            <SidebarSeparator className="bg-sidebar-border/80" />
+          </div>
+          <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
             <SidebarMenu className="gap-1">
               {cafeSidebarItems.length > 0 ? (
                 <ManagerCollapsibleSidebarGroup
@@ -645,21 +659,21 @@ function AdminDashboardContent() {
                 />
               ) : null}
             </SidebarMenu>
-            <div className="mt-auto px-4 pb-4">
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                onClick={handleLogout}
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Sign Out</span>
-              </Button>
-            </div>
           </SidebarContent>
+          <SidebarFooter className="p-4 pt-2">
+            <Button
+              variant="outline"
+              className="w-full cursor-pointer justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sign out</span>
+            </Button>
+          </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="flex min-h-svh flex-col overflow-x-hidden">
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur-sm supports-backdrop-filter:bg-background/80 sm:gap-2 sm:px-3 md:h-16 md:px-6">
+        <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b bg-background px-2 sm:gap-2 sm:px-3 md:h-16 md:px-6">
             <SidebarTrigger className="shrink-0" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs md:text-sm">
@@ -688,7 +702,7 @@ function AdminDashboardContent() {
               >
                 <Avatar className="h-8 w-8 shrink-0 border shadow-sm md:h-9 md:w-9">
                   <AvatarImage src={logoUrl} alt={headerLabel} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                  <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
                     {headerLabel.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -696,17 +710,17 @@ function AdminDashboardContent() {
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-x-hidden p-2 pb-4 sm:p-4 md:p-6 lg:p-8">
+          <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-2 pb-4 sm:p-4 md:p-6 lg:p-8 [scrollbar-gutter:stable]">
             <div className="mx-auto w-full min-w-0 max-w-6xl space-y-3 sm:space-y-4">
               <SubscriptionAlertBanner />
               {ADMIN_HR_TAB_IDS.has(activeTab) ? (
                 <>
-                  <div className="space-y-1.5 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-rose-500/8 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
+                  <div className="space-y-1.5 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
                     <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
                       {
                         HR_SECTION_COPY[
                           HR_TAB_TO_SECTION[
-                            activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+                            activeTab as (typeof HR_WORKSPACE_TAB_IDS)[number]
                           ]
                         ]?.title
                       }
@@ -715,7 +729,7 @@ function AdminDashboardContent() {
                       {
                         HR_SECTION_COPY[
                           HR_TAB_TO_SECTION[
-                            activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+                            activeTab as (typeof HR_WORKSPACE_TAB_IDS)[number]
                           ]
                         ]?.description
                       }

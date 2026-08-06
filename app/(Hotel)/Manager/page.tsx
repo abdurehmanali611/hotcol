@@ -242,11 +242,11 @@ const MANAGER_HR_NAV_TAB_IDS = new Set<TabId>([...MANAGER_HR_TAB_IDS]);
 
 const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> = {
   "hr-overview": "dashboard",
-  "hr-employees": "employees",
   "hr-leave": "leave",
   "hr-attendance": "attendance",
   "hr-payroll": "payroll",
   "hr-incidents": "incidents",
+  "hr-departments": "departments",
 };
 
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
@@ -495,7 +495,7 @@ function ManagerContent() {
   }, [tenantScope, loadData]);
 
   useEffect(() => {
-    if (activeTab === "hr-workforce") {
+    if (activeTab === "hr-workforce" || activeTab === "hr-employees") {
       setActiveTab("hr-overview");
       return;
     }
@@ -647,11 +647,11 @@ function ManagerContent() {
       "lodging-laundry-add": "Laundry · Add item",
       "lodging-laundry-items": "Laundry · Menu items",
       "hr-overview": "HR · Overview",
-      "hr-employees": "HR · Employees",
-      "hr-leave": "HR · Leave",
+      "hr-leave": "HR · Leave types",
       "hr-attendance": "HR · Attendance",
-      "hr-payroll": "HR · Payroll",
-      "hr-incidents": "HR · Incidents",
+      "hr-payroll": "HR · Payroll report",
+      "hr-incidents": "HR · Incident types",
+      "hr-departments": "HR · Departments",
     };
     if (nestedLabels[activeTab]) return nestedLabels[activeTab];
     return (
@@ -665,17 +665,17 @@ function ManagerContent() {
       dashboard:
         "Module scorecard and charts for rooms, inventory, café, and other subscribed areas.",
       "hr-overview":
-        "Workforce snapshot: headcount, leave, shifts, and open payroll periods.",
-      "hr-employees":
-        "Add, update, and terminate employee records for this property.",
+        "Workforce snapshot: headcount, leave queue, and shift coverage.",
       "hr-leave":
-        "Manager sets leave types. HR files requests; manager approves or rejects.",
+        "Configure leave types and approve or reject requests filed by HR.",
       "hr-attendance":
-        "Clock employees in and out and review attendance for a chosen date range.",
+        "Attendance and shift reports. HR records clock in/out and schedules.",
       "hr-payroll":
-        "Payroll periods, payslips, tips, and deductions.",
+        "Read-only payroll report: periods and payslip totals prepared by HR.",
       "hr-incidents":
-        "Warnings, complaints, and commendations on file.",
+        "Configure incident types and review the incident file HR records.",
+      "hr-departments":
+        "Register departments used when HR schedules shifts.",
       "lodging-reports":
         "Occupancy snapshot, stay history by date, past guests, and lodging action trail.",
       "lodging-rooms":
@@ -1593,11 +1593,11 @@ function ManagerContent() {
         );
 
       case "hr-overview":
-      case "hr-employees":
       case "hr-leave":
       case "hr-attendance":
       case "hr-payroll":
       case "hr-incidents":
+      case "hr-departments":
         return (
           <HrDashboard
             embedded

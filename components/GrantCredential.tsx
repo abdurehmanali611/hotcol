@@ -53,7 +53,6 @@ const CAFE_ROLES: {
   { value: "Barista", label: "Bar (Barista)", module: "Cafe and Restaurant" },
   { value: "Cashier", label: "Cash (Cashier)", module: "Cafe and Restaurant" },
   { value: "Store", label: "Store Keeper", module: "Inventory" },
-  { value: "HR", label: "HR", module: "HR Module" },
 ];
 
 const HOTEL_ROLES: {

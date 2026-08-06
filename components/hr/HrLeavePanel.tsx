@@ -79,8 +79,7 @@ export function HrLeavePanel({
   onRefresh: () => Promise<void>;
 }) {
   const canConfigureTypes = actorRole === "Manager" || actorRole === "Admin";
-  const canFileLeave =
-    actorRole === "HR" || actorRole === "Admin" || actorRole === "Manager";
+  const canFileLeave = actorRole === "HR" || actorRole === "Admin";
   const canApprove = actorRole === "Manager" || actorRole === "Admin";
 
   const [filter, setFilter] = useState<LeaveFilter>("all");
@@ -264,9 +263,11 @@ export function HrLeavePanel({
       <HrSectionCard
         title="Leave queue"
         description={
-          canApprove
-            ? "Review requests filed by HR. Approving paid leave reduces the matching balance."
-            : "File leave for employees here. The manager reviews and approves or rejects each request."
+          canApprove && !canFileLeave
+            ? "Approve or reject requests filed by HR. Approving paid leave reduces the matching balance."
+            : canApprove
+              ? "Review requests filed by HR. Approving paid leave reduces the matching balance."
+              : "File leave for employees here. The manager reviews and approves or rejects each request."
         }
         actions={
           canFileLeave ? (

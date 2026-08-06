@@ -1,0 +1,214 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Building2, Loader2, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { notifyApiFailure } from "@/lib/actions";
+import {
+  fetchHrDepartments,
+  replaceHrDepartmentsApi,
+} from "@/lib/api/hr";
+import {
+  slugHrDepartmentCode,
+  type HrDepartmentSetting,
+} from "@/lib/hrDepartments";
+
+type Line = {
+  key: string;
+  code: string;
+  label: string;
+};
+
+function emptyLine(key: string): Line {
+  return { key, code: "", label: "" };
+}
+
+function linesFromSettings(rows: HrDepartmentSetting[]): Line[] {
+  return rows.map((row, index) => ({
+    key: `saved-${row.code}-${index}`,
+    code: row.code,
+    label: row.label,
+  }));
+}
+
+function settingsFromLines(lines: Line[]): HrDepartmentSetting[] {
+  const seen = new Set<string>();
+  const next: HrDepartmentSetting[] = [];
+  for (const line of lines) {
+    const label = line.label.trim();
+    if (!label) continue;
+    const code = line.code || slugHrDepartmentCode(label);
+    if (!code) continue;
+    let unique = code;
+    let n = 2;
+    while (seen.has(unique)) unique = `${code}_${n++}`;
+    seen.add(unique);
+    next.push({ code: unique, label, active: true });
+  }
+  return next;
+}
+
+export function HrDepartmentEditor() {
+  const rowIdRef = useRef(0);
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lines, setLines] = useState<Line[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await fetchHrDepartments();
+        if (cancelled) return;
+        const next = linesFromSettings(rows);
+        rowIdRef.current = next.length;
+        setLines(next);
+      } catch (e) {
+        notifyApiFailure(e, "Could not load departments");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+    };
+  }, []);
+
+  const persist = (nextLines: Line[], immediate = false) => {
+    setLines(nextLines);
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    const run = async () => {
+      try {
+        const saved = await replaceHrDepartmentsApi(
+          settingsFromLines(nextLines),
+        );
+        let savedIndex = 0;
+        setLines(
+          nextLines.map((line) => {
+            if (!line.label.trim()) return line;
+            const setting = saved[savedIndex++];
+            return setting ? { ...line, code: setting.code } : line;
+          }),
+        );
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("hotcol-hr-departments"));
+        }
+      } catch (e) {
+        notifyApiFailure(e, "Could not save departments");
+      }
+    };
+    if (immediate) void run();
+    else persistTimer.current = setTimeout(() => void run(), 450);
+  };
+
+  const addLine = () => {
+    rowIdRef.current += 1;
+    persist([...lines, emptyLine(`line-${rowIdRef.current}`)], true);
+  };
+
+  const updateLine = (index: number, line: Line) => {
+    const next = [...lines];
+    next[index] = line;
+    persist(next);
+  };
+
+  const removeLine = (index: number) => {
+    persist(
+      lines.filter((_, i) => i !== index),
+      true,
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-muted/15 py-16 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading departments…
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {!lines.length ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-10 text-center">
+          <Building2 className="h-8 w-8 text-sky-600/80 dark:text-sky-400/80" />
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Register departments used when scheduling shifts. The list starts
+            empty — add only what this property needs.
+          </p>
+          <Button type="button" onClick={addLine}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add first department
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/15 bg-muted/30 px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+              <p className="text-sm font-semibold">Departments</p>
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                {lines.length}
+              </Badge>
+            </div>
+          </div>
+
+          <ScrollArea className="h-[min(36vh,360px)]">
+            <div className="space-y-3 pr-3 sm:pr-4">
+              {lines.map((line, index) => (
+                <article
+                  key={line.key}
+                  className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                >
+                  <div className="flex items-center gap-3 p-4">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-xs font-bold text-sky-800 dark:text-sky-300">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Department name
+                      </Label>
+                      <Input
+                        value={line.label}
+                        onChange={(e) =>
+                          updateLine(index, { ...line, label: e.target.value })
+                        }
+                        placeholder="Kitchen, Front desk…"
+                        className="h-10"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeLine(index)}
+                      className="mt-5 h-10 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Remove department ${index + 1}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </ScrollArea>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addLine}
+            className="mt-3 w-full border-dashed border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10 sm:w-auto"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add department
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
