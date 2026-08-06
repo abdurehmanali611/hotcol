@@ -73,8 +73,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
   { id: "hr-employees", label: "Employees", icon: "Users" },
   { id: "hr-leave", label: "Leave types", icon: "CalendarDays" },
-  { id: "hr-attendance", label: "Time & shifts", icon: "ClipboardList" },
-  { id: "hr-documents", label: "Documents", icon: "FileText" },
+  { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-payroll", label: "Payroll", icon: "Wallet" },
   { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
 ] as const;
@@ -160,8 +159,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
   { id: "hr-employees", label: "Employees", icon: "Users" },
   { id: "hr-leave", label: "Leave types", icon: "CalendarDays" },
-  { id: "hr-attendance", label: "Time & shifts", icon: "ClipboardList" },
-  { id: "hr-documents", label: "Documents", icon: "FileText" },
+  { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-payroll", label: "Payroll", icon: "Wallet" },
   { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
   {
@@ -190,7 +188,6 @@ export const MANAGER_HR_TAB_IDS = [
   "hr-employees",
   "hr-leave",
   "hr-attendance",
-  "hr-documents",
   "hr-payroll",
   "hr-incidents",
 ] as const;

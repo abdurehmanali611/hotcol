@@ -52,6 +52,7 @@ import {
   displayKitchenBarStation,
   matchesDailyCountStationFilter,
   normalizeKitchenBarStationKey,
+  resolveDailyCountSalesQty,
   summarizeApprovedStockOutForDay,
   type HotelDailyCountStationFilter,
 } from "@/lib/hotelDailyStation";
@@ -244,7 +245,6 @@ const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> 
   "hr-employees": "employees",
   "hr-leave": "leave",
   "hr-attendance": "attendance",
-  "hr-documents": "documents",
   "hr-payroll": "payroll",
   "hr-incidents": "incidents",
 };
@@ -649,8 +649,7 @@ function ManagerContent() {
       "hr-overview": "HR · Overview",
       "hr-employees": "HR · Employees",
       "hr-leave": "HR · Leave",
-      "hr-attendance": "HR · Time & shifts",
-      "hr-documents": "HR · Documents",
+      "hr-attendance": "HR · Attendance",
       "hr-payroll": "HR · Payroll",
       "hr-incidents": "HR · Incidents",
     };
@@ -670,11 +669,9 @@ function ManagerContent() {
       "hr-employees":
         "Add, update, and terminate employee records for this property.",
       "hr-leave":
-        "Leave balances and approve or reject leave requests.",
+        "Manager sets leave types. HR files requests; manager approves or rejects.",
       "hr-attendance":
-        "Clock in/out attendance and scheduled shifts.",
-      "hr-documents":
-        "Employee document metadata (contracts, IDs, certificates).",
+        "Clock employees in and out and review attendance for a chosen date range.",
       "hr-payroll":
         "Payroll periods, payslips, tips, and deductions.",
       "hr-incidents":
@@ -806,16 +803,8 @@ function ManagerContent() {
         String(a.calendarDate || "").localeCompare(String(b.calendarDate || "")),
       );
       for (let i = 0; i < list.length; i++) {
-        if (i === 0) {
-          daySales.set(list[i].id, null);
-        } else {
-          const prev = list[i - 1];
-          const prevOnHand =
-            Number(prev.closingOnHand) > 0
-              ? Number(prev.closingOnHand)
-              : Number(prev.amount);
-          daySales.set(list[i].id, round2(Number(list[i].amount) - prevOnHand));
-        }
+        const prev = i > 0 ? list[i - 1] : null;
+        daySales.set(list[i].id, resolveDailyCountSalesQty(list[i], prev));
       }
     }
     return { daySales };
@@ -1607,7 +1596,6 @@ function ManagerContent() {
       case "hr-employees":
       case "hr-leave":
       case "hr-attendance":
-      case "hr-documents":
       case "hr-payroll":
       case "hr-incidents":
         return (

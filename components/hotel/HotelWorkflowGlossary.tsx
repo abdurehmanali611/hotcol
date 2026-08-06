@@ -315,7 +315,7 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Beginning (BB)",
           definition:
-            "Physical opening quantity counted at station start for a selected day.",
+            "Opening count for the day. If the same station item was counted yesterday (name match ignores case), this starts as that day’s On Hand.",
         },
         {
           term: "Store",
@@ -330,12 +330,12 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Sales",
           definition:
-            "Beginning today minus prior On Hand (excludes Management).",
+            "Units sold that day. Entered by Cost Control on create and update.",
         },
         {
           term: "On Hand",
           definition:
-            "Total − (Sales + Management) remaining at the station.",
+            "Total − Sales − Management − Invitation remaining at the station.",
         },
       ],
     },
@@ -506,7 +506,7 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Employee master",
           definition:
-            "HR employment record for this property. Registration creates a username and password so the person can request leave and view payslips.",
+            "HR employment record for this property — role, pay, and hire details used when filing leave and when payroll is closed.",
         },
         {
           term: "Headcount",
@@ -516,7 +516,7 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Terminate",
           definition:
-            "Ends employment from a chosen date. History, leave, and payslips remain. Deleting a credential is a separate Access action.",
+            "Ends employment from a chosen date. History, leave, and payslips remain.",
         },
       ],
     },
@@ -526,12 +526,12 @@ const MANAGER_BY_TOPIC: Record<ManagerGlossaryTopic, GlossarySection[]> = {
         {
           term: "Leave types",
           definition:
-            "HR settings for the leave categories staff can request. Default days become the starting balance for new employees. Paid types consume that balance.",
+            "Manager settings for leave categories. Default days become the starting balance for new employees. Paid types consume that balance when approved.",
         },
         {
           term: "Leave queue",
           definition:
-            "Requests submitted by employees from their own login. Approve or reject here. Approved paid leave reduces the matching balance.",
+            "Requests filed by HR on behalf of employees. The manager approves or rejects. Approved paid leave reduces the matching balance.",
         },
         {
           term: "Clock in/out",

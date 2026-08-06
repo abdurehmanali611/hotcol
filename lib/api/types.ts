@@ -29,8 +29,7 @@ export interface User {
     | "Finance"
     | "Reception"
     | "CMLeader"
-    | "HR"
-    | "Employee";
+    | "HR";
   /** Tenant id (matches `tinNumber` / Item.Order `HotelName` column). */
   HotelName: string;
   tinNumber?: string | null;
@@ -111,8 +110,7 @@ export interface Credential {
     | "Finance"
     | "Reception"
     | "CMLeader"
-    | "HR"
-    | "Employee";
+    | "HR";
   HotelName: string;
   LogoUrl?: string;
 }
@@ -533,6 +531,8 @@ export interface KitchenBarBeginningRow {
   managementTakenDay: number;
   /** Units taken from station stock for invitations (same ONHAND treatment as management). */
   invitationTakenDay?: number;
+  /** Explicit sales for the day. Null/undefined = legacy derive from beginning − prior on hand. */
+  salesDay?: number | null;
   closingOnHand: number;
   notes: string;
   createdAt: string;

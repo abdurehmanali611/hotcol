@@ -36,7 +36,7 @@ export const MODULE_DESCRIPTIONS: Record<ModuleOption, string> = {
   "Financial Management":
     "Cost control and finance roles; purchase, registration, and stock movement approvals.",
   "HR Module":
-    "Employees, leave types, attendance/shifts, documents, payroll, incidents, and employee self-service login.",
+    "Employees, leave types, attendance/shifts, documents, payroll, and incidents.",
   "Room Management":
     "Rooms, reception check-in/out, guest stays, billing, and laundry. In-room F&B uses the Cafe and Restaurant module.",
   "Cleaning and Maintenance":
@@ -310,7 +310,6 @@ export const ROLE_REQUIRED_MODULE: Partial<Record<string, ModuleOption>> = {
   Reception: "Room Management",
   CMLeader: "Cleaning and Maintenance",
   HR: "HR Module",
-  Employee: "HR Module",
 };
 
 export const HOTEL_STORE_FINANCE_VIEWS = new Set([

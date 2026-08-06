@@ -53,6 +53,27 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PendingButton } from "@/components/ui/pending-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  responsiveAlertDialogClassName,
+  responsiveFormDialogClassName,
+} from "@/lib/responsiveDialog";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { useRejectionReasonDialog } from "@/hooks/useRejectionReasonDialog";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
@@ -83,6 +104,7 @@ import {
   displayKitchenBarStation,
   matchesDailyCountStationFilter,
   normalizeKitchenBarStationKey,
+  resolveDailyCountSalesQty,
   type HotelDailyCountStationFilter,
 } from "@/lib/hotelDailyStation";
 import {
@@ -195,6 +217,8 @@ function CostControlInner() {
     useState<HotelDailyCountStationFilter>("ALL");
   const [editingBeginning, setEditingBeginning] =
     useState<KitchenBarBeginningRow | null>(null);
+  const [deletingBeginning, setDeletingBeginning] =
+    useState<KitchenBarBeginningRow | null>(null);
   const [inventoryRows, setInventoryRows] = useState<ItemRegistration[]>([]);
   const activeInventoryRows = useMemo(
     () => filterInventoryListRegistrations(inventoryRows),
@@ -250,17 +274,11 @@ function CostControlInner() {
         String(a.calendarDate || "").localeCompare(String(b.calendarDate || "")),
       );
       for (let i = 0; i < list.length; i++) {
-        if (i === 0) {
-          daySales.set(list[i].id, null);
-        } else {
-          const prev = list[i - 1];
-          const prevOnHand =
-            Number(prev.closingOnHand) > 0
-              ? Number(prev.closingOnHand)
-              : Number(prev.amount);
-          // Sales = beginning today − prior On Hand (does not subtract Management or Invitation).
-          daySales.set(list[i].id, round2(Number(list[i].amount) - prevOnHand));
-        }
+        const prev = i > 0 ? list[i - 1] : null;
+        daySales.set(
+          list[i].id,
+          resolveDailyCountSalesQty(list[i], prev),
+        );
       }
     }
     return { daySales };
@@ -588,20 +606,22 @@ function CostControlInner() {
     setEditingBeginning(b);
   }, []);
 
-  const handleDeleteBeginning = useCallback(
-    async (b: KitchenBarBeginningRow) => {
-      setBeginningDeleteId(b.id);
-      try {
-        await deleteKitchenBarBeginningApi(b.id);
-        await load(true, false);
-      } catch (e: unknown) {
-        notifyApiFailure(e, "Could not delete daily row");
-      } finally {
-        setBeginningDeleteId(null);
+  const handleConfirmDeleteBeginning = useCallback(async () => {
+    if (!deletingBeginning) return;
+    setBeginningDeleteId(deletingBeginning.id);
+    try {
+      await deleteKitchenBarBeginningApi(deletingBeginning.id);
+      if (editingBeginning?.id === deletingBeginning.id) {
+        setEditingBeginning(null);
       }
-    },
-    [load],
-  );
+      setDeletingBeginning(null);
+      await load(true, false);
+    } catch (e: unknown) {
+      notifyApiFailure(e, "Could not delete daily row");
+    } finally {
+      setBeginningDeleteId(null);
+    }
+  }, [deletingBeginning, editingBeginning, load]);
 
   const dailyKitchenColumns = useMemo(
     () =>
@@ -610,14 +630,13 @@ function CostControlInner() {
         selectedDayYmd: selectedDailyDate,
         derived: beginningDerivedById,
         onEdit: handleEditBeginning,
-        onDelete: (b) => void handleDeleteBeginning(b),
+        onDelete: setDeletingBeginning,
         deletePendingId: beginningDeleteId,
       }),
     [
       selectedDailyDate,
       beginningDerivedById,
       handleEditBeginning,
-      handleDeleteBeginning,
       beginningDeleteId,
     ],
   );
@@ -1700,10 +1719,99 @@ function CostControlInner() {
             <DailyCountBatchForm
               calendarDate={selectedDailyDate}
               stocks={stocks}
-              editingRow={editingBeginning}
-              onClearEdit={() => setEditingBeginning(null)}
+              storeItems={activeInventoryRows.map((row) => ({
+                name: row.name,
+                measuredBy: row.measuredBy || "Piece",
+              }))}
+              existingRows={beginnings}
+              editingRow={null}
+              onClearEdit={() => undefined}
               onSaved={() => load(true, false)}
             />
+
+            <Dialog
+              open={editingBeginning != null}
+              onOpenChange={(open) => {
+                if (!open) setEditingBeginning(null);
+              }}
+            >
+              <DialogContent
+                className={`${responsiveFormDialogClassName} md:max-w-3xl`}
+              >
+                <DialogHeader>
+                  <DialogTitle>Edit daily count</DialogTitle>
+                  <DialogDescription>
+                    Update this station item for{" "}
+                    {editingBeginning?.calendarDate?.slice(0, 10) ||
+                      selectedDailyDate}
+                    .
+                  </DialogDescription>
+                </DialogHeader>
+                {editingBeginning ? (
+                  <DailyCountBatchForm
+                    variant="plain"
+                    calendarDate={
+                      editingBeginning.calendarDate?.slice(0, 10) ||
+                      selectedDailyDate
+                    }
+                    stocks={stocks}
+                    storeItems={activeInventoryRows.map((row) => ({
+                      name: row.name,
+                      measuredBy: row.measuredBy || "Piece",
+                    }))}
+                    existingRows={beginnings}
+                    editingRow={editingBeginning}
+                    onClearEdit={() => setEditingBeginning(null)}
+                    onSaved={async () => {
+                      setEditingBeginning(null);
+                      await load(true, false);
+                    }}
+                  />
+                ) : null}
+              </DialogContent>
+            </Dialog>
+
+            <AlertDialog
+              open={deletingBeginning != null}
+              onOpenChange={(open) => {
+                if (!open && beginningDeleteId == null) {
+                  setDeletingBeginning(null);
+                }
+              }}
+            >
+              <AlertDialogContent className={responsiveAlertDialogClassName}>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete daily count?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes{" "}
+                    <strong className="text-foreground">
+                      {deletingBeginning?.itemName || "this item"}
+                    </strong>{" "}
+                    for{" "}
+                    {deletingBeginning?.calendarDate?.slice(0, 10) || "this day"}
+                    {deletingBeginning?.station
+                      ? ` · ${displayKitchenBarStation(deletingBeginning.station)}`
+                      : ""}
+                    . This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={beginningDeleteId != null}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={beginningDeleteId != null}
+                    className="bg-destructive text-white hover:bg-destructive/90"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void handleConfirmDeleteBeginning();
+                    }}
+                  >
+                    {beginningDeleteId != null ? "Deleting…" : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <div className="rounded-xl border border-border/80 bg-card/95 shadow-md overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
               <div className="border-b border-border/60 bg-linear-to-br from-muted/40 via-muted/20 to-transparent px-4 py-3.5">
@@ -1714,7 +1822,7 @@ function CostControlInner() {
                     : ""}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Σ (unit price × Sales) per row; first-in-series rows have no Sales yet
+                  Σ (unit price × Sales) per row for the selected day
                 </p>
                 <p className="text-xl font-semibold tabular-nums mt-1.5 tracking-tight">
                   {selectedDayTotalCountedEtb.toLocaleString()}{" "}

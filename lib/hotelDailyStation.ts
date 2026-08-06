@@ -120,3 +120,112 @@ export function summarizeApprovedStockOutForDay(
   }
   return sum;
 }
+
+function roundDaily2(n: number): number {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+/** Prefer stored closing on hand (including 0); fall back to beginning for legacy rows. */
+export function previousDayOnHandAmount(prev: {
+  closingOnHand?: number | null;
+  amount?: number | null;
+} | null | undefined): number | null {
+  if (!prev) return null;
+  const closing = Number(prev.closingOnHand);
+  if (Number.isFinite(closing)) return roundDaily2(closing);
+  const opening = Number(prev.amount);
+  return Number.isFinite(opening) ? roundDaily2(opening) : null;
+}
+
+/** Calendar day shifted by `deltaDays` (local YYYY-MM-DD arithmetic). */
+export function shiftCalendarYmd(ymd: string, deltaDays: number): string {
+  const day = String(ymd || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return "";
+  const d = new Date(`${day}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + deltaDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/**
+ * Find the latest daily-count row for the same station+item before calendarDate.
+ * Item names match case-insensitively.
+ */
+export function findPreviousDailyCountRow<
+  T extends {
+    station: string;
+    itemName: string;
+    calendarDate: string;
+    closingOnHand?: number | null;
+    amount?: number | null;
+  },
+>(
+  rows: T[],
+  station: string,
+  itemName: string,
+  calendarDate: string,
+): T | null {
+  const stationKey = normalizeKitchenBarStationKey(station);
+  const itemKey = itemName.trim().toLowerCase();
+  const day = String(calendarDate || "").slice(0, 10);
+  if (!itemKey || !day) return null;
+  let best: T | null = null;
+  for (const row of rows) {
+    if (normalizeKitchenBarStationKey(row.station) !== stationKey) continue;
+    if (String(row.itemName || "").trim().toLowerCase() !== itemKey) continue;
+    const rowDay = String(row.calendarDate || "").slice(0, 10);
+    if (!rowDay || rowDay >= day) continue;
+    if (!best || rowDay > String(best.calendarDate || "").slice(0, 10)) {
+      best = row;
+    }
+  }
+  return best;
+}
+
+/**
+ * If this station+item was counted yesterday (case-insensitive name), return that
+ * row so Beginning can carry forward yesterday's On Hand. Older gaps are ignored.
+ */
+export function findYesterdayDailyCountRow<
+  T extends {
+    station: string;
+    itemName: string;
+    calendarDate: string;
+    closingOnHand?: number | null;
+    amount?: number | null;
+  },
+>(
+  rows: T[],
+  station: string,
+  itemName: string,
+  calendarDate: string,
+): T | null {
+  const yesterday = shiftCalendarYmd(calendarDate, -1);
+  if (!yesterday) return null;
+  const prev = findPreviousDailyCountRow(rows, station, itemName, calendarDate);
+  if (!prev) return null;
+  const prevDay = String(prev.calendarDate || "").slice(0, 10);
+  return prevDay === yesterday ? prev : null;
+}
+
+/** Prefer explicit salesDay; otherwise legacy beginning − prior on hand. */
+export function resolveDailyCountSalesQty(
+  row: {
+    amount: number;
+    salesDay?: number | null;
+  },
+  prev: {
+    closingOnHand?: number | null;
+    amount?: number | null;
+  } | null,
+): number | null {
+  if (row.salesDay != null && Number.isFinite(Number(row.salesDay))) {
+    return roundDaily2(Number(row.salesDay) || 0);
+  }
+  const prevOnHand = previousDayOnHandAmount(prev);
+  if (prevOnHand == null) return null;
+  return roundDaily2(Number(row.amount) - prevOnHand);
+}

@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CalendarDays,
   ClipboardList,
-  FileText,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -79,9 +78,8 @@ export type HrSection =
 const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "employees", label: "Employees", icon: Users },
-  { id: "leave", label: "Leave types", icon: CalendarDays },
-  { id: "attendance", label: "Time & shifts", icon: ClipboardList },
-  { id: "documents", label: "Documents", icon: FileText },
+  { id: "leave", label: "Leave", icon: CalendarDays },
+  { id: "attendance", label: "Attendance", icon: ClipboardList },
   { id: "payroll", label: "Payroll", icon: Wallet },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
 ];
@@ -130,12 +128,15 @@ export function HrDashboard({
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [timeFrom, setTimeFrom] = useState(() => addDaysYmd(todayYmd(), -14));
   const [timeTo, setTimeTo] = useState(() => addDaysYmd(todayYmd(), 14));
+  const [actorRole, setActorRole] = useState("");
 
   useEffect(() => {
     try {
       setBusinessType(localStorage.getItem("business_type")?.trim() || "");
+      setActorRole(localStorage.getItem("user_role")?.trim() || "");
     } catch {
       setBusinessType("");
+      setActorRole("");
     }
   }, []);
 
@@ -216,7 +217,12 @@ export function HrDashboard({
         />
       ) : null}
       {section === "leave" ? (
-        <HrLeavePanel leave={leave} onRefresh={() => loadAll(true)} />
+        <HrLeavePanel
+          leave={leave}
+          employees={employees}
+          actorRole={actorRole}
+          onRefresh={() => loadAll(true)}
+        />
       ) : null}
       {section === "attendance" ? (
         <HrAttendancePanel

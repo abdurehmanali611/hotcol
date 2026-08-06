@@ -147,8 +147,8 @@ export function HrLeaveTypeEditor() {
           </div>
           <p className="text-lg font-semibold">No leave types yet</p>
           <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground sm:text-sm">
-            Add the leave types employees can request from their login. Default
-            days become the starting balance for new staff.
+            Add the leave types HR will use when filing leave for employees.
+            Default days become the starting balance for new staff.
           </p>
           <Button
             type="button"

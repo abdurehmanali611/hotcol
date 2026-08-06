@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
@@ -40,8 +40,7 @@ import { HrEmptyState, HrPanelShell, HrSectionCard, HrStatusBadge } from "@/comp
 import {
   HR_WAGE_LABELS,
   HR_WAGE_TYPES,
-  hrEmployeeCreateFormSchema,
-  hrEmployeeEditFormSchema,
+  hrEmployeeFormSchema,
   type HrEmployeeFormValues,
 } from "@/lib/hrConstraints";
 import { DEPARTMENT_LABELS, type HotelDepartmentCode } from "@/lib/departments";
@@ -50,7 +49,6 @@ import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 import { notifyApiFailure } from "@/lib/actions";
 import {
   createHrEmployeeApi,
-  createHrEmployeeLoginApi,
   terminateHrEmployeeApi,
   updateHrEmployeeApi,
   type HrEmployee,
@@ -86,20 +84,9 @@ export function HrEmployeesPanel({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HrEmployee | null>(null);
   const [pending, setPending] = useState(false);
-  const editingRef = useRef<HrEmployee | null>(null);
-  editingRef.current = editing;
 
   const form = useForm<HrEmployeeFormValues>({
-    resolver: ((values, context, options) => {
-      const schema = editingRef.current?.credentialUserName
-        ? hrEmployeeEditFormSchema
-        : hrEmployeeCreateFormSchema;
-      return (zodResolver(schema) as Resolver<HrEmployeeFormValues>)(
-        values,
-        context,
-        options,
-      );
-    }) as Resolver<HrEmployeeFormValues>,
+    resolver: zodResolver(hrEmployeeFormSchema) as Resolver<HrEmployeeFormValues>,
     defaultValues: {
       fullName: "",
       phone: "",
@@ -109,9 +96,6 @@ export function HrEmployeesPanel({
       wageType: "monthly",
       baseSalaryETB: 0,
       hireDate: todayYmd(),
-      credentialUserName: "",
-      credentialPassword: "",
-      credentialPasswordConfirm: "",
       notes: "",
     },
   });
@@ -135,9 +119,6 @@ export function HrEmployeesPanel({
       wageType: "monthly",
       baseSalaryETB: 0,
       hireDate: todayYmd(),
-      credentialUserName: "",
-      credentialPassword: "",
-      credentialPasswordConfirm: "",
       notes: "",
     });
     setOpen(true);
@@ -157,9 +138,6 @@ export function HrEmployeesPanel({
           : "monthly",
         baseSalaryETB: row.baseSalaryETB || 0,
         hireDate: row.hireDate || todayYmd(),
-        credentialUserName: row.credentialUserName || "",
-        credentialPassword: "",
-        credentialPasswordConfirm: "",
         notes: row.notes || "",
       });
       setOpen(true);
@@ -170,25 +148,6 @@ export function HrEmployeesPanel({
   const onSubmit = async (values: HrEmployeeFormValues) => {
     setPending(true);
     try {
-      const hotelName =
-        localStorage.getItem("tin_number")?.trim() ||
-        localStorage.getItem("hotel_name")?.trim() ||
-        "";
-      const logoUrl = localStorage.getItem("logo_url")?.trim() || "";
-      const username = values.credentialUserName.trim();
-      const shouldCreateLogin =
-        Boolean(username && values.credentialPassword) &&
-        (!editing || !editing.credentialUserName);
-
-      if (editing && shouldCreateLogin) {
-        await createHrEmployeeLoginApi({
-          UserName: username,
-          Password: values.credentialPassword,
-          HotelName: hotelName,
-          LogoUrl: logoUrl,
-        });
-      }
-
       const payload = {
         fullName: values.fullName,
         phone: values.phone,
@@ -199,19 +158,13 @@ export function HrEmployeesPanel({
         baseSalaryETB: values.baseSalaryETB,
         hireDate: values.hireDate,
         notes: values.notes,
-        credentialUserName: username || undefined,
       };
 
       if (editing) {
         await updateHrEmployeeApi(editing.id, payload);
         toast.success("Employee updated");
       } else {
-        await createHrEmployeeApi({
-          ...payload,
-          credentialPassword: shouldCreateLogin
-            ? values.credentialPassword
-            : undefined,
-        });
+        await createHrEmployeeApi(payload);
         toast.success("Employee added");
       }
       setOpen(false);
@@ -233,9 +186,6 @@ export function HrEmployeesPanel({
             <p className="font-medium">{row.original.fullName}</p>
             <p className="text-xs text-muted-foreground">
               {row.original.jobTitle || "No title"}
-              {row.original.credentialUserName
-                ? ` · login ${row.original.credentialUserName}`
-                : ""}
             </p>
           </div>
         ),
@@ -309,7 +259,7 @@ export function HrEmployeesPanel({
     <HrPanelShell>
       <HrSectionCard
         title="Employee directory"
-        description="Search, filter, and maintain employment records. Add or edit from the same polished form used across HotCol."
+        description="Search, filter, and maintain employment records. Salary and hire details feed system payroll when a period is closed."
         icon={<Users className="h-5 w-5 text-rose-600 dark:text-rose-400" />}
         accent="bg-linear-to-r from-rose-500 via-orange-400 to-primary/80"
         actions={
@@ -360,8 +310,8 @@ export function HrEmployeesPanel({
           <DialogHeader>
             <DialogTitle>{editing ? "Edit employee" : "Add employee"}</DialogTitle>
             <DialogDescription>
-              Employment master data for this property. New employees receive a login
-              for leave requests and payslips.
+              Employment master data for this property. Salary and hire date feed
+              system payroll when a period is closed.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -514,71 +464,6 @@ export function HrEmployeesPanel({
                       </FormItem>
                     )}
                   />
-                </div>
-              </HotelFormSection>
-              <HotelFormSection
-                title="Employee login"
-                description="This username and password is how the employee requests leave and views payslips."
-              >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="credentialUserName"
-                    render={({ field }) => (
-                      <FormItem className={editing?.credentialUserName ? "sm:col-span-2" : undefined}>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-10 bg-background"
-                            autoComplete="off"
-                            disabled={Boolean(editing?.credentialUserName)}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {!editing?.credentialUserName ? (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="credentialPassword"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Password</FormLabel>
-                            <FormControl>
-                              <Input
-                                className="h-10 bg-background"
-                                type="password"
-                                autoComplete="new-password"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="credentialPasswordConfirm"
-                        render={({ field }) => (
-                          <FormItem className="w-full sm:col-span-2 sm:mx-auto sm:max-w-[calc(50%-0.5rem)]">
-                            <FormLabel>Confirm password</FormLabel>
-                            <FormControl>
-                              <Input
-                                className="h-10 bg-background"
-                                type="password"
-                                autoComplete="new-password"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  ) : null}
                 </div>
               </HotelFormSection>
               <PendingButton type="submit" pending={pending} className="h-11 w-full shadow-md">

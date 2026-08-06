@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   createKitchenBarBeginningApi,
@@ -11,8 +11,12 @@ import {
   type StockOutRequestRow,
 } from "@/lib/actions";
 import {
+  findPreviousDailyCountRow,
+  findYesterdayDailyCountRow,
   HOTEL_DAILY_COUNT_STATIONS,
   normalizeKitchenBarStationKey,
+  previousDayOnHandAmount,
+  resolveDailyCountSalesQty,
   summarizeApprovedStockOutForDay,
 } from "@/lib/hotelDailyStation";
 import { inventoryUnitSelectValues } from "@/lib/inventoryUnits";
@@ -44,6 +48,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 function round2(n: number): number {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -56,10 +74,16 @@ function newLineKey() {
   return `kb-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+export type DailyCountStoreItemOption = {
+  name: string;
+  measuredBy: string;
+};
+
 export type DailyCountLine = {
   key: string;
   itemName: string;
   amount: number;
+  salesDay: number;
   managementTakenDay: number;
   invitationTakenDay: number;
   measuredBy: string;
@@ -70,6 +94,7 @@ function emptyLine(measuredBy = "Piece"): DailyCountLine {
     key: newLineKey(),
     itemName: "",
     amount: 0,
+    salesDay: 0,
     managementTakenDay: 0,
     invitationTakenDay: 0,
     measuredBy,
@@ -103,24 +128,154 @@ function linePreview(
         );
   const opening = round2(Number(line.amount) || 0);
   const total = round2(opening + stockOut);
+  const sales = round2(Number(line.salesDay) || 0);
   const management = round2(Number(line.managementTakenDay) || 0);
   const invitation = round2(Number(line.invitationTakenDay) || 0);
-  const onHandPreview = round2(total - management - invitation);
-  return { stockOut, total, management, invitation, onHandPreview };
+  const onHandPreview = round2(total - sales - management - invitation);
+  return { stockOut, total, sales, management, invitation, onHandPreview };
+}
+
+function DailyCountItemNameField({
+  id,
+  value,
+  options,
+  onPick,
+}: {
+  id: string;
+  value: string;
+  options: { name: string; source: "store" | "previous" }[];
+  onPick: (name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+
+  const filtered = useMemo(() => {
+    if (!query) return options.slice(0, 100);
+    return options
+      .filter((opt) => opt.name.toLowerCase().includes(query))
+      .slice(0, 100);
+  }, [options, query]);
+
+  const exactMatch = options.some(
+    (opt) => opt.name.toLowerCase() === query && query.length > 0,
+  );
+  const canAddNew = Boolean(search.trim()) && !exactMatch;
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setSearch(value);
+        else setSearch("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-10 w-full justify-between border-border/80 bg-background px-3 font-normal shadow-sm"
+        >
+          <span
+            className={cn(
+              "min-w-0 truncate text-left",
+              value.trim() ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {value.trim() || "Select or add item…"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search or type a new item…"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {!filtered.length && !canAddNew ? (
+              <CommandEmpty>No items yet — type a name to add one.</CommandEmpty>
+            ) : null}
+            {canAddNew ? (
+              <CommandGroup heading="Add new">
+                <CommandItem
+                  value={`add-new-${search.trim()}`}
+                  onSelect={() => {
+                    onPick(search.trim());
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate">
+                    Add “{search.trim()}”
+                  </span>
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
+            {filtered.length ? (
+              <CommandGroup heading="Items">
+                {filtered.map((opt) => (
+                  <CommandItem
+                    key={`${opt.source}-${opt.name}`}
+                    value={`${opt.source}-${opt.name}`}
+                    onSelect={() => {
+                      onPick(opt.name);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4 shrink-0",
+                        value.trim().toLowerCase() === opt.name.toLowerCase()
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{opt.name}</span>
+                    <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {opt.source === "store" ? "Store" : "Prior"}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function DailyCountBatchForm({
   calendarDate,
   stocks,
+  storeItems = [],
+  existingRows = [],
   editingRow,
   onClearEdit,
   onSaved,
+  variant = "card",
 }: {
   calendarDate: string;
   stocks: StockOutRequestRow[];
+  storeItems?: DailyCountStoreItemOption[];
+  existingRows?: KitchenBarBeginningRow[];
   editingRow: KitchenBarBeginningRow | null;
   onClearEdit: () => void;
   onSaved: () => void | Promise<void>;
+  /** `plain` for embedding inside a Dialog (no card chrome). */
+  variant?: "card" | "plain";
 }) {
   const day = String(calendarDate || "").slice(0, 10);
   const [station, setStation] = useState("KITCHEN");
@@ -130,12 +285,85 @@ export function DailyCountBatchForm({
 
   const editingId = editingRow?.id ?? null;
 
+  const itemOptions = useMemo(() => {
+    const seen = new Map<string, { name: string; source: "store" | "previous" }>();
+    for (const row of existingRows) {
+      const name = String(row.itemName || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, { name, source: "previous" });
+    }
+    for (const item of storeItems) {
+      const name = String(item.name || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      // Prefer store label when both exist.
+      seen.set(key, { name, source: "store" });
+    }
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [existingRows, storeItems]);
+
+  const measuredByForItem = useCallback(
+    (itemName: string): string | null => {
+      const key = itemName.trim().toLowerCase();
+      if (!key) return null;
+      const store = storeItems.find(
+        (item) => item.name.trim().toLowerCase() === key,
+      );
+      if (store?.measuredBy) return store.measuredBy;
+      const prior = existingRows.find(
+        (row) => row.itemName.trim().toLowerCase() === key,
+      );
+      return prior?.measuredBy || null;
+    },
+    [storeItems, existingRows],
+  );
+
+  const applyItemDefaults = useCallback(
+    (
+      lineKey: string,
+      itemName: string,
+      opts?: { forceBeginning?: boolean },
+    ) => {
+      // Only carry forward when the same station+item (case-insensitive) was
+      // counted yesterday — older gaps do not auto-fill Beginning.
+      const yesterdayRow = findYesterdayDailyCountRow(
+        existingRows,
+        station,
+        itemName,
+        day,
+      );
+      const yesterdayOnHand = previousDayOnHandAmount(yesterdayRow);
+      const unit = measuredByForItem(itemName);
+      setLines((prevLines) =>
+        prevLines.map((line) => {
+          if (line.key !== lineKey) return line;
+          const shouldSetBeginning =
+            yesterdayOnHand != null &&
+            (opts?.forceBeginning ||
+              !Number.isFinite(Number(line.amount)) ||
+              Number(line.amount) === 0);
+          return {
+            ...line,
+            itemName,
+            amount: shouldSetBeginning ? yesterdayOnHand! : line.amount,
+            measuredBy: unit || line.measuredBy,
+          };
+        }),
+      );
+    },
+    [existingRows, station, day, measuredByForItem],
+  );
+
   useEffect(() => {
     if (!editingRow) return;
-    const cd =
-      editingRow.calendarDate && editingRow.calendarDate.length >= 10
-        ? editingRow.calendarDate.slice(0, 10)
-        : `${editingRow.monthPeriod}-01`;
+    const prev = findPreviousDailyCountRow(
+      existingRows,
+      editingRow.station,
+      editingRow.itemName,
+      editingRow.calendarDate,
+    );
+    const derivedSales = resolveDailyCountSalesQty(editingRow, prev);
     setStation(stationFromRow(editingRow.station));
     setNotes(editingRow.notes || "");
     setLines([
@@ -143,13 +371,36 @@ export function DailyCountBatchForm({
         key: newLineKey(),
         itemName: editingRow.itemName,
         amount: Number(editingRow.amount) || 0,
+        salesDay:
+          editingRow.salesDay != null
+            ? Number(editingRow.salesDay) || 0
+            : derivedSales ?? 0,
         managementTakenDay: Number(editingRow.managementTakenDay ?? 0),
         invitationTakenDay: Number(editingRow.invitationTakenDay ?? 0),
         measuredBy: editingRow.measuredBy || "Piece",
       },
     ]);
-    void cd;
-  }, [editingRow]);
+  }, [editingRow, existingRows]);
+
+  // When date/station changes on create, refresh beginning from yesterday on hand.
+  useEffect(() => {
+    if (editingId != null) return;
+    setLines((prevLines) =>
+      prevLines.map((line) => {
+        const item = line.itemName.trim();
+        if (!item) return line;
+        const yesterdayRow = findYesterdayDailyCountRow(
+          existingRows,
+          station,
+          item,
+          day,
+        );
+        const yesterdayOnHand = previousDayOnHandAmount(yesterdayRow);
+        if (yesterdayOnHand == null) return line;
+        return { ...line, amount: yesterdayOnHand };
+      }),
+    );
+  }, [day, station, existingRows, editingId]);
 
   const validLines = useMemo(
     () => lines.filter((l) => l.itemName.trim().length >= 1),
@@ -159,6 +410,7 @@ export function DailyCountBatchForm({
   const batchPreview = useMemo(() => {
     let stockOut = 0;
     let total = 0;
+    let sales = 0;
     let management = 0;
     let invitation = 0;
     let onHandPreview = 0;
@@ -166,6 +418,7 @@ export function DailyCountBatchForm({
       const p = linePreview(line, station, day, stocks);
       stockOut += p.stockOut;
       total += p.total;
+      sales += p.sales;
       management += p.management;
       invitation += p.invitation;
       onHandPreview += p.onHandPreview;
@@ -173,6 +426,7 @@ export function DailyCountBatchForm({
     return {
       stockOut: round2(stockOut),
       total: round2(total),
+      sales: round2(sales),
       management: round2(management),
       invitation: round2(invitation),
       onHandPreview: round2(onHandPreview),
@@ -240,6 +494,7 @@ export function DailyCountBatchForm({
             measuredBy: line.measuredBy,
             managementTakenDay: round2(Number(line.managementTakenDay) || 0),
             invitationTakenDay: round2(Number(line.invitationTakenDay) || 0),
+            salesDay: round2(Number(line.salesDay) || 0),
           },
           { quiet: true },
         );
@@ -271,6 +526,7 @@ export function DailyCountBatchForm({
               measuredBy: line.measuredBy,
               managementTakenDay: round2(Number(line.managementTakenDay) || 0),
               invitationTakenDay: round2(Number(line.invitationTakenDay) || 0),
+              salesDay: round2(Number(line.salesDay) || 0),
             },
             { quiet: true },
           );
@@ -306,20 +562,8 @@ export function DailyCountBatchForm({
     onSaved,
   ]);
 
-  return (
-    <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
-      <div className="h-1 bg-linear-to-r from-amber-500/50 via-sky-500/40 to-emerald-500/50" />
-      <CardHeader>
-        <CardTitle className="text-lg">
-          {editingId != null ? "Edit daily row" : "Register a day"}
-        </CardTitle>
-        <CardDescription>
-          {editingId != null
-            ? "Update this station item for the selected calendar day."
-            : "Shared station and date for the whole batch. Add multiple item lines at once — Store fills from approved stock-outs per line."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6 pt-1 pb-8 px-5 sm:px-6">
+  const formBody = (
+    <div className={variant === "plain" ? "space-y-6" : "space-y-6 pt-1 pb-8 px-5 sm:px-6"}>
         <DailyCountFormulaStrip />
 
         <HotelFormSection
@@ -339,7 +583,7 @@ export function DailyCountBatchForm({
           title={editingId != null ? "Item & counts" : "Item lines"}
           description={
             editingId != null
-              ? "Edit beginning, management, and invitation for this item."
+              ? "Edit beginning, sales, management, and invitation for this item."
               : "One card per item. Add as many lines as you need for this station and day."
           }
         >
@@ -347,6 +591,14 @@ export function DailyCountBatchForm({
             {lines.map((line, index) => {
               const preview = linePreview(line, station, day, stocks);
               const unitOptions = inventoryUnitSelectValues(line.measuredBy);
+              const yesterdayOnHand = previousDayOnHandAmount(
+                findYesterdayDailyCountRow(
+                  existingRows,
+                  station,
+                  line.itemName,
+                  day,
+                ),
+              );
               return (
                 <div
                   key={line.key}
@@ -373,18 +625,27 @@ export function DailyCountBatchForm({
 
                   <HotelFormFieldStack>
                     <Label htmlFor={`kb-item-${line.key}`}>Item</Label>
-                    <Input
+                    <DailyCountItemNameField
                       id={`kb-item-${line.key}`}
                       value={line.itemName}
-                      onChange={(e) =>
-                        updateLine(line.key, { itemName: e.target.value })
+                      options={itemOptions}
+                      onPick={(name) =>
+                        applyItemDefaults(line.key, name, {
+                          forceBeginning: true,
+                        })
                       }
-                      placeholder="Enter item name"
-                      className="h-10 border-border/80 shadow-sm"
                     />
+                    {yesterdayOnHand != null ? (
+                      <p className="text-xs text-muted-foreground">
+                        Yesterday on hand:{" "}
+                        <span className="tabular-nums font-medium text-foreground">
+                          {yesterdayOnHand.toFixed(2)}
+                        </span>
+                      </p>
+                    ) : null}
                   </HotelFormFieldStack>
 
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <HotelFormFieldStack>
                       <Label htmlFor={`kb-bb-${line.key}`}>Beginning (BB)</Label>
                       <Input
@@ -406,6 +667,29 @@ export function DailyCountBatchForm({
                           })
                         }
                         className="h-10 tabular-nums border-border/80 shadow-sm"
+                      />
+                    </HotelFormFieldStack>
+                    <HotelFormFieldStack>
+                      <Label htmlFor={`kb-sales-${line.key}`}>Sales</Label>
+                      <Input
+                        id={`kb-sales-${line.key}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={line.salesDay}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            salesDay: Number.isFinite(Number(e.target.value))
+                              ? Number(e.target.value)
+                              : 0,
+                          })
+                        }
+                        onBlur={() =>
+                          updateLine(line.key, {
+                            salesDay: round2(Number(line.salesDay) || 0),
+                          })
+                        }
+                        className="h-10 tabular-nums border-sky-500/30 bg-sky-500/5 shadow-sm"
                       />
                     </HotelFormFieldStack>
                     <HotelFormFieldStack>
@@ -485,7 +769,7 @@ export function DailyCountBatchForm({
                     <DailyCountMetricTile
                       label="On Hand preview"
                       value={preview.onHandPreview.toFixed(2)}
-                      hint="Before Sales"
+                      hint="Total − Sales − Issues"
                       tone="onhand"
                     />
                   </div>
@@ -522,17 +806,15 @@ export function DailyCountBatchForm({
               tone="primary"
             />
             <DailyCountMetricTile
-              label="Batch Issues"
-              value={(
-                batchPreview.management + batchPreview.invitation
-              ).toFixed(2)}
-              hint="Management + Invitation"
+              label="Batch Sales"
+              value={batchPreview.sales.toFixed(2)}
+              hint="Entered sales"
               tone="management"
             />
             <DailyCountMetricTile
               label="Batch On Hand"
               value={batchPreview.onHandPreview.toFixed(2)}
-              hint="Before Sales"
+              hint="After sales & issues"
               tone="onhand"
             />
           </div>
@@ -570,11 +852,30 @@ export function DailyCountBatchForm({
           </PendingButton>
           {editingId != null ? (
             <Button type="button" variant="ghost" onClick={handleCancelEdit}>
-              Cancel edit
+              Cancel
             </Button>
           ) : null}
         </div>
-      </CardContent>
+    </div>
+  );
+
+  if (variant === "plain") {
+    return formBody;
+  }
+
+  return (
+    <Card className="border-border/80 shadow-md bg-card/95 overflow-hidden ring-1 ring-black/3 dark:ring-white/6">
+      <div className="h-1 bg-linear-to-r from-amber-500/50 via-sky-500/40 to-emerald-500/50" />
+      <CardHeader>
+        <CardTitle className="text-lg">Register a day</CardTitle>
+        <CardDescription>
+          Shared station and date for the whole batch. Open the item selector to
+          search store or prior names, or type a new name to add it. If that item
+          was counted yesterday (any casing), Beginning fills with yesterday’s on
+          hand.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">{formBody}</CardContent>
     </Card>
   );
 }

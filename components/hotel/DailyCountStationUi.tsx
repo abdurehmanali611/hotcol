@@ -183,7 +183,8 @@ export function DailyCountFormulaStrip() {
         <FormulaChip tone="onhand">On Hand</FormulaChip>
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-        Total is Beginning + Store. Sales excludes Management and Invitation.
+        Total is Beginning + Store. Enter Sales for the day; Beginning carries
+        forward yesterday&apos;s On Hand when a prior count exists.
       </p>
     </div>
   );

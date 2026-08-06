@@ -150,15 +150,15 @@ export const HR_SECTION_COPY: Record<
   employees: {
     title: "HR · Employees",
     description:
-      "Maintain the employee master and issue each person a username and password so they can request leave and view payslips.",
+      "Maintain the employee master — role, pay, and hire details used when HR files leave and when payroll is closed.",
   },
   leave: {
-    title: "HR · Leave types",
+    title: "HR · Leave",
     description:
-      "Configure the leave types staff can request from their login, then approve or reject incoming requests.",
+      "Manager sets leave types. HR files requests for employees. Manager approves or rejects them.",
   },
   attendance: {
-    title: "HR · Time & shifts",
+    title: "HR · Attendance",
     description:
       "Clock people in and out, schedule shifts, and review attendance for a chosen date range.",
   },

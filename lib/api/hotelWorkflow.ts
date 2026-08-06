@@ -354,6 +354,7 @@ export async function fetchKitchenBarBeginnings(): Promise<
         stockOutDay
         managementTakenDay
         invitationTakenDay
+        salesDay
         closingOnHand
         notes
         createdAt
@@ -2187,6 +2188,7 @@ export async function createKitchenBarBeginningApi(
     measuredBy: string;
     managementTakenDay?: number;
     invitationTakenDay?: number;
+    salesDay?: number;
     monthPeriod?: string;
     calendarDate: string;
     notes?: string;
@@ -2201,6 +2203,7 @@ export async function createKitchenBarBeginningApi(
       $measuredBy: String!
       $managementTakenDay: Float
       $invitationTakenDay: Float
+      $salesDay: Float
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -2212,6 +2215,7 @@ export async function createKitchenBarBeginningApi(
         measuredBy: $measuredBy
         managementTakenDay: $managementTakenDay
         invitationTakenDay: $invitationTakenDay
+        salesDay: $salesDay
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes
@@ -2237,6 +2241,7 @@ export async function updateKitchenBarBeginningApi(
     measuredBy: string;
     managementTakenDay?: number;
     invitationTakenDay?: number;
+    salesDay?: number;
     monthPeriod?: string;
     calendarDate: string;
     notes?: string;
@@ -2252,6 +2257,7 @@ export async function updateKitchenBarBeginningApi(
       $measuredBy: String!
       $managementTakenDay: Float
       $invitationTakenDay: Float
+      $salesDay: Float
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -2264,6 +2270,7 @@ export async function updateKitchenBarBeginningApi(
         measuredBy: $measuredBy
         managementTakenDay: $managementTakenDay
         invitationTakenDay: $invitationTakenDay
+        salesDay: $salesDay
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes

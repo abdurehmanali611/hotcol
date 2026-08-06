@@ -75,37 +75,9 @@ const hrEmployeeBaseFields = z.object({
   notes: z.string().max(500, "Notes are too long").optional().or(z.literal("")),
 });
 
-const hrEmployeeLoginFields = {
-  credentialUserName: z
-    .string()
-    .trim()
-    .min(2, "Username must be at least 2 characters")
-    .max(80, "Username is too long"),
-  credentialPassword: z
-    .string()
-    .min(6, "Password must be at least 6 characters"),
-  credentialPasswordConfirm: z.string().min(6, "Confirm the password"),
-};
-
-export const hrEmployeeCreateFormSchema = hrEmployeeBaseFields
-  .extend(hrEmployeeLoginFields)
-  .refine((data) => data.credentialPassword === data.credentialPasswordConfirm, {
-    message: "Passwords don't match",
-    path: ["credentialPasswordConfirm"],
-  });
-
-export const hrEmployeeEditFormSchema = hrEmployeeBaseFields.extend({
-  credentialUserName: z
-    .string()
-    .trim()
-    .max(80, "Username is too long")
-    .optional()
-    .or(z.literal("")),
-  credentialPassword: z.string().optional().or(z.literal("")),
-  credentialPasswordConfirm: z.string().optional().or(z.literal("")),
-});
-
-export const hrEmployeeFormSchema = hrEmployeeCreateFormSchema;
+export const hrEmployeeFormSchema = hrEmployeeBaseFields;
+export const hrEmployeeCreateFormSchema = hrEmployeeFormSchema;
+export const hrEmployeeEditFormSchema = hrEmployeeFormSchema;
 
 export const hrLeaveBalanceSchema = z.object({
   employeeId: z.coerce.number().min(1, "Select an employee"),
@@ -228,7 +200,7 @@ export const hrPayrollPeriodSchema = z
     path: ["toYmd"],
   });
 
-export type HrEmployeeFormValues = z.infer<typeof hrEmployeeCreateFormSchema>;
+export type HrEmployeeFormValues = z.infer<typeof hrEmployeeFormSchema>;
 export type HrLeaveRequestFormValues = z.infer<typeof hrLeaveRequestSchema>;
 
 export function firstHrConstraintMessage(error: z.ZodError): string {

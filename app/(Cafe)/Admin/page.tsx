@@ -113,7 +113,6 @@ const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> 
     "hr-employees": "employees",
     "hr-leave": "leave",
     "hr-attendance": "attendance",
-    "hr-documents": "documents",
     "hr-payroll": "payroll",
     "hr-incidents": "incidents",
   };
@@ -566,7 +565,6 @@ function AdminDashboardContent() {
       case "hr-employees":
       case "hr-leave":
       case "hr-attendance":
-      case "hr-documents":
       case "hr-payroll":
       case "hr-incidents":
         return (

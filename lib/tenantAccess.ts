@@ -27,7 +27,6 @@ export const TERMINAL_PAGE_MODULES: Record<string, ModuleOption | undefined> = {
   Reception: "Room Management",
   CMLeader: "Cleaning and Maintenance",
   HR: "HR Module",
-  Employee: "HR Module",
 };
 
 export function readSubscriptionBillingSnapshot() {
