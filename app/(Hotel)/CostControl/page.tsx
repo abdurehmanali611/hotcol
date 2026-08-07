@@ -89,6 +89,7 @@ import {
 import {
   CheckCircle2,
   ClipboardList,
+  FileSpreadsheet,
   LayoutGrid,
   Loader2,
   LogOut,
@@ -143,6 +144,7 @@ import { filterCostControlSectionId } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { normalizeRollupRangeYmd } from "@/lib/kitchenBarMonthlyRange";
+import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import {
   Sidebar,
   SidebarContent,
@@ -640,6 +642,110 @@ function CostControlInner() {
       beginningDeleteId,
     ],
   );
+
+  const exportDailyCountExcel = useCallback(async () => {
+    if (!visibleBeginnings.length) {
+      toast.error("No daily count rows to export for this day / station filter");
+      return;
+    }
+    const day = String(selectedDailyDate || "").slice(0, 10);
+    const stationSuffix =
+      dailyStationFilter !== "ALL"
+        ? `_${displayKitchenBarStation(dailyStationFilter)}`
+        : "";
+    const rows = visibleBeginnings.map((b) => {
+      const store = round2(Number(b.stockOutDay ?? 0));
+      const beginning = Number(b.amount || 0);
+      const total = round2(beginning + store);
+      const sales = beginningDerivedById.daySales.get(b.id);
+      const salesQty = sales == null ? null : Number(sales);
+      const management = Number(b.managementTakenDay ?? 0);
+      const invitation = Number(b.invitationTakenDay ?? 0);
+      const onHand = round2(
+        total - (salesQty == null ? 0 : salesQty) - management - invitation,
+      );
+      const price =
+        unitPriceByItemName.get(normalizeItemNameForValueKey(b.itemName)) || 0;
+      const salesValue =
+        salesQty == null ? null : round2((Number(salesQty) || 0) * price);
+      return {
+        date:
+          String(b.calendarDate || "").slice(0, 10) ||
+          (b.monthPeriod ? `${b.monthPeriod}-01` : day),
+        station: displayKitchenBarStation(b.station),
+        item: b.itemName,
+        measured_by: b.measuredBy || "",
+        beginning_bb: beginning,
+        store,
+        total,
+        management,
+        invitation,
+        sales: salesQty == null ? "" : salesQty,
+        on_hand: onHand,
+        unit_price_etb: price,
+        sales_value_etb: salesValue == null ? "" : salesValue,
+        notes: b.notes || "",
+      };
+    });
+    await exportRowsExcel(
+      `${displayName || tenantScope || "property"}_daily_count_${day}${stationSuffix}`,
+      "Daily_count",
+      rows,
+    );
+  }, [
+    visibleBeginnings,
+    selectedDailyDate,
+    dailyStationFilter,
+    beginningDerivedById,
+    unitPriceByItemName,
+    displayName,
+    tenantScope,
+  ]);
+
+  const exportRollupExcel = useCallback(async () => {
+    if (!visibleMonthlySnapshots.length) {
+      toast.error("No from–to roll-up rows to export for this range / station");
+      return;
+    }
+    const stationSuffix =
+      rollupStationFilter !== "ALL"
+        ? `_${displayKitchenBarStation(rollupStationFilter)}`
+        : "";
+    const rows = visibleMonthlySnapshots.map((row) => {
+      const salesSum = Number(row.totalImpliedSales) || 0;
+      const onHand = Number(row.lastDayClosingOnHand) || 0;
+      const price =
+        unitPriceByItemName.get(normalizeItemNameForValueKey(row.itemName)) ||
+        0;
+      return {
+        from: row.periodFrom || rollupFromYmd,
+        to: row.periodTo || rollupToYmd,
+        station: displayKitchenBarStation(row.station),
+        item: row.itemName,
+        sum_sales: salesSum,
+        on_hand: onHand,
+        remaining: round2(onHand - salesSum),
+        unit_price_etb: price,
+        sales_value_etb: round2(salesSum * price),
+        synced_at: row.syncedAt
+          ? new Date(row.syncedAt).toLocaleString()
+          : "",
+      };
+    });
+    await exportRowsExcel(
+      `${displayName || tenantScope || "property"}_daily_count_rollup_${rollupFromYmd}_to_${rollupToYmd}${stationSuffix}`,
+      "From_To_rollup",
+      rows,
+    );
+  }, [
+    visibleMonthlySnapshots,
+    rollupStationFilter,
+    unitPriceByItemName,
+    rollupFromYmd,
+    rollupToYmd,
+    displayName,
+    tenantScope,
+  ]);
 
   useEffect(() => {
     isFirstLoadRef.current = false;
@@ -1664,6 +1770,16 @@ function CostControlInner() {
                       "Sync Monthly Data"
                     )}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shadow-sm gap-2"
+                    disabled={!visibleMonthlySnapshots.length}
+                    onClick={() => void exportRollupExcel()}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
                 </div>
                 <DailyCountStationFilterBar
                   value={rollupStationFilter}
@@ -1832,13 +1948,25 @@ function CostControlInner() {
                 </p>
               </div>
               <div className="px-4 py-3 border-b border-border/60 space-y-3">
-                <HotelDayPicker
-                  label="Date"
-                  id="kb-grid-day"
-                  value={selectedDailyDate}
-                  onChange={setSelectedDailyDate}
-                  className="min-w-50"
-                />
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+                  <HotelDayPicker
+                    label="Date"
+                    id="kb-grid-day"
+                    value={selectedDailyDate}
+                    onChange={setSelectedDailyDate}
+                    className="min-w-50"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 gap-2 shadow-sm"
+                    disabled={!visibleBeginnings.length}
+                    onClick={() => void exportDailyCountExcel()}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                </div>
                 <DailyCountStationFilterBar
                   value={dailyStationFilter}
                   onChange={setDailyStationFilter}
