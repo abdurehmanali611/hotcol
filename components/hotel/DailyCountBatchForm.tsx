@@ -286,19 +286,19 @@ export function DailyCountBatchForm({
   const editingId = editingRow?.id ?? null;
 
   const itemOptions = useMemo(() => {
+    // Store/inventory first; prior count names only when not already in store.
     const seen = new Map<string, { name: string; source: "store" | "previous" }>();
+    for (const item of storeItems) {
+      const name = String(item.name || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, { name, source: "store" });
+    }
     for (const row of existingRows) {
       const name = String(row.itemName || "").trim();
       if (!name) continue;
       const key = name.toLowerCase();
       if (!seen.has(key)) seen.set(key, { name, source: "previous" });
-    }
-    for (const item of storeItems) {
-      const name = String(item.name || "").trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      // Prefer store label when both exist.
-      seen.set(key, { name, source: "store" });
     }
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [existingRows, storeItems]);

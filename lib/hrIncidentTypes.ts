@@ -1,11 +1,24 @@
 export type HrIncidentTypeSetting = {
   code: string;
   label: string;
-  /** When true, amountETB is taken from salary; when false, amountETB is an increase. */
+  /** When true, percent of salary is deducted; when false, credited. */
   deduct: boolean;
-  amountETB: number;
+  /** 0–100 percent of employee base salary applied on payroll. */
+  percentOfSalary: number;
+  /**
+   * When set, payroll applies percent × matching attendance days in the
+   * pay period (days on approved leave are excluded).
+   */
+  attendanceLink?: "" | "absent" | "late" | "half_day";
   active: boolean;
 };
+
+export const HR_ATTENDANCE_LINK_OPTIONS = [
+  { id: "" as const, label: "None (manual incidents only)" },
+  { id: "absent" as const, label: "Attendance · Absent days" },
+  { id: "late" as const, label: "Attendance · Late days" },
+  { id: "half_day" as const, label: "Attendance · Half days" },
+];
 
 /** Synthetic HR option when Manager has not defined a type named "other". */
 export const HR_INCIDENT_ADHOC_OTHER_CODE = "other";
@@ -47,7 +60,8 @@ export function hrIncidentTypeChoices(
       code: HR_INCIDENT_ADHOC_OTHER_CODE,
       label: "Other",
       deduct: false,
-      amountETB: 0,
+      percentOfSalary: 0,
+      attendanceLink: "",
       active: true,
     },
   ];
@@ -83,13 +97,43 @@ export function findIncidentType(
   return types.find((t) => t.code === code) || null;
 }
 
-export function formatIncidentPayImpact(deduct: boolean, amountETB: number) {
-  const amount = Number(amountETB) || 0;
-  if (amount <= 0) return "No pay impact";
-  const formatted = amount.toLocaleString(undefined, {
+export function formatIncidentPayImpact(
+  deduct: boolean,
+  percentOfSalary: number,
+) {
+  const pct = Number(percentOfSalary) || 0;
+  if (pct <= 0) return "No pay impact";
+  const formatted = pct.toLocaleString(undefined, {
     maximumFractionDigits: 2,
   });
   return deduct
-    ? `Deduct ${formatted} ETB`
-    : `Increase ${formatted} ETB`;
+    ? `Deduct ${formatted}% of salary`
+    : `Credit ${formatted}% of salary`;
+}
+
+/** Map API incident type rows onto editor settings (percent preferred). */
+export function incidentTypeSettingFromApi(row: {
+  code: string;
+  label: string;
+  deduct: boolean;
+  percentOfSalary?: number;
+  amountETB?: number;
+  attendanceLink?: string;
+  active: boolean;
+}): HrIncidentTypeSetting {
+  return {
+    code: row.code,
+    label: row.label,
+    deduct: Boolean(row.deduct),
+    percentOfSalary: Math.max(
+      0,
+      Math.min(100, Number(row.percentOfSalary) || 0),
+    ),
+    attendanceLink: (row.attendanceLink || "") as
+      | ""
+      | "absent"
+      | "late"
+      | "half_day",
+    active: row.active !== false,
+  };
 }

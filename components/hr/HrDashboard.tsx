@@ -13,7 +13,6 @@ import {
   Loader2,
   LogOut,
   Users,
-  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,7 +36,7 @@ import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
-import { addDaysYmd, hrDepartmentCodesForBusiness } from "@/lib/hrConstraints";
+import { hrDepartmentCodesForBusiness } from "@/lib/hrConstraints";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { isLodgingBusinessType, type BusinessType } from "@/constants";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
@@ -47,8 +46,15 @@ import { HrLeavePanel } from "@/components/hr/HrLeavePanel";
 import { HrAttendancePanel } from "@/components/hr/HrAttendancePanel";
 import { HrDocumentsPanel } from "@/components/hr/HrDocumentsPanel";
 import { HrPayrollPanel } from "@/components/hr/HrPayrollPanel";
+import {
+  HrPayrollSidebarGroup,
+  hrPayrollTabForView,
+  hrPayrollViewsForCaps,
+} from "@/components/hr/HrPayrollSidebarGroup";
 import { HrIncidentsPanel } from "@/components/hr/HrIncidentsPanel";
 import { HrDepartmentsPanel } from "@/components/hr/HrDepartmentsPanel";
+import type { HrPayrollView } from "@/constants";
+import { hrPayrollViewFromTab } from "@/constants";
 import {
   fetchHrAttendance,
   fetchHrDashboardStats,
@@ -76,16 +82,57 @@ export type HrSection =
   | "leave"
   | "attendance"
   | "documents"
-  | "payroll"
+  | "payroll-generate"
+  | "payroll-runs"
+  | "payroll-settings"
+  | "payroll-history"
   | "incidents"
   | "departments";
+
+const PAYROLL_SECTIONS = new Set<HrSection>([
+  "payroll-generate",
+  "payroll-runs",
+  "payroll-settings",
+  "payroll-history",
+]);
+
+export function isHrPayrollSection(section: string): section is HrSection {
+  return PAYROLL_SECTIONS.has(section as HrSection);
+}
+
+export function payrollViewFromSection(section: HrSection): HrPayrollView | null {
+  switch (section) {
+    case "payroll-generate":
+      return "generate";
+    case "payroll-runs":
+      return "runs";
+    case "payroll-settings":
+      return "settings";
+    case "payroll-history":
+      return "history";
+    default:
+      return null;
+  }
+}
+
+function sectionFromPayrollView(view: HrPayrollView): HrSection {
+  switch (view) {
+    case "generate":
+      return "payroll-generate";
+    case "runs":
+      return "payroll-runs";
+    case "settings":
+      return "payroll-settings";
+    case "history":
+      return "payroll-history";
+  }
+}
 
 const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "employees", label: "Employees", icon: Users },
   { id: "leave", label: "Leave", icon: CalendarDays },
   { id: "attendance", label: "Attendance", icon: ClipboardList },
-  { id: "payroll", label: "Payroll", icon: Wallet },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
   { id: "departments", label: "Departments", icon: Building2 },
 ];
@@ -94,15 +141,11 @@ function navForRole(role: string) {
   const caps = hrCapabilities(role);
   return NAV.filter((item) => {
     if (item.id === "employees") return caps.canManageEmployees;
-    if (item.id === "payroll") return caps.canViewPayrollReport;
     if (item.id === "departments") return caps.canConfigureDepartments;
     return true;
   }).map((item) => {
     if (item.id === "leave" && role === "Manager") {
       return { ...item, label: "Leave types" };
-    }
-    if (item.id === "payroll" && role === "Manager") {
-      return { ...item, label: "Payroll report" };
     }
     if (item.id === "incidents" && role === "Manager") {
       return { ...item, label: "Incident types" };
@@ -111,9 +154,8 @@ function navForRole(role: string) {
   });
 }
 
-function todayYmd() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function payrollSectionsForRole(role: string): HrSection[] {
+  return hrPayrollViewsForCaps(hrCapabilities(role)).map(sectionFromPayrollView);
 }
 
 export function HrDashboard({
@@ -154,8 +196,6 @@ export function HrDashboard({
   const [payslips, setPayslips] = useState<HrPayslip[]>([]);
   const [incidents, setIncidents] = useState<HrIncident[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
-  const [timeFrom, setTimeFrom] = useState(() => addDaysYmd(todayYmd(), -14));
-  const [timeTo, setTimeTo] = useState(() => addDaysYmd(todayYmd(), 14));
   const [actorRole, setActorRole] = useState("");
   const caps = useMemo(() => hrCapabilities(actorRole), [actorRole]);
   const navItems = useMemo(() => navForRole(actorRole), [actorRole]);
@@ -181,7 +221,10 @@ export function HrDashboard({
 
   useEffect(() => {
     if (!actorRole) return;
-    const allowed = new Set(navForRole(actorRole).map((n) => n.id));
+    const allowed = new Set<HrSection>([
+      ...navForRole(actorRole).map((n) => n.id),
+      ...payrollSectionsForRole(actorRole),
+    ]);
     if (!allowed.has(section)) {
       setSection("dashboard");
     }
@@ -192,41 +235,36 @@ export function HrDashboard({
     [businessType],
   );
 
-  const loadAll = useCallback(
-    async (soft = false) => {
-      if (soft) setRefreshing(true);
-      else setLoading(true);
-      try {
-        const from = timeFrom <= timeTo ? timeFrom : timeTo;
-        const to = timeFrom <= timeTo ? timeTo : timeFrom;
-        const [st, emps, lv, att, sh, documents, pr, inc] = await Promise.all([
-          fetchHrDashboardStats(),
-          fetchHrEmployees(),
-          fetchHrLeaveRequests(),
-          fetchHrAttendance(from, to),
-          fetchHrShifts(from, to),
-          fetchHrDocuments(),
-          fetchHrPayrollPeriods(),
-          fetchHrIncidents(),
-        ]);
-        setStats(st);
-        setEmployees(emps);
-        setLeave(lv);
-        setAttendance(att);
-        setShifts(sh);
-        setDocs(documents);
-        setPeriods(pr);
-        setIncidents(inc);
-        setSelectedPeriodId((current) => current ?? pr[0]?.id ?? null);
-      } catch (e) {
-        notifyApiFailure(e, "Could not load HR data");
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [timeFrom, timeTo],
-  );
+  const loadAll = useCallback(async (soft = false) => {
+    if (soft) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const [st, emps, lv, att, sh, documents, pr, inc] = await Promise.all([
+        fetchHrDashboardStats(),
+        fetchHrEmployees(),
+        fetchHrLeaveRequests(),
+        fetchHrAttendance(),
+        fetchHrShifts(),
+        fetchHrDocuments(),
+        fetchHrPayrollPeriods(),
+        fetchHrIncidents(),
+      ]);
+      setStats(st);
+      setEmployees(emps);
+      setLeave(lv);
+      setAttendance(att);
+      setShifts(sh);
+      setDocs(documents);
+      setPeriods(pr);
+      setIncidents(inc);
+      setSelectedPeriodId((current) => current ?? pr[0]?.id ?? null);
+    } catch (e) {
+      notifyApiFailure(e, "Could not load HR data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadAll();
@@ -276,10 +314,6 @@ export function HrDashboard({
           employees={employees}
           attendance={attendance}
           shifts={shifts}
-          timeFrom={timeFrom}
-          timeTo={timeTo}
-          onTimeFromChange={setTimeFrom}
-          onTimeToChange={setTimeTo}
           onRefresh={() => loadAll(true)}
           canManageTime={caps.canManageTime}
         />
@@ -291,15 +325,19 @@ export function HrDashboard({
           onRefresh={() => loadAll(true)}
         />
       ) : null}
-      {section === "payroll" && caps.canViewPayrollReport ? (
+      {isHrPayrollSection(section) && caps.canViewPayrollReport ? (
         <HrPayrollPanel
+          view={payrollViewFromSection(section)!}
           periods={periods}
           payslips={payslips}
           selectedPeriodId={selectedPeriodId}
           onSelectedPeriodChange={setSelectedPeriodId}
           onPayslipsChange={setPayslips}
           onRefresh={() => loadAll(true)}
+          employees={employees}
           canRunPayroll={caps.canRunPayroll}
+          canConfigurePayroll={caps.canConfigurePayroll}
+          canApprovePayrollPayment={caps.canApprovePayrollPayment}
         />
       ) : null}
       {section === "incidents" ? (
@@ -369,23 +407,58 @@ export function HrDashboard({
             </div>
             <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
               <SidebarMenu className="gap-1">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        isActive={section === item.id}
-                        onClick={() => setSection(item.id)}
-                        tooltip={item.label}
-                        size="lg"
-                        className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
-                      >
-                        <Icon className="opacity-80" />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
+                {navItems
+                  .filter((item) => item.id !== "incidents" && item.id !== "departments")
+                  .map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={section === item.id}
+                          onClick={() => setSection(item.id)}
+                          tooltip={item.label}
+                          size="lg"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                        >
+                          <Icon className="opacity-80" />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                {caps.canViewPayrollReport ? (
+                  <HrPayrollSidebarGroup
+                    activeSection={
+                      payrollViewFromSection(section)
+                        ? hrPayrollTabForView(payrollViewFromSection(section)!)
+                        : ""
+                    }
+                    onSelect={(id) => {
+                      const view = hrPayrollViewFromTab(id);
+                      if (view) setSection(sectionFromPayrollView(view));
+                    }}
+                    visibleViews={hrPayrollViewsForCaps(caps)}
+                  />
+                ) : null}
+                {navItems
+                  .filter((item) => item.id === "incidents" || item.id === "departments")
+                  .map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={section === item.id}
+                          onClick={() => setSection(item.id)}
+                          tooltip={item.label}
+                          size="lg"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                        >
+                          <Icon className="opacity-80" />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-4 pt-2">

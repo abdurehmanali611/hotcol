@@ -52,13 +52,14 @@ import {
   ClipboardList,
   Coffee,
   CalendarDays,
-  Wallet,
   AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
-import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS } from "@/constants";
+import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
 import { filterAdminTabId, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import { HrPayrollSidebarGroup, hrPayrollViewsForCaps } from "@/components/hr/HrPayrollSidebarGroup";
+import { hrCapabilities } from "@/lib/hrCapabilities";
 import {
   Sidebar,
   SidebarContent,
@@ -115,7 +116,10 @@ const HR_TAB_TO_SECTION: Record<(typeof HR_WORKSPACE_TAB_IDS)[number], HrSection
     "hr-employees": "employees",
     "hr-leave": "leave",
     "hr-attendance": "attendance",
-    "hr-payroll": "payroll",
+    "hr-payroll-generate": "payroll-generate",
+    "hr-payroll-runs": "payroll-runs",
+    "hr-payroll-settings": "payroll-settings",
+    "hr-payroll-history": "payroll-history",
     "hr-incidents": "incidents",
     "hr-departments": "departments",
   };
@@ -329,7 +333,6 @@ function AdminDashboardContent() {
     ClipboardList,
     LayoutDashboard,
     CalendarDays,
-    Wallet,
     AlertTriangle,
   };
 
@@ -364,9 +367,14 @@ function AdminDashboardContent() {
       setActiveTab("hr-overview");
       return;
     }
+    if (activeTab === "hr-payroll") {
+      setActiveTab("hr-payroll-generate");
+      return;
+    }
     if (
       sidebarItems.length > 0 &&
-      !sidebarItems.some((item) => item.id === activeTab)
+      !sidebarItems.some((item) => item.id === activeTab) &&
+      !isHrPayrollTab(activeTab)
     ) {
       setActiveTab(sidebarItems[0]!.id);
     }
@@ -568,7 +576,10 @@ function AdminDashboardContent() {
       case "hr-employees":
       case "hr-leave":
       case "hr-attendance":
-      case "hr-payroll":
+      case "hr-payroll-generate":
+      case "hr-payroll-runs":
+      case "hr-payroll-settings":
+      case "hr-payroll-history":
       case "hr-incidents":
       case "hr-departments":
         return (
@@ -636,7 +647,8 @@ function AdminDashboardContent() {
                   layout="flat"
                 />
               ) : null}
-              {hrSidebarItems.length > 0 ? (
+              {hrSidebarItems.length > 0 ||
+              tenantHasModule(tenantModules, "HR Module") ? (
                 <ManagerCollapsibleSidebarGroup
                   label="HR"
                   icon={Users}
@@ -645,7 +657,13 @@ function AdminDashboardContent() {
                   isGroupActive={ADMIN_HR_TAB_IDS.has(activeTab)}
                   onSelect={setActiveTab}
                   layout="flat"
-                />
+                >
+                  <HrPayrollSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={setActiveTab}
+                    visibleViews={hrPayrollViewsForCaps(hrCapabilities("Admin"))}
+                  />
+                </ManagerCollapsibleSidebarGroup>
               ) : null}
               {accessSidebarItems.length > 0 ? (
                 <ManagerCollapsibleSidebarGroup

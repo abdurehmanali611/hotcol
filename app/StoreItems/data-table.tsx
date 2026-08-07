@@ -258,6 +258,15 @@ function DataTableInner<TData extends { id?: number }, TValue>(
     return all.find((c) => c.id !== "select" && c.id !== "actions");
   }, [hideToolbar, searchColumnId, table, columns]);
 
+  const filteredRowCount = table.getFilteredRowModel().rows.length;
+  const { pageIndex, pageSize: currentPageSize } = table.getState().pagination;
+  const pageFrom =
+    filteredRowCount === 0 ? 0 : pageIndex * currentPageSize + 1;
+  const pageTo = Math.min(
+    (pageIndex + 1) * currentPageSize,
+    filteredRowCount,
+  );
+
   return (
     <div className={cn("space-y-4", className)}>
       {!hideToolbar ? (
@@ -362,11 +371,24 @@ function DataTableInner<TData extends { id?: number }, TValue>(
       <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:px-2">
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-3">
           <p className="text-xs text-muted-foreground">
-            Showing{" "}
-            <span className="font-medium text-foreground">
-              {table.getFilteredRowModel().rows.length}
-            </span>{" "}
-            records
+            {filteredRowCount === 0 ? (
+              <>
+                Showing{" "}
+                <span className="font-medium text-foreground">0</span> records
+              </>
+            ) : (
+              <>
+                Showing{" "}
+                <span className="font-medium text-foreground">
+                  {pageFrom}–{pageTo}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium text-foreground">
+                  {filteredRowCount}
+                </span>{" "}
+                records
+              </>
+            )}
           </p>
           {footerSummary
             ? footerSummary(

@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { notifyApiFailure } from "@/lib/actions";
 import {
@@ -15,23 +22,33 @@ import {
   replaceHrIncidentTypesApi,
 } from "@/lib/api/hr";
 import {
+  HR_ATTENDANCE_LINK_OPTIONS,
+  incidentTypeSettingFromApi,
   slugIncidentTypeCode,
   type HrIncidentTypeSetting,
 } from "@/lib/hrIncidentTypes";
 
 const LINE_GRID =
-  "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_100px_minmax(0,0.9fr)_40px] lg:items-end lg:gap-x-2.5";
+  "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_88px_minmax(0,0.7fr)_minmax(0,1.2fr)_40px] lg:items-end lg:gap-x-2.5";
 
 type IncidentTypeLine = {
   key: string;
   code: string;
   label: string;
   deduct: boolean;
-  amountETB: number;
+  percentOfSalary: number;
+  attendanceLink: "" | "absent" | "late" | "half_day";
 };
 
 function emptyLine(key: string): IncidentTypeLine {
-  return { key, code: "", label: "", deduct: false, amountETB: 0 };
+  return {
+    key,
+    code: "",
+    label: "",
+    deduct: false,
+    percentOfSalary: 0,
+    attendanceLink: "",
+  };
 }
 
 function linesFromSettings(types: HrIncidentTypeSetting[]): IncidentTypeLine[] {
@@ -40,7 +57,9 @@ function linesFromSettings(types: HrIncidentTypeSetting[]): IncidentTypeLine[] {
     code: type.code,
     label: type.label,
     deduct: type.deduct,
-    amountETB: type.amountETB,
+    percentOfSalary: type.percentOfSalary || 0,
+    attendanceLink: (type.attendanceLink ||
+      "") as IncidentTypeLine["attendanceLink"],
   }));
 }
 
@@ -60,7 +79,11 @@ function settingsFromLines(lines: IncidentTypeLine[]): HrIncidentTypeSetting[] {
       code: unique,
       label,
       deduct: Boolean(line.deduct),
-      amountETB: Math.max(0, Number(line.amountETB) || 0),
+      percentOfSalary: Math.max(
+        0,
+        Math.min(100, Number(line.percentOfSalary) || 0),
+      ),
+      attendanceLink: line.attendanceLink || "",
       active: true,
     });
   }
@@ -77,7 +100,9 @@ export function HrIncidentTypeEditor() {
     let cancelled = false;
     void (async () => {
       try {
-        const types = await fetchHrIncidentTypes();
+        const types = (await fetchHrIncidentTypes()).map(
+          incidentTypeSettingFromApi,
+        );
         if (cancelled) return;
         const next = linesFromSettings(types);
         rowIdRef.current = next.length;
@@ -153,10 +178,10 @@ export function HrIncidentTypeEditor() {
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-10 text-center">
           <AlertTriangle className="h-8 w-8 text-amber-600/80 dark:text-amber-400/80" />
           <p className="max-w-sm text-sm text-muted-foreground">
-            Start empty and add your own categories. Set Deduct when the amount
-            should come off salary; leave it off to increase pay by that amount.
-            If you add a type named Other, HR will use it instead of a free
-            Other option.
+            Start empty and add your own categories. Enter a percent of salary
+            (not a fixed ETB amount). Link a type to attendance (e.g. Absent) so
+            payroll applies that percent once per matching day. Days on approved
+            leave are excluded from absence deductions.
           </p>
           <Button type="button" onClick={addLine}>
             <Plus className="mr-2 h-4 w-4" />
@@ -183,7 +208,8 @@ export function HrIncidentTypeEditor() {
           >
             <span>Type name</span>
             <span className="text-center">Deduct</span>
-            <span className="text-center">Amount (ETB)</span>
+            <span className="text-center">% of salary</span>
+            <span>Attendance link</span>
             <span className="sr-only">Remove</span>
           </div>
 
@@ -213,11 +239,13 @@ export function HrIncidentTypeEditor() {
                       variant="secondary"
                       className="shrink-0 text-[11px] font-semibold"
                     >
-                      {line.amountETB > 0
-                        ? line.deduct
-                          ? `Deduct ${line.amountETB}`
-                          : `Increase ${line.amountETB}`
-                        : "No pay impact"}
+                      {line.attendanceLink
+                        ? `${line.percentOfSalary || 0}% × ${line.attendanceLink.replace("_", " ")} days`
+                        : line.percentOfSalary > 0
+                          ? line.deduct
+                            ? `Deduct ${line.percentOfSalary}%`
+                            : `Credit ${line.percentOfSalary}%`
+                          : "No pay impact"}
                     </Badge>
                   </div>
 
@@ -231,7 +259,7 @@ export function HrIncidentTypeEditor() {
                         onChange={(e) =>
                           updateLine(index, { ...line, label: e.target.value })
                         }
-                        placeholder="Type name"
+                        placeholder="Type name (e.g. Absence)"
                         className="h-9 w-full min-w-0 text-sm sm:h-10"
                       />
                     </div>
@@ -257,27 +285,59 @@ export function HrIncidentTypeEditor() {
 
                     <div className="min-w-0 space-y-1">
                       <Label className="text-xs font-medium text-muted-foreground sm:sr-only">
-                        Amount (ETB)
+                        % of salary
                       </Label>
                       <Input
                         type="text"
                         inputMode="decimal"
                         autoComplete="off"
-                        value={line.amountETB || ""}
+                        value={line.percentOfSalary || ""}
                         placeholder="0"
                         className="h-9 w-full min-w-0 text-center text-sm tabular-nums sm:h-10"
                         onChange={(e) => {
                           const raw = e.target.value;
                           if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return;
+                          const n =
+                            raw === "" || raw === "." ? 0 : Number(raw) || 0;
                           updateLine(index, {
                             ...line,
-                            amountETB:
-                              raw === "" || raw === "."
-                                ? 0
-                                : Number(raw) || 0,
+                            percentOfSalary: Math.max(0, Math.min(100, n)),
                           });
                         }}
                       />
+                    </div>
+
+                    <div className="min-w-0 space-y-1 sm:col-span-2 lg:col-span-1">
+                      <Label className="text-xs font-medium text-muted-foreground lg:sr-only">
+                        Attendance link
+                      </Label>
+                      <Select
+                        value={line.attendanceLink || "none"}
+                        onValueChange={(value) =>
+                          updateLine(index, {
+                            ...line,
+                            attendanceLink:
+                              value === "none"
+                                ? ""
+                                : (value as IncidentTypeLine["attendanceLink"]),
+                            deduct: value !== "none" ? true : line.deduct,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-full min-w-0 bg-background sm:h-10">
+                          <SelectValue placeholder="No attendance link" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HR_ATTENDANCE_LINK_OPTIONS.map((opt) => (
+                            <SelectItem
+                              key={opt.id || "none"}
+                              value={opt.id || "none"}
+                            >
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="flex items-end sm:col-span-2 lg:col-span-1 lg:justify-end">

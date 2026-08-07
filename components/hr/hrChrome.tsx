@@ -108,7 +108,11 @@ export function HrStatusBadge({ status }: { status: string }) {
   const variant =
     status === "terminated" || status === "rejected" || status === "absent"
       ? "destructive"
-      : status === "pending" || status === "on_leave" || status === "open"
+      : status === "pending" ||
+          status === "on_leave" ||
+          status === "open" ||
+          status === "half_day" ||
+          status === "late"
         ? "secondary"
         : status === "closed" || status === "approved"
           ? "outline"
@@ -145,22 +149,22 @@ export const HR_SECTION_COPY: Record<
   dashboard: {
     title: "HR · Overview",
     description:
-      "Workforce snapshot for this property — headcount, leave pressure, scheduled shifts, and open payroll.",
+      "Workforce snapshot for this property — headcount, leave pressure, scheduled shifts, and open payroll. Status, pay, leave, attendance, and incidents feed each other when you generate payslips.",
   },
   employees: {
     title: "HR · Employees",
     description:
-      "Maintain the employee master — role, pay, and hire details used when HR files leave and when payroll is closed.",
+      "Maintain the employee master — role, pay, bank, and hire details. Salary feeds payslips; approved leave overrides Active to On leave.",
   },
   leave: {
     title: "HR · Leave",
     description:
-      "Configure leave types and approve requests (Manager/Admin). HR files leave for employees. On café properties, Admin handles the full leave workflow.",
+      "Configure leave types and approve requests (Manager/Admin). HR files leave for employees. Unpaid leave days deduct from payslips; approved leave marks attendance as On leave.",
   },
   attendance: {
     title: "HR · Attendance",
     description:
-      "HR records clock in/out and schedules shifts. Manager and HR both review attendance and shift reports. On café properties, Admin owns the full attendance desk. Device punches (e.g. ZKTeco) can replace manual clocking later.",
+      "HR records clock in/out and schedules shifts. Employees on approved leave show as On leave (not absent) and cannot clock. Absence days can drive payroll when an incident type is linked to attendance.",
   },
   documents: {
     title: "HR · Documents",
@@ -170,12 +174,32 @@ export const HR_SECTION_COPY: Record<
   payroll: {
     title: "HR · Payroll",
     description:
-      "HR opens and closes periods and adjusts payslips. Managers review a read-only payroll report. On café properties, Admin runs payroll.",
+      "HR generates payslips for a From–To range (month named by most days). Managers configure wage windows and common pay lines, then approve payments. History is read-only.",
+  },
+  "payroll-generate": {
+    title: "HR · Payroll · Generate",
+    description:
+      "Create payslips for a From–To range. Lines include gross, common rules, recorded incidents, unpaid leave (daily rate), and attendance-linked deductions (e.g. absence).",
+  },
+  "payroll-runs": {
+    title: "HR · Payroll · Runs & pay",
+    description:
+      "Open a payroll run, download employee PDFs, mark payslips paid, and approve payments.",
+  },
+  "payroll-settings": {
+    title: "HR · Payroll · Settings",
+    description:
+      "Configure common deductions/increases and wage-type pay windows used when HR generates payslips.",
+  },
+  "payroll-history": {
+    title: "HR · Payroll · History",
+    description:
+      "Read-only archive of approved payslips across payroll runs.",
   },
   incidents: {
     title: "HR · Incidents",
     description:
-      "Configure incident types (Manager/Admin). HR records warnings and pay impacts. On café properties, Admin handles both.",
+      "Configure incident types (Manager/Admin), optionally linked to attendance absences/lates. Recorded pay impact and linked attendance days appear on generated payslips.",
   },
   departments: {
     title: "HR · Departments",

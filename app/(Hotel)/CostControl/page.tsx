@@ -354,7 +354,7 @@ function CostControlInner() {
       stock: ["profiles", "stocks"],
       inventory: ["regs", "stats"],
       inactive: ["stats"],
-      beginnings: ["kb", "stocks"],
+      beginnings: ["kb", "stocks", "regs"],
       registrations: ["regs"],
       "item-receipts": ["regs", "purchases", "stocks"],
       "payment-all": ["regs"],

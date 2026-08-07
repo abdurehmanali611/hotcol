@@ -5,7 +5,12 @@ import {
 } from "@/lib/departments";
 import { isLodgingBusinessType, type BusinessType } from "@/constants";
 
-export const HR_WAGE_TYPES = ["monthly", "hourly", "tip_eligible"] as const;
+export const HR_WAGE_TYPES = [
+  "monthly",
+  "weekly",
+  "hourly",
+  "tip_eligible",
+] as const;
 export const HR_LEAVE_TYPES = ["annual", "sick", "unpaid"] as const;
 export const HR_DOC_TYPES = ["contract", "id", "certificate", "other"] as const;
 export const HR_INCIDENT_KINDS = [
@@ -71,6 +76,18 @@ const hrEmployeeBaseFields = z.object({
     .number({ message: "Enter a valid salary" })
     .min(0, "Salary cannot be negative")
     .max(10_000_000, "Salary is too high"),
+  bankName: z
+    .string()
+    .trim()
+    .max(80, "Bank name is too long")
+    .optional()
+    .or(z.literal("")),
+  accountNumber: z
+    .string()
+    .trim()
+    .max(40, "Account number is too long")
+    .optional()
+    .or(z.literal("")),
   hireDate: ymdSchema,
   notes: z.string().max(500, "Notes are too long").optional().or(z.literal("")),
 });
@@ -172,10 +189,10 @@ export const hrIncidentFormSchema = z.object({
   detail: z.string().trim().max(2000, "Detail is too long").optional().or(z.literal("")),
   occurredYmd: ymdSchema,
   salaryDeduct: z.boolean().optional(),
-  amountETB: z.coerce
-    .number({ message: "Enter a valid amount" })
-    .min(0, "Amount cannot be negative")
-    .max(10_000_000, "Amount is too high")
+  percentOfSalary: z.coerce
+    .number({ message: "Enter a valid percent" })
+    .min(0, "Percent cannot be negative")
+    .max(100, "Percent cannot exceed 100")
     .optional(),
 });
 
@@ -273,6 +290,7 @@ export function hrDepartmentCodesForBusiness(
 
 export const HR_WAGE_LABELS: Record<(typeof HR_WAGE_TYPES)[number], string> = {
   monthly: "Monthly",
+  weekly: "Weekly",
   hourly: "Hourly",
   tip_eligible: "Tip eligible",
 };
@@ -309,9 +327,13 @@ export const HR_STATUS_LABELS: Record<string, string> = {
   rejected: "Rejected",
   open: "Open",
   closed: "Closed",
+  awaiting_manager: "Awaiting manager",
+  unpaid: "Unpaid",
+  marked_paid: "Awaiting manager",
   present: "Present",
   absent: "Absent",
   late: "Late",
+  half_day: "Half day",
 };
 
 export function hrStatusLabel(status: string): string {

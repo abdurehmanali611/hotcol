@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { UserPlus, Users } from "lucide-react";
+import { UserPlus, Users, Trash2 } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
@@ -95,6 +95,8 @@ export function HrEmployeesPanel({
       jobTitle: "",
       wageType: "monthly",
       baseSalaryETB: 0,
+      bankName: "",
+      accountNumber: "",
       hireDate: todayYmd(),
       notes: "",
     },
@@ -118,6 +120,8 @@ export function HrEmployeesPanel({
       jobTitle: "",
       wageType: "monthly",
       baseSalaryETB: 0,
+      bankName: "",
+      accountNumber: "",
       hireDate: todayYmd(),
       notes: "",
     });
@@ -137,6 +141,8 @@ export function HrEmployeesPanel({
           ? (row.wageType as HrEmployeeFormValues["wageType"])
           : "monthly",
         baseSalaryETB: row.baseSalaryETB || 0,
+        bankName: row.bankName || "",
+        accountNumber: row.accountNumber || "",
         hireDate: row.hireDate || todayYmd(),
         notes: row.notes || "",
       });
@@ -156,6 +162,8 @@ export function HrEmployeesPanel({
         jobTitle: values.jobTitle,
         wageType: values.wageType,
         baseSalaryETB: values.baseSalaryETB,
+        bankName: values.bankName || "",
+        accountNumber: values.accountNumber || "",
         hireDate: values.hireDate,
         notes: values.notes,
       };
@@ -209,6 +217,16 @@ export function HrEmployeesPanel({
         cell: ({ row }) => formatETB(row.original.baseSalaryETB || 0),
       },
       {
+        accessorKey: "bankName",
+        header: "Bank",
+        cell: ({ row }) => row.original.bankName || "—",
+      },
+      {
+        accessorKey: "accountNumber",
+        header: "Account",
+        cell: ({ row }) => row.original.accountNumber || "—",
+      },
+      {
         accessorKey: "hireDate",
         header: "Hired",
         cell: ({ row }) => row.original.hireDate || "—",
@@ -233,7 +251,12 @@ export function HrEmployeesPanel({
                 description="Marks this employee terminated from today. History stays on file."
                 confirmLabel="Terminate"
                 trigger={
-                  <Button size="sm" variant="ghost">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                     Terminate
                   </Button>
                 }
@@ -442,6 +465,40 @@ export function HrEmployeesPanel({
                             min={0}
                             value={field.value}
                             onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="bankName"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Bank name</FormLabel>
+                        <FormControl>
+                          <Input
+                            className={roleInputClass}
+                            placeholder="Commercial Bank…"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="accountNumber"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Account number</FormLabel>
+                        <FormControl>
+                          <Input
+                            className={roleInputClass}
+                            placeholder="Employee account number"
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />

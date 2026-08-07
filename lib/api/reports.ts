@@ -119,6 +119,79 @@ export function prepareTableExportData(tables: Table[]): ExcelExportData {
   };
 }
 
+export function prepareWaiterRankExportData(
+  rows: Array<{
+    rank: number;
+    name: string;
+    revenue: number;
+    uniqueTables: number;
+    completions: number;
+    composite: number;
+  }>,
+  filter: { periodLabel: string; dateRangeLabel: string },
+): ExcelExportData {
+  const data = rows.map((r) => ({
+    Period: filter.periodLabel,
+    "Date range": filter.dateRangeLabel,
+    Rank: r.rank,
+    Waiter: r.name,
+    "Revenue (ETB)": Math.round(r.revenue * 100) / 100,
+    "Distinct tables": r.uniqueTables,
+    "Paid entries": r.completions,
+    Score: Math.round(r.composite * 1000) / 1000,
+  }));
+
+  return {
+    sheetName: "Waiter Ranking",
+    data,
+    headers: [
+      "Period",
+      "Date range",
+      "Rank",
+      "Waiter",
+      "Revenue (ETB)",
+      "Distinct tables",
+      "Paid entries",
+      "Score",
+    ],
+  };
+}
+
+export function prepareTableRankExportData(
+  rows: Array<{
+    rank: number;
+    tableLabel: string;
+    revenue: number;
+    completions: number;
+    composite: number;
+  }>,
+  filter: { periodLabel: string; dateRangeLabel: string },
+): ExcelExportData {
+  const data = rows.map((r) => ({
+    Period: filter.periodLabel,
+    "Date range": filter.dateRangeLabel,
+    Rank: r.rank,
+    Table: r.tableLabel,
+    "Revenue (ETB)": Math.round(r.revenue * 100) / 100,
+    "Paid entries": r.completions,
+    Score: Math.round(r.composite * 1000) / 1000,
+  }));
+
+  return {
+    sheetName: "Table Ranking",
+    data,
+    headers: [
+      "Period",
+      "Date range",
+      "Rank",
+      "Table",
+      "Revenue (ETB)",
+      "Paid entries",
+      "Score",
+    ],
+  };
+}
+
 export async function generateReport(
   orders: Order[],
   cashouts: Cashout[],

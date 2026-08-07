@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { BarChart3, CalendarIcon, Info } from "lucide-react";
+import { BarChart3, CalendarIcon, Download, Info } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/dataTableColumns/incomeRankings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -32,6 +33,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { Table as TableModel, Waiter } from "@/lib/actions";
+import {
+  exportToExcel,
+  prepareTableRankExportData,
+  prepareWaiterRankExportData,
+} from "@/lib/actions";
 import {
   aggregateTableIncomeInRange,
   aggregateWaiterIncomeInRange,
@@ -61,6 +67,8 @@ export default function AdminIncomeRankings({
     return d;
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [exportingWaiters, setExportingWaiters] = useState(false);
+  const [exportingTables, setExportingTables] = useState(false);
 
   const range = useMemo(
     () => getIncomePeriodRange(period, anchorDate),
@@ -129,6 +137,16 @@ export default function AdminIncomeRankings({
         : period === "month"
           ? "calendar month"
           : "all time";
+
+  const dateRangeLabel = useMemo(() => {
+    if (!range) return "All time";
+    return `${format(range.start, "yyyy-MM-dd")} – ${format(range.end, "yyyy-MM-dd")}`;
+  }, [range]);
+
+  const rankExportFilter = useMemo(
+    () => ({ periodLabel, dateRangeLabel }),
+    [periodLabel, dateRangeLabel],
+  );
 
   return (
     <Card className="mb-4 overflow-hidden border-primary/15 bg-card/95 shadow-md ring-1 ring-black/3 dark:ring-white/6 sm:mb-6">
@@ -221,6 +239,35 @@ export default function AdminIncomeRankings({
             </TabsTrigger>
           </TabsList>
           <TabsContent value="waiters">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Ranking for {periodLabel}
+                {period !== "all" ? ` · ${dateRangeLabel}` : ""}
+              </p>
+              <PendingButton
+                type="button"
+                variant="outline"
+                size="sm"
+                pending={exportingWaiters}
+                className="w-full cursor-pointer gap-2 sm:w-auto"
+                onClick={async () => {
+                  setExportingWaiters(true);
+                  try {
+                    await exportToExcel(
+                      prepareWaiterRankExportData(
+                        rankedWaiters,
+                        rankExportFilter,
+                      ),
+                    );
+                  } catch {
+                  } finally {
+                    setExportingWaiters(false);
+                  }
+                }}
+              >
+                <Download className="h-4 w-4" /> Export Excel
+              </PendingButton>
+            </div>
             <DataTable
               columns={waiterIncomeColumns}
               data={rankedWaiters}
@@ -230,6 +277,35 @@ export default function AdminIncomeRankings({
             />
           </TabsContent>
           <TabsContent value="tables">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Ranking for {periodLabel}
+                {period !== "all" ? ` · ${dateRangeLabel}` : ""}
+              </p>
+              <PendingButton
+                type="button"
+                variant="outline"
+                size="sm"
+                pending={exportingTables}
+                className="w-full cursor-pointer gap-2 sm:w-auto"
+                onClick={async () => {
+                  setExportingTables(true);
+                  try {
+                    await exportToExcel(
+                      prepareTableRankExportData(
+                        rankedTables,
+                        rankExportFilter,
+                      ),
+                    );
+                  } catch {
+                  } finally {
+                    setExportingTables(false);
+                  }
+                }}
+              >
+                <Download className="h-4 w-4" /> Export Excel
+              </PendingButton>
+            </div>
             <DataTable
               columns={tableIncomeColumns}
               data={rankedTables}

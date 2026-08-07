@@ -21,9 +21,13 @@ export function hrCapabilities(role: HrActorRole) {
     canApproveLeave: isManager || isAdmin,
     /** Clock in/out and schedule shifts */
     canManageTime: isStaffHr,
-    /** Open/close periods and adjust payslips */
+    /** Open payroll runs and mark payslips paid (HR/Admin) */
     canRunPayroll: isStaffHr,
-    /** View payroll periods and payslip totals (Manager report) */
+    /** Configure wage windows, common deductions/increases; approve paid */
+    canConfigurePayroll: isManager || isAdmin,
+    /** Approve HR-marked payments */
+    canApprovePayrollPayment: isManager || isAdmin,
+    /** View payroll periods and payslip totals */
     canViewPayrollReport: isManager || isStaffHr,
     /** Configure incident categories */
     canConfigureIncidentTypes: isManager || isAdmin,

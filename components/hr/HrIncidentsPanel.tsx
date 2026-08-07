@@ -51,6 +51,7 @@ import {
   formatIncidentPayImpact,
   hrIncidentTypeChoices,
   incidentTypeLabel,
+  incidentTypeSettingFromApi,
   isAdHocOtherSelection,
   type HrIncidentTypeSetting,
 } from "@/lib/hrIncidentTypes";
@@ -84,7 +85,7 @@ function emptyForm(kind = "", deduct = false, amount = 0) {
     detail: "",
     occurredYmd: todayYmd(),
     salaryDeduct: deduct,
-    amountETB: amount,
+    percentOfSalary: amount,
   };
 }
 
@@ -121,9 +122,9 @@ export function HrIncidentsPanel({
   );
   const payLabel = formatIncidentPayImpact(
     form.salaryDeduct,
-    form.amountETB,
+    form.percentOfSalary,
   );
-  const hasPayImpact = form.amountETB > 0;
+  const hasPayImpact = form.percentOfSalary > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +132,9 @@ export function HrIncidentsPanel({
       try {
         const rows = await fetchHrIncidentTypes();
         if (cancelled) return;
-        const types = activeHrIncidentTypes(rows);
+        const types = activeHrIncidentTypes(
+          rows.map(incidentTypeSettingFromApi),
+        );
         setManagerTypes(types);
         const choices = hrIncidentTypeChoices(types);
         setForm((f) => {
@@ -147,7 +150,7 @@ export function HrIncidentsPanel({
             ...f,
             kind,
             salaryDeduct: preset?.deduct ?? false,
-            amountETB: preset?.amountETB ?? 0,
+            percentOfSalary: preset?.percentOfSalary ?? 0,
           };
         });
       } catch (e) {
@@ -169,7 +172,7 @@ export function HrIncidentsPanel({
         ...f,
         kind,
         salaryDeduct: false,
-        amountETB: 0,
+        percentOfSalary: 0,
       }));
       return;
     }
@@ -178,7 +181,7 @@ export function HrIncidentsPanel({
       ...f,
       kind,
       salaryDeduct: preset?.deduct ?? false,
-      amountETB: preset?.amountETB ?? 0,
+      percentOfSalary: preset?.percentOfSalary ?? 0,
     }));
   };
 
@@ -191,7 +194,7 @@ export function HrIncidentsPanel({
       emptyForm(
         first?.code || "",
         preset?.deduct ?? false,
-        preset?.amountETB ?? 0,
+        preset?.percentOfSalary ?? 0,
       ),
     );
     setOpen(true);
@@ -222,7 +225,7 @@ export function HrIncidentsPanel({
         cell: ({ row }) =>
           formatIncidentPayImpact(
             Boolean(row.original.salaryDeduct),
-            Number(row.original.amountETB) || 0,
+            Number(row.original.percentOfSalary) || 0,
           ),
       },
       { accessorKey: "occurredYmd", header: "Occurred" },
@@ -231,7 +234,7 @@ export function HrIncidentsPanel({
         header: "Detail",
         cell: ({ row }) => (
           <span className="line-clamp-2 max-w-xs text-muted-foreground">
-            {row.original.detail || "—"}
+            {row.original.detail || "?"}
           </span>
         ),
       },
@@ -285,7 +288,7 @@ export function HrIncidentsPanel({
       {caps.canConfigureIncidentTypes ? (
         <HrSectionCard
           title="Incident types"
-          description="Add your own categories with optional salary deduct or increase amounts. Leave the list empty until you are ready — nothing is pre-filled."
+          description="Add categories with a percent of salary (deduct or credit). Optionally link a type to attendance days."
           icon={
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
           }
@@ -338,7 +341,7 @@ export function HrIncidentsPanel({
             <DataTable
               columns={columns}
               data={filtered}
-              searchPlaceholder="Search incidents…"
+              searchPlaceholder="Search incidents?"
               pageSize={8}
             />
           ) : (
@@ -426,7 +429,7 @@ export function HrIncidentsPanel({
                       {employees.map((e) => (
                         <SelectItem key={e.id} value={String(e.id)}>
                           {e.fullName}
-                          {e.department ? ` · ${e.department}` : ""}
+                          {e.department ? ` ? ${e.department}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -487,7 +490,7 @@ export function HrIncidentsPanel({
                     }
                     placeholder={
                       adHocOther
-                        ? "e.g. Lost uniform — employee will reimburse"
+                        ? "e.g. Lost uniform ? employee will reimburse"
                         : "Optional notes"
                     }
                   />
@@ -501,7 +504,7 @@ export function HrIncidentsPanel({
                 adHocOther
                   ? "Set deduct or increase for this one-off case."
                   : selectedType
-                    ? "Taken from the manager’s incident type."
+                    ? "Taken from the manager?s incident type."
                     : "Select a type to see pay impact."
               }
             >
@@ -531,25 +534,26 @@ export function HrIncidentsPanel({
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="hr-incident-amount">Amount</Label>
+                    <Label htmlFor="hr-incident-percent">% of salary</Label>
                     <Input
-                      id="hr-incident-amount"
+                      id="hr-incident-percent"
                       type="text"
                       inputMode="decimal"
                       className={cn(inputClass, "tabular-nums")}
-                      value={form.amountETB || ""}
+                      value={form.percentOfSalary || ""}
                       placeholder="0"
                       onChange={(e) => {
                         const raw = e.target.value;
                         if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return;
+                        const n =
+                          raw === "" || raw === "." ? 0 : Number(raw) || 0;
                         setForm((f) => ({
                           ...f,
-                          amountETB:
-                            raw === "" || raw === "." ? 0 : Number(raw) || 0,
+                          percentOfSalary: Math.max(0, Math.min(100, n)),
                         }));
                       }}
                     />
-                    <p className="text-[11px] text-muted-foreground">ETB</p>
+                    <p className="text-[11px] text-muted-foreground">0?100</p>
                   </div>
                 </div>
               ) : (
@@ -587,7 +591,9 @@ export function HrIncidentsPanel({
                     <p className="text-sm font-medium">{payLabel}</p>
                     {hasPayImpact ? (
                       <p className="text-xs text-muted-foreground tabular-nums">
-                        {formatETB(form.amountETB)}
+                        {selectedEmployee
+                          ? `${form.percentOfSalary}% of ${formatETB(selectedEmployee.baseSalaryETB)} ~= ${formatETB((Number(selectedEmployee.baseSalaryETB) * form.percentOfSalary) / 100)}`
+                          : `${form.percentOfSalary}% of the employee's salary`}
                       </p>
                     ) : (
                       <p className="text-xs text-muted-foreground">
@@ -624,7 +630,7 @@ export function HrIncidentsPanel({
                   await createHrIncidentApi({
                     ...parsed.data,
                     salaryDeduct: form.salaryDeduct,
-                    amountETB: form.amountETB,
+                    percentOfSalary: form.percentOfSalary,
                   });
                   toast.success("Incident recorded");
                   setOpen(false);

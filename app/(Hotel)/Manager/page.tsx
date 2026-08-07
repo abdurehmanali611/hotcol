@@ -63,6 +63,8 @@ import {
   MANAGER_SERVICE_LEGACY_TAB_IDS,
   MANAGER_LODGING_NESTED_TAB_IDS,
   MANAGER_HR_TAB_IDS,
+  isHrPayrollTab,
+  type HrPayrollTabId,
 } from "@/constants";
 import {
   filterManagerServiceTabId,
@@ -71,6 +73,11 @@ import {
   tenantHasServiceModuleGroup,
 } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import {
+  HrPayrollSidebarGroup,
+  hrPayrollViewsForCaps,
+} from "@/components/hr/HrPayrollSidebarGroup";
+import { hrCapabilities } from "@/lib/hrCapabilities";
 import { readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
@@ -104,7 +111,6 @@ import {
   UserMinus,
   Phone,
   CalendarDays,
-  Wallet,
   AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
@@ -184,7 +190,8 @@ type TabId =
   | (typeof MANAGER_SERVICE_SIDEBAR_ITEMS)[number]["id"]
   | (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
   | (typeof MANAGER_LODGING_NESTED_TAB_IDS)[number]
-  | PaymentTabId;
+  | PaymentTabId
+  | HrPayrollTabId;
 
 const managerSidebarIconMap: Record<
   | (typeof MANAGER_SIDEBAR_ITEMS)[number]["icon"]
@@ -207,7 +214,6 @@ const managerSidebarIconMap: Record<
   FileText,
   Phone,
   CalendarDays,
-  Wallet,
   AlertTriangle,
 };
 
@@ -244,7 +250,10 @@ const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> 
   "hr-overview": "dashboard",
   "hr-leave": "leave",
   "hr-attendance": "attendance",
-  "hr-payroll": "payroll",
+  "hr-payroll-generate": "payroll-generate",
+  "hr-payroll-runs": "payroll-runs",
+  "hr-payroll-settings": "payroll-settings",
+  "hr-payroll-history": "payroll-history",
   "hr-incidents": "incidents",
   "hr-departments": "departments",
 };
@@ -499,6 +508,10 @@ function ManagerContent() {
       setActiveTab("hr-overview");
       return;
     }
+    if ((activeTab as string) === "hr-payroll") {
+      setActiveTab("hr-payroll-runs");
+      return;
+    }
     const remapped =
       LEGACY_SERVICE_TAB_REMAP[
         activeTab as (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
@@ -583,6 +596,7 @@ function ManagerContent() {
       !allNavItems.some((item) => item.id === activeTab) &&
       !isPaymentCategorySection(activeTab) &&
       !isLodgingServiceNestedTab(activeTab) &&
+      !isHrPayrollTab(activeTab) &&
       activeTab !== "lodging-reports"
     ) {
       setActiveTab(allNavItems[0]!.id);
@@ -649,7 +663,10 @@ function ManagerContent() {
       "hr-overview": "HR · Overview",
       "hr-leave": "HR · Leave types",
       "hr-attendance": "HR · Attendance",
-      "hr-payroll": "HR · Payroll report",
+      "hr-payroll-generate": "HR · Payroll · Generate",
+      "hr-payroll-runs": "HR · Payroll · Runs & pay",
+      "hr-payroll-settings": "HR · Payroll · Settings",
+      "hr-payroll-history": "HR · Payroll · History",
       "hr-incidents": "HR · Incident types",
       "hr-departments": "HR · Departments",
     };
@@ -670,8 +687,14 @@ function ManagerContent() {
         "Configure leave types and approve or reject requests filed by HR.",
       "hr-attendance":
         "Attendance and shift reports. HR records clock in/out and schedules.",
-      "hr-payroll":
-        "Read-only payroll report: periods and payslip totals prepared by HR.",
+      "hr-payroll-generate":
+        "HR creates payslips for a From–To range. Managers use Runs & Settings instead.",
+      "hr-payroll-runs":
+        "Review payroll runs, download payslips, and approve payments marked by HR.",
+      "hr-payroll-settings":
+        "Configure wage pay windows and common deductions/increases for payroll generation.",
+      "hr-payroll-history":
+        "Read-only archive of approved payslips across payroll runs.",
       "hr-incidents":
         "Configure incident types and review the incident file HR records.",
       "hr-departments":
@@ -1595,7 +1618,10 @@ function ManagerContent() {
       case "hr-overview":
       case "hr-leave":
       case "hr-attendance":
-      case "hr-payroll":
+      case "hr-payroll-generate":
+      case "hr-payroll-runs":
+      case "hr-payroll-settings":
+      case "hr-payroll-history":
       case "hr-incidents":
       case "hr-departments":
         return (
@@ -1746,7 +1772,8 @@ function ManagerContent() {
                 </ManagerCollapsibleSidebarGroup>
               ) : null}
 
-              {hrSidebarItems.length > 0 ? (
+              {hrSidebarItems.length > 0 ||
+              tenantHasModule(tenantModules, "HR Module") ? (
                 <ManagerCollapsibleSidebarGroup
                   label="HR"
                   icon={Users}
@@ -1755,7 +1782,15 @@ function ManagerContent() {
                   isGroupActive={hrGroupActive}
                   onSelect={(id) => setActiveTab(id as TabId)}
                   layout="flat"
-                />
+                >
+                  <HrPayrollSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={(id) => setActiveTab(id as TabId)}
+                    visibleViews={hrPayrollViewsForCaps(
+                      hrCapabilities("Manager"),
+                    )}
+                  />
+                </ManagerCollapsibleSidebarGroup>
               ) : null}
 
               {accessSidebarItems.length > 0 ? (

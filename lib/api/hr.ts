@@ -13,6 +13,8 @@ export type HrEmployee = {
   endDate: string;
   wageType: string;
   baseSalaryETB: number;
+  bankName: string;
+  accountNumber: string;
   credentialUserId: number | null;
   credentialUserName: string;
   notes: string;
@@ -46,7 +48,10 @@ export type HrIncidentType = {
   code: string;
   label: string;
   deduct: boolean;
+  percentOfSalary: number;
   amountETB: number;
+  /** "" | absent | late | half_day — payroll multiplies percent by matching attendance days */
+  attendanceLink: string;
   active: boolean;
   sortOrder: number;
 };
@@ -119,13 +124,20 @@ export type HrPayrollPeriod = {
   id: number;
   HotelName: string;
   periodKey: string;
+  monthName: string;
   fromYmd: string;
   toYmd: string;
   status: string;
   notes: string;
+  createdBy: string;
   closedAt: string | null;
   closedBy: string;
   createdAt: string;
+};
+
+export type HrPayslipLine = {
+  label: string;
+  amountETB: number;
 };
 
 export type HrPayslip = {
@@ -133,14 +145,57 @@ export type HrPayslip = {
   HotelName: string;
   periodId: number;
   employeeId: number;
+  payslipNumber: string;
+  employeeName: string;
+  jobTitle: string;
+  taxPeriod: string;
+  organizationLocation: string;
+  payDate: string;
+  hireDate: string;
+  wageType: string;
+  bankName: string;
+  accountNumber: string;
   basePayETB: number;
   overtimeETB: number;
   tipsETB: number;
   deductionsETB: number;
   netPayETB: number;
+  grossSalaryETB: number;
+  totalEarningsETB: number;
+  totalDeductionsETB: number;
+  earnings: HrPayslipLine[];
+  deductions: HrPayslipLine[];
+  paymentStatus: string;
+  hrMarkedPaidAt: string | null;
+  hrMarkedPaidBy: string;
+  managerApprovedAt: string | null;
+  managerApprovedBy: string;
   notes: string;
   createdAt: string;
   employee?: HrEmployee | null;
+  period?: HrPayrollPeriod | null;
+};
+
+export type HrPayrollLineRule = {
+  id: number;
+  HotelName: string;
+  kind: string;
+  label: string;
+  amountETB: number;
+  whenMode: string;
+  fromDay: number | null;
+  toDay: number | null;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type HrWagePayWindow = {
+  id: number;
+  HotelName: string;
+  wageType: string;
+  fromDay: number;
+  toDay: number;
+  active: boolean;
 };
 
 export type HrIncident = {
@@ -153,6 +208,7 @@ export type HrIncident = {
   occurredYmd: string;
   recordedBy: string;
   salaryDeduct?: boolean;
+  percentOfSalary?: number;
   amountETB?: number;
   createdAt: string;
   employee?: HrEmployee | null;
@@ -168,8 +224,20 @@ export type HrDashboardStats = {
 
 const EMP_FIELDS = `
   id HotelName fullName phone email department jobTitle status
-  hireDate endDate wageType baseSalaryETB credentialUserId credentialUserName
-  notes createdAt updatedAt
+  hireDate endDate wageType baseSalaryETB bankName accountNumber
+  credentialUserId credentialUserName notes createdAt updatedAt
+`;
+
+const PAYSLIP_FIELDS = `
+  id HotelName periodId employeeId payslipNumber employeeName jobTitle
+  taxPeriod organizationLocation payDate hireDate wageType bankName accountNumber
+  basePayETB overtimeETB tipsETB deductionsETB netPayETB
+  grossSalaryETB totalEarningsETB totalDeductionsETB
+  earnings { label amountETB } deductions { label amountETB }
+  paymentStatus hrMarkedPaidAt hrMarkedPaidBy managerApprovedAt managerApprovedBy
+  notes createdAt
+  employee { id fullName }
+  period { id periodKey monthName fromYmd toYmd status }
 `;
 
 async function gql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
@@ -203,6 +271,8 @@ export async function createHrEmployeeApi(input: {
   hireDate?: string;
   wageType?: string;
   baseSalaryETB?: number;
+  bankName?: string;
+  accountNumber?: string;
   notes?: string;
 }): Promise<HrEmployee> {
   const data = await gql<{ createHrEmployee: HrEmployee }>(
@@ -215,6 +285,8 @@ export async function createHrEmployeeApi(input: {
       $hireDate: String
       $wageType: String
       $baseSalaryETB: Float
+      $bankName: String
+      $accountNumber: String
       $notes: String
     ) {
       createHrEmployee(
@@ -226,6 +298,8 @@ export async function createHrEmployeeApi(input: {
         hireDate: $hireDate
         wageType: $wageType
         baseSalaryETB: $baseSalaryETB
+        bankName: $bankName
+        accountNumber: $accountNumber
         notes: $notes
       ) { ${EMP_FIELDS} }
     }`,
@@ -298,7 +372,7 @@ export async function fetchHrIncidentTypes(): Promise<HrIncidentType[]> {
   const data = await gql<{ hrIncidentTypes: HrIncidentType[] }>(`
     query {
       hrIncidentTypes {
-        id HotelName code label deduct amountETB active sortOrder
+        id HotelName code label deduct percentOfSalary amountETB attendanceLink active sortOrder
       }
     }
   `);
@@ -310,14 +384,15 @@ export async function replaceHrIncidentTypesApi(
     code?: string;
     label: string;
     deduct?: boolean;
-    amountETB?: number;
+    percentOfSalary?: number;
+    attendanceLink?: string;
     active?: boolean;
   }>,
 ): Promise<HrIncidentType[]> {
   const data = await gql<{ replaceHrIncidentTypes: HrIncidentType[] }>(
     `mutation ($types: [HrIncidentTypeInput!]!) {
       replaceHrIncidentTypes(types: $types) {
-        id HotelName code label deduct amountETB active sortOrder
+        id HotelName code label deduct percentOfSalary amountETB attendanceLink active sortOrder
       }
     }`,
     { types },
@@ -338,8 +413,11 @@ export async function updateHrEmployeeApi(
       $department: String
       $jobTitle: String
       $status: String
+      $hireDate: String
       $wageType: String
       $baseSalaryETB: Float
+      $bankName: String
+      $accountNumber: String
       $credentialUserId: Int
       $credentialUserName: String
       $notes: String
@@ -352,8 +430,11 @@ export async function updateHrEmployeeApi(
         department: $department
         jobTitle: $jobTitle
         status: $status
+        hireDate: $hireDate
         wageType: $wageType
         baseSalaryETB: $baseSalaryETB
+        bankName: $bankName
+        accountNumber: $accountNumber
         credentialUserId: $credentialUserId
         credentialUserName: $credentialUserName
         notes: $notes
@@ -463,18 +544,22 @@ export async function fetchHrLeaveBalances(
 }
 
 export async function fetchHrAttendance(
-  fromYmd: string,
-  toYmd: string,
+  fromYmd?: string,
+  toYmd?: string,
   employeeId?: number,
 ): Promise<HrAttendance[]> {
   const data = await gql<{ hrAttendance: HrAttendance[] }>(
-    `query ($fromYmd: String!, $toYmd: String!, $employeeId: Int) {
+    `query ($fromYmd: String, $toYmd: String, $employeeId: Int) {
       hrAttendance(fromYmd: $fromYmd, toYmd: $toYmd, employeeId: $employeeId) {
         id employeeId workDate clockInAt clockOutAt status notes
         employee { id fullName }
       }
     }`,
-    { fromYmd, toYmd, employeeId: employeeId ?? null },
+    {
+      fromYmd: fromYmd ?? null,
+      toYmd: toYmd ?? null,
+      employeeId: employeeId ?? null,
+    },
   );
   return data.hrAttendance || [];
 }
@@ -495,17 +580,22 @@ export async function clockHrAttendanceApi(input: {
 }
 
 export async function fetchHrShifts(
-  fromYmd: string,
-  toYmd: string,
+  fromYmd?: string,
+  toYmd?: string,
+  employeeId?: number,
 ): Promise<HrShift[]> {
   const data = await gql<{ hrShifts: HrShift[] }>(
-    `query ($fromYmd: String!, $toYmd: String!) {
-      hrShifts(fromYmd: $fromYmd, toYmd: $toYmd) {
+    `query ($fromYmd: String, $toYmd: String, $employeeId: Int) {
+      hrShifts(fromYmd: $fromYmd, toYmd: $toYmd, employeeId: $employeeId) {
         id employeeId workDate department startTime endTime notes
         employee { id fullName }
       }
     }`,
-    { fromYmd, toYmd },
+    {
+      fromYmd: fromYmd ?? null,
+      toYmd: toYmd ?? null,
+      employeeId: employeeId ?? null,
+    },
   );
   return data.hrShifts || [];
 }
@@ -594,7 +684,8 @@ export async function fetchHrPayrollPeriods(): Promise<HrPayrollPeriod[]> {
   const data = await gql<{ hrPayrollPeriods: HrPayrollPeriod[] }>(`
     query {
       hrPayrollPeriods {
-        id periodKey fromYmd toYmd status notes closedAt closedBy createdAt
+        id HotelName periodKey monthName fromYmd toYmd status notes
+        createdBy closedAt closedBy createdAt
       }
     }
   `);
@@ -602,83 +693,136 @@ export async function fetchHrPayrollPeriods(): Promise<HrPayrollPeriod[]> {
 }
 
 export async function createHrPayrollPeriodApi(input: {
-  periodKey: string;
   fromYmd: string;
   toYmd: string;
   notes?: string;
+  employeeIds?: number[];
 }) {
   const data = await gql<{ createHrPayrollPeriod: HrPayrollPeriod }>(
     `mutation (
-      $periodKey: String!
       $fromYmd: String!
       $toYmd: String!
       $notes: String
+      $employeeIds: [Int!]
     ) {
       createHrPayrollPeriod(
-        periodKey: $periodKey
         fromYmd: $fromYmd
         toYmd: $toYmd
         notes: $notes
-      ) { id periodKey status }
+        employeeIds: $employeeIds
+      ) {
+        id periodKey monthName fromYmd toYmd status createdBy createdAt
+      }
     }`,
-    { ...input },
+    {
+      fromYmd: input.fromYmd,
+      toYmd: input.toYmd,
+      notes: input.notes ?? null,
+      employeeIds: input.employeeIds ?? null,
+    },
   );
   return data.createHrPayrollPeriod;
 }
 
-export async function closeHrPayrollPeriodApi(id: number) {
-  const data = await gql<{ closeHrPayrollPeriod: HrPayrollPeriod }>(
-    `mutation ($id: Int!) { closeHrPayrollPeriod(id: $id) { id status closedAt } }`,
-    { id },
-  );
-  return data.closeHrPayrollPeriod;
-}
-
-export async function fetchHrPayslips(periodId: number): Promise<HrPayslip[]> {
+export async function fetchHrPayslips(
+  periodId?: number | null,
+  paymentStatus?: string | null,
+): Promise<HrPayslip[]> {
   const data = await gql<{ hrPayslips: HrPayslip[] }>(
-    `query ($periodId: Int!) {
-      hrPayslips(periodId: $periodId) {
-        id periodId employeeId basePayETB overtimeETB tipsETB deductionsETB netPayETB notes
-        employee { id fullName }
+    `query ($periodId: Int, $paymentStatus: String) {
+      hrPayslips(periodId: $periodId, paymentStatus: $paymentStatus) {
+        ${PAYSLIP_FIELDS}
       }
     }`,
-    { periodId },
+    {
+      periodId: periodId ?? null,
+      paymentStatus: paymentStatus ?? null,
+    },
   );
   return data.hrPayslips || [];
 }
 
-export async function upsertHrPayslipApi(input: {
-  periodId: number;
-  employeeId: number;
-  basePayETB?: number;
-  overtimeETB?: number;
-  tipsETB?: number;
-  deductionsETB?: number;
-  notes?: string;
-}) {
-  const data = await gql<{ upsertHrPayslip: HrPayslip }>(
-    `mutation (
-      $periodId: Int!
-      $employeeId: Int!
-      $basePayETB: Float
-      $overtimeETB: Float
-      $tipsETB: Float
-      $deductionsETB: Float
-      $notes: String
-    ) {
-      upsertHrPayslip(
-        periodId: $periodId
-        employeeId: $employeeId
-        basePayETB: $basePayETB
-        overtimeETB: $overtimeETB
-        tipsETB: $tipsETB
-        deductionsETB: $deductionsETB
-        notes: $notes
-      ) { id netPayETB basePayETB tipsETB deductionsETB }
+export async function markHrPayslipsPaidApi(payslipIds: number[]) {
+  const data = await gql<{ markHrPayslipsPaid: HrPayslip[] }>(
+    `mutation ($payslipIds: [Int!]!) {
+      markHrPayslipsPaid(payslipIds: $payslipIds) { ${PAYSLIP_FIELDS} }
     }`,
-    { ...input },
+    { payslipIds },
   );
-  return data.upsertHrPayslip;
+  return data.markHrPayslipsPaid || [];
+}
+
+export async function approveHrPayslipsPaymentApi(payslipIds: number[]) {
+  const data = await gql<{ approveHrPayslipsPayment: HrPayslip[] }>(
+    `mutation ($payslipIds: [Int!]!) {
+      approveHrPayslipsPayment(payslipIds: $payslipIds) { ${PAYSLIP_FIELDS} }
+    }`,
+    { payslipIds },
+  );
+  return data.approveHrPayslipsPayment || [];
+}
+
+export async function fetchHrPayrollLineRules(): Promise<HrPayrollLineRule[]> {
+  const data = await gql<{ hrPayrollLineRules: HrPayrollLineRule[] }>(`
+    query {
+      hrPayrollLineRules {
+        id HotelName kind label amountETB whenMode fromDay toDay active sortOrder
+      }
+    }
+  `);
+  return data.hrPayrollLineRules || [];
+}
+
+export async function replaceHrPayrollLineRulesApi(
+  rules: Array<{
+    kind: string;
+    label: string;
+    amountETB?: number;
+    whenMode?: string;
+    fromDay?: number | null;
+    toDay?: number | null;
+    active?: boolean;
+  }>,
+): Promise<HrPayrollLineRule[]> {
+  const data = await gql<{ replaceHrPayrollLineRules: HrPayrollLineRule[] }>(
+    `mutation ($rules: [HrPayrollLineRuleInput!]!) {
+      replaceHrPayrollLineRules(rules: $rules) {
+        id HotelName kind label amountETB whenMode fromDay toDay active sortOrder
+      }
+    }`,
+    { rules },
+  );
+  return data.replaceHrPayrollLineRules || [];
+}
+
+export async function fetchHrWagePayWindows(): Promise<HrWagePayWindow[]> {
+  const data = await gql<{ hrWagePayWindows: HrWagePayWindow[] }>(`
+    query {
+      hrWagePayWindows {
+        id HotelName wageType fromDay toDay active
+      }
+    }
+  `);
+  return data.hrWagePayWindows || [];
+}
+
+export async function replaceHrWagePayWindowsApi(
+  windows: Array<{
+    wageType: string;
+    fromDay: number;
+    toDay: number;
+    active?: boolean;
+  }>,
+): Promise<HrWagePayWindow[]> {
+  const data = await gql<{ replaceHrWagePayWindows: HrWagePayWindow[] }>(
+    `mutation ($windows: [HrWagePayWindowInput!]!) {
+      replaceHrWagePayWindows(windows: $windows) {
+        id HotelName wageType fromDay toDay active
+      }
+    }`,
+    { windows },
+  );
+  return data.replaceHrWagePayWindows || [];
 }
 
 export async function fetchHrIncidents(employeeId?: number): Promise<HrIncident[]> {
@@ -686,7 +830,7 @@ export async function fetchHrIncidents(employeeId?: number): Promise<HrIncident[
     `query ($employeeId: Int) {
       hrIncidents(employeeId: $employeeId) {
         id employeeId kind title detail occurredYmd recordedBy
-        salaryDeduct amountETB createdAt
+        salaryDeduct percentOfSalary amountETB createdAt
         employee { id fullName }
       }
     }`,
@@ -702,6 +846,7 @@ export async function createHrIncidentApi(input: {
   detail?: string;
   occurredYmd?: string;
   salaryDeduct?: boolean;
+  percentOfSalary?: number;
   amountETB?: number;
 }) {
   const data = await gql<{ createHrIncident: HrIncident }>(
@@ -712,6 +857,7 @@ export async function createHrIncidentApi(input: {
       $detail: String
       $occurredYmd: String
       $salaryDeduct: Boolean
+      $percentOfSalary: Float
       $amountETB: Float
     ) {
       createHrIncident(
@@ -721,8 +867,9 @@ export async function createHrIncidentApi(input: {
         detail: $detail
         occurredYmd: $occurredYmd
         salaryDeduct: $salaryDeduct
+        percentOfSalary: $percentOfSalary
         amountETB: $amountETB
-      ) { id kind title salaryDeduct amountETB }
+      ) { id kind title salaryDeduct percentOfSalary amountETB }
     }`,
     { ...input },
   );

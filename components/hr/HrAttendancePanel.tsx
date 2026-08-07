@@ -11,6 +11,7 @@ import {
   LogIn,
   LogOut,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
@@ -31,7 +32,6 @@ import { Badge } from "@/components/ui/badge";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HotelMultiDayPicker } from "@/components/hotel/HotelMultiDayPicker";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
-import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
 import {
   HrEmptyState,
@@ -118,25 +118,18 @@ export function HrAttendancePanel({
   employees,
   attendance,
   shifts,
-  timeFrom,
-  timeTo,
-  onTimeFromChange,
-  onTimeToChange,
   onRefresh,
   canManageTime = true,
 }: {
   employees: HrEmployee[];
   attendance: HrAttendance[];
   shifts: HrShift[];
-  timeFrom: string;
-  timeTo: string;
-  onTimeFromChange: (value: string) => void;
-  onTimeToChange: (value: string) => void;
   onRefresh: () => Promise<void>;
   /** HR/Admin clock and schedule; Manager sees reports only. */
   canManageTime?: boolean;
 }) {
-  const activeEmployees = employees.filter(
+  const clockEmployees = employees.filter((e) => e.status === "active");
+  const rosterEmployees = employees.filter(
     (e) => e.status === "active" || e.status === "on_leave",
   );
   const [pending, setPending] = useState(false);
@@ -183,21 +176,21 @@ export function HrAttendancePanel({
 
   const filteredClockEmployees = useMemo(() => {
     const q = clockSearch.trim().toLowerCase();
-    if (!q) return activeEmployees;
-    return activeEmployees.filter(
+    if (!q) return clockEmployees;
+    return clockEmployees.filter(
       (e) =>
         e.fullName.toLowerCase().includes(q) ||
         (e.department || "").toLowerCase().includes(q),
     );
-  }, [activeEmployees, clockSearch]);
+  }, [clockEmployees, clockSearch]);
 
   const allFilteredSelected =
     filteredClockEmployees.length > 0 &&
     filteredClockEmployees.every((e) => clockEmployeeIds.includes(e.id));
 
   const selectedClockEmployees = useMemo(
-    () => activeEmployees.filter((e) => clockEmployeeIds.includes(e.id)),
-    [activeEmployees, clockEmployeeIds],
+    () => clockEmployees.filter((e) => clockEmployeeIds.includes(e.id)),
+    [clockEmployees, clockEmployeeIds],
   );
 
   const toggleClockEmployee = (id: number, checked: boolean) => {
@@ -284,7 +277,12 @@ export function HrAttendancePanel({
                 description="Only the scheduled shift is removed. Clock records stay."
                 confirmLabel="Delete"
                 trigger={
-                  <Button size="sm" variant="ghost">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                     Delete
                   </Button>
                 }
@@ -441,9 +439,9 @@ export function HrAttendancePanel({
                         })
                       ) : (
                         <li className="px-3 py-8 text-center text-sm text-muted-foreground">
-                          {activeEmployees.length
+                          {clockEmployees.length
                             ? "No employees match this search."
-                            : "No active employees to clock."}
+                            : "No active employees to clock (on-leave staff are excluded)."}
                         </li>
                       )}
                     </ul>
@@ -513,7 +511,7 @@ export function HrAttendancePanel({
                     <Select
                       value={shiftForm.employeeId}
                       onValueChange={(v) => {
-                        const emp = activeEmployees.find(
+                        const emp = rosterEmployees.find(
                           (e) => String(e.id) === v,
                         );
                         const deptCode =
@@ -537,9 +535,10 @@ export function HrAttendancePanel({
                         <SelectValue placeholder="Who is scheduled?" />
                       </SelectTrigger>
                       <SelectContent>
-                        {activeEmployees.map((e) => (
+                        {rosterEmployees.map((e) => (
                           <SelectItem key={e.id} value={String(e.id)}>
                             {e.fullName}
+                            {e.status === "on_leave" ? " (on leave)" : ""}
                             {e.department ? ` · ${e.department}` : ""}
                           </SelectItem>
                         ))}
@@ -847,38 +846,17 @@ export function HrAttendancePanel({
           accent="bg-linear-to-r from-sky-500 via-cyan-400 to-primary/70"
         >
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Use the date window below to review attendance and shift coverage.
-            Clock in/out and scheduling stay on the HR workspace until devices
-            such as ZKTeco are connected.
+            Review all clock records and scheduled shifts below. Clock in/out and
+            scheduling stay on the HR workspace until devices such as ZKTeco are
+            connected.
           </p>
         </HrSectionCard>
       )}
 
-      <ListPanelFilterBar title="Review window">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <HotelDayPicker
-            label="From"
-            value={timeFrom}
-            onChange={onTimeFromChange}
-            compact
-          />
-          <HotelDayPicker
-            label="To"
-            value={timeTo}
-            onChange={onTimeToChange}
-            disabledDays={(date) => {
-              const from = timeFrom ? new Date(`${timeFrom}T12:00:00`) : null;
-              return from ? date < from : false;
-            }}
-            compact
-          />
-        </div>
-      </ListPanelFilterBar>
-
       <div className="grid gap-6 xl:grid-cols-2">
         <HrSectionCard
           title="Attendance"
-          description="Times HR recorded (or devices will record later) in the selected window."
+          description="Times HR recorded (or devices will record later)."
           icon={<Clock3 className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
         >
           {attendance.length ? (
@@ -890,8 +868,8 @@ export function HrAttendancePanel({
             />
           ) : (
             <HrEmptyState
-              title="No attendance in this window"
-              description="Record a clock in for someone, or widen the date range."
+              title="No attendance yet"
+              description="Record a clock in for someone to see it here."
             />
           )}
         </HrSectionCard>
@@ -911,8 +889,8 @@ export function HrAttendancePanel({
             />
           ) : (
             <HrEmptyState
-              title="No shifts in this window"
-              description="Add a shift or widen the date range."
+              title="No shifts yet"
+              description="Add a shift schedule to build the roster."
             />
           )}
         </HrSectionCard>

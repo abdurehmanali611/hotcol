@@ -74,7 +74,6 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "hr-employees", label: "Employees", icon: "Users" },
   { id: "hr-leave", label: "Leave", icon: "CalendarDays" },
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
-  { id: "hr-payroll", label: "Payroll", icon: "Wallet" },
   { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
   { id: "hr-departments", label: "Departments", icon: "Building2" },
 ] as const;
@@ -160,7 +159,6 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
   { id: "hr-leave", label: "Leave types", icon: "CalendarDays" },
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
-  { id: "hr-payroll", label: "Payroll report", icon: "Wallet" },
   { id: "hr-incidents", label: "Incident types", icon: "AlertTriangle" },
   { id: "hr-departments", label: "Departments", icon: "Building2" },
   {
@@ -184,12 +182,31 @@ export const MANAGER_LODGING_NESTED_TAB_IDS = [
 export type ManagerSidebarItemId =
   (typeof MANAGER_SIDEBAR_ITEMS)[number]["id"];
 
-/** Manager HR: reports, leave/incident types, departments, attendance + payroll reports. */
+/** Nested under HR → Payroll (Admin / Manager / standalone HR sidebar). */
+export const HR_PAYROLL_NAV_ITEMS = [
+  { id: "hr-payroll-generate", label: "Generate", view: "generate" },
+  { id: "hr-payroll-runs", label: "Runs & pay", view: "runs" },
+  { id: "hr-payroll-settings", label: "Settings", view: "settings" },
+  { id: "hr-payroll-history", label: "History", view: "history" },
+] as const;
+
+export type HrPayrollTabId = (typeof HR_PAYROLL_NAV_ITEMS)[number]["id"];
+export type HrPayrollView = (typeof HR_PAYROLL_NAV_ITEMS)[number]["view"];
+
+export function isHrPayrollTab(id: string): id is HrPayrollTabId {
+  return HR_PAYROLL_NAV_ITEMS.some((item) => item.id === id);
+}
+
+export function hrPayrollViewFromTab(id: string): HrPayrollView | null {
+  return HR_PAYROLL_NAV_ITEMS.find((item) => item.id === id)?.view ?? null;
+}
+
+/** Manager HR: reports, leave/incident types, departments, attendance + payroll. */
 export const MANAGER_HR_TAB_IDS = [
   "hr-overview",
   "hr-leave",
   "hr-attendance",
-  "hr-payroll",
+  ...HR_PAYROLL_NAV_ITEMS.map((item) => item.id),
   "hr-incidents",
   "hr-departments",
 ] as const;
@@ -200,7 +217,7 @@ export const HR_WORKSPACE_TAB_IDS = [
   "hr-employees",
   "hr-leave",
   "hr-attendance",
-  "hr-payroll",
+  ...HR_PAYROLL_NAV_ITEMS.map((item) => item.id),
   "hr-incidents",
   "hr-departments",
 ] as const;
