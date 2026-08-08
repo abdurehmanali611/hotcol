@@ -36,7 +36,6 @@ import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
-import { hrDepartmentCodesForBusiness } from "@/lib/hrConstraints";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { isLodgingBusinessType, type BusinessType } from "@/constants";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
@@ -230,11 +229,6 @@ export function HrDashboard({
     }
   }, [actorRole, section]);
 
-  const departmentCodes = useMemo(
-    () => hrDepartmentCodesForBusiness(businessType),
-    [businessType],
-  );
-
   const loadAll = useCallback(async (soft = false) => {
     if (soft) setRefreshing(true);
     else setLoading(true);
@@ -297,7 +291,6 @@ export function HrDashboard({
       {section === "employees" && caps.canManageEmployees ? (
         <HrEmployeesPanel
           employees={employees}
-          departmentCodes={departmentCodes}
           onRefresh={() => loadAll(true)}
         />
       ) : null}

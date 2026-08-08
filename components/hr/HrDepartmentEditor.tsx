@@ -55,6 +55,8 @@ function settingsFromLines(lines: Line[]): HrDepartmentSetting[] {
 export function HrDepartmentEditor() {
   const rowIdRef = useRef(0);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistGen = useRef(0);
+  const linesRef = useRef<Line[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,6 +68,7 @@ export function HrDepartmentEditor() {
         if (cancelled) return;
         const next = linesFromSettings(rows);
         rowIdRef.current = next.length;
+        linesRef.current = next;
         setLines(next);
       } catch (e) {
         notifyApiFailure(e, "Could not load departments");
@@ -79,47 +82,75 @@ export function HrDepartmentEditor() {
     };
   }, []);
 
-  const persist = (nextLines: Line[], immediate = false) => {
-    setLines(nextLines);
+  const schedulePersist = (immediate = false) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
+    const gen = ++persistGen.current;
     const run = async () => {
+      const snapshot = linesRef.current;
       try {
         const saved = await replaceHrDepartmentsApi(
-          settingsFromLines(nextLines),
+          settingsFromLines(snapshot),
         );
+        if (gen !== persistGen.current) return;
         let savedIndex = 0;
-        setLines(
-          nextLines.map((line) => {
-            if (!line.label.trim()) return line;
-            const setting = saved[savedIndex++];
-            return setting ? { ...line, code: setting.code } : line;
-          }),
-        );
+        const codeByKey = new Map<string, string>();
+        for (const line of snapshot) {
+          if (!line.label.trim()) continue;
+          const setting = saved[savedIndex++];
+          if (setting?.code) codeByKey.set(line.key, setting.code);
+        }
+        setLines((current) => {
+          const next = current.map((line) => {
+            const code = codeByKey.get(line.key);
+            return code != null && code !== line.code
+              ? { ...line, code }
+              : line;
+          });
+          linesRef.current = next;
+          return next;
+        });
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("hotcol-hr-departments"));
         }
       } catch (e) {
-        notifyApiFailure(e, "Could not save departments");
+        if (gen === persistGen.current) {
+          notifyApiFailure(e, "Could not save departments");
+        }
       }
     };
     if (immediate) void run();
-    else persistTimer.current = setTimeout(() => void run(), 450);
+    else persistTimer.current = setTimeout(() => void run(), 500);
+  };
+
+  const commitLines = (
+    updater: (current: Line[]) => Line[],
+    immediate = false,
+  ) => {
+    setLines((current) => {
+      const next = updater(current);
+      linesRef.current = next;
+      return next;
+    });
+    schedulePersist(immediate);
   };
 
   const addLine = () => {
     rowIdRef.current += 1;
-    persist([...lines, emptyLine(`line-${rowIdRef.current}`)], true);
+    commitLines(
+      (current) => [...current, emptyLine(`line-${rowIdRef.current}`)],
+      true,
+    );
   };
 
-  const updateLine = (index: number, line: Line) => {
-    const next = [...lines];
-    next[index] = line;
-    persist(next);
+  const updateLine = (index: number, patch: Partial<Line>) => {
+    commitLines((current) =>
+      current.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    );
   };
 
   const removeLine = (index: number) => {
-    persist(
-      lines.filter((_, i) => i !== index),
+    commitLines(
+      (current) => current.filter((_, i) => i !== index),
       true,
     );
   };
@@ -176,7 +207,7 @@ export function HrDepartmentEditor() {
                       <Input
                         value={line.label}
                         onChange={(e) =>
-                          updateLine(index, { ...line, label: e.target.value })
+                          updateLine(index, { label: e.target.value })
                         }
                         placeholder="Kitchen, Front desk…"
                         className="h-10"

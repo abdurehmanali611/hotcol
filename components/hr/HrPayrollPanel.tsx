@@ -44,7 +44,12 @@ import {
   HrStatusBadge,
 } from "@/components/hr/hrChrome";
 import { HR_WAGE_LABELS, HR_WAGE_TYPES } from "@/lib/hrConstraints";
-import { namedMonthFromPayRange } from "@/lib/hrPayrollMonth";
+import {
+  formatPayrollWeeksLabel,
+  inclusiveDayCount,
+  namedMonthFromPayRange,
+  payrollWeeksInRange,
+} from "@/lib/hrPayrollMonth";
 import { downloadPayslipPdf, downloadPayslipPdfs } from "@/lib/hrPayslipPdf";
 import { formatETB } from "@/lib/subscriptionModules";
 import { notifyApiFailure } from "@/lib/actions";
@@ -61,6 +66,7 @@ import {
   type HrEmployee,
   type HrPayrollPeriod,
   type HrPayslip,
+  type HrWagePayWindow,
 } from "@/lib/api/hr";
 
 const fieldClass = "min-w-0";
@@ -76,11 +82,27 @@ type LineDraft = {
   key: string;
   kind: "deduction" | "increase";
   label: string;
-  amountETB: number;
+  percentOfSalary: number;
+  percentText: string;
   whenMode: "always" | "day_range";
   fromDay: number;
   toDay: number;
 };
+
+function formatPercentText(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return "";
+  return String(n);
+}
+
+function parsePercentInput(raw: string): { text: string; value: number } | null {
+  if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return null;
+  if (raw === "" || raw === ".") return { text: raw, value: 0 };
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  if (n > 100) return { text: "100", value: 100 };
+  if (n < 0) return { text: "0", value: 0 };
+  return { text: raw, value: n };
+}
 
 type WindowDraft = {
   key: string;
@@ -116,7 +138,8 @@ export function HrPayrollPanel({
 }) {
   const [fromYmd, setFromYmd] = useState(todayYmd());
   const [toYmd, setToYmd] = useState(todayYmd());
-  const [singleEmployeeId, setSingleEmployeeId] = useState("");
+  const [generateScope, setGenerateScope] = useState("batch");
+  const [payWindows, setPayWindows] = useState<HrWagePayWindow[]>([]);
   const [pending, setPending] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [historyMode, setHistoryMode] = useState(false);
@@ -136,6 +159,11 @@ export function HrPayrollPanel({
     }
   }, [fromYmd, toYmd]);
 
+  const rangeDays = useMemo(
+    () => inclusiveDayCount(fromYmd, toYmd),
+    [fromYmd, toYmd],
+  );
+
   const activeEmployees = useMemo(
     () =>
       employees.filter(
@@ -143,6 +171,23 @@ export function HrPayrollPanel({
       ),
     [employees],
   );
+
+  const requiredMinDays = useMemo(() => {
+    if (/^\d+$/.test(generateScope)) {
+      const emp = activeEmployees.find((e) => String(e.id) === generateScope);
+      const wt = emp?.wageType || "";
+      const w = payWindows.find((row) => row.wageType === wt);
+      return Number(w?.fromDay) || 0;
+    }
+    if (generateScope === "monthly" || generateScope === "weekly") {
+      const w = payWindows.find((row) => row.wageType === generateScope);
+      return Number(w?.fromDay) || 0;
+    }
+    return payWindows.reduce(
+      (max, w) => Math.max(max, Number(w.fromDay) || 0),
+      0,
+    );
+  }, [activeEmployees, generateScope, payWindows]);
 
   const unpaidIds = useMemo(
     () => payslips.filter((p) => p.paymentStatus === "unpaid").map((p) => p.id),
@@ -165,6 +210,23 @@ export function HrPayrollPanel({
   );
 
   useEffect(() => {
+    if (view !== "generate" && view !== "settings") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const windows = await fetchHrWagePayWindows();
+        if (cancelled) return;
+        setPayWindows(windows.filter((w) => w.active !== false));
+      } catch {
+        /* settings load also surfaces errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
+  useEffect(() => {
     if (!canConfigurePayroll || view !== "settings") return;
     let cancelled = false;
     void (async () => {
@@ -176,20 +238,26 @@ export function HrPayrollPanel({
         ]);
         if (cancelled) return;
         setLineDrafts(
-          rules.map((r, i) => ({
-            key: `rule-${r.id}-${i}`,
-            kind: r.kind === "increase" ? "increase" : "deduction",
-            label: r.label,
-            amountETB: r.amountETB,
-            whenMode: r.whenMode === "day_range" ? "day_range" : "always",
-            fromDay: r.fromDay || 1,
-            toDay: r.toDay || 31,
-          })),
+          rules.map((r, i) => {
+            const pct = Number(r.percentOfSalary) || 0;
+            return {
+              key: `rule-${r.id}-${i}`,
+              kind: r.kind === "increase" ? "increase" : "deduction",
+              label: r.label,
+              percentOfSalary: pct,
+              percentText: formatPercentText(pct),
+              whenMode: r.whenMode === "day_range" ? "day_range" : "always",
+              fromDay: r.fromDay || 1,
+              toDay: r.toDay || 31,
+            };
+          }),
         );
         setWindowDrafts(
           windows.map((w, i) => ({
             key: `win-${w.id}-${i}`,
-            wageType: w.wageType,
+            wageType: (HR_WAGE_TYPES as readonly string[]).includes(w.wageType)
+              ? w.wageType
+              : "monthly",
             fromDay: w.fromDay,
             toDay: w.toDay,
           })),
@@ -329,6 +397,37 @@ export function HrPayrollPanel({
         ),
       },
       {
+        id: "wage",
+        header: "Wage",
+        cell: ({ row }) => {
+          const slip = row.original;
+          const wt = String(slip.wageType || "").trim();
+          const label =
+            HR_WAGE_LABELS[wt as keyof typeof HR_WAGE_LABELS] || wt || "—";
+          if (wt !== "weekly") {
+            return <span className="text-sm">{label}</span>;
+          }
+          const from = slip.period?.fromYmd || selected?.fromYmd || "";
+          const to = slip.period?.toYmd || selected?.toYmd || "";
+          let weeks = 0;
+          const noteMatch = String(slip.notes || "").match(
+            /payrollWeeks=([\d.]+)/,
+          );
+          if (noteMatch) weeks = Number(noteMatch[1]) || 0;
+          else if (from && to) weeks = payrollWeeksInRange(from, to);
+          return (
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{label}</p>
+              <p className="text-xs text-muted-foreground">
+                {weeks > 0
+                  ? formatPayrollWeeksLabel(weeks)
+                  : "Payroll / week"}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
         id: "net",
         header: () => <span className="block w-full text-right">Net pay</span>,
         cell: ({ row }) => (
@@ -372,6 +471,7 @@ export function HrPayrollPanel({
       canRunPayroll,
       historyMode,
       markedIds,
+      selected,
       selectedIds,
       unpaidIds,
     ],
@@ -397,7 +497,8 @@ export function HrPayrollPanel({
             .map((r) => ({
               kind: r.kind,
               label: r.label.trim(),
-              amountETB: r.amountETB,
+              percentOfSalary: r.percentOfSalary,
+              amountETB: 0,
               whenMode: r.whenMode,
               fromDay: r.whenMode === "day_range" ? r.fromDay : null,
               toDay: r.whenMode === "day_range" ? r.toDay : null,
@@ -493,17 +594,21 @@ export function HrPayrollPanel({
                       Scope
                     </Label>
                     <Select
-                      value={singleEmployeeId || "__batch__"}
-                      onValueChange={(v) =>
-                        setSingleEmployeeId(v === "__batch__" ? "" : v)
-                      }
+                      value={generateScope}
+                      onValueChange={setGenerateScope}
                     >
                       <SelectTrigger className={triggerClass}>
-                        <SelectValue placeholder="Batch by wage windows" />
+                        <SelectValue placeholder="Select scope" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__batch__">
-                          Batch — all matching wage windows
+                        <SelectItem value="batch">
+                          Batch — monthly + weekly
+                        </SelectItem>
+                        <SelectItem value="monthly">
+                          Monthly wage type
+                        </SelectItem>
+                        <SelectItem value="weekly">
+                          Weekly wage type
                         </SelectItem>
                         {activeEmployees.map((e) => (
                           <SelectItem key={e.id} value={String(e.id)}>
@@ -517,8 +622,15 @@ export function HrPayrollPanel({
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Batch uses Manager wage windows (start day → end day).
-                      Single generates one PDF for that employee.
+                      Batch pays both wage types. Monthly / Weekly pays only
+                      that type. From–To must span at least the wage window
+                      “from day” (
+                      {requiredMinDays > 0
+                        ? `${requiredMinDays} day${requiredMinDays === 1 ? "" : "s"} min`
+                        : "configure windows in Settings"}
+                      ; current range {rangeDays || 0} day
+                      {rangeDays === 1 ? "" : "s"}
+                      ).
                     </p>
                   </div>
 
@@ -526,14 +638,31 @@ export function HrPayrollPanel({
                     pending={pending}
                     className="w-full gap-2 sm:w-auto"
                     onClick={async () => {
+                      if (toYmd < fromYmd) {
+                        toast.error("To date must not be before From date");
+                        return;
+                      }
+                      if (requiredMinDays > 0 && rangeDays < requiredMinDays) {
+                        toast.error(
+                          `From–To must cover at least ${requiredMinDays} days for this scope`,
+                        );
+                        return;
+                      }
                       setPending(true);
                       try {
+                        const isEmployee = /^\d+$/.test(generateScope);
                         const period = await createHrPayrollPeriodApi({
                           fromYmd,
                           toYmd,
-                          employeeIds: singleEmployeeId
-                            ? [Number(singleEmployeeId)]
+                          employeeIds: isEmployee
+                            ? [Number(generateScope)]
                             : undefined,
+                          wageScope: isEmployee
+                            ? undefined
+                            : (generateScope as
+                                | "batch"
+                                | "monthly"
+                                | "weekly"),
                         });
                         toast.success(
                           `Generated payslips for ${period.monthName}`,
@@ -550,9 +679,13 @@ export function HrPayrollPanel({
                     }}
                   >
                     <Sparkles className="h-4 w-4" />
-                    {singleEmployeeId
+                    {/^\d+$/.test(generateScope)
                       ? "Generate single payslip"
-                      : "Generate batch payslips"}
+                      : generateScope === "monthly"
+                        ? "Generate monthly payslips"
+                        : generateScope === "weekly"
+                          ? "Generate weekly payslips"
+                          : "Generate batch payslips"}
                   </PendingButton>
                 </div>
 
@@ -575,14 +708,19 @@ export function HrPayrollPanel({
                       <CalendarRange className="h-4 w-4 shrink-0 text-emerald-600" />
                       <span className="tabular-nums">
                         {fromYmd} → {toYmd}
+                        {rangeDays > 0 ? ` · ${rangeDays}d` : ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 rounded-lg bg-background/60 px-3 py-2">
                       <FileText className="h-4 w-4 shrink-0 text-teal-600" />
                       <span>
-                        {singleEmployeeId
+                        {/^\d+$/.test(generateScope)
                           ? "One employee PDF"
-                          : "One PDF per matching employee"}
+                          : generateScope === "weekly"
+                            ? "Weekly employees (weeks on payslip)"
+                            : generateScope === "monthly"
+                              ? "Monthly employees"
+                              : "Monthly + weekly employees"}
                       </span>
                     </div>
                   </div>
@@ -774,7 +912,7 @@ export function HrPayrollPanel({
           <div className="space-y-4">
             <HrSectionCard
               title="Wage-type pay windows"
-              description="HR From–To must start on from-day and end on to-day for that wage type (example: weekly 5 → 8)."
+              description="From day = minimum From–To calendar length (days) for that wage type. Batch generate uses the largest from-day across windows. To day is kept for reference."
               icon={
                 <Settings2 className="h-5 w-5 text-sky-600 dark:text-sky-400" />
               }
@@ -822,7 +960,7 @@ export function HrPayrollPanel({
                 <div className="space-y-3">
                   <div className="mb-1 hidden px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:grid lg:grid-cols-[minmax(0,1fr)_100px_100px_40px] lg:gap-2">
                     <span>Wage type</span>
-                    <span className="text-center">From day</span>
+                    <span className="text-center">Min days</span>
                     <span className="text-center">To day</span>
                     <span className="sr-only">Remove</span>
                   </div>
@@ -875,7 +1013,7 @@ export function HrPayrollPanel({
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs text-muted-foreground sm:sr-only">
-                                From day
+                                Min days (from)
                               </Label>
                               <Input
                                 type="number"
@@ -977,7 +1115,7 @@ export function HrPayrollPanel({
 
             <HrSectionCard
               title="Common deductions & increases"
-              description="Applied when payslips are generated. Increases join Gross under Earnings; deductions list on the left."
+              description="Each line is a percent of the employee’s base salary (decimals allowed). Increases join Gross under Earnings; deductions list on the left."
               icon={
                 <Banknote className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               }
@@ -987,8 +1125,8 @@ export function HrPayrollPanel({
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-amber-500/25 bg-muted/20 px-4 py-10 text-center">
                   <Banknote className="h-8 w-8 text-amber-600/80" />
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    Start empty. Add pension, transport, or bonuses with amount
-                    and when they apply.
+                    Start empty. Add pension, transport, or bonuses as a % of
+                    salary and when they apply.
                   </p>
                   <Button
                     type="button"
@@ -998,7 +1136,8 @@ export function HrPayrollPanel({
                           key: `line-new-${Date.now()}`,
                           kind: "deduction",
                           label: "",
-                          amountETB: 0,
+                          percentOfSalary: 0,
+                          percentText: "",
                           whenMode: "always",
                           fromDay: 1,
                           toDay: 31,
@@ -1047,7 +1186,7 @@ export function HrPayrollPanel({
                               variant="secondary"
                               className="shrink-0 font-semibold tabular-nums"
                             >
-                              {formatETB(row.amountETB)}
+                              {row.percentOfSalary || 0}% of salary
                             </Badge>
                           </div>
                           <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[120px_minmax(0,1.2fr)_110px_120px_70px_70px_40px] lg:items-end">
@@ -1089,25 +1228,39 @@ export function HrPayrollPanel({
                                 )
                               }
                             />
-                            <Input
-                              type="number"
-                              min={0}
-                              className={cn(inputClass, "text-center tabular-nums")}
-                              value={row.amountETB || ""}
-                              placeholder="0"
-                              onChange={(e) =>
-                                setLineDrafts((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index
-                                      ? {
-                                          ...r,
-                                          amountETB: Number(e.target.value) || 0,
-                                        }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground lg:sr-only">
+                                % of salary
+                              </Label>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                className={cn(
+                                  inputClass,
+                                  "text-center tabular-nums",
+                                )}
+                                value={row.percentText}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const parsed = parsePercentInput(
+                                    e.target.value,
+                                  );
+                                  if (!parsed) return;
+                                  setLineDrafts((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            percentText: parsed.text,
+                                            percentOfSalary: parsed.value,
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                              />
+                            </div>
                             <Select
                               value={row.whenMode}
                               onValueChange={(
@@ -1213,7 +1366,8 @@ export function HrPayrollPanel({
                             key: `line-new-${Date.now()}`,
                             kind: "deduction",
                             label: "",
-                            amountETB: 0,
+                            percentOfSalary: 0,
+                            percentText: "",
                             whenMode: "always",
                             fromDay: 1,
                             toDay: 31,

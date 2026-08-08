@@ -181,6 +181,7 @@ export type HrPayrollLineRule = {
   HotelName: string;
   kind: string;
   label: string;
+  percentOfSalary: number;
   amountETB: number;
   whenMode: string;
   fromDay: number | null;
@@ -697,6 +698,7 @@ export async function createHrPayrollPeriodApi(input: {
   toYmd: string;
   notes?: string;
   employeeIds?: number[];
+  wageScope?: "batch" | "monthly" | "weekly";
 }) {
   const data = await gql<{ createHrPayrollPeriod: HrPayrollPeriod }>(
     `mutation (
@@ -704,12 +706,14 @@ export async function createHrPayrollPeriodApi(input: {
       $toYmd: String!
       $notes: String
       $employeeIds: [Int!]
+      $wageScope: String
     ) {
       createHrPayrollPeriod(
         fromYmd: $fromYmd
         toYmd: $toYmd
         notes: $notes
         employeeIds: $employeeIds
+        wageScope: $wageScope
       ) {
         id periodKey monthName fromYmd toYmd status createdBy createdAt
       }
@@ -719,6 +723,7 @@ export async function createHrPayrollPeriodApi(input: {
       toYmd: input.toYmd,
       notes: input.notes ?? null,
       employeeIds: input.employeeIds ?? null,
+      wageScope: input.wageScope ?? null,
     },
   );
   return data.createHrPayrollPeriod;
@@ -766,7 +771,7 @@ export async function fetchHrPayrollLineRules(): Promise<HrPayrollLineRule[]> {
   const data = await gql<{ hrPayrollLineRules: HrPayrollLineRule[] }>(`
     query {
       hrPayrollLineRules {
-        id HotelName kind label amountETB whenMode fromDay toDay active sortOrder
+        id HotelName kind label percentOfSalary amountETB whenMode fromDay toDay active sortOrder
       }
     }
   `);
@@ -777,6 +782,7 @@ export async function replaceHrPayrollLineRulesApi(
   rules: Array<{
     kind: string;
     label: string;
+    percentOfSalary?: number;
     amountETB?: number;
     whenMode?: string;
     fromDay?: number | null;
@@ -787,7 +793,7 @@ export async function replaceHrPayrollLineRulesApi(
   const data = await gql<{ replaceHrPayrollLineRules: HrPayrollLineRule[] }>(
     `mutation ($rules: [HrPayrollLineRuleInput!]!) {
       replaceHrPayrollLineRules(rules: $rules) {
-        id HotelName kind label amountETB whenMode fromDay toDay active sortOrder
+        id HotelName kind label percentOfSalary amountETB whenMode fromDay toDay active sortOrder
       }
     }`,
     { rules },

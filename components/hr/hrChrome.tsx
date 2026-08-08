@@ -204,6 +204,6 @@ export const HR_SECTION_COPY: Record<
   departments: {
     title: "HR · Departments",
     description:
-      "Manager/Admin registers departments. HR selects them when scheduling shifts.",
+      "Manager/Admin registers departments. HR selects them for employees and shifts.",
   },
 };

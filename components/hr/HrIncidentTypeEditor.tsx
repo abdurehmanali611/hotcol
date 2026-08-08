@@ -37,6 +37,8 @@ type IncidentTypeLine = {
   label: string;
   deduct: boolean;
   percentOfSalary: number;
+  /** Raw input text so decimals like `2.` / `0.5` type correctly */
+  percentText: string;
   attendanceLink: "" | "absent" | "late" | "half_day";
 };
 
@@ -47,20 +49,44 @@ function emptyLine(key: string): IncidentTypeLine {
     label: "",
     deduct: false,
     percentOfSalary: 0,
+    percentText: "",
     attendanceLink: "",
   };
 }
 
+function formatPercentText(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return "";
+  return String(n);
+}
+
+function parsePercentInput(raw: string): { text: string; value: number } {
+  if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) {
+    return { text: raw, value: NaN };
+  }
+  if (raw === "" || raw === ".") {
+    return { text: raw, value: 0 };
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return { text: raw, value: 0 };
+  if (n > 100) return { text: "100", value: 100 };
+  if (n < 0) return { text: "0", value: 0 };
+  return { text: raw, value: n };
+}
+
 function linesFromSettings(types: HrIncidentTypeSetting[]): IncidentTypeLine[] {
-  return types.map((type, index) => ({
-    key: `saved-${type.code}-${index}`,
-    code: type.code,
-    label: type.label,
-    deduct: type.deduct,
-    percentOfSalary: type.percentOfSalary || 0,
-    attendanceLink: (type.attendanceLink ||
-      "") as IncidentTypeLine["attendanceLink"],
-  }));
+  return types.map((type, index) => {
+    const percentOfSalary = type.percentOfSalary || 0;
+    return {
+      key: `saved-${type.code}-${index}`,
+      code: type.code,
+      label: type.label,
+      deduct: type.deduct,
+      percentOfSalary,
+      percentText: formatPercentText(percentOfSalary),
+      attendanceLink: (type.attendanceLink ||
+        "") as IncidentTypeLine["attendanceLink"],
+    };
+  });
 }
 
 function settingsFromLines(lines: IncidentTypeLine[]): HrIncidentTypeSetting[] {
@@ -93,6 +119,8 @@ function settingsFromLines(lines: IncidentTypeLine[]): HrIncidentTypeSetting[] {
 export function HrIncidentTypeEditor() {
   const rowIdRef = useRef(0);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistGen = useRef(0);
+  const linesRef = useRef<IncidentTypeLine[]>([]);
   const [lines, setLines] = useState<IncidentTypeLine[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -106,6 +134,7 @@ export function HrIncidentTypeEditor() {
         if (cancelled) return;
         const next = linesFromSettings(types);
         rowIdRef.current = next.length;
+        linesRef.current = next;
         setLines(next);
       } catch (e) {
         notifyApiFailure(e, "Could not load incident types");
@@ -119,47 +148,73 @@ export function HrIncidentTypeEditor() {
     };
   }, []);
 
-  const persist = (nextLines: IncidentTypeLine[], immediate = false) => {
-    setLines(nextLines);
+  const schedulePersist = (immediate = false) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
+    const gen = ++persistGen.current;
     const run = async () => {
+      const snapshot = linesRef.current;
       try {
         const saved = await replaceHrIncidentTypesApi(
-          settingsFromLines(nextLines),
+          settingsFromLines(snapshot),
         );
+        if (gen !== persistGen.current) return;
         let savedIndex = 0;
-        setLines(
-          nextLines.map((line) => {
-            if (!line.label.trim()) return line;
-            const setting = saved[savedIndex++];
-            return setting ? { ...line, code: setting.code } : line;
-          }),
-        );
+        const codeByKey = new Map<string, string>();
+        for (const line of snapshot) {
+          if (!line.label.trim()) continue;
+          const setting = saved[savedIndex++];
+          if (setting?.code) codeByKey.set(line.key, setting.code);
+        }
+        setLines((current) => {
+          const next = current.map((line) => {
+            const code = codeByKey.get(line.key);
+            return code != null && code !== line.code
+              ? { ...line, code }
+              : line;
+          });
+          linesRef.current = next;
+          return next;
+        });
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("hotcol-hr-incident-types"));
         }
       } catch (e) {
-        notifyApiFailure(e, "Could not save incident types");
+        if (gen === persistGen.current) {
+          notifyApiFailure(e, "Could not save incident types");
+        }
       }
     };
     if (immediate) void run();
-    else persistTimer.current = setTimeout(() => void run(), 450);
+    else persistTimer.current = setTimeout(() => void run(), 500);
+  };
+
+  const commitLines = (
+    updater: (current: IncidentTypeLine[]) => IncidentTypeLine[],
+    immediate = false,
+  ) => {
+    setLines((current) => {
+      const next = updater(current);
+      linesRef.current = next;
+      return next;
+    });
+    schedulePersist(immediate);
   };
 
   const addLine = () => {
     rowIdRef.current += 1;
-    persist([...lines, emptyLine(`line-${rowIdRef.current}`)], true);
+    const key = `line-${rowIdRef.current}`;
+    commitLines((current) => [...current, emptyLine(key)], true);
   };
 
-  const updateLine = (index: number, line: IncidentTypeLine) => {
-    const next = [...lines];
-    next[index] = line;
-    persist(next);
+  const updateLine = (index: number, patch: Partial<IncidentTypeLine>) => {
+    commitLines((current) =>
+      current.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    );
   };
 
   const removeLine = (index: number) => {
-    persist(
-      lines.filter((_, i) => i !== index),
+    commitLines(
+      (current) => current.filter((_, i) => i !== index),
       true,
     );
   };
@@ -257,7 +312,7 @@ export function HrIncidentTypeEditor() {
                       <Input
                         value={line.label}
                         onChange={(e) =>
-                          updateLine(index, { ...line, label: e.target.value })
+                          updateLine(index, { label: e.target.value })
                         }
                         placeholder="Type name (e.g. Absence)"
                         className="h-9 w-full min-w-0 text-sm sm:h-10"
@@ -272,7 +327,7 @@ export function HrIncidentTypeEditor() {
                         <Switch
                           checked={line.deduct}
                           onCheckedChange={(deduct) =>
-                            updateLine(index, { ...line, deduct })
+                            updateLine(index, { deduct })
                           }
                           aria-label={
                             line.deduct
@@ -291,17 +346,15 @@ export function HrIncidentTypeEditor() {
                         type="text"
                         inputMode="decimal"
                         autoComplete="off"
-                        value={line.percentOfSalary || ""}
+                        value={line.percentText}
                         placeholder="0"
                         className="h-9 w-full min-w-0 text-center text-sm tabular-nums sm:h-10"
                         onChange={(e) => {
-                          const raw = e.target.value;
-                          if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return;
-                          const n =
-                            raw === "" || raw === "." ? 0 : Number(raw) || 0;
+                          const parsed = parsePercentInput(e.target.value);
+                          if (Number.isNaN(parsed.value)) return;
                           updateLine(index, {
-                            ...line,
-                            percentOfSalary: Math.max(0, Math.min(100, n)),
+                            percentText: parsed.text,
+                            percentOfSalary: parsed.value,
                           });
                         }}
                       />
@@ -314,14 +367,19 @@ export function HrIncidentTypeEditor() {
                       <Select
                         value={line.attendanceLink || "none"}
                         onValueChange={(value) =>
-                          updateLine(index, {
-                            ...line,
-                            attendanceLink:
-                              value === "none"
-                                ? ""
-                                : (value as IncidentTypeLine["attendanceLink"]),
-                            deduct: value !== "none" ? true : line.deduct,
-                          })
+                          commitLines((current) =>
+                            current.map((line, i) => {
+                              if (i !== index) return line;
+                              return {
+                                ...line,
+                                attendanceLink:
+                                  value === "none"
+                                    ? ""
+                                    : (value as IncidentTypeLine["attendanceLink"]),
+                                deduct: value !== "none" ? true : line.deduct,
+                              };
+                            }),
+                          )
                         }
                       >
                         <SelectTrigger className="h-9 w-full min-w-0 bg-background sm:h-10">

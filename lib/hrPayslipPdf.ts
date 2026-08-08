@@ -1,9 +1,61 @@
 import { jsPDF } from "jspdf";
 import type { HrPayslip } from "@/lib/api/hr";
+import { APEX_SOLUTION, HOTCOL_SYSTEM } from "@/constants/branding";
+import {
+  formatPayrollWeeksLabel,
+  payrollWeeksInRange,
+} from "@/lib/hrPayrollMonth";
 import { formatETB } from "@/lib/subscriptionModules";
+
+export type PayslipOrgBrand = {
+  companyName: string;
+  tinNumber?: string;
+  logoUrl?: string | null;
+};
 
 function money(n: number) {
   return formatETB(Number(n) || 0);
+}
+
+function wageLabel(slip: HrPayslip): string {
+  const wt = String(slip.wageType || "").trim();
+  if (wt === "weekly") {
+    const from = slip.period?.fromYmd || "";
+    const to = slip.period?.toYmd || "";
+    const noteMatch = String(slip.notes || "").match(/payrollWeeks=([\d.]+)/);
+    const weeks = noteMatch
+      ? Number(noteMatch[1]) || 0
+      : from && to
+        ? payrollWeeksInRange(from, to)
+        : 0;
+    return weeks > 0
+      ? `Weekly · ${formatPayrollWeeksLabel(weeks)}`
+      : "Weekly";
+  }
+  if (wt === "monthly") return "Monthly";
+  return wt || "—";
+}
+
+async function imageToDataUrl(src: string): Promise<string | null> {
+  try {
+    const url =
+      src.startsWith("http") || src.startsWith("data:") || src.startsWith("blob:")
+        ? src
+        : typeof window !== "undefined"
+          ? new URL(src, window.location.origin).href
+          : src;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "") || null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
 }
 
 function drawTable(
@@ -59,36 +111,164 @@ function drawTable(
   return cursorY;
 }
 
-/** One PDF per payslip. Batch = call this multiple times. */
-export async function downloadPayslipPdf(slip: HrPayslip) {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const margin = 14;
-  const contentW = pageW - margin * 2;
-  let y = 14;
+function readClientOrgBrand(): PayslipOrgBrand {
+  if (typeof window === "undefined") {
+    return { companyName: "Organization" };
+  }
+  const companyName =
+    localStorage.getItem("hotel_display_name")?.trim() ||
+    localStorage.getItem("hotel_name")?.trim() ||
+    "Organization";
+  const tinNumber = localStorage.getItem("tin_number")?.trim() || "";
+  const logoUrl = localStorage.getItem("logo_url")?.trim() || "";
+  return { companyName, tinNumber, logoUrl: logoUrl || null };
+}
 
-  const tenant = slip.organizationLocation || slip.HotelName || "Organization";
+/** One PDF per payslip. Batch = call this multiple times. */
+export async function downloadPayslipPdf(
+  slip: HrPayslip,
+  brand?: PayslipOrgBrand,
+) {
+  const org = brand ?? readClientOrgBrand();
+  const companyName = (org.companyName || "Organization").trim() || "Organization";
+  const tin =
+    (org.tinNumber || "").trim() ||
+    (String(slip.HotelName || "").trim() !== companyName
+      ? String(slip.HotelName || "").trim()
+      : "");
   const month = slip.taxPeriod || slip.period?.monthName || "—";
 
+  const [companyLogoData, apexLogoData, hotcolLogoData] = await Promise.all([
+    org.logoUrl ? imageToDataUrl(org.logoUrl) : Promise.resolve(null),
+    imageToDataUrl(APEX_SOLUTION.logoPath),
+    imageToDataUrl(HOTCOL_SYSTEM.logoPath),
+  ]);
+
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const contentW = pageW - margin * 2;
+  let y = 10;
+
+  // Top accent
   doc.setFillColor(16, 185, 129);
-  doc.rect(0, 0, pageW, 3, "F");
+  doc.rect(0, 0, pageW, 3.5, "F");
+
+  // —— Header: company (left) + payslip meta (right) ——
+  const headerTop = y;
+  const logoSize = 18;
+
+  if (companyLogoData) {
+    try {
+      doc.addImage(
+        companyLogoData,
+        "PNG",
+        margin,
+        headerTop,
+        logoSize,
+        logoSize,
+        undefined,
+        "FAST",
+      );
+    } catch {
+      // fall through to monogram
+    }
+  }
+  if (!companyLogoData) {
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(167, 243, 208);
+    doc.roundedRect(margin, headerTop, logoSize, logoSize, 2, 2, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(6, 95, 70);
+    doc.text(companyName.slice(0, 2).toUpperCase(), margin + logoSize / 2, headerTop + 11, {
+      align: "center",
+    });
+  }
+
+  const textLeft = margin + logoSize + 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(4, 120, 87);
+  doc.text("EMPLOYER", textLeft, headerTop + 4);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setTextColor(15, 23, 42);
-  doc.text(tenant, margin, y + 6);
-  y += 12;
+  const nameLines = doc.splitTextToSize(companyName, contentW * 0.48);
+  doc.text(nameLines, textLeft, headerTop + 10);
 
-  doc.setFontSize(11);
-  doc.setTextColor(5, 150, 105);
-  doc.text(`Payslip for the month of ${month}`, margin, y);
-  y += 6;
+  let leftMetaY = headerTop + 10 + nameLines.length * 5.5;
+  if (tin) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`TIN ${tin}`, textLeft, leftMetaY);
+    leftMetaY += 5;
+  }
 
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.4);
-  doc.line(margin, y, margin + contentW, y);
-  y += 6;
+  // Right column
+  const rightX = margin + contentW;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(4, 120, 87);
+  doc.text("PAYSLIP", rightX, headerTop + 4, { align: "right" });
 
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Month of ${month}`, rightX, headerTop + 11, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    `No. ${slip.payslipNumber || slip.id}`,
+    rightX,
+    headerTop + 17,
+    { align: "right" },
+  );
+  if (slip.payDate) {
+    doc.text(`Pay date ${slip.payDate}`, rightX, headerTop + 22, {
+      align: "right",
+    });
+  }
+
+  // HotCol chip (top-right under meta)
+  if (hotcolLogoData) {
+    try {
+      doc.addImage(
+        hotcolLogoData,
+        "JPEG",
+        rightX - 22,
+        headerTop + 25,
+        5,
+        5,
+        undefined,
+        "FAST",
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text(HOTCOL_SYSTEM.name, rightX, headerTop + 28.5, { align: "right" });
+
+  y = Math.max(leftMetaY, headerTop + 32) + 3;
+
+  // Emerald gradient-ish rule
+  doc.setDrawColor(16, 185, 129);
+  doc.setLineWidth(1.1);
+  doc.line(margin, y, margin + contentW * 0.55, y);
+  doc.setDrawColor(45, 212, 191);
+  doc.setLineWidth(0.6);
+  doc.line(margin + contentW * 0.55, y, margin + contentW, y);
+  y += 7;
+
+  // Employee block
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
@@ -103,7 +283,7 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
       "Name",
       "Job title",
       "Tax period",
-      "Location",
+      "Wage",
       "Pay date",
       "Payslip #",
       "Date hired",
@@ -113,20 +293,20 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
         slip.employeeName || slip.employee?.fullName || "—",
         slip.jobTitle || "—",
         slip.taxPeriod || "—",
-        slip.organizationLocation || "—",
+        wageLabel(slip),
         slip.payDate || "—",
         slip.payslipNumber || "—",
         slip.hireDate || "—",
       ],
     ],
-    [2.2, 1.6, 1.3, 1.6, 1.3, 1.6, 1.3],
+    [2.0, 1.4, 1.2, 1.8, 1.2, 1.4, 1.2],
   );
   y += 8;
 
   const halfGap = 4;
   const halfW = (contentW - halfGap) / 2;
   const leftX = margin;
-  const rightX = margin + halfW + halfGap;
+  const rightCol = margin + halfW + halfGap;
 
   const deductionRows = (slip.deductions || []).map((r) => [
     r.label,
@@ -145,7 +325,7 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
   doc.text("Deductions", leftX, y);
-  doc.text("Earnings", rightX, y);
+  doc.text("Earnings", rightCol, y);
   y += 2;
 
   const dedBottom = drawTable(
@@ -160,7 +340,7 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
   );
   const earnBottom = drawTable(
     doc,
-    rightX,
+    rightCol,
     y,
     halfW,
     ["Description", "Amount"],
@@ -182,14 +362,15 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
   doc.setTextColor(5, 150, 105);
   doc.text(
     `Total Earnings: ${money(slip.totalEarningsETB)}`,
-    rightX + halfW,
+    rightCol + halfW,
     y,
     { align: "right" },
   );
   y += 10;
 
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, y - 2, contentW, 28, 2, 2, "S");
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, y - 2, contentW, 28, 2, 2, "FD");
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
@@ -200,6 +381,71 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
   doc.text(`Net pay: ${money(slip.netPayETB)}`, margin + 4, y + 22);
+  y += 32;
+
+  // —— Apex / HotCol footer (store-receipt style) ——
+  const footerH = 28;
+  const footerY = Math.max(y + 4, pageH - margin - footerH);
+
+  doc.setFillColor(236, 253, 245);
+  doc.setDrawColor(167, 243, 208);
+  doc.roundedRect(margin, footerY, contentW, footerH, 2.5, 2.5, "FD");
+
+  const footerPad = footerY + 5;
+  if (apexLogoData) {
+    try {
+      doc.addImage(
+        apexLogoData,
+        "PNG",
+        margin + 4,
+        footerPad,
+        28,
+        10,
+        undefined,
+        "FAST",
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(6, 78, 59);
+  doc.text(APEX_SOLUTION.name, margin + 36, footerPad + 5);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(4, 120, 87);
+  doc.text(
+    APEX_SOLUTION.website.replace(/^https?:\/\//, ""),
+    margin + 36,
+    footerPad + 10,
+  );
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  const powered = `Powered by ${HOTCOL_SYSTEM.name} · HR payroll`;
+  doc.text(powered, margin + contentW - 4, footerPad + 5, { align: "right" });
+  doc.text(new Date().toLocaleString(), margin + contentW - 4, footerPad + 10, {
+    align: "right",
+  });
+  if (hotcolLogoData) {
+    try {
+      doc.addImage(
+        hotcolLogoData,
+        "JPEG",
+        margin + contentW - 12,
+        footerPad + 13,
+        6,
+        6,
+        undefined,
+        "FAST",
+      );
+    } catch {
+      /* ignore */
+    }
+  }
 
   const safeName = (slip.employeeName || "employee")
     .replace(/[^\w\- ]+/g, "")
@@ -210,8 +456,12 @@ export async function downloadPayslipPdf(slip: HrPayslip) {
   );
 }
 
-export async function downloadPayslipPdfs(slips: HrPayslip[]) {
+export async function downloadPayslipPdfs(
+  slips: HrPayslip[],
+  brand?: PayslipOrgBrand,
+) {
+  const resolved = brand ?? readClientOrgBrand();
   for (const slip of slips) {
-    await downloadPayslipPdf(slip);
+    await downloadPayslipPdf(slip, resolved);
   }
 }

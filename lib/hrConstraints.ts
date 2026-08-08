@@ -5,12 +5,7 @@ import {
 } from "@/lib/departments";
 import { isLodgingBusinessType, type BusinessType } from "@/constants";
 
-export const HR_WAGE_TYPES = [
-  "monthly",
-  "weekly",
-  "hourly",
-  "tip_eligible",
-] as const;
+export const HR_WAGE_TYPES = ["monthly", "weekly"] as const;
 export const HR_LEAVE_TYPES = ["annual", "sick", "unpaid"] as const;
 export const HR_DOC_TYPES = ["contract", "id", "certificate", "other"] as const;
 export const HR_INCIDENT_KINDS = [
@@ -291,8 +286,6 @@ export function hrDepartmentCodesForBusiness(
 export const HR_WAGE_LABELS: Record<(typeof HR_WAGE_TYPES)[number], string> = {
   monthly: "Monthly",
   weekly: "Weekly",
-  hourly: "Hourly",
-  tip_eligible: "Tip eligible",
 };
 
 export const HR_LEAVE_LABELS: Record<(typeof HR_LEAVE_TYPES)[number], string> = {

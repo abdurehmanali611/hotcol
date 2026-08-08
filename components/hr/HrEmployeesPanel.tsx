@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
@@ -43,12 +43,17 @@ import {
   hrEmployeeFormSchema,
   type HrEmployeeFormValues,
 } from "@/lib/hrConstraints";
-import { DEPARTMENT_LABELS, type HotelDepartmentCode } from "@/lib/departments";
+import {
+  activeHrDepartments,
+  hrDepartmentLabel,
+  type HrDepartmentSetting,
+} from "@/lib/hrDepartments";
 import { formatETB } from "@/lib/subscriptionModules";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 import { notifyApiFailure } from "@/lib/actions";
 import {
   createHrEmployeeApi,
+  fetchHrDepartments,
   terminateHrEmployeeApi,
   updateHrEmployeeApi,
   type HrEmployee,
@@ -73,17 +78,40 @@ function todayYmd() {
 
 export function HrEmployeesPanel({
   employees,
-  departmentCodes,
   onRefresh,
 }: {
   employees: HrEmployee[];
-  departmentCodes: readonly HotelDepartmentCode[];
   onRefresh: () => Promise<void>;
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HrEmployee | null>(null);
   const [pending, setPending] = useState(false);
+  const [hrDepartments, setHrDepartments] = useState<HrDepartmentSetting[]>(
+    [],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await fetchHrDepartments();
+        if (cancelled) return;
+        setHrDepartments(activeHrDepartments(rows));
+      } catch (e) {
+        notifyApiFailure(e, "Could not load departments");
+      }
+    };
+    void load();
+    const onChange = () => void load();
+    window.addEventListener("hotcol-hr-departments", onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("hotcol-hr-departments", onChange);
+    };
+  }, []);
+
+  const defaultDepartment = hrDepartments[0]?.code ?? "";
 
   const form = useForm<HrEmployeeFormValues>({
     resolver: zodResolver(hrEmployeeFormSchema) as Resolver<HrEmployeeFormValues>,
@@ -91,7 +119,7 @@ export function HrEmployeesPanel({
       fullName: "",
       phone: "",
       email: "",
-      department: departmentCodes[0] ?? "KITCHEN",
+      department: "",
       jobTitle: "",
       wageType: "monthly",
       baseSalaryETB: 0,
@@ -111,12 +139,16 @@ export function HrEmployeesPanel({
   );
 
   const openCreate = () => {
+    if (!hrDepartments.length) {
+      toast.error("Register departments in HR → Departments first");
+      return;
+    }
     setEditing(null);
     form.reset({
       fullName: "",
       phone: "",
       email: "",
-      department: departmentCodes[0] ?? "KITCHEN",
+      department: defaultDepartment,
       jobTitle: "",
       wageType: "monthly",
       baseSalaryETB: 0,
@@ -131,11 +163,17 @@ export function HrEmployeesPanel({
   const openEdit = useCallback(
     (row: HrEmployee) => {
       setEditing(row);
+      const dept =
+        row.department &&
+        (hrDepartments.some((d) => d.code === row.department) ||
+          Boolean(row.department))
+          ? row.department
+          : defaultDepartment;
       form.reset({
         fullName: row.fullName,
         phone: row.phone || "",
         email: row.email || "",
-        department: row.department || departmentCodes[0] || "KITCHEN",
+        department: dept || defaultDepartment,
         jobTitle: row.jobTitle || "",
         wageType: (HR_WAGE_TYPES as readonly string[]).includes(row.wageType)
           ? (row.wageType as HrEmployeeFormValues["wageType"])
@@ -148,7 +186,7 @@ export function HrEmployeesPanel({
       });
       setOpen(true);
     },
-    [departmentCodes, form],
+    [defaultDepartment, form, hrDepartments],
   );
 
   const onSubmit = async (values: HrEmployeeFormValues) => {
@@ -202,9 +240,7 @@ export function HrEmployeesPanel({
         accessorKey: "department",
         header: "Department",
         cell: ({ row }) =>
-          DEPARTMENT_LABELS[
-            row.original.department as keyof typeof DEPARTMENT_LABELS
-          ] || row.original.department,
+          hrDepartmentLabel(row.original.department || "", hrDepartments),
       },
       {
         accessorKey: "phone",
@@ -275,7 +311,7 @@ export function HrEmployeesPanel({
         ),
       },
     ],
-    [onRefresh, openEdit],
+    [hrDepartments, onRefresh, openEdit],
   );
 
   return (
@@ -394,26 +430,55 @@ export function HrEmployeesPanel({
                   <FormField
                     control={form.control}
                     name="department"
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      const orphan =
+                        field.value &&
+                        !hrDepartments.some((d) => d.code === field.value)
+                          ? field.value
+                          : "";
+                      return (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Department</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          value={field.value || undefined}
+                          onValueChange={field.onChange}
+                          disabled={!hrDepartments.length && !orphan}
+                        >
                           <FormControl>
                             <SelectTrigger className={roleTriggerClass}>
-                              <SelectValue />
+                              <SelectValue
+                                placeholder={
+                                  hrDepartments.length
+                                    ? "Select department"
+                                    : "Register departments first"
+                                }
+                              />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent position="popper">
-                            {departmentCodes.map((code) => (
-                              <SelectItem key={code} value={code}>
-                                {DEPARTMENT_LABELS[code]}
+                            {hrDepartments.map((d) => (
+                              <SelectItem key={d.code} value={d.code}>
+                                {d.label}
                               </SelectItem>
                             ))}
+                            {orphan ? (
+                              <SelectItem value={orphan}>
+                                {hrDepartmentLabel(orphan, hrDepartments)}{" "}
+                                (not in current list)
+                              </SelectItem>
+                            ) : null}
                           </SelectContent>
                         </Select>
+                        {!hrDepartments.length ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            Add departments under HR → Departments, then pick
+                            one here.
+                          </p>
+                        ) : null}
                         <FormMessage />
                       </FormItem>
-                    )}
+                      );
+                    }}
                   />
                   <FormField
                     control={form.control}

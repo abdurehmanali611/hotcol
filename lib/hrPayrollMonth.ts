@@ -72,3 +72,31 @@ export function namedMonthFromPayRange(
     dayCount: bestCount,
   };
 }
+
+/** Inclusive calendar days in [fromYmd, toYmd]. */
+export function inclusiveDayCount(fromYmd: string, toYmd: string): number {
+  const from = fromYmd.trim();
+  const to = toYmd.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return 0;
+  }
+  if (to < from) return 0;
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  const a = Date.UTC(fy, fm - 1, fd);
+  const b = Date.UTC(ty, tm - 1, td);
+  return Math.floor((b - a) / 86400000) + 1;
+}
+
+/** Weeks covered by a From–To range (days ÷ 7, 2 decimal places). */
+export function payrollWeeksInRange(fromYmd: string, toYmd: string): number {
+  const days = inclusiveDayCount(fromYmd, toYmd);
+  if (days <= 0) return 0;
+  return Math.round((days / 7) * 100) / 100;
+}
+
+export function formatPayrollWeeksLabel(weeks: number): string {
+  const n = Number(weeks) || 0;
+  if (n === 1) return "1 week";
+  return `${n} weeks`;
+}

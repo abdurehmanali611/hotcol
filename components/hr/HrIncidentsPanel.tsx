@@ -86,6 +86,7 @@ function emptyForm(kind = "", deduct = false, amount = 0) {
     occurredYmd: todayYmd(),
     salaryDeduct: deduct,
     percentOfSalary: amount,
+    percentText: amount ? String(amount) : "",
   };
 }
 
@@ -138,19 +139,21 @@ export function HrIncidentsPanel({
         setManagerTypes(types);
         const choices = hrIncidentTypeChoices(types);
         setForm((f) => {
-          const kind =
-            f.kind && choices.some((t) => t.code === f.kind)
-              ? f.kind
-              : choices[0]?.code || "";
+          const kindStillValid =
+            f.kind && choices.some((t) => t.code === f.kind);
+          if (kindStillValid) return f;
+          const kind = choices[0]?.code || "";
           if (isAdHocOtherSelection(kind, types)) {
             return { ...f, kind };
           }
           const preset = findIncidentType(kind, types);
+          const pct = preset?.percentOfSalary ?? 0;
           return {
             ...f,
             kind,
             salaryDeduct: preset?.deduct ?? false,
-            percentOfSalary: preset?.percentOfSalary ?? 0,
+            percentOfSalary: pct,
+            percentText: pct ? String(pct) : "",
           };
         });
       } catch (e) {
@@ -173,15 +176,18 @@ export function HrIncidentsPanel({
         kind,
         salaryDeduct: false,
         percentOfSalary: 0,
+        percentText: "",
       }));
       return;
     }
     const preset = findIncidentType(kind, managerTypes);
+    const pct = preset?.percentOfSalary ?? 0;
     setForm((f) => ({
       ...f,
       kind,
       salaryDeduct: preset?.deduct ?? false,
-      percentOfSalary: preset?.percentOfSalary ?? 0,
+      percentOfSalary: pct,
+      percentText: pct ? String(pct) : "",
     }));
   };
 
@@ -540,20 +546,37 @@ export function HrIncidentsPanel({
                       type="text"
                       inputMode="decimal"
                       className={cn(inputClass, "tabular-nums")}
-                      value={form.percentOfSalary || ""}
+                      value={form.percentText}
                       placeholder="0"
                       onChange={(e) => {
                         const raw = e.target.value;
                         if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return;
-                        const n =
-                          raw === "" || raw === "." ? 0 : Number(raw) || 0;
+                        if (raw === "" || raw === ".") {
+                          setForm((f) => ({
+                            ...f,
+                            percentText: raw,
+                            percentOfSalary: 0,
+                          }));
+                          return;
+                        }
+                        const n = Number(raw);
+                        if (!Number.isFinite(n)) return;
+                        if (n > 100) {
+                          setForm((f) => ({
+                            ...f,
+                            percentText: "100",
+                            percentOfSalary: 100,
+                          }));
+                          return;
+                        }
                         setForm((f) => ({
                           ...f,
-                          percentOfSalary: Math.max(0, Math.min(100, n)),
+                          percentText: raw,
+                          percentOfSalary: Math.max(0, n),
                         }));
                       }}
                     />
-                    <p className="text-[11px] text-muted-foreground">0?100</p>
+                    <p className="text-[11px] text-muted-foreground">0–100</p>
                   </div>
                 </div>
               ) : (
