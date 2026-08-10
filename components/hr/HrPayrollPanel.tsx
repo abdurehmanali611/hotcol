@@ -562,7 +562,7 @@ export function HrPayrollPanel({
           <div className="space-y-4">
             <HrSectionCard
               title="Generate payslips"
-              description="Payslips include gross pay, common rules, incident pay impact, unpaid leave (daily rate), and attendance-linked deductions for the From–To range. The named month is the month with more days in that range."
+              description="Payslips include gross pay, common rules, incident pay impact, unpaid leave (daily rate), and attendance-linked deductions for the From–To range. The incident occurred date must fall inside From–To. Re-generating the same open From–To replaces the run so new incidents are included."
               icon={
                 <CalendarRange className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               }
