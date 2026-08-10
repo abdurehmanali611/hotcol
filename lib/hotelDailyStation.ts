@@ -1,3 +1,5 @@
+import { toYmdLocal } from "@/lib/hotelDateYmd";
+
 /**
  * Canonical station keys for hotel daily counts (kitchen/bar/room).
  * Aligns store stock-out stakeholders with Cost Control daily rows.
@@ -90,7 +92,7 @@ export type StockOutLike = {
   movementDate?: string | null;
 };
 
-/** Calendar day YYYY-MM-DD in UTC (matches backend stock-out approval bucketing). */
+/** Calendar day YYYY-MM-DD in UTC (legacy helpers / ISO display). */
 export function utcYmdFromIso(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -102,16 +104,36 @@ export function utcYmdFromIso(iso: string): string {
 
 /**
  * Business day for a stock-out: prefer store movementDate, else approval decidedAt.
- * Using movementDate avoids counting a late approval as a different calendar day.
+ * Uses local calendar day (same as store day picker + daily count calendarDate),
+ * not UTC — UTC bucketing wrongly drops Ethiopia morning/evening stock-outs.
  */
 export function stockOutBusinessYmd(row: {
   movementDate?: string | null;
   decidedAt?: string | null;
 }): string {
-  const movement = row.movementDate ? utcYmdFromIso(String(row.movementDate)) : "";
-  if (movement) return movement;
-  if (row.decidedAt) return utcYmdFromIso(String(row.decidedAt));
-  return "";
+  const raw = row.movementDate || row.decidedAt;
+  if (!raw) return "";
+  const d = new Date(String(raw));
+  if (Number.isNaN(d.getTime())) return "";
+  return toYmdLocal(d);
+}
+
+/** True when the stock-out belongs on this daily-count calendar day. */
+export function stockOutMatchesCalendarDay(
+  row: {
+    movementDate?: string | null;
+    decidedAt?: string | null;
+  },
+  calendarDate: string,
+): boolean {
+  const day = String(calendarDate || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const raw = row.movementDate || row.decidedAt;
+  if (!raw) return false;
+  const d = new Date(String(raw));
+  if (Number.isNaN(d.getTime())) return false;
+  // Accept local day (how the UI saved/picked it) or UTC day (server edge cases).
+  return toYmdLocal(d) === day || utcYmdFromIso(String(raw)) === day;
 }
 
 /**
@@ -131,10 +153,10 @@ export function summarizeApprovedStockOutForDay(
   if (!normItem || !day) return 0;
   let sum = 0;
   for (const r of stocks) {
-    if (r.status !== "APPROVED" || r.movementType !== "STOCK_OUT") continue;
+    if (String(r.status ?? "").toUpperCase() !== "APPROVED") continue;
+    if (String(r.movementType ?? "").toUpperCase() !== "STOCK_OUT") continue;
     if (String(r.itemName ?? "").trim().toLowerCase() !== normItem) continue;
-    const d = stockOutBusinessYmd(r);
-    if (!d || d !== day) continue;
+    if (!stockOutMatchesCalendarDay(r, day)) continue;
     if (normalizeKitchenBarStationKey(r.stakeHolderOrReason) !== normStation) {
       continue;
     }
