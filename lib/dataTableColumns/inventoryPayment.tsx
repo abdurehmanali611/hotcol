@@ -40,8 +40,13 @@ function paymentGroupLabel(
 }
 
 /** One row per item name, with source breakdown under the title. */
-export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentItemGroup>[] {
-  return [
+export function buildInventoryPaymentGroupColumns(options?: {
+  /** With-VAT view: show VAT amount + total paid (incl. VAT) columns. */
+  showVatAmountColumns?: boolean;
+}): ColumnDef<InventoryPaymentItemGroup>[] {
+  const showVatAmountColumns = Boolean(options?.showVatAmountColumns);
+
+  const cols: ColumnDef<InventoryPaymentItemGroup>[] = [
     {
       accessorKey: "name",
       header: "Item",
@@ -106,7 +111,11 @@ export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentI
     {
       id: "lineValue",
       header: () => (
-        <span className="block text-right w-full">Line value (ETB)</span>
+        <span className="block text-right w-full">
+          {showVatAmountColumns
+            ? "Total paid incl. VAT (ETB)"
+            : "Line value (ETB)"}
+        </span>
       ),
       cell: ({ row }) => (
         <span className="block text-right font-semibold tabular-nums text-sm">
@@ -114,6 +123,23 @@ export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentI
         </span>
       ),
     },
+  ];
+
+  if (showVatAmountColumns) {
+    cols.push({
+      id: "vatAmount",
+      header: () => (
+        <span className="block text-right w-full">VAT amount (ETB)</span>
+      ),
+      cell: ({ row }) => (
+        <span className="block text-right tabular-nums text-sm font-medium text-violet-800 dark:text-violet-200">
+          {row.original.totalVat.toLocaleString()}
+        </span>
+      ),
+    });
+  }
+
+  cols.push(
     {
       id: "payment",
       header: "Payment",
@@ -181,7 +207,9 @@ export function buildInventoryPaymentGroupColumns(): ColumnDef<InventoryPaymentI
         );
       },
     },
-  ];
+  );
+
+  return cols;
 }
 
 export function buildInventoryPaymentColumns(options?: {

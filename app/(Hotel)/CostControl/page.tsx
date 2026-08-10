@@ -106,6 +106,7 @@ import {
   matchesDailyCountStationFilter,
   normalizeKitchenBarStationKey,
   resolveDailyCountSalesQty,
+  summarizeApprovedStockOutForDay,
   type HotelDailyCountStationFilter,
 } from "@/lib/hotelDailyStation";
 import {
@@ -631,6 +632,7 @@ function CostControlInner() {
         mode: "costControl",
         selectedDayYmd: selectedDailyDate,
         derived: beginningDerivedById,
+        stockOutRowsForProperty: stocks,
         onEdit: handleEditBeginning,
         onDelete: setDeletingBeginning,
         deletePendingId: beginningDeleteId,
@@ -638,6 +640,7 @@ function CostControlInner() {
     [
       selectedDailyDate,
       beginningDerivedById,
+      stocks,
       handleEditBeginning,
       beginningDeleteId,
     ],
@@ -654,7 +657,14 @@ function CostControlInner() {
         ? `_${displayKitchenBarStation(dailyStationFilter)}`
         : "";
     const rows = visibleBeginnings.map((b) => {
-      const store = round2(Number(b.stockOutDay ?? 0));
+      const store = round2(
+        summarizeApprovedStockOutForDay(
+          stocks,
+          normalizeKitchenBarStationKey(b.station),
+          b.itemName,
+          String(b.calendarDate || day).slice(0, 10),
+        ),
+      );
       const beginning = Number(b.amount || 0);
       const total = round2(beginning + store);
       const sales = beginningDerivedById.daySales.get(b.id);
@@ -700,6 +710,7 @@ function CostControlInner() {
     unitPriceByItemName,
     displayName,
     tenantScope,
+    stocks,
   ]);
 
   const exportRollupExcel = useCallback(async () => {

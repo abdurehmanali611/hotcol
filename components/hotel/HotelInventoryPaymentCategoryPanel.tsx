@@ -29,6 +29,7 @@ import {
   itemPaymentBucket,
   itemPaymentLabel,
   lineOwedETB,
+  lineVatETB,
   mergeInventoryPaymentRows,
   normalizePaymentItemGroupKey,
   registeredAmountOf,
@@ -46,6 +47,12 @@ import {
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { Download, Filter, Receipt } from "lucide-react";
+import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
+import {
+  REGISTRATION_RECEIVED_BY_CODES,
+  matchesDepartmentLeaderFilter,
+} from "@/lib/departments";
+import { Label } from "@/components/ui/label";
 
 export type PaymentCategoryMode =
   | "all"
@@ -119,7 +126,7 @@ const SOURCE_FILTER_OPTIONS: { id: SourceFilter; label: string }[] = [
   { id: "fresh_bazaar", label: "Fresh bazaar only (kitchen/bar)" },
 ];
 
-const inventoryGroupColumns = buildInventoryPaymentGroupColumns();
+const DEPARTMENT_SELECT_ALL = "__all_departments__";
 
 function filterRowsByMode(
   items: InventoryPaymentRow[],
@@ -170,6 +177,21 @@ export function HotelInventoryPaymentCategoryPanel({
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   /** Empty = all suppliers; otherwise case-insensitive contains match. */
   const [supplierQuery, setSupplierQuery] = useState("");
+  /** Empty = all departments. Shown for credit / fully paid modes. */
+  const [departmentFilter, setDepartmentFilter] = useState("");
+
+  const { options: departmentFilterOptions } = useDepartmentLeaderSelectOptions(
+    REGISTRATION_RECEIVED_BY_CODES,
+  );
+
+  const showDepartmentFilter = mode === "credit" || mode === "paid";
+  const inventoryGroupColumns = useMemo(
+    () =>
+      buildInventoryPaymentGroupColumns({
+        showVatAmountColumns: mode === "with-vat",
+      }),
+    [mode],
+  );
 
   const paymentRows = useMemo(
     () =>
@@ -265,6 +287,17 @@ export function HotelInventoryPaymentCategoryPanel({
         if (showPayFilter && payFilter !== "all") {
           if (itemPaymentBucket(r) !== payFilter) return false;
         }
+        if (
+          showDepartmentFilter &&
+          departmentFilter &&
+          !matchesDepartmentLeaderFilter(
+            r.receivedByDepartment,
+            r.receivedByLeaderName,
+            departmentFilter,
+          )
+        ) {
+          return false;
+        }
         return true;
       })
       .sort((a, b) => {
@@ -290,6 +323,8 @@ export function HotelInventoryPaymentCategoryPanel({
     payFilter,
     showVatFilter,
     showPayFilter,
+    showDepartmentFilter,
+    departmentFilter,
   ]);
 
   const totalValue = useMemo(
@@ -349,7 +384,8 @@ export function HotelInventoryPaymentCategoryPanel({
     supplierQueryNormalized !== "" ||
     (mode === "credit" && creditAmountFilter !== "all") ||
     (showVatFilter && vatFilter !== "all") ||
-    (showPayFilter && payFilter !== "all");
+    (showPayFilter && payFilter !== "all") ||
+    (showDepartmentFilter && departmentFilter !== "");
 
   const clearFilters = () => {
     setDateFrom("");
@@ -359,6 +395,7 @@ export function HotelInventoryPaymentCategoryPanel({
     setPayFilter("all");
     setSourceFilter("all");
     setSupplierQuery("");
+    setDepartmentFilter("");
   };
 
   return (
@@ -434,6 +471,7 @@ export function HotelInventoryPaymentCategoryPanel({
                     r.measuredBy,
                   ),
                   line_value_etb: lineOwedETB(r),
+                  vat_amount_etb: lineVatETB(r),
                   payment_status: itemPaymentLabel(itemPaymentBucket(r)),
                   credit_amount_etb: creditAmountETB(r),
                   purchase_includes_vat: isVatEnabled(r.purchaseWithVat)
@@ -443,6 +481,7 @@ export function HotelInventoryPaymentCategoryPanel({
                   supplier_phone: r.supplierPhone,
                   supplier_tin: (r.supplierTinNumber || "").trim(),
                   paid_etb: r.paidAmount,
+                  received_by_department: r.receivedByDepartment || "",
                   registered_on: rowRegistrationYmd(r.registrationDate),
                 })),
               )
@@ -472,6 +511,54 @@ export function HotelInventoryPaymentCategoryPanel({
               placeholder="Any date"
             />
           </div>
+          {showDepartmentFilter ? (
+            <div className="flex flex-col gap-1.5 min-w-[200px]">
+              <Label
+                htmlFor={`payment-dept-${mode}`}
+                className="text-[10px] font-bold uppercase text-muted-foreground ml-1"
+              >
+                Department
+              </Label>
+              <Select
+                value={departmentFilter || DEPARTMENT_SELECT_ALL}
+                onValueChange={(value) =>
+                  setDepartmentFilter(
+                    value === DEPARTMENT_SELECT_ALL ? "" : value,
+                  )
+                }
+              >
+                <SelectTrigger
+                  id={`payment-dept-${mode}`}
+                  className="h-10 w-full min-w-[200px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter size={14} className="text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="All departments" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-2xl">
+                  <SelectGroup>
+                    <SelectLabel>Department</SelectLabel>
+                    <SelectItem
+                      value={DEPARTMENT_SELECT_ALL}
+                      className="cursor-pointer"
+                    >
+                      All departments
+                    </SelectItem>
+                    {departmentFilterOptions.map((opt) => (
+                      <SelectItem
+                        key={opt.value}
+                        value={opt.value}
+                        className="cursor-pointer"
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-1.5 min-w-[170px]">
             <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
               Source

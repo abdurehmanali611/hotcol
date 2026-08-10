@@ -81,6 +81,27 @@ export function registeredAmountOf(item: {
   return Number(item.amount) || 0;
 }
 
+/** Registered qty × unit price (before VAT). */
+export function lineSubtotalETB(item: {
+  amount: number;
+  unitPrice: number;
+  registeredAmount?: number;
+}): number {
+  const a = registeredAmountOf(item);
+  const u = Number(item.unitPrice) || 0;
+  return computeLineSubtotalETB(a, u);
+}
+
+/** VAT portion of a payment line (0 when purchase is without VAT). */
+export function lineVatETB(item: {
+  amount: number;
+  unitPrice: number;
+  purchaseWithVat?: unknown;
+  registeredAmount?: number;
+}): number {
+  return computeInventoryVatETB(lineSubtotalETB(item), item.purchaseWithVat);
+}
+
 /** Canonical inventory total: subtotal + VAT(15% when enabled). */
 export function lineOwedETB(item: {
   amount: number;
@@ -397,6 +418,7 @@ export type InventoryPaymentItemGroup = {
   measuredBy: string;
   totalQty: number;
   totalLineValue: number;
+  totalVat: number;
   totalCredit: number;
   totalPaid: number;
   lineCount: number;
@@ -477,6 +499,7 @@ export function groupInventoryPaymentRowsByItem(
     let storeQty = 0;
     let totalQty = 0;
     let totalLineValue = 0;
+    let totalVat = 0;
     let totalCredit = 0;
     let totalPaid = 0;
     const nameVotes = new Map<string, number>();
@@ -491,6 +514,7 @@ export function groupInventoryPaymentRowsByItem(
       const qty = registeredAmountOf(line);
       totalQty += qty;
       totalLineValue += lineOwedETB(line);
+      totalVat += lineVatETB(line);
       totalCredit += creditAmountETB(line);
       totalPaid += Number(line.paidAmount) || 0;
       bucketsSeen.add(itemPaymentBucket(line));
@@ -568,6 +592,7 @@ export function groupInventoryPaymentRowsByItem(
       measuredBy: units.size === 1 ? [...units][0]! : units.size > 1 ? "mixed" : "",
       totalQty,
       totalLineValue,
+      totalVat,
       totalCredit,
       totalPaid,
       lineCount: lines.length,

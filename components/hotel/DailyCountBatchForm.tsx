@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -87,6 +88,10 @@ export type DailyCountLine = {
   managementTakenDay: number;
   invitationTakenDay: number;
   measuredBy: string;
+  /** Empty = neutral; mutually exclusive with the other. */
+  shortageChecked: boolean;
+  overageChecked: boolean;
+  varianceAmount: number;
 };
 
 function emptyLine(measuredBy = "Piece"): DailyCountLine {
@@ -98,6 +103,9 @@ function emptyLine(measuredBy = "Piece"): DailyCountLine {
     managementTakenDay: 0,
     invitationTakenDay: 0,
     measuredBy,
+    shortageChecked: false,
+    overageChecked: false,
+    varianceAmount: 0,
   };
 }
 
@@ -106,6 +114,42 @@ function stationFromRow(station: string): string {
   return HOTEL_DAILY_COUNT_STATIONS.some((s) => s.value === key)
     ? key
     : "KITCHEN";
+}
+
+function varianceFieldsFromRow(row: KitchenBarBeginningRow): Pick<
+  DailyCountLine,
+  "shortageChecked" | "overageChecked" | "varianceAmount"
+> {
+  const kind = String(row.countVariance || "NEUTRAL")
+    .trim()
+    .toUpperCase();
+  const amt = Number(row.countVarianceAmount) || 0;
+  if (kind === "SHORTAGE") {
+    return { shortageChecked: true, overageChecked: false, varianceAmount: amt };
+  }
+  if (kind === "OVERAGE") {
+    return { shortageChecked: false, overageChecked: true, varianceAmount: amt };
+  }
+  return { shortageChecked: false, overageChecked: false, varianceAmount: 0 };
+}
+
+function lineVariancePayload(line: DailyCountLine): {
+  countVariance: "NEUTRAL" | "SHORTAGE" | "OVERAGE";
+  countVarianceAmount: number;
+} {
+  if (line.shortageChecked) {
+    return {
+      countVariance: "SHORTAGE",
+      countVarianceAmount: round2(Math.max(0, Number(line.varianceAmount) || 0)),
+    };
+  }
+  if (line.overageChecked) {
+    return {
+      countVariance: "OVERAGE",
+      countVarianceAmount: round2(Math.max(0, Number(line.varianceAmount) || 0)),
+    };
+  }
+  return { countVariance: "NEUTRAL", countVarianceAmount: 0 };
 }
 
 function linePreview(
@@ -131,6 +175,7 @@ function linePreview(
   const sales = round2(Number(line.salesDay) || 0);
   const management = round2(Number(line.managementTakenDay) || 0);
   const invitation = round2(Number(line.invitationTakenDay) || 0);
+  // On Hand stays the calculated station value; shortage/overage is info-only.
   const onHandPreview = round2(total - sales - management - invitation);
   return { stockOut, total, sales, management, invitation, onHandPreview };
 }
@@ -279,11 +324,16 @@ export function DailyCountBatchForm({
 }) {
   const day = String(calendarDate || "").slice(0, 10);
   const [station, setStation] = useState("KITCHEN");
+  /** When station is ROOM: KITCHEN or BAR — which station the room draws from. */
+  const [roomSourceStation, setRoomSourceStation] = useState<"KITCHEN" | "BAR">(
+    "KITCHEN",
+  );
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DailyCountLine[]>([emptyLine()]);
   const [savePending, setSavePending] = useState(false);
 
   const editingId = editingRow?.id ?? null;
+  const isRoomStation = normalizeKitchenBarStationKey(station) === "ROOM";
 
   const itemOptions = useMemo(() => {
     // Store/inventory first; prior count names only when not already in store.
@@ -365,6 +415,10 @@ export function DailyCountBatchForm({
     );
     const derivedSales = resolveDailyCountSalesQty(editingRow, prev);
     setStation(stationFromRow(editingRow.station));
+    const src = normalizeKitchenBarStationKey(
+      editingRow.roomSourceStation || "KITCHEN",
+    );
+    setRoomSourceStation(src === "BAR" ? "BAR" : "KITCHEN");
     setNotes(editingRow.notes || "");
     setLines([
       {
@@ -378,6 +432,7 @@ export function DailyCountBatchForm({
         managementTakenDay: Number(editingRow.managementTakenDay ?? 0),
         invitationTakenDay: Number(editingRow.invitationTakenDay ?? 0),
         measuredBy: editingRow.measuredBy || "Piece",
+        ...varianceFieldsFromRow(editingRow),
       },
     ]);
   }, [editingRow, existingRows]);
@@ -455,6 +510,7 @@ export function DailyCountBatchForm({
 
   const resetCreateForm = useCallback(() => {
     setStation("KITCHEN");
+    setRoomSourceStation("KITCHEN");
     setNotes("");
     setLines([emptyLine()]);
   }, []);
@@ -473,6 +529,21 @@ export function DailyCountBatchForm({
       toast.error("Add at least one line with an item name");
       return;
     }
+    if (isRoomStation && !roomSourceStation) {
+      toast.error("Select Kitchen or Bar as the room source");
+      return;
+    }
+    for (const line of validLines) {
+      if (
+        (line.shortageChecked || line.overageChecked) &&
+        !(Number(line.varianceAmount) > 0)
+      ) {
+        toast.error(
+          `Enter the ${line.shortageChecked ? "shortage" : "overage"} amount for “${line.itemName.trim()}”`,
+        );
+        return;
+      }
+    }
 
     setSavePending(true);
     try {
@@ -481,10 +552,12 @@ export function DailyCountBatchForm({
         calendarDate: day,
         monthPeriod: day.slice(0, 7),
         notes: notes.trim(),
+        roomSourceStation: isRoomStation ? roomSourceStation : "",
       };
 
       if (editingId != null) {
         const line = validLines[0];
+        const variance = lineVariancePayload(line);
         await updateKitchenBarBeginningApi(
           {
             id: editingId,
@@ -495,6 +568,7 @@ export function DailyCountBatchForm({
             managementTakenDay: round2(Number(line.managementTakenDay) || 0),
             invitationTakenDay: round2(Number(line.invitationTakenDay) || 0),
             salesDay: round2(Number(line.salesDay) || 0),
+            ...variance,
           },
           { quiet: true },
         );
@@ -518,6 +592,7 @@ export function DailyCountBatchForm({
         }
         seen.add(dupKey);
         try {
+          const variance = lineVariancePayload(line);
           await createKitchenBarBeginningApi(
             {
               ...shared,
@@ -527,6 +602,7 @@ export function DailyCountBatchForm({
               managementTakenDay: round2(Number(line.managementTakenDay) || 0),
               invitationTakenDay: round2(Number(line.invitationTakenDay) || 0),
               salesDay: round2(Number(line.salesDay) || 0),
+              ...variance,
             },
             { quiet: true },
           );
@@ -557,6 +633,8 @@ export function DailyCountBatchForm({
     station,
     notes,
     editingId,
+    isRoomStation,
+    roomSourceStation,
     onClearEdit,
     resetCreateForm,
     onSaved,
@@ -571,6 +649,32 @@ export function DailyCountBatchForm({
           description="Applies to every line below. Date comes from the day picker on the grid."
         >
           <DailyCountStationPicker value={station} onChange={setStation} />
+          {isRoomStation ? (
+            <div className="mt-3 space-y-1.5">
+              <Label htmlFor="kb-room-source">Room draws from</Label>
+              <Select
+                value={roomSourceStation}
+                onValueChange={(v) =>
+                  setRoomSourceStation(v === "BAR" ? "BAR" : "KITCHEN")
+                }
+              >
+                <SelectTrigger
+                  id="kb-room-source"
+                  className="h-10 w-full max-w-xs border-border/80 shadow-sm"
+                >
+                  <SelectValue placeholder="Kitchen or Bar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="KITCHEN">Kitchen</SelectItem>
+                  <SelectItem value="BAR">Bar</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Room sales are registered here and deducted from that station’s
+                sales for the same item and day.
+              </p>
+            </div>
+          ) : null}
           <p className="text-xs text-muted-foreground pt-1">
             Calendar day:{" "}
             <span className="font-medium tabular-nums text-foreground">
@@ -758,7 +862,7 @@ export function DailyCountBatchForm({
                     <DailyCountMetricTile
                       label="Store"
                       value={preview.stockOut.toFixed(2)}
-                      hint="Approved stock-outs"
+                      hint="Approved stock-outs today"
                     />
                     <DailyCountMetricTile
                       label="Total"
@@ -769,9 +873,94 @@ export function DailyCountBatchForm({
                     <DailyCountMetricTile
                       label="On Hand preview"
                       value={preview.onHandPreview.toFixed(2)}
-                      hint="Total − Sales − Issues"
+                      hint="Total − Sales − Issues (unchanged by variance)"
                       tone="onhand"
                     />
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Physical cross-check (info only)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      On Hand above stays the calculated station value. Use
+                      shortage/overage only to note how the physical count
+                      differs from that On Hand.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={line.shortageChecked}
+                          onCheckedChange={(checked) =>
+                            updateLine(line.key, {
+                              shortageChecked: checked === true,
+                              overageChecked:
+                                checked === true ? false : line.overageChecked,
+                              varianceAmount:
+                                checked === true || line.overageChecked
+                                  ? line.varianceAmount
+                                  : 0,
+                            })
+                          }
+                        />
+                        Shortage
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={line.overageChecked}
+                          onCheckedChange={(checked) =>
+                            updateLine(line.key, {
+                              overageChecked: checked === true,
+                              shortageChecked:
+                                checked === true ? false : line.shortageChecked,
+                              varianceAmount:
+                                checked === true || line.shortageChecked
+                                  ? line.varianceAmount
+                                  : 0,
+                            })
+                          }
+                        />
+                        Overage
+                      </label>
+                    </div>
+                    {line.shortageChecked || line.overageChecked ? (
+                      <HotelFormFieldStack>
+                        <Label htmlFor={`kb-var-${line.key}`}>
+                          {line.shortageChecked
+                            ? "Shortage amount"
+                            : "Overage amount"}
+                        </Label>
+                        <Input
+                          id={`kb-var-${line.key}`}
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={line.varianceAmount}
+                          onChange={(e) =>
+                            updateLine(line.key, {
+                              varianceAmount: Number.isFinite(
+                                Number(e.target.value),
+                              )
+                                ? Number(e.target.value)
+                                : 0,
+                            })
+                          }
+                          onBlur={() =>
+                            updateLine(line.key, {
+                              varianceAmount: round2(
+                                Math.max(0, Number(line.varianceAmount) || 0),
+                              ),
+                            })
+                          }
+                          className="h-10 max-w-[200px] tabular-nums border-amber-500/35 bg-amber-500/5 shadow-sm"
+                        />
+                      </HotelFormFieldStack>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Neither checked — physical count matches calculated
+                        On Hand (neutral).
+                      </p>
+                    )}
                   </div>
                 </div>
               );

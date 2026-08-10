@@ -86,18 +86,39 @@ export type StockOutLike = {
   amount: number;
   stakeHolderOrReason: string;
   decidedAt?: string | null;
+  /** Store-chosen business day for the movement (preferred over decidedAt). */
+  movementDate?: string | null;
 };
 
 /** Calendar day YYYY-MM-DD in UTC (matches backend stock-out approval bucketing). */
 export function utcYmdFromIso(iso: string): string {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
-/** Sum approved store→station stock-outs for one daily row (decidedAt date = calendar day, UTC). */
+/**
+ * Business day for a stock-out: prefer store movementDate, else approval decidedAt.
+ * Using movementDate avoids counting a late approval as a different calendar day.
+ */
+export function stockOutBusinessYmd(row: {
+  movementDate?: string | null;
+  decidedAt?: string | null;
+}): string {
+  const movement = row.movementDate ? utcYmdFromIso(String(row.movementDate)) : "";
+  if (movement) return movement;
+  if (row.decidedAt) return utcYmdFromIso(String(row.decidedAt));
+  return "";
+}
+
+/**
+ * Sum approved store→station stock-outs for one daily row.
+ * Uses today's (calendarDate) stock-outs only — never a prior day's last movement —
+ * and adds every matching stock-out on that day.
+ */
 export function summarizeApprovedStockOutForDay(
   stocks: StockOutLike[],
   stationKey: string,
@@ -106,17 +127,18 @@ export function summarizeApprovedStockOutForDay(
 ): number {
   const normItem = itemName.trim().toLowerCase();
   const normStation = normalizeKitchenBarStationKey(stationKey);
+  const day = String(calendarDate || "").slice(0, 10);
+  if (!normItem || !day) return 0;
   let sum = 0;
   for (const r of stocks) {
     if (r.status !== "APPROVED" || r.movementType !== "STOCK_OUT") continue;
     if (String(r.itemName ?? "").trim().toLowerCase() !== normItem) continue;
-    if (!r.decidedAt) continue;
-    const d = utcYmdFromIso(String(r.decidedAt));
-    if (d !== calendarDate) continue;
+    const d = stockOutBusinessYmd(r);
+    if (!d || d !== day) continue;
     if (normalizeKitchenBarStationKey(r.stakeHolderOrReason) !== normStation) {
       continue;
     }
-    sum += Number(r.amount);
+    sum += Number(r.amount) || 0;
   }
   return sum;
 }

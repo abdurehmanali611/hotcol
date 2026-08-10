@@ -140,16 +140,16 @@ export function buildKitchenBarDailyColumns(
   } = options;
 
   const storeFor = (b: KitchenBarBeginningRow): number =>
-    mode === "manager"
-      ? round2(
-          summarizeApprovedStockOutForDay(
-            stockOutRowsForProperty,
-            normalizeKitchenBarStationKey(b.station),
-            b.itemName,
-            String(selectedDayYmd || "").slice(0, 10),
-          ),
-        )
-      : round2(Number(b.stockOutDay ?? 0));
+    round2(
+      summarizeApprovedStockOutForDay(
+        stockOutRowsForProperty,
+        normalizeKitchenBarStationKey(b.station),
+        b.itemName,
+        String(
+          b.calendarDate || selectedDayYmd || "",
+        ).slice(0, 10),
+      ),
+    );
 
   const cols: ColumnDef<KitchenBarBeginningRow>[] = [
     {
@@ -242,6 +242,31 @@ export function buildKitchenBarDailyColumns(
       },
     },
     {
+      id: "variance",
+      header: "Variance",
+      cell: ({ row }) => {
+        const kind = String(row.original.countVariance || "NEUTRAL")
+          .trim()
+          .toUpperCase();
+        const amt = Number(row.original.countVarianceAmount) || 0;
+        if (kind === "SHORTAGE" && amt > 0) {
+          return (
+            <span className="text-xs tabular-nums text-amber-800 dark:text-amber-200">
+              Short {amt.toFixed(2)}
+            </span>
+          );
+        }
+        if (kind === "OVERAGE" && amt > 0) {
+          return (
+            <span className="text-xs tabular-nums text-sky-800 dark:text-sky-200">
+              Over {amt.toFixed(2)}
+            </span>
+          );
+        }
+        return <span className="text-xs text-muted-foreground">Neutral</span>;
+      },
+    },
+    {
       id: "onHand",
       header: () => <span className="block text-right w-full">On Hand</span>,
       cell: ({ row }) => {
@@ -253,10 +278,19 @@ export function buildKitchenBarDailyColumns(
         const management = Number(b.managementTakenDay ?? 0);
         const invitation = Number(b.invitationTakenDay ?? 0);
         const onHand = round2(total - salesQty - management - invitation);
+        const roomSrc = String(b.roomSourceStation || "").trim().toUpperCase();
         return (
-          <span className="block text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-300">
-            {onHand.toFixed(2)}
-          </span>
+          <div className="text-right">
+            <span className="block tabular-nums font-semibold text-emerald-700 dark:text-emerald-300">
+              {onHand.toFixed(2)}
+            </span>
+            {normalizeKitchenBarStationKey(b.station) === "ROOM" &&
+            (roomSrc === "KITCHEN" || roomSrc === "BAR") ? (
+              <span className="text-[10px] text-muted-foreground">
+                via {roomSrc === "BAR" ? "Bar" : "Kitchen"}
+              </span>
+            ) : null}
+          </div>
         );
       },
     },

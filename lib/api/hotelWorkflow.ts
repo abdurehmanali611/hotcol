@@ -355,6 +355,9 @@ export async function fetchKitchenBarBeginnings(): Promise<
         managementTakenDay
         invitationTakenDay
         salesDay
+        countVariance
+        countVarianceAmount
+        roomSourceStation
         closingOnHand
         notes
         createdAt
@@ -2189,6 +2192,9 @@ export async function createKitchenBarBeginningApi(
     managementTakenDay?: number;
     invitationTakenDay?: number;
     salesDay?: number;
+    countVariance?: string;
+    countVarianceAmount?: number;
+    roomSourceStation?: string;
     monthPeriod?: string;
     calendarDate: string;
     notes?: string;
@@ -2204,6 +2210,9 @@ export async function createKitchenBarBeginningApi(
       $managementTakenDay: Float
       $invitationTakenDay: Float
       $salesDay: Float
+      $countVariance: String
+      $countVarianceAmount: Float
+      $roomSourceStation: String
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -2216,6 +2225,9 @@ export async function createKitchenBarBeginningApi(
         managementTakenDay: $managementTakenDay
         invitationTakenDay: $invitationTakenDay
         salesDay: $salesDay
+        countVariance: $countVariance
+        countVarianceAmount: $countVarianceAmount
+        roomSourceStation: $roomSourceStation
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes
@@ -2242,6 +2254,9 @@ export async function updateKitchenBarBeginningApi(
     managementTakenDay?: number;
     invitationTakenDay?: number;
     salesDay?: number;
+    countVariance?: string;
+    countVarianceAmount?: number;
+    roomSourceStation?: string;
     monthPeriod?: string;
     calendarDate: string;
     notes?: string;
@@ -2258,6 +2273,9 @@ export async function updateKitchenBarBeginningApi(
       $managementTakenDay: Float
       $invitationTakenDay: Float
       $salesDay: Float
+      $countVariance: String
+      $countVarianceAmount: Float
+      $roomSourceStation: String
       $monthPeriod: String
       $calendarDate: String!
       $notes: String
@@ -2271,6 +2289,9 @@ export async function updateKitchenBarBeginningApi(
         managementTakenDay: $managementTakenDay
         invitationTakenDay: $invitationTakenDay
         salesDay: $salesDay
+        countVariance: $countVariance
+        countVarianceAmount: $countVarianceAmount
+        roomSourceStation: $roomSourceStation
         monthPeriod: $monthPeriod
         calendarDate: $calendarDate
         notes: $notes

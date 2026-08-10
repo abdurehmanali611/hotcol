@@ -533,6 +533,11 @@ export interface KitchenBarBeginningRow {
   invitationTakenDay?: number;
   /** Explicit sales for the day. Null/undefined = legacy derive from beginning − prior on hand. */
   salesDay?: number | null;
+  /** NEUTRAL | SHORTAGE | OVERAGE — physical cross-check vs calculated on-hand. */
+  countVariance?: string;
+  countVarianceAmount?: number;
+  /** When station is ROOM: KITCHEN or BAR source for reallocated sales. */
+  roomSourceStation?: string;
   closingOnHand: number;
   notes: string;
   createdAt: string;
