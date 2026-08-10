@@ -762,12 +762,24 @@ export function HotelInventoryPaymentCategoryPanel({
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">
                   <span className="font-medium text-muted-foreground">
-                    Total price
+                    {mode === "with-vat"
+                      ? "Total paid incl. VAT"
+                      : "Total price"}
                   </span>
                   <span className="font-semibold tabular-nums text-foreground">
                     {totalValue.toLocaleString()} ETB
                   </span>
                 </span>
+                {mode === "with-vat" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs">
+                    <span className="font-medium text-violet-700 dark:text-violet-400">
+                      Total VAT
+                    </span>
+                    <span className="font-semibold tabular-nums text-violet-800 dark:text-violet-300">
+                      {totalVatValue.toLocaleString()} ETB
+                    </span>
+                  </span>
+                ) : null}
                 {totalCredit > 0.01 ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs">
                     <span className="font-medium text-amber-700 dark:text-amber-400">
