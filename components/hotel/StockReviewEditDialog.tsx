@@ -13,9 +13,8 @@ import {
   parseStockMovementDestination,
   type StockMovementKind,
 } from "@/lib/stockMovementDraftForm";
-import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
+import { STOCK_OUT_STATION_OPTIONS } from "@/lib/departments";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
-import { REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
 import { toYmdLocal, ymdWithTimeOf } from "@/lib/hotelDateYmd";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
@@ -193,13 +192,24 @@ function StockReviewEditDialogForm({
           >
             {movementType === "STOCK_OUT" ? (
               <div className="grid gap-4">
-                <DepartmentLeaderSelect
-                  label="Station or destination"
-                  value={stakeholder}
-                  onChange={(dept) => setStakeholder(dept)}
-                  expandLeaders={false}
-                  allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
-                />
+                <div className="space-y-1.5">
+                  <Label>Station (Kitchen / Bar / Room)</Label>
+                  <Select
+                    value={stakeholder || undefined}
+                    onValueChange={setStakeholder}
+                  >
+                    <SelectTrigger className="h-10 w-full">
+                      <SelectValue placeholder="Select station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STOCK_OUT_STATION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="so-edit-custom">Custom destination (optional)</Label>
                   <Input
@@ -234,7 +244,7 @@ function StockReviewEditDialogForm({
         </Button>
         <PendingButton
           pending={isPending(`save-so-${row.id}`)}
-          className="gap-2 shadow-sm min-w-[140px]"
+          className="gap-2 shadow-sm min-w-35"
           onClick={() =>
             void run(`save-so-${row.id}`, async () => {
               const stakeHolderOrReason = formatStockMovementDestination(

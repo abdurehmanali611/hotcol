@@ -194,25 +194,40 @@ export function HotelInventoryPaymentVatPanel({
             variant="outline"
             className="gap-1.5 h-8"
             onClick={() => {
+              const rows = filtered.map((r) => ({
+                item_name: r.name,
+                quantity_with_unit: formatQtyWithUnit(
+                  registeredAmountOf(r),
+                  r.measuredBy,
+                ),
+                line_value_etb: lineOwedETB(r),
+                payment_status: itemPaymentLabel(itemPaymentBucket(r)),
+                credit_amount_etb: creditAmountETB(r),
+                purchase_includes_vat: isVatEnabled(r.purchaseWithVat)
+                  ? "With VAT"
+                  : "Without VAT",
+                supplier_name: r.supplierName,
+                supplier_phone: r.supplierPhone,
+                supplier_tin: (r.supplierTinNumber || "").trim(),
+              }));
+              rows.push({
+                item_name: "TOTAL",
+                quantity_with_unit: "",
+                line_value_etb: filteredLineTotal,
+                payment_status: "",
+                credit_amount_etb: filtered.reduce(
+                  (s, r) => s + creditAmountETB(r),
+                  0,
+                ),
+                purchase_includes_vat: "",
+                supplier_name: "",
+                supplier_phone: "",
+                supplier_tin: "",
+              });
               void exportRowsExcel(
                 `${fileBase}_payment_vat_filtered`,
                 "Filtered",
-                filtered.map((r) => ({
-                  item_name: r.name,
-                  quantity_with_unit: formatQtyWithUnit(
-                    registeredAmountOf(r),
-                    r.measuredBy,
-                  ),
-                  line_value_etb: lineOwedETB(r),
-                  payment_status: itemPaymentLabel(itemPaymentBucket(r)),
-                  credit_amount_etb: creditAmountETB(r),
-                  purchase_includes_vat: isVatEnabled(r.purchaseWithVat)
-                    ? "With VAT"
-                    : "Without VAT",
-                  supplier_name: r.supplierName,
-                  supplier_phone: r.supplierPhone,
-                  supplier_tin: (r.supplierTinNumber || "").trim(),
-                })),
+                rows,
               );
             }}
           >

@@ -122,6 +122,27 @@ export async function exportHotelInventoryWorkbook(
       supplier_tin: r.supplierTinNumber ?? "",
       purchase_includes_vat: vatLabel(r.purchaseWithVat),
     }));
+    const payTotal = data.inventoryItems.reduce((s, r) => s + lineOwedETB(r), 0);
+    payRows.push({
+      id: 0,
+      item_name: "TOTAL",
+      quantity_with_unit: "",
+      line_value_etb: payTotal,
+      paid_etb: data.inventoryItems.reduce(
+        (s, r) => s + (Number(r.paidAmount) || 0),
+        0,
+      ),
+      credit_amount_etb: data.inventoryItems.reduce(
+        (s, r) => s + creditAmountETB(r),
+        0,
+      ),
+      payment_status: "",
+      supplier_name: "",
+      supplier_phone: "",
+      supplier_address: "",
+      supplier_tin: "",
+      purchase_includes_vat: "",
+    });
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(payRows),
@@ -152,7 +173,9 @@ export async function exportRowsExcel(
     const { XLSX, saveAs } = await loadExcelLibs();
     const wb = XLSX.utils.book_new();
     const sn = sheetName.replace(/[[\]:*?/\\]/g, "_").slice(0, 31) || "Sheet1";
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sn);
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    // Keep money columns as numbers (not text) so Excel SUM matches system totals.
+    XLSX.utils.book_append_sheet(wb, sheet, sn);
     const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const safe = fileBase.replace(/[^\w\-]+/g, "_").slice(0, 80);
     saveAs(

@@ -109,6 +109,7 @@ import {
   summarizeApprovedStockOutForDay,
   type HotelDailyCountStationFilter,
 } from "@/lib/hotelDailyStation";
+import { toYmdLocal } from "@/lib/hotelDateYmd";
 import {
   DailyCountStationFilterBar,
 } from "@/components/hotel/DailyCountStationUi";
@@ -211,8 +212,8 @@ function CostControlInner() {
   useEffect(() => {
     rollupRangeRef.current = { from: rollupFromYmd, to: rollupToYmd };
   }, [rollupFromYmd, rollupToYmd]);
-  const [selectedDailyDate, setSelectedDailyDate] = useState(
-    new Date().toISOString().slice(0, 10),
+  const [selectedDailyDate, setSelectedDailyDate] = useState(() =>
+    toYmdLocal(new Date()),
   );
   const [dailyStationFilter, setDailyStationFilter] =
     useState<HotelDailyCountStationFilter>("ALL");
@@ -420,9 +421,14 @@ function CostControlInner() {
     ) => {
       const slices = sectionSlices[section] ?? [];
       if (!slices.length) return;
+      // Daily counts need fresh APPROVED stock-outs — always re-fetch stocks
+      // so Store doesn't stay 0 after a movement was approved on another tab.
       const pending = opts?.force
         ? slices
-        : slices.filter((s) => !loadedSlicesRef.current.has(s));
+        : slices.filter((s) => {
+            if (section === "beginnings" && s === "stocks") return true;
+            return !loadedSlicesRef.current.has(s);
+          });
       if (!pending.length) return;
 
       const invPending = pending.some((s) => s === "regs" || s === "stats");
@@ -706,6 +712,31 @@ function CostControlInner() {
         notes: b.notes || "",
       };
     });
+    const salesValueTotal = round2(
+      rows.reduce(
+        (s, r) =>
+          s + (typeof r.sales_value_etb === "number" ? r.sales_value_etb : 0),
+        0,
+      ),
+    );
+    rows.push({
+      date: "",
+      station: "",
+      item: "TOTAL",
+      measured_by: "",
+      beginning_bb: "" as unknown as number,
+      store: "" as unknown as number,
+      total: "" as unknown as number,
+      management: "" as unknown as number,
+      invitation: "" as unknown as number,
+      sales: "",
+      on_hand: "" as unknown as number,
+      variance: "",
+      variance_amount: "" as unknown as number,
+      unit_price_etb: "" as unknown as number,
+      sales_value_etb: salesValueTotal,
+      notes: "",
+    });
     await exportRowsExcel(
       `${displayName || tenantScope || "property"}_daily_count_${day}${stationSuffix}`,
       "Daily_count",
@@ -753,6 +784,23 @@ function CostControlInner() {
           ? new Date(row.syncedAt).toLocaleString()
           : "",
       };
+    });
+    const rollupSalesTotal = round2(
+      rows.reduce((s, r) => s + (Number(r.sales_value_etb) || 0), 0),
+    );
+    rows.push({
+      from: "",
+      to: "",
+      station: "",
+      item: "TOTAL",
+      sum_sales: "" as unknown as number,
+      sum_shortage: "" as unknown as number,
+      sum_overage: "" as unknown as number,
+      on_hand: "" as unknown as number,
+      remaining: "" as unknown as number,
+      unit_price_etb: "" as unknown as number,
+      sales_value_etb: rollupSalesTotal,
+      synced_at: "",
     });
     await exportRowsExcel(
       `${displayName || tenantScope || "property"}_daily_count_rollup_${rollupFromYmd}_to_${rollupToYmd}${stationSuffix}`,

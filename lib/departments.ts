@@ -34,6 +34,23 @@ export const REQUESTED_BY_DEPARTMENT_CODES = [
   ...HOTEL_DEPARTMENT_CODES.filter((c) => c !== "STORE" && c !== "PURCHASER"),
 ];
 
+/**
+ * Store→station destinations that feed Cost Control daily counts (Kitchen / Bar / Room).
+ * Room is not a HotelDepartmentCode — use these option values on stock-out forms.
+ * Do not include F&B Service or other departments here — those are “requested by” only.
+ */
+export const STOCK_OUT_STATION_OPTIONS = [
+  { value: "KITCHEN", label: "Kitchen" },
+  { value: "BAR", label: "Bar" },
+  { value: "ROOM", label: "Room" },
+] as const;
+
+/** Kitchen / Bar only — for DepartmentLeaderSelect when Room is handled separately. */
+export const STOCK_OUT_STATION_DESTINATION_CODES = [
+  "KITCHEN",
+  "BAR",
+] as const satisfies readonly HotelDepartmentCode[];
+
 /** Purchase requests — staff option plus all departments including Store. */
 export const PURCHASE_REQUESTED_BY_DEPARTMENT_CODES = [
   STAFF_REQUESTED_BY_CODE,
@@ -366,8 +383,13 @@ export function mergeAccountabilityFilterOptions(
 
 /** Text stored on StockOutRequest.stakeHolderOrReason from a department select value. */
 export function stockOutDestinationTextFromDepartmentCode(code: string): string {
-  const { department } = parseDepartmentLeaderValue(String(code ?? "").trim());
-  return departmentLabel(department || String(code ?? "").trim());
+  const raw = String(code ?? "").trim();
+  const up = raw.toUpperCase();
+  if (up === "KITCHEN") return "Kitchen";
+  if (up === "BAR") return "Bar";
+  if (up === "ROOM") return "Room";
+  const { department } = parseDepartmentLeaderValue(raw);
+  return departmentLabel(department || raw);
 }
 
 const LEGACY_STOCK_OUT_DESTINATION_TO_DEPARTMENT: Record<string, string> = {

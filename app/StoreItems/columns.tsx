@@ -57,6 +57,7 @@ import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelec
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   REQUESTED_BY_DEPARTMENT_CODES,
+  STOCK_OUT_STATION_OPTIONS,
   stockOutDestinationTextFromDepartmentCode,
 } from "@/lib/departments";
 import { toYmdLocal, ymdToRegistrationTimestamp } from "@/lib/hotelDateYmd";
@@ -524,13 +525,27 @@ const StockOut = ({
                   }}
                   allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
                 />
-                <DepartmentLeaderSelect
-                  label="Station or destination"
-                  value={statusBy}
-                  onChange={(dept) => setStatusBy(dept)}
-                  expandLeaders={false}
-                  allowedDepartments={REQUESTED_BY_DEPARTMENT_CODES}
-                />
+                <div className="space-y-1.5">
+                  <Label>Station (Kitchen / Bar / Room)</Label>
+                  <Select
+                    value={statusBy}
+                    onValueChange={(value) => setStatusBy(value)}
+                  >
+                    <SelectTrigger className="w-full h-fit p-2">
+                      <SelectValue placeholder="Select station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Daily-count stations</SelectLabel>
+                        {STOCK_OUT_STATION_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             ) : (
               <Select
@@ -1168,7 +1183,7 @@ export const columns = (
       if (isInventoryGroupParent(row.original)) return null;
       const vatOn = isVatEnabled(row.original.purchaseWithVat);
       return (
-        <div className="flex flex-col gap-1.5 min-w-[108px]">
+        <div className="flex flex-col gap-1.5 min-w-27">
           <Badge
             variant="outline"
             className={cn(

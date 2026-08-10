@@ -1,4 +1,5 @@
 import { toYmdLocal } from "@/lib/hotelDateYmd";
+import { resolveStockOutDestinationDepartmentCode } from "@/lib/departments";
 
 /**
  * Canonical station keys for hotel daily counts (kitchen/bar/room).
@@ -41,8 +42,8 @@ export const HOTEL_STORE_STOCK_OUT_STAKEHOLDERS = [
 ] as const;
 
 /**
- * Map free-text stakeholder or legacy CHEF/BAR station to a canonical key
- * (must match BackEnd normalizeKitchenBarStation).
+ * Map free-text stakeholder, department code/label, or legacy CHEF/BAR station
+ * to a canonical key (must match BackEnd normalizeKitchenBarStation).
  */
 export function normalizeKitchenBarStationKey(raw: string): string {
   const s = String(raw ?? "")
@@ -64,6 +65,12 @@ export function normalizeKitchenBarStationKey(raw: string): string {
   if (up === "CHEF" || up === "KITCHEN") return "KITCHEN";
   if (up === "BAR") return "BAR";
   if (up === "ROOM") return "ROOM";
+
+  // Department select labels / codes from store stock-out destination.
+  const dept = resolveStockOutDestinationDepartmentCode(String(raw ?? ""));
+  if (dept === "KITCHEN") return "KITCHEN";
+  if (dept === "BAR") return "BAR";
+
   return up.replace(/\s+/g, "_") || "OTHER";
 }
 
@@ -163,6 +170,30 @@ export function summarizeApprovedStockOutForDay(
     sum += Number(r.amount) || 0;
   }
   return sum;
+}
+
+/** Approved stock-outs for an item on a calendar day, grouped by destination station. */
+export function summarizeApprovedStockOutsByStationForDay(
+  stocks: StockOutLike[],
+  itemName: string,
+  calendarDate: string,
+): { station: string; amount: number }[] {
+  const normItem = itemName.trim().toLowerCase();
+  const day = String(calendarDate || "").slice(0, 10);
+  if (!normItem || !day) return [];
+  const byStation = new Map<string, number>();
+  for (const r of stocks) {
+    if (String(r.status ?? "").toUpperCase() !== "APPROVED") continue;
+    if (String(r.movementType ?? "").toUpperCase() !== "STOCK_OUT") continue;
+    if (String(r.itemName ?? "").trim().toLowerCase() !== normItem) continue;
+    if (!stockOutMatchesCalendarDay(r, day)) continue;
+    const station = normalizeKitchenBarStationKey(r.stakeHolderOrReason);
+    byStation.set(station, (byStation.get(station) || 0) + (Number(r.amount) || 0));
+  }
+  return [...byStation.entries()]
+    .map(([station, amount]) => ({ station, amount: roundDaily2(amount) }))
+    .filter((row) => row.amount > 0)
+    .sort((a, b) => a.station.localeCompare(b.station));
 }
 
 function roundDaily2(n: number): number {

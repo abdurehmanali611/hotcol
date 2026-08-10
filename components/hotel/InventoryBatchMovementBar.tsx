@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { Send } from "lucide-react";
 import { useConcurrentActions } from "@/hooks/useConcurrentActions";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,16 +31,14 @@ import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelec
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   REQUESTED_BY_DEPARTMENT_CODES,
-  stockOutDestinationTextFromDepartmentCode,
+  STOCK_OUT_STATION_OPTIONS,
 } from "@/lib/departments";
 import { toYmdLocal, ymdToRegistrationTimestamp } from "@/lib/hotelDateYmd";
-import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
-import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
-import type { DataTableRef } from "@/app/StoreItems/data-table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Send } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { buildOptimisticStockOutRequestRow } from "@/lib/hotelOptimisticStock";
+import type { DataTableRef } from "@/app/StoreItems/data-table";
 
 type MovementKind = "STOCK_OUT" | "WASTAGE" | "RETURN_SUPPLIER";
 
@@ -50,13 +49,23 @@ type LineDraft = {
   measuredBy: string;
   movement: MovementKind;
   amount: string;
-  /** Stock-out: department code (same options as requested by) */
+  /** Stock-out: KITCHEN | BAR | ROOM */
   stakeholder: string;
-  /** Stock-out: optional free-text station / destination */
+  /** Stock-out: optional free-text override (legacy) */
   customStation: string;
   /** Wastage / return */
   reason: string;
 };
+
+function stockOutDestination(line: LineDraft): string {
+  const custom = line.customStation.trim();
+  if (custom) return custom;
+  const code = line.stakeholder.trim().toUpperCase();
+  if (code === "KITCHEN") return "Kitchen";
+  if (code === "BAR") return "Bar";
+  if (code === "ROOM") return "Room";
+  return "";
+}
 
 function defaultAmountForRow(row: ItemRegistration): string {
   const onHand = Math.max(0, Number(row.amount) || 0);
@@ -85,14 +94,6 @@ function rowsToDrafts(selected: ItemRegistration[]): LineDraft[] {
   return drafts;
 }
 
-function stockOutDestination(line: LineDraft): string {
-  const custom = line.customStation.trim();
-  if (custom) return custom;
-  const code = line.stakeholder.trim();
-  if (!code) return "";
-  return stockOutDestinationTextFromDepartmentCode(code);
-}
-
 export function InventoryBatchMovementBar({
   selected,
   tableRef,
@@ -109,11 +110,9 @@ export function InventoryBatchMovementBar({
   const [requestedByDepartment, setRequestedByDepartment] = useState("");
   const [requestedByLeaderName, setRequestedByLeaderName] = useState("");
   const [defaultStockOutStation, setDefaultStockOutStation] = useState("");
-  const [movementDateYmd, setMovementDateYmd] = useState(() => toYmdLocal(new Date()));
-  const { options: destinationOptions, loading: destinationLoading } =
-    useDepartmentLeaderSelectOptions(REQUESTED_BY_DEPARTMENT_CODES, {
-      perLeader: false,
-    });
+  const [movementDateYmd, setMovementDateYmd] = useState(() =>
+    toYmdLocal(new Date()),
+  );
   const { isPending, run } = useConcurrentActions();
   const batchKey = "inventory-batch-movements";
 
@@ -141,7 +140,8 @@ export function InventoryBatchMovementBar({
       toast.error("Select the movement date");
       return;
     }
-    const movementDateIso = ymdToRegistrationTimestamp(movementDateYmd).toISOString();
+    const movementDateIso =
+      ymdToRegistrationTimestamp(movementDateYmd).toISOString();
     void run(batchKey, async () => {
       const user =
         typeof window !== "undefined"
@@ -157,27 +157,26 @@ export function InventoryBatchMovementBar({
         if (line.movement === "STOCK_OUT") {
           if (!stockOutDestination(line)) {
             toast.error(
-              `Select or enter a station for “${line.itemName}”, or use “Apply station to all” above.`,
+              `Select Kitchen, Bar, or Room for “${line.itemName}”`,
             );
             return;
           }
         } else if (!line.reason.trim()) {
-          toast.error(`Enter a reason for “${line.itemName}” (wastage / return).`);
+          toast.error(`Enter a reason for “${line.itemName}”`);
           return;
         }
-        if (!Number.isFinite(q) || q <= 0) {
-          toast.error(`Enter a valid quantity for “${line.itemName}”.`);
+        if (!(q > 0)) {
+          toast.error(`Enter a quantity for “${line.itemName}”`);
           return;
         }
-        const regId = line.registrationId;
-        const nextSum = (batchSumByRegId.get(regId) || 0) + q;
-        batchSumByRegId.set(regId, nextSum);
-        if (nextSum > row.amount) {
+        const prev = batchSumByRegId.get(line.registrationId) || 0;
+        if (prev + q > Number(row.amount)) {
           toast.error(
-            `“${line.itemName}”: total quantity cannot exceed ${row.amount} on hand.`,
+            `Total quantity for “${line.itemName}” exceeds stock on hand.`,
           );
           return;
         }
+        batchSumByRegId.set(line.registrationId, prev + q);
       }
 
       const batchPayload: {
@@ -214,7 +213,12 @@ export function InventoryBatchMovementBar({
         try {
           const results = await createStockOutRequestsBatchApi(
             batchPayload.map(
-              ({ itemRegistrationId, movementType, amount, stakeHolderOrReason }) => ({
+              ({
+                itemRegistrationId,
+                movementType,
+                amount,
+                stakeHolderOrReason,
+              }) => ({
                 itemRegistrationId,
                 movementType,
                 amount,
@@ -257,94 +261,59 @@ export function InventoryBatchMovementBar({
         } catch (e: unknown) {
           failed += batchPayload.length;
           submitError =
-            e instanceof Error ? e.message : "Batch stock movement request failed";
+            e instanceof Error ? e.message : "Could not create stock movements";
+          toast.error(submitError);
         }
       }
 
       if (ok > 0) {
         toast.success(
-          `Saved ${ok} movement line${ok === 1 ? "" : "s"} for your review${
-            failed ? ` (${failed} skipped or failed)` : ""
-          }. Open Review before send to confirm.`,
+          `Created ${ok} stock movement request${ok === 1 ? "" : "s"}`,
         );
-      } else {
-        toast.error(
-          submitError ??
-            (failed
-              ? "No requests were created. Check quantities, stations, and stock on hand."
-              : "No requests were created."),
-        );
+        setOpen(false);
+        setLines([]);
+        setRequestedByDepartment("");
+        setRequestedByLeaderName("");
+        setDefaultStockOutStation("");
+        tableRef.current?.resetRowSelection();
+        refresh?.();
       }
-      tableRef.current?.resetRowSelection();
-      setOpen(false);
-      if (ok > 0) refresh?.();
     });
   };
 
-  if (selected.length === 0) return null;
-
   return (
     <>
-      <div className="border-b border-border/60 bg-muted/25 px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <p className="text-sm text-muted-foreground min-w-0">
-            <span className="font-semibold tabular-nums text-foreground">
-              {selected.length}
-            </span>{" "}
-            line{selected.length === 1 ? "" : "s"} selected. Open the editor to set movement,
-            quantity, and destination per item.
-          </p>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              type="button"
-              className="gap-2 font-semibold shadow-sm"
-              onClick={() => {
-                setLines(rowsToDrafts(selected));
-                setDefaultStockOutStation("");
-                setMovementDateYmd(toYmdLocal(new Date()));
-                setOpen(true);
-              }}
-            >
-              <Send className="size-4 shrink-0" aria-hidden />
-              Review and submit
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="text-muted-foreground"
-              onClick={() => tableRef.current?.resetRowSelection()}
-            >
-              Clear selection
-            </Button>
-          </div>
-        </div>
-      </div>
+      <Button
+        type="button"
+        className="gap-2"
+        disabled={selected.length === 0}
+        onClick={() => {
+          setLines(rowsToDrafts(selected));
+          setMovementDateYmd(toYmdLocal(new Date()));
+          setOpen(true);
+        }}
+      >
+        <Send className="h-4 w-4" />
+        Stock movement ({selected.length})
+      </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          showCloseButton
-          className="flex max-h-[min(92vh,720px)] w-full max-w-xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
-        >
-          <div className="shrink-0 border-b border-border/60 bg-linear-to-b from-muted/40 to-muted/10 px-5 pt-5 pb-4 pr-12">
-            <DialogHeader className="space-y-2 text-left">
-              <DialogTitle className="text-base font-semibold tracking-tight sm:text-lg">
-                Batch movement requests
-              </DialogTitle>
-              <DialogDescription className="text-sm text-pretty leading-relaxed">
-                Each card is one request. Choose movement and quantity, then either a station
-                (stock-out) or a reason (wastage / return). Cost control reviews lines
-                separately.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+          <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-5">
+            <DialogTitle>Batch stock movements</DialogTitle>
+            <DialogDescription>
+              Create stock-out, wastage, or return lines. Stock-out destination
+              must be Kitchen, Bar, or Room so Cost Control daily counts can
+              include them.
+            </DialogDescription>
+          </DialogHeader>
 
           <ScrollArea className="min-h-0 flex-1 overflow-x-hidden">
             <div className="space-y-3 px-4 py-4 sm:px-5">
               <DepartmentLeaderSelect
                 id="stock-requested-by"
                 label="Requested by"
-                description="House Keeping (Room) and House Keeping (Public) are separate departments. When a department has multiple leaders, pick the accountable one — receipts print that name."
+                description="Who is requesting the movement (any department). Separate from Kitchen / Bar / Room destination."
                 value={requestedByDepartment}
                 leaderName={requestedByLeaderName}
                 onChange={(dept, leader) => {
@@ -368,31 +337,21 @@ export function InventoryBatchMovementBar({
                   <Select
                     value={defaultStockOutStation || undefined}
                     onValueChange={applyDefaultStationToAll}
-                    disabled={destinationLoading || destinationOptions.length === 0}
                   >
-                    <SelectTrigger id="default-stock-out-station" className="h-10 w-full">
-                      <SelectValue
-                        placeholder={
-                          destinationLoading
-                            ? "Loading departments…"
-                            : destinationOptions.length === 0
-                              ? "No leaders registered"
-                              : "Select once — applies to every stock-out line"
-                        }
-                      />
+                    <SelectTrigger
+                      id="default-stock-out-station"
+                      className="h-10 w-full"
+                    >
+                      <SelectValue placeholder="Kitchen, Bar, or Room" />
                     </SelectTrigger>
                     <SelectContent>
-                      {destinationOptions.map((opt) => (
+                      {STOCK_OUT_STATION_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Use this when sending many items to the same kitchen, bar, or
-                    department. You can still override any line below.
-                  </p>
                 </div>
               ) : null}
               {lines.map((line) => (
@@ -404,14 +363,19 @@ export function InventoryBatchMovementBar({
                     <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
                       {line.itemName}
                     </p>
-                    <Badge variant="secondary" className="shrink-0 tabular-nums font-normal">
+                    <Badge
+                      variant="secondary"
+                      className="shrink-0 tabular-nums font-normal"
+                    >
                       {line.onHand} {line.measuredBy}
                     </Badge>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5 sm:col-span-1">
-                      <Label htmlFor={`mov-${line.registrationId}`}>Movement</Label>
+                      <Label htmlFor={`mov-${line.registrationId}`}>
+                        Movement
+                      </Label>
                       <Select
                         value={line.movement}
                         onValueChange={(v) =>
@@ -420,18 +384,25 @@ export function InventoryBatchMovementBar({
                           })
                         }
                       >
-                        <SelectTrigger id={`mov-${line.registrationId}`} className="h-10 w-full">
+                        <SelectTrigger
+                          id={`mov-${line.registrationId}`}
+                          className="h-10 w-full"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="STOCK_OUT">Stock out</SelectItem>
                           <SelectItem value="WASTAGE">Wastage</SelectItem>
-                          <SelectItem value="RETURN_SUPPLIER">Return to supplier</SelectItem>
+                          <SelectItem value="RETURN_SUPPLIER">
+                            Return to supplier
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5 sm:col-span-1">
-                      <Label htmlFor={`qty-${line.registrationId}`}>Quantity</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`qty-${line.registrationId}`}>
+                        Quantity ({line.measuredBy})
+                      </Label>
                       <Input
                         id={`qty-${line.registrationId}`}
                         type="number"
@@ -449,59 +420,43 @@ export function InventoryBatchMovementBar({
 
                     {line.movement === "STOCK_OUT" ? (
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>Station or destination</Label>
+                        <Label>Station (Kitchen / Bar / Room)</Label>
                         <Select
                           value={line.stakeholder || undefined}
                           onValueChange={(v) =>
-                            updateLine(line.registrationId, { stakeholder: v })
+                            updateLine(line.registrationId, {
+                              stakeholder: v,
+                              customStation: "",
+                            })
                           }
-                          disabled={destinationLoading || destinationOptions.length === 0}
                         >
                           <SelectTrigger className="h-10 w-full">
-                            <SelectValue
-                              placeholder={
-                                destinationLoading
-                                  ? "Loading departments…"
-                                  : destinationOptions.length === 0
-                                    ? "No leaders registered — ask manager to add them"
-                                    : "Select department"
-                              }
-                            />
+                            <SelectValue placeholder="Select station" />
                           </SelectTrigger>
                           <SelectContent>
-                            {destinationOptions.map((opt) => (
+                            {STOCK_OUT_STATION_OPTIONS.map((opt) => (
                               <SelectItem key={opt.value} value={opt.value}>
                                 {opt.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        <Input
-                          className="h-10 text-sm"
-                          placeholder="Optional: custom destination"
-                          value={line.customStation}
-                          onChange={(e) =>
-                            updateLine(line.registrationId, {
-                              customStation: e.target.value,
-                            })
-                          }
-                        />
                       </div>
                     ) : (
                       <div className="space-y-1.5 sm:col-span-2">
                         <Label htmlFor={`reason-${line.registrationId}`}>
-                          Reason (required)
+                          Reason
                         </Label>
                         <Input
                           id={`reason-${line.registrationId}`}
-                          className="h-10"
-                          placeholder="e.g. spoilage, wrong delivery…"
                           value={line.reason}
                           onChange={(e) =>
                             updateLine(line.registrationId, {
                               reason: e.target.value,
                             })
                           }
+                          className="h-10"
+                          placeholder="Short reason…"
                         />
                       </div>
                     )}
@@ -511,24 +466,22 @@ export function InventoryBatchMovementBar({
             </div>
           </ScrollArea>
 
-          <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border/60 bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <p className="text-xs text-muted-foreground order-2 sm:order-1 sm:max-w-[55%]">
-              Stock-out needs a station or custom destination. Wastage and returns need a
-              reason.
-            </p>
-            <div className="flex w-full flex-col-reverse gap-2 order-1 sm:order-2 sm:w-auto sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <PendingButton
-                pending={isPending(batchKey)}
-                onClick={() => handleSubmit()}
-                className="gap-2 min-w-40 font-semibold"
-              >
-                <Send className="size-4 shrink-0" aria-hidden />
-                Submit {lines.length} request{lines.length === 1 ? "" : "s"}
-              </PendingButton>
-            </div>
+          <DialogFooter className="shrink-0 border-t px-4 py-3 sm:px-5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isPending(batchKey)}
+            >
+              Cancel
+            </Button>
+            <PendingButton
+              type="button"
+              pending={isPending(batchKey)}
+              onClick={handleSubmit}
+            >
+              Submit requests
+            </PendingButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

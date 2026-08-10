@@ -287,7 +287,7 @@ export function LodgingReportsPanel({
 
   const exportStaysExcel = async () => {
     if (stays.length === 0) return;
-    await exportRowsExcel(`lodging-stays-${from}_to_${to}`, "Stays", stays.map((s) => {
+    const rows = stays.map((s) => {
       const b = stayPaymentBreakdown(s);
       return {
         Voucher: s.voucherCode,
@@ -307,7 +307,33 @@ export function LodgingReportsPanel({
         "Other ETB": b.otherETB,
         "Bill total ETB": b.totalETB,
       };
-    }));
+    });
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.room += Number(r["Room nights ETB"]) || 0;
+        acc.laundry += Number(r["Laundry ETB"]) || 0;
+        acc.food += Number(r["Food & drink ETB (on stay)"]) || 0;
+        acc.other += Number(r["Other ETB"]) || 0;
+        acc.total += Number(r["Bill total ETB"]) || 0;
+        return acc;
+      },
+      { room: 0, laundry: 0, food: 0, other: 0, total: 0 },
+    );
+    rows.push({
+      Voucher: "TOTAL",
+      Guest: "",
+      Phone: "",
+      Status: "",
+      "Checked in": "",
+      "Checked out": "",
+      Rooms: "",
+      "Room nights ETB": totals.room,
+      "Laundry ETB": totals.laundry,
+      "Food & drink ETB (on stay)": totals.food,
+      "Other ETB": totals.other,
+      "Bill total ETB": totals.total,
+    });
+    await exportRowsExcel(`lodging-stays-${from}_to_${to}`, "Stays", rows);
   };
 
   const exportGuestsExcel = async () => {

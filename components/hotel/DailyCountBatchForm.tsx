@@ -14,10 +14,13 @@ import {
   findPreviousDailyCountRow,
   findYesterdayDailyCountRow,
   HOTEL_DAILY_COUNT_STATIONS,
+  displayKitchenBarStation,
   normalizeKitchenBarStationKey,
   previousDayOnHandAmount,
   resolveDailyCountSalesQty,
+  stockOutMatchesCalendarDay,
   summarizeApprovedStockOutForDay,
+  summarizeApprovedStockOutsByStationForDay,
 } from "@/lib/hotelDailyStation";
 import { inventoryUnitSelectValues } from "@/lib/inventoryUnits";
 import {
@@ -877,6 +880,70 @@ export function DailyCountBatchForm({
                       tone="onhand"
                     />
                   </div>
+                  {(() => {
+                    const item = line.itemName.trim();
+                    if (!item) return null;
+                    if (preview.stockOut > 0) return null;
+                    const stationKey = normalizeKitchenBarStationKey(station);
+                    const byStation = summarizeApprovedStockOutsByStationForDay(
+                      stocks,
+                      item,
+                      day,
+                    );
+                    const otherDailyStations = byStation.filter(
+                      (row) =>
+                        (row.station === "KITCHEN" ||
+                          row.station === "BAR" ||
+                          row.station === "ROOM") &&
+                        row.station !== stationKey,
+                    );
+                    if (otherDailyStations.length > 0) {
+                      return (
+                        <p className="text-xs text-amber-800 dark:text-amber-200 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                          Today’s approved stock-out for this item went to{" "}
+                          {otherDailyStations
+                            .map(
+                              (row) =>
+                                `${displayKitchenBarStation(row.station)} (${row.amount.toFixed(2)})`,
+                            )
+                            .join(", ")}
+                          . Switch the station above to include it in Store.
+                        </p>
+                      );
+                    }
+                    const pendingQty = stocks.reduce((sum, r) => {
+                      if (
+                        String(r.itemName ?? "").trim().toLowerCase() !==
+                        item.toLowerCase()
+                      ) {
+                        return sum;
+                      }
+                      if (
+                        String(r.movementType ?? "").toUpperCase() !== "STOCK_OUT"
+                      ) {
+                        return sum;
+                      }
+                      if (String(r.status ?? "").toUpperCase() === "APPROVED") {
+                        return sum;
+                      }
+                      if (!stockOutMatchesCalendarDay(r, day)) return sum;
+                      if (
+                        normalizeKitchenBarStationKey(r.stakeHolderOrReason) !==
+                        stationKey
+                      ) {
+                        return sum;
+                      }
+                      return sum + (Number(r.amount) || 0);
+                    }, 0);
+                    if (pendingQty <= 0) return null;
+                    return (
+                      <p className="text-xs text-amber-800 dark:text-amber-200 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                        {pendingQty.toFixed(2)} stock-out for this station today
+                        is still awaiting approval — Store only counts fully
+                        approved movements.
+                      </p>
+                    );
+                  })()}
 
                   <div className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -952,7 +1019,7 @@ export function DailyCountBatchForm({
                               ),
                             })
                           }
-                          className="h-10 max-w-[200px] tabular-nums border-amber-500/35 bg-amber-500/5 shadow-sm"
+                          className="h-10 max-w-50 tabular-nums border-amber-500/35 bg-amber-500/5 shadow-sm"
                         />
                       </HotelFormFieldStack>
                     ) : (

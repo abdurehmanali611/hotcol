@@ -16,8 +16,18 @@ export function parseStockMovementDestination(
 } {
   const raw = String(stakeHolderOrReason ?? "").trim();
   if (movementType === "STOCK_OUT") {
+    const lower = raw.toLowerCase();
+    if (lower === "kitchen" || lower === "chef") {
+      return { stakeholder: "KITCHEN", customStation: "", reason: "" };
+    }
+    if (lower === "bar" || lower === "barista") {
+      return { stakeholder: "BAR", customStation: "", reason: "" };
+    }
+    if (lower === "room" || lower === "rooms") {
+      return { stakeholder: "ROOM", customStation: "", reason: "" };
+    }
     const match = resolveStockOutDestinationDepartmentCode(raw);
-    if (match) {
+    if (match === "KITCHEN" || match === "BAR") {
       return {
         stakeholder: match,
         customStation: "",
@@ -42,12 +52,15 @@ export function formatStockMovementDestination(
   if (movementType === "STOCK_OUT") {
     const custom = customStation.trim();
     if (custom) return custom;
-    const code = String(stakeholder ?? "").trim();
+    const code = String(stakeholder ?? "").trim().toUpperCase();
     if (!code) return "";
+    if (code === "KITCHEN") return "Kitchen";
+    if (code === "BAR") return "Bar";
+    if (code === "ROOM") return "Room";
     if (REQUESTED_BY_DEPARTMENT_CODES.includes(code)) {
       return stockOutDestinationTextFromDepartmentCode(code);
     }
-    return code;
+    return String(stakeholder ?? "").trim();
   }
   return reason.trim();
 }

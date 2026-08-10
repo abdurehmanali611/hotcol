@@ -31,7 +31,6 @@ import {
   lineOwedETB,
   lineVatETB,
   mergeInventoryPaymentRows,
-  normalizePaymentItemGroupKey,
   registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
 import type { InventoryPaymentRow } from "@/lib/hotelInventoryPayment";
@@ -332,6 +331,16 @@ export function HotelInventoryPaymentCategoryPanel({
     [filtered],
   );
 
+  const totalVatValue = useMemo(
+    () => filtered.reduce((s, r) => s + lineVatETB(r), 0),
+    [filtered],
+  );
+
+  const totalPaidValue = useMemo(
+    () => filtered.reduce((s, r) => s + (Number(r.paidAmount) || 0), 0),
+    [filtered],
+  );
+
   const filteredBreakdown = useMemo(() => {
     let freshLines = 0;
     let freshQty = 0;
@@ -452,40 +461,64 @@ export function HotelInventoryPaymentCategoryPanel({
             variant="outline"
             className="gap-1.5 cursor-pointer"
             disabled={!filtered.length}
-            onClick={() =>
+            onClick={() => {
+              const rows = grouped.map((g) => {
+                const fullyPaid = g.paymentBucket === "paid";
+                return {
+                  item_name: g.name,
+                  line_count: g.lineCount,
+                  source: formatPaymentSourceBreakdown(g),
+                  quantity_with_unit: formatQtyWithUnit(
+                    g.totalQty,
+                    g.measuredBy,
+                  ),
+                  line_value_etb: g.totalLineValue,
+                  vat_amount_etb: g.totalVat,
+                  payment_status:
+                    g.paymentBucket === "mixed"
+                      ? "Mixed"
+                      : itemPaymentLabel(g.paymentBucket),
+                  // Fully paid → exact 0 credit (never float dust)
+                  credit_amount_etb: fullyPaid ? 0 : g.totalCredit,
+                  // Fully paid → paid equals line value so Excel SUM matches Total price
+                  paid_etb: fullyPaid ? g.totalLineValue : g.totalPaid,
+                  purchase_includes_vat:
+                    g.vatMode === "with"
+                      ? "With VAT"
+                      : g.vatMode === "without"
+                        ? "Without VAT"
+                        : "Mixed",
+                  supplier_name: g.supplierLabel,
+                  registered_from: g.registrationFrom
+                    ? rowRegistrationYmd(g.registrationFrom)
+                    : "",
+                  registered_to: g.registrationTo
+                    ? rowRegistrationYmd(g.registrationTo)
+                    : "",
+                };
+              });
+              rows.push({
+                item_name: "TOTAL",
+                line_count: filtered.length,
+                source: "",
+                quantity_with_unit: "",
+                line_value_etb: totalValue,
+                vat_amount_etb: totalVatValue,
+                payment_status: "",
+                credit_amount_etb: totalCredit,
+                paid_etb:
+                  totalCredit <= 0.01 ? totalValue : totalPaidValue,
+                purchase_includes_vat: "",
+                supplier_name: "",
+                registered_from: "",
+                registered_to: "",
+              });
               void exportRowsExcel(
                 `${fileBase}_${meta.sheet}`,
                 meta.sheet,
-                filtered.map((r) => ({
-                  id: r.id,
-                  item_name: r.name,
-                  item_group: normalizePaymentItemGroupKey(r.name),
-                  source:
-                    r.paymentSource === "fresh_bazaar"
-                      ? "Fresh bazaar"
-                      : r.paymentSource === "depleted"
-                        ? "Stocked out"
-                        : "Store",
-                  quantity_with_unit: formatQtyWithUnit(
-                    registeredAmountOf(r),
-                    r.measuredBy,
-                  ),
-                  line_value_etb: lineOwedETB(r),
-                  vat_amount_etb: lineVatETB(r),
-                  payment_status: itemPaymentLabel(itemPaymentBucket(r)),
-                  credit_amount_etb: creditAmountETB(r),
-                  purchase_includes_vat: isVatEnabled(r.purchaseWithVat)
-                    ? "With VAT"
-                    : "Without VAT",
-                  supplier_name: r.supplierName,
-                  supplier_phone: r.supplierPhone,
-                  supplier_tin: (r.supplierTinNumber || "").trim(),
-                  paid_etb: r.paidAmount,
-                  received_by_department: r.receivedByDepartment || "",
-                  registered_on: rowRegistrationYmd(r.registrationDate),
-                })),
-              )
-            }
+                rows,
+              );
+            }}
           >
             <Download className="h-3.5 w-3.5" />
             Export to Excel
@@ -500,19 +533,19 @@ export function HotelInventoryPaymentCategoryPanel({
               label="Registered from"
               value={dateFrom}
               onChange={setDateFrom}
-              className="min-w-[170px]"
+              className="min-w-42.5"
               placeholder="Any date"
             />
             <HotelDayPicker
               label="Registered to"
               value={dateTo}
               onChange={setDateTo}
-              className="min-w-[170px]"
+              className="min-w-42.5"
               placeholder="Any date"
             />
           </div>
           {showDepartmentFilter ? (
-            <div className="flex flex-col gap-1.5 min-w-[200px]">
+            <div className="flex flex-col gap-1.5 min-w-50">
               <Label
                 htmlFor={`payment-dept-${mode}`}
                 className="text-[10px] font-bold uppercase text-muted-foreground ml-1"
@@ -529,7 +562,7 @@ export function HotelInventoryPaymentCategoryPanel({
               >
                 <SelectTrigger
                   id={`payment-dept-${mode}`}
-                  className="h-10 w-full min-w-[200px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer"
+                  className="h-10 w-full min-w-50 max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Filter size={14} className="text-muted-foreground shrink-0" />
@@ -559,7 +592,7 @@ export function HotelInventoryPaymentCategoryPanel({
               </Select>
             </div>
           ) : null}
-          <div className="flex flex-col gap-1.5 min-w-[170px]">
+          <div className="flex flex-col gap-1.5 min-w-42.5">
             <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
               Source
             </span>
@@ -567,7 +600,7 @@ export function HotelInventoryPaymentCategoryPanel({
               value={sourceFilter}
               onValueChange={(v) => setSourceFilter(v as SourceFilter)}
             >
-              <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+              <SelectTrigger className="h-10 w-full min-w-42.5 max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
                 <div className="flex items-center gap-2 min-w-0">
                   <Filter size={14} className="text-muted-foreground shrink-0" />
                   <SelectValue placeholder="All sources" />
@@ -589,7 +622,7 @@ export function HotelInventoryPaymentCategoryPanel({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-1.5 min-w-[200px] max-w-sm">
+          <div className="flex flex-col gap-1.5 min-w-50 max-w-sm">
             <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
               Supplier
             </span>
@@ -615,7 +648,7 @@ export function HotelInventoryPaymentCategoryPanel({
             ) : null}
           </div>
           {mode === "credit" ? (
-            <div className="flex flex-col gap-1.5 min-w-[170px]">
+            <div className="flex flex-col gap-1.5 min-w-42.5">
               <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
                 Credit amount (ETB)
               </span>
@@ -625,7 +658,7 @@ export function HotelInventoryPaymentCategoryPanel({
                   setCreditAmountFilter(v as CreditAmountFilter)
                 }
               >
-                <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                <SelectTrigger className="h-10 w-full min-w-42.5 max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
                   <div className="flex items-center gap-2 min-w-0">
                     <Filter size={14} className="text-muted-foreground shrink-0" />
                     <SelectValue placeholder="All credit" />
@@ -649,7 +682,7 @@ export function HotelInventoryPaymentCategoryPanel({
             </div>
           ) : null}
           {showVatFilter ? (
-            <div className="flex flex-col gap-1.5 min-w-[170px]">
+            <div className="flex flex-col gap-1.5 min-w-42.5">
               <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
                 VAT
               </span>
@@ -657,7 +690,7 @@ export function HotelInventoryPaymentCategoryPanel({
                 value={vatFilter}
                 onValueChange={(v) => setVatFilter(v as VatFilter)}
               >
-                <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                <SelectTrigger className="h-10 w-full min-w-42.5 max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
                   <div className="flex items-center gap-2 min-w-0">
                     <Filter size={14} className="text-muted-foreground shrink-0" />
                     <SelectValue placeholder="All" />
@@ -681,7 +714,7 @@ export function HotelInventoryPaymentCategoryPanel({
             </div>
           ) : null}
           {showPayFilter ? (
-            <div className="flex flex-col gap-1.5 min-w-[170px]">
+            <div className="flex flex-col gap-1.5 min-w-42.5">
               <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
                 Supplier payment
               </span>
@@ -689,7 +722,7 @@ export function HotelInventoryPaymentCategoryPanel({
                 value={payFilter}
                 onValueChange={(v) => setPayFilter(v as PayFilter)}
               >
-                <SelectTrigger className="h-10 w-full min-w-[170px] max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
+                <SelectTrigger className="h-10 w-full min-w-42.5 max-w-xs bg-background border-dashed border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer">
                   <div className="flex items-center gap-2 min-w-0">
                     <Filter size={14} className="text-muted-foreground shrink-0" />
                     <SelectValue placeholder="All" />
@@ -724,9 +757,7 @@ export function HotelInventoryPaymentCategoryPanel({
           searchPlaceholder="Search item name…"
           pageSize={50}
           emptyMessage="No rows match these filters."
-          footerSummary={(rows) => {
-            const total = rows.reduce((s, r) => s + r.totalLineValue, 0);
-            const credit = rows.reduce((s, r) => s + r.totalCredit, 0);
+          footerSummary={() => {
             return (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">
@@ -734,16 +765,16 @@ export function HotelInventoryPaymentCategoryPanel({
                     Total price
                   </span>
                   <span className="font-semibold tabular-nums text-foreground">
-                    {total.toLocaleString()} ETB
+                    {totalValue.toLocaleString()} ETB
                   </span>
                 </span>
-                {credit > 0.01 ? (
+                {totalCredit > 0.01 ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs">
                     <span className="font-medium text-amber-700 dark:text-amber-400">
                       Outstanding credit
                     </span>
                     <span className="font-semibold tabular-nums text-amber-800 dark:text-amber-300">
-                      {credit.toLocaleString()} ETB
+                      {totalCredit.toLocaleString()} ETB
                     </span>
                   </span>
                 ) : null}

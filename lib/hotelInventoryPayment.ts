@@ -129,6 +129,10 @@ export function creditAmountETB(item: {
 }): number {
   const owed = lineOwedETB(item);
   const paid = Number(item.paidAmount) || 0;
+  // Match itemPaymentBucket: once treated as fully paid, outstanding credit is 0
+  // (avoids float dust like 1e-13 showing up in Excel / credit columns).
+  if (owed <= 0.01) return 0;
+  if (paid >= owed - 0.02) return 0;
   return Math.max(0, owed - paid);
 }
 
