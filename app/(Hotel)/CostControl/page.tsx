@@ -692,6 +692,15 @@ function CostControlInner() {
         invitation,
         sales: salesQty == null ? "" : salesQty,
         on_hand: onHand,
+        variance:
+          String(b.countVariance || "NEUTRAL").trim().toUpperCase() ===
+          "SHORTAGE"
+            ? "Shortage"
+            : String(b.countVariance || "NEUTRAL").trim().toUpperCase() ===
+                "OVERAGE"
+              ? "Overage"
+              : "Neutral",
+        variance_amount: Number(b.countVarianceAmount) || 0,
         unit_price_etb: price,
         sales_value_etb: salesValue == null ? "" : salesValue,
         notes: b.notes || "",
@@ -734,6 +743,8 @@ function CostControlInner() {
         station: displayKitchenBarStation(row.station),
         item: row.itemName,
         sum_sales: salesSum,
+        sum_shortage: Number(row.totalShortage ?? 0),
+        sum_overage: Number(row.totalOverage ?? 0),
         on_hand: onHand,
         remaining: round2(onHand - salesSum),
         unit_price_etb: price,

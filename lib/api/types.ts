@@ -553,6 +553,10 @@ export interface KitchenBarMonthlySnapshotRow {
   periodTo: string;
   totalImpliedSales: number;
   lastDayClosingOnHand: number;
+  /** Sum of info-only shortage variance amounts in the range. */
+  totalShortage?: number;
+  /** Sum of info-only overage variance amounts in the range. */
+  totalOverage?: number;
   syncedAt: string;
 }
 

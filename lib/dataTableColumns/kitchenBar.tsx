@@ -79,6 +79,28 @@ export function buildKitchenBarRollupColumns(
       ),
     },
     {
+      id: "totalShortage",
+      header: () => (
+        <span className="block text-right w-full">Σ Shortage</span>
+      ),
+      cell: ({ row }) => (
+        <span className="block text-right tabular-nums text-amber-800 dark:text-amber-200">
+          {Number(row.original.totalShortage ?? 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      id: "totalOverage",
+      header: () => (
+        <span className="block text-right w-full">Σ Overage</span>
+      ),
+      cell: ({ row }) => (
+        <span className="block text-right tabular-nums text-sky-800 dark:text-sky-200">
+          {Number(row.original.totalOverage ?? 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
       id: "onHand",
       header: () => (
         <span className="block text-right w-full">On Hand</span>

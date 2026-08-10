@@ -2342,6 +2342,8 @@ export async function fetchKitchenBarRollupSnapshots(
         periodTo
         totalImpliedSales
         lastDayClosingOnHand
+        totalShortage
+        totalOverage
         syncedAt
       }
     }
@@ -2365,6 +2367,8 @@ const KITCHEN_BAR_ROLLUP_SYNC_SELECTION = `
         station
         totalImpliedSales
         lastDayClosingOnHand
+        totalShortage
+        totalOverage
         syncedAt
 `;
 

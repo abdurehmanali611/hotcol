@@ -964,13 +964,23 @@ function ManagerContent() {
         if (!hasInRange) continue;
 
         let totalSales = 0;
+        let totalShortage = 0;
+        let totalOverage = 0;
         for (const d of eachYmdInclusive(fromYmd, toYmd)) {
           const row = pickForDay(rows, d);
           if (!row) continue;
           const sales = beginningDerivedById.daySales.get(row.id);
           if (sales != null) totalSales += Number(sales) || 0;
+          const varianceKind = String(row.countVariance || "NEUTRAL")
+            .trim()
+            .toUpperCase();
+          const varianceAmt = Math.max(0, Number(row.countVarianceAmount) || 0);
+          if (varianceKind === "SHORTAGE") totalShortage += varianceAmt;
+          else if (varianceKind === "OVERAGE") totalOverage += varianceAmt;
         }
         totalSales = round2(totalSales);
+        totalShortage = round2(totalShortage);
+        totalOverage = round2(totalOverage);
 
         let lastOnHand = 0;
         const lastRowOnTo = pickForDay(rows, toYmd);
@@ -1000,6 +1010,8 @@ function ManagerContent() {
           periodTo: toYmd,
           totalImpliedSales: totalSales,
           lastDayClosingOnHand: lastOnHand,
+          totalShortage,
+          totalOverage,
           syncedAt: CLIENT_ROLLUP_SYNCED_AT,
         });
       }
