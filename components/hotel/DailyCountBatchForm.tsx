@@ -440,7 +440,8 @@ export function DailyCountBatchForm({
     ]);
   }, [editingRow, existingRows]);
 
-  // When date/station changes on create, refresh beginning from yesterday on hand.
+  // When station (or loaded rows) changes on create, refresh beginning from
+  // yesterday’s on hand for this form day only — never from the history table filter.
   useEffect(() => {
     if (editingId != null) return;
     setLines((prevLines) =>
@@ -454,6 +455,7 @@ export function DailyCountBatchForm({
           day,
         );
         const yesterdayOnHand = previousDayOnHandAmount(yesterdayRow);
+        // Keep a typed beginning when yesterday had no count; do not clear to 0.
         if (yesterdayOnHand == null) return line;
         return { ...line, amount: yesterdayOnHand };
       }),
@@ -525,7 +527,7 @@ export function DailyCountBatchForm({
 
   const handleSave = useCallback(async () => {
     if (!day) {
-      toast.error("Pick a calendar day in the grid below");
+      toast.error("Today’s calendar date is missing — refresh the page");
       return;
     }
     if (validLines.length === 0) {
@@ -649,7 +651,7 @@ export function DailyCountBatchForm({
 
         <HotelFormSection
           title="Station"
-          description="Applies to every line below. Date comes from the day picker on the grid."
+          description="Applies to every line below. New rows always use today’s date; the calendar on the table only filters history."
         >
           <DailyCountStationPicker value={station} onChange={setStation} />
           {isRoomStation ? (
@@ -1125,10 +1127,11 @@ export function DailyCountBatchForm({
       <CardHeader>
         <CardTitle className="text-lg">Register a day</CardTitle>
         <CardDescription>
-          Shared station and date for the whole batch. Open the item selector to
-          search store or prior names, or type a new name to add it. If that item
-          was counted yesterday (any casing), Beginning fills with yesterday’s on
-          hand.
+          Shared station for the whole batch; rows save for today. Open the item
+          selector to search store or prior names, or type a new name to add it.
+          If that item was counted yesterday (any casing), Beginning fills with
+          yesterday’s on hand. Use the calendar under the table only to browse
+          past days.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">{formBody}</CardContent>

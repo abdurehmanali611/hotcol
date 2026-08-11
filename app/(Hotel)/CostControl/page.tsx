@@ -212,9 +212,12 @@ function CostControlInner() {
   useEffect(() => {
     rollupRangeRef.current = { from: rollupFromYmd, to: rollupToYmd };
   }, [rollupFromYmd, rollupToYmd]);
+  /** Filters the daily count history table only — not the register form. */
   const [selectedDailyDate, setSelectedDailyDate] = useState(() =>
     toYmdLocal(new Date()),
   );
+  /** Create form always posts for today; beginning = yesterday’s on hand. */
+  const todayDailyCountYmd = toYmdLocal(new Date());
   const [dailyStationFilter, setDailyStationFilter] =
     useState<HotelDailyCountStationFilter>("ALL");
   const [rollupStationFilter, setRollupStationFilter] =
@@ -1903,7 +1906,7 @@ function CostControlInner() {
             </Card>
 
             <DailyCountBatchForm
-              calendarDate={selectedDailyDate}
+              calendarDate={todayDailyCountYmd}
               stocks={stocks}
               storeItems={activeInventoryRows.map((row) => ({
                 name: row.name,
@@ -2019,13 +2022,19 @@ function CostControlInner() {
               </div>
               <div className="px-4 py-3 border-b border-border/60 space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-                  <HotelDayPicker
-                    label="Date"
-                    id="kb-grid-day"
-                    value={selectedDailyDate}
-                    onChange={setSelectedDailyDate}
-                    className="min-w-50"
-                  />
+                  <div className="space-y-1.5">
+                    <HotelDayPicker
+                      label="View day"
+                      id="kb-grid-day"
+                      value={selectedDailyDate}
+                      onChange={setSelectedDailyDate}
+                      className="min-w-50"
+                    />
+                    <p className="text-xs text-muted-foreground max-w-sm">
+                      Filters this table only. Does not change the register form
+                      above (always today / yesterday’s on hand).
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
