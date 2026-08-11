@@ -631,6 +631,7 @@ export function groupDraftRegistrationReceipts(
   return bundles
     .map((bundle) => ({
       ...bundle,
+      title: "Purchase-Store handover receipt",
       signatureLayout: "store_purchaser" as const,
       storeSignerName: storeSigner,
       purchaserSignerName: purchaserSigner,
