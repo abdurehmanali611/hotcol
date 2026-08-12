@@ -183,7 +183,11 @@ export function HotelInventoryPaymentCategoryPanel({
     REGISTRATION_RECEIVED_BY_CODES,
   );
 
-  const showDepartmentFilter = mode === "credit" || mode === "paid";
+  const showDepartmentFilter =
+    mode === "credit" ||
+    mode === "paid" ||
+    mode === "with-vat" ||
+    mode === "without-vat";
   const inventoryGroupColumns = useMemo(
     () =>
       buildInventoryPaymentGroupColumns({
