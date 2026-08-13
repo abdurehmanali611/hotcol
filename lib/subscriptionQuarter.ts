@@ -180,7 +180,6 @@ export function subscriptionAllowsFullSystemAccess(
 ): boolean {
   return (
     status === "exempt" ||
-    status === "on_hold" ||
     status === "trial" ||
     status === "trial_ending" ||
     status === "active" ||

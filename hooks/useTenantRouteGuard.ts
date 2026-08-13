@@ -16,6 +16,7 @@ import {
 } from "@/lib/tenantAccess";
 import { isPaymentPortalMode } from "@/lib/tenantAccessMode";
 import { refreshTenantSubscription } from "@/lib/actions";
+import { clearAuthStorage } from "@/lib/sessionExpiry";
 
 /** Redirect home if subscription or module access is denied. */
 export function useTenantRouteGuard(options?: {
@@ -50,6 +51,9 @@ export function useTenantRouteGuard(options?: {
       const status = getSubscriptionPeriodStatus();
       if (!canUseTenantSystem()) {
         toast.error(subscriptionBlockMessage(status));
+        if (status === "on_hold") {
+          clearAuthStorage();
+        }
         router.replace("/");
         return;
       }

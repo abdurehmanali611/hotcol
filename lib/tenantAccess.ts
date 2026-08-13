@@ -101,9 +101,7 @@ export function loggedInRoleMatchesTerminal(terminalRole: string): boolean {
 export function subscriptionBlockMessage(status: SubscriptionPeriodStatus): string {
   const isYearly = isLodgingBusinessType(readBusinessTypeFromStorage());
   if (status === "on_hold") {
-    return isYearly
-      ? "Billing has not started for this property yet (Apex hold). Yearly subscription begins when hold is released."
-      : "Billing has not started for this property yet (Apex hold). Quarters begin when hold is released.";
+    return "This property is on billing hold. Login is disabled until Apex releases the hold. Contact Apex on WhatsApp for help.";
   }
   if (status === "trial") {
     return "Free trial is active.";
