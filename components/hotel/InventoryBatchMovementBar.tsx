@@ -206,7 +206,6 @@ export function InventoryBatchMovementBar({
       }
 
       let ok = 0;
-      let failed = lines.length - batchPayload.length;
       let submitError: string | null = null;
 
       if (batchPayload.length > 0) {
@@ -259,7 +258,6 @@ export function InventoryBatchMovementBar({
             ok++;
           }
         } catch (e: unknown) {
-          failed += batchPayload.length;
           submitError =
             e instanceof Error ? e.message : "Could not create stock movements";
           toast.error(submitError);

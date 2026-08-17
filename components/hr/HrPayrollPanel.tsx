@@ -293,7 +293,6 @@ export function HrPayrollPanel({
   useEffect(() => {
     if (view !== "history") return;
     void loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per visit
   }, [view]);
 
   const toggleId = (id: number, checked: boolean) => {

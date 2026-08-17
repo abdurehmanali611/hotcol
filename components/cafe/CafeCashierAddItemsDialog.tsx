@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { submitAnalogPrintedOrders } from "@/lib/analogCafeOrder";
+import { cn } from "@/lib/utils";
 
 type CartLine = Item & { orderAmount: number };
 type MenuTab = "all" | "food" | "beverage" | "others";

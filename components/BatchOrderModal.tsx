@@ -36,6 +36,7 @@ import {
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
+import { batchOrderItemSchema, batchOrderSchema } from "@/lib/validations";
 
 /** Stay ids are not café table numbers (0–999); allow any positive stay id. */
 const roomBatchOrderSchema = z.object({
@@ -243,7 +244,8 @@ export default function BatchOrderModal({
       return;
     }
 
-    if (!values.singleWaiterName || values.singleWaiterName === "") {
+    const waiterName = String(values.singleWaiterName ?? "").trim();
+    if (!waiterName) {
       toast.error("Please select a waiter");
       return;
     }
@@ -257,8 +259,8 @@ export default function BatchOrderModal({
         category: si.category,
         type: si.type,
         orderAmount: si.orderAmount,
-        tableNo: values.singleTableNo!,
-        waiterName: values.singleWaiterName,
+        tableNo,
+        waiterName,
         HotelName: hotelName,
       }));
 

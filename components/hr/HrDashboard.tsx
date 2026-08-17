@@ -176,9 +176,9 @@ export function HrDashboard({
 
   const [internalSection, setInternalSection] = useState<HrSection>("dashboard");
   const section = sectionProp ?? internalSection;
-  const setSection = (next: HrSection) => {
+  const setSection = useCallback((next: HrSection) => {
     if (!sectionProp) setInternalSection(next);
-  };
+  }, [sectionProp]);
   const showEmbeddedTabs = embedded && !sectionProp;
   const copy = HR_SECTION_COPY[section] ?? HR_SECTION_COPY.dashboard;
 
@@ -227,7 +227,7 @@ export function HrDashboard({
     if (!allowed.has(section)) {
       setSection("dashboard");
     }
-  }, [actorRole, section]);
+  }, [actorRole, section, setSection]);
 
   const loadAll = useCallback(async (soft = false) => {
     if (soft) setRefreshing(true);
