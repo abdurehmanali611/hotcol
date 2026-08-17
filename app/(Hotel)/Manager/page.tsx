@@ -73,6 +73,8 @@ import {
   tenantHasServiceModuleGroup,
 } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
+import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 import {
   HrPayrollSidebarGroup,
   hrPayrollViewsForCaps,
@@ -112,6 +114,7 @@ import {
   Phone,
   CalendarDays,
   AlertTriangle,
+  Ban,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -178,6 +181,8 @@ import Reports from "@/components/reports";
 import WaiterAndTable from "@/components/Waiter_And_Table";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
+import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
+import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
@@ -215,6 +220,7 @@ const managerSidebarIconMap: Record<
   Phone,
   CalendarDays,
   AlertTriangle,
+  Ban,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -520,6 +526,7 @@ function ManagerContent() {
   }, [activeTab]);
 
   const tenantModules = useTenantModules();
+  const analog = isAnalogCafeOrderMode(useCafeOrderMode());
 
   const sidebarItems = useMemo(
     () =>
@@ -540,7 +547,10 @@ function ManagerContent() {
     () =>
       MANAGER_SERVICE_SIDEBAR_ITEMS.filter((item) =>
         filterManagerServiceTabId(item.id, tenantModules),
-      ).map((item) => {
+      )
+        .filter((item) => !(analog && item.id === "station-prep-qty"))
+        .filter((item) => analog || item.id !== "cancel-orders")
+        .map((item) => {
         const Icon = managerSidebarIconMap[item.icon];
         return {
           id: item.id as TabId,
@@ -548,7 +558,7 @@ function ManagerContent() {
           icon: <Icon className="h-4 w-4" aria-hidden />,
         };
       }),
-    [tenantModules],
+    [tenantModules, analog],
   );
 
   const allNavItems = useMemo(
@@ -741,6 +751,8 @@ function ManagerContent() {
         "Edit existing café menu items, prices, and availability.",
       "waiter-table":
         "Manage waiters and floor tables used by café cashier orders.",
+      "cancel-orders":
+        "Analog only: cancel unpaid thermal tickets and manage whether analog cashiers may cancel. Digital cancellation stays in the normal cashier / chef / bar workflow and is tracked by manager/admin.",
       "station-prep-qty":
         "Station preparation quantities that feed kitchen and bar workflows.",
       "creditor-usage":
@@ -1315,6 +1327,21 @@ function ManagerContent() {
           </div>
         );
 
+      case "cancel-orders":
+        return analog ? (
+          <div className="flex flex-col gap-6 p-3 sm:p-5 md:p-6">
+            <ManagerCashierCancelPermissionCard />
+            <CafeCashierOrderUpdatePanel
+              orders={cafeOrders}
+              items={menuItems}
+              hotelName={tenantScope || ""}
+              onRefresh={() => loadData(true)}
+              analogAddOnly
+              allowCancel
+            />
+          </div>
+        ) : null;
+
       case "credit-registrations":
         return (
           <div className="min-w-0 overflow-x-hidden rounded-xl border border-border/40 bg-card/30 p-3 shadow-sm backdrop-blur-sm sm:rounded-2xl sm:p-6">
@@ -1659,6 +1686,11 @@ function ManagerContent() {
                 loadData(true);
               }}
             />
+            {analog ? (
+              <div className="mt-6">
+                <ManagerCashierCancelPermissionCard />
+              </div>
+            ) : null}
           </div>
         );
 

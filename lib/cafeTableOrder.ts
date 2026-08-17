@@ -221,6 +221,16 @@ export function isPaidCashOrBankCafeOrder(
   return order.withBank === true || order.withBank === false;
 }
 
+/** Analog tickets are paid on print; same-day paid lines can still receive added items. */
+export function isAnalogOrderAddable(order: Order, hotelName: string): boolean {
+  if (!rowHotelMatchesTenantScope(order.HotelName, hotelName)) return false;
+  if (String(order.status ?? "").trim().toLowerCase() === "cancelled") {
+    return false;
+  }
+  if (String(order.payment ?? "").trim().toLowerCase() !== "paid") return false;
+  return isSameCafeBusinessDay(order.createdAt);
+}
+
 /** Orders eligible for live correction — kitchen/bar still preparing (pending only). */
 export function isLiveOrderEditable(order: Order, hotelName: string): boolean {
   if (!isOpenCafeOrder(order, hotelName)) return false;

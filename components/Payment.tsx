@@ -76,6 +76,9 @@ import {
   type TablePaymentMode,
 } from "@/components/cafe/CafeTablePaymentModePanel";
 import { cn } from "@/lib/utils";
+import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
+import { useCashierCancelOrdersEnabled } from "@/hooks/useCashierCancelOrdersEnabled";
+import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 
 type ReadyTableSummary = {
   tableNo: number;
@@ -110,6 +113,8 @@ export default function PaymentComponent({
   onHandlePayment,
   onRefresh,
 }: PaymentProps) {
+  const analog = isAnalogCafeOrderMode(useCafeOrderMode());
+  const cashierCanCancel = useCashierCancelOrdersEnabled();
   const [unpaidOrders, setUnpaidOrders] = useState<Order[]>([]);
   const [processingPayment, setProcessingPayment] = useState<number | null>(
     null,
@@ -1457,6 +1462,8 @@ export default function PaymentComponent({
                         onRefresh={onRefresh}
                         restrictTableNo={tableNoNum}
                         embedded
+                        analogAddOnly={analog}
+                        allowCancel={analog ? cashierCanCancel : true}
                       />
                     }
                   />

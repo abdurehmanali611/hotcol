@@ -7,6 +7,7 @@ import {
   type SubscriptionPeriodStatus,
 } from "@/lib/subscriptionQuarter";
 import { tenantHasModule } from "@/lib/subscriptionModules";
+import { parseCafeOrderMode } from "@/lib/cafeOrderMode";
 import { readTenantBillingFromStorage, readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { isPaymentPortalMode } from "@/lib/tenantAccessMode";
 import {
@@ -51,6 +52,16 @@ export function canAccessTenantModule(module: ModuleOption): boolean {
 export function canAccessTerminalRole(role: string): boolean {
   if (!canUseTenantSystem()) return false;
   const modules = readTenantModulesFromStorage();
+  if (
+    (role === "Kitchen" || role === "Barista") &&
+    parseCafeOrderMode(
+      typeof window === "undefined"
+        ? "digital"
+        : localStorage.getItem("tenant_cafe_order_mode"),
+    ) === "analog"
+  ) {
+    return false;
+  }
   // Unified cashier terminal: café POS and/or credit desk.
   if (role === "Cashier" || role === "HotelCashier") {
     return (

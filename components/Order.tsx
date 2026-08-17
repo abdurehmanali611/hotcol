@@ -39,7 +39,8 @@ interface OrderProps {
   hotelName: string;
   openOrders?: Order[];
   onItemSelect: (item: Item) => void;
-  onGoToPayment: () => void;
+  onGoToPayment?: () => void;
+  analogPrint?: boolean;
   onBatchOrderSuccess?: () => void;
   /** Reception lodging: room/stay options replace tables; waiter stays. */
   roomOptions?: { id: number; name: string; realValue: number }[];
@@ -60,6 +61,7 @@ export default function OrderComponent({
   openOrders = [],
   onItemSelect,
   onGoToPayment,
+  analogPrint = false,
   onBatchOrderSuccess,
   roomOptions,
   onRoomBatchSubmit,
@@ -181,7 +183,7 @@ export default function OrderComponent({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {roomOptions == null ? (
+              {roomOptions == null && onGoToPayment ? (
                 <Button
                   onClick={onGoToPayment}
                   variant="outline"
@@ -489,6 +491,7 @@ export default function OrderComponent({
         onSubmitSuccess={handleBatchOrderSuccess}
         roomOptions={roomOptions}
         onRoomBatchSubmit={onRoomBatchSubmit}
+        analogPrint={analogPrint}
       />
     </div>
   );

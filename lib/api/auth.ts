@@ -8,6 +8,7 @@ import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.share
 import { persistTenantSubscription, readTenantSubscriptionFromStorage } from "../tenantModules";
 import { persistTenantAccessMode, type TenantPaymentKind } from "../tenantAccessMode";
 import { parseModulesJson, roleAllowedForModules, type TenantSubscription } from "../subscriptionModules";
+import { parseCafeOrderMode, parseCafeOrderModeHistory } from "../cafeOrderMode";
 import type { LoginCredentials, User, TenantFeedbackInbox } from "./types";
 
 
@@ -36,6 +37,7 @@ export async function handleCredential(
           $quarterlyFeeETB: Int
           $paymentChannel: String
           $paymentTransactionRef: String
+          $cafeOrderMode: String
         ) {
           CreateAdmin(
             UserName: $UserName
@@ -50,6 +52,7 @@ export async function handleCredential(
             quarterlyFeeETB: $quarterlyFeeETB
             paymentChannel: $paymentChannel
             paymentTransactionRef: $paymentTransactionRef
+            cafeOrderMode: $cafeOrderMode
           ) {
             id
             HotelName
@@ -84,6 +87,7 @@ export async function handleCredential(
         quarterlyFeeETB: Number(values.quarterlyFeeETB) || 0,
         paymentChannel: values.paymentChannel ?? null,
         paymentTransactionRef: values.paymentTransactionRef ?? null,
+        cafeOrderMode: values.cafeOrderMode ?? "digital",
       },
     };
 
@@ -169,6 +173,9 @@ export async function LoginAction(
             paidQuartersCount
             awaitingSelfSignupSetup
             paymentTransactionRef
+            cafeOrderMode
+            cafeOrderModeHistory
+            cashierCancelOrdersEnabled
           }
         }
       }
@@ -185,10 +192,14 @@ export async function LoginAction(
 
     const { token, user, accessMode, paymentKind } = response.data.data.Login;
     const modules = parseModulesJson(user.modules);
+    const cafeOrderMode = parseCafeOrderMode(user.cafeOrderMode);
 
-    if (!roleAllowedForModules(user.Role, modules)) {
+    if (!roleAllowedForModules(user.Role, modules, cafeOrderMode)) {
       throw new Error(
-        "Your account role is not included in this property's subscribed modules. Contact your administrator.",
+        cafeOrderMode === "analog" &&
+          (user.Role === "Kitchen" || user.Role === "Barista")
+          ? "This property uses thermal printer tickets. Kitchen and bar logins are not available."
+          : "Your account role is not included in this property's subscribed modules. Contact your administrator.",
       );
     }
 
@@ -230,6 +241,13 @@ export async function LoginAction(
         paidQuartersCount: Number(user.paidQuartersCount) || 0,
         awaitingSelfSignupSetup: Boolean(user.awaitingSelfSignupSetup),
         paymentTransactionRef: user.paymentTransactionRef ?? null,
+        cafeOrderMode,
+        cafeOrderModeHistory: parseCafeOrderModeHistory(
+          user.cafeOrderModeHistory,
+          cafeOrderMode,
+          user.createdAt ?? null,
+        ),
+        cashierCancelOrdersEnabled: Boolean(user.cashierCancelOrdersEnabled),
       });
 
       if (accessMode === "payment_portal") {
@@ -517,17 +535,20 @@ export async function requestTenantModuleChange(input: {
   changeType: "add" | "remove";
   modules: string[];
   requestNote?: string;
+  cafeOrderMode?: "digital" | "analog";
 }): Promise<TenantModuleChangeRequestResult> {
   const MUTATION = `
     mutation RequestTenantModuleChange(
       $changeType: String!
       $modules: JSON!
       $requestNote: String
+      $cafeOrderMode: String
     ) {
       requestTenantModuleChange(
         changeType: $changeType
         modules: $modules
         requestNote: $requestNote
+        cafeOrderMode: $cafeOrderMode
       ) {
         id
         tinNumber
@@ -546,6 +567,7 @@ export async function requestTenantModuleChange(input: {
       changeType: input.changeType,
       modules: input.modules,
       requestNote: input.requestNote?.trim() || null,
+      cafeOrderMode: input.cafeOrderMode || null,
     },
   });
 
@@ -556,6 +578,60 @@ export async function requestTenantModuleChange(input: {
   }
 
   return response.data.data.requestTenantModuleChange;
+}
+
+export type TenantOrderModeChangeRequestResult = {
+  id: number;
+  tinNumber: string;
+  status: string;
+  requestedBySide: string;
+  requestNote: string | null;
+  currentMode: string;
+  requestedMode: string;
+  createdAt: string;
+};
+
+/** Admin/Manager: request switching digital ↔ thermal printer for Apex review. */
+export async function requestTenantOrderModeChange(input: {
+  requestedMode: "digital" | "analog";
+  requestNote?: string;
+}): Promise<TenantOrderModeChangeRequestResult> {
+  const MUTATION = `
+    mutation RequestTenantOrderModeChange(
+      $requestedMode: String!
+      $requestNote: String
+    ) {
+      requestTenantOrderModeChange(
+        requestedMode: $requestedMode
+        requestNote: $requestNote
+      ) {
+        id
+        tinNumber
+        status
+        requestedBySide
+        requestNote
+        currentMode
+        requestedMode
+        createdAt
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: MUTATION,
+    variables: {
+      requestedMode: input.requestedMode,
+      requestNote: input.requestNote?.trim() || null,
+    },
+  });
+
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message || "Could not submit order-mode request",
+    );
+  }
+
+  return response.data.data.requestTenantOrderModeChange;
 }
 
 function toIsoOrNull(value: unknown): string | null {
@@ -589,6 +665,9 @@ export async function refreshTenantSubscription(): Promise<TenantSubscription> {
         paidQuartersCount
         paymentTransactionRef
         awaitingSelfSignupSetup
+        cafeOrderMode
+        cafeOrderModeHistory
+        cashierCancelOrdersEnabled
       }
     }
   `;
@@ -615,6 +694,9 @@ export async function refreshTenantSubscription(): Promise<TenantSubscription> {
     paidQuartersCount?: number;
     paymentTransactionRef?: string | null;
     awaitingSelfSignupSetup?: boolean;
+    cafeOrderMode?: unknown;
+    cafeOrderModeHistory?: unknown;
+    cashierCancelOrdersEnabled?: boolean;
   };
 
   if (!row) {
@@ -636,8 +718,104 @@ export async function refreshTenantSubscription(): Promise<TenantSubscription> {
     paidQuartersCount: Number(row.paidQuartersCount) || 0,
     awaitingSelfSignupSetup: Boolean(row.awaitingSelfSignupSetup),
     paymentTransactionRef: row.paymentTransactionRef ?? null,
+    cafeOrderMode: parseCafeOrderMode(row.cafeOrderMode),
+    cafeOrderModeHistory: parseCafeOrderModeHistory(
+      row.cafeOrderModeHistory,
+      parseCafeOrderMode(row.cafeOrderMode),
+      toIsoOrNull(row.createdAt),
+    ),
+    cashierCancelOrdersEnabled: Boolean(row.cashierCancelOrdersEnabled),
   };
 
+  persistTenantSubscription(next);
+  return next;
+}
+
+export async function setCashierCancelOrdersEnabled(
+  enabled: boolean,
+): Promise<TenantSubscription> {
+  const MUTATION = `
+    mutation SetCashierCancelOrdersEnabled($enabled: Boolean!) {
+      setCashierCancelOrdersEnabled(enabled: $enabled) {
+        modules
+        setupFeeETB
+        quarterlyFeeETB
+        setupFeeApproved
+        createdAt
+        billingStartedAt
+        billingHold
+        isIllustrationTenant
+        freeTrialEndsAt
+        subscriptionPaidUntil
+        subscriptionPaymentApproved
+        paidQuartersCount
+        paymentTransactionRef
+        awaitingSelfSignupSetup
+        cafeOrderMode
+        cafeOrderModeHistory
+        cashierCancelOrdersEnabled
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: MUTATION,
+    variables: { enabled },
+  });
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message ||
+        "Could not update cashier cancel permission",
+    );
+  }
+
+  const row = response.data.data?.setCashierCancelOrdersEnabled as {
+    modules?: unknown;
+    setupFeeETB?: number;
+    quarterlyFeeETB?: number;
+    setupFeeApproved?: boolean;
+    createdAt?: string | null;
+    billingStartedAt?: string | null;
+    billingHold?: boolean;
+    isIllustrationTenant?: boolean;
+    freeTrialEndsAt?: string | null;
+    subscriptionPaidUntil?: string | null;
+    subscriptionPaymentApproved?: boolean;
+    paidQuartersCount?: number;
+    paymentTransactionRef?: string | null;
+    awaitingSelfSignupSetup?: boolean;
+    cafeOrderMode?: unknown;
+    cafeOrderModeHistory?: unknown;
+    cashierCancelOrdersEnabled?: boolean;
+  } | null;
+
+  if (!row) {
+    throw new Error("Could not update cashier cancel permission");
+  }
+
+  const next: TenantSubscription = {
+    modules: parseModulesJson(row.modules),
+    setupFeeETB: Number(row.setupFeeETB) || 0,
+    quarterlyFeeETB: Number(row.quarterlyFeeETB) || 0,
+    setupFeeApproved: Boolean(row.setupFeeApproved),
+    createdAt: toIsoOrNull(row.createdAt),
+    billingStartedAt: toIsoOrNull(row.billingStartedAt),
+    billingHold: Boolean(row.billingHold),
+    isIllustrationTenant: Boolean(row.isIllustrationTenant),
+    freeTrialEndsAt: toIsoOrNull(row.freeTrialEndsAt),
+    subscriptionPaidUntil: toIsoOrNull(row.subscriptionPaidUntil),
+    subscriptionPaymentApproved: Boolean(row.subscriptionPaymentApproved),
+    paidQuartersCount: Number(row.paidQuartersCount) || 0,
+    awaitingSelfSignupSetup: Boolean(row.awaitingSelfSignupSetup),
+    paymentTransactionRef: row.paymentTransactionRef ?? null,
+    cafeOrderMode: parseCafeOrderMode(row.cafeOrderMode),
+    cafeOrderModeHistory: parseCafeOrderModeHistory(
+      row.cafeOrderModeHistory,
+      parseCafeOrderMode(row.cafeOrderMode),
+      toIsoOrNull(row.createdAt),
+    ),
+    cashierCancelOrdersEnabled: Boolean(row.cashierCancelOrdersEnabled),
+  };
   persistTenantSubscription(next);
   return next;
 }

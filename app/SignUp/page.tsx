@@ -24,8 +24,13 @@ import {
   persistSignupRegistrationReceipt,
   readSignupRegistrationReceipt,
 } from "@/lib/api/signupRegistration";
+import {
+  SIGNUP_REQUIRED_MODULES_CAFE,
+  type BusinessType,
+} from "@/constants";
 import { SignUpSchema } from "@/lib/validations";
-import { SIGNUP_REQUIRED_MODULES_CAFE, type BusinessType } from "@/constants";
+import { SignupCafeOrderModeSelector } from "@/components/signup/SignupCafeOrderModeSelector";
+import { cafeModuleSelected, type CafeOrderMode } from "@/lib/cafeOrderMode";
 import { fetchSignupPricingPreview } from "@/lib/api/pricing";
 import { useSignupPricing } from "@/lib/hooks/useSignupPricing";
 import {
@@ -83,6 +88,7 @@ export default function SignUp() {
       tinNumber: "",
       type: "Cafe and Restaurant",
       modules: [...SIGNUP_REQUIRED_MODULES_CAFE],
+      cafeOrderMode: "digital",
       paymentChannel: undefined,
       paymentTransactionRef: "",
     },
@@ -204,6 +210,7 @@ export default function SignUp() {
                     tinNumber: "",
                     type: "Cafe and Restaurant",
                     modules: [...SIGNUP_REQUIRED_MODULES_CAFE],
+                    cafeOrderMode: "digital",
                     paymentChannel: undefined,
                     paymentTransactionRef: "",
                   });
@@ -305,6 +312,22 @@ export default function SignUp() {
                   businessType={businessType}
                   modules={selectedModules ?? getDefaultSignupModules(businessType)}
                 />
+                {cafeModuleSelected(selectedModules ?? []) ? (
+                  <FormField
+                    control={form.control}
+                    name="cafeOrderMode"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3 pt-2">
+                        <FormLabel>Café ordering mode</FormLabel>
+                        <SignupCafeOrderModeSelector
+                          value={(field.value as CafeOrderMode) || "digital"}
+                          onChange={field.onChange}
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
               </SignupSection>
 
               {!pricing.loading ? (

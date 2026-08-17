@@ -65,6 +65,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "update-item", label: "Update/Delete Item", icon: "Edit" },
   { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
+  { id: "cancel-orders", label: "Cancel orders", icon: "Ban" },
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
   { id: "inventory", label: "Inventory", icon: "Store" },
@@ -90,14 +91,22 @@ export const CAFE_CASHIER_NAV_ITEMS = [
     id: "payment",
     label: "Payment",
     icon: "Wallet",
-    description: "Collect cash or bank payments for open orders.",
+    description:
+      "Approve cash, bank, or credit payments for open orders, including analog thermal tickets.",
   },
   {
     id: "payment-type",
     label: "Payment type",
     icon: "ArrowLeftRight",
     description:
-      "Correct cash or bank on orders already paid today. Select lines and apply the right channel.",
+      "Correct the recorded payment channel on orders already paid today. Select lines and apply cash, bank, or the proper related payment details.",
+  },
+  {
+    id: "order-update",
+    label: "Order update",
+    icon: "ClipboardEdit",
+    description:
+      "Analog only: add items to a printed table ticket. The reprint is marked as an update, while payment approval still happens later in Payment.",
   },
   {
     id: "cashout",
@@ -129,6 +138,7 @@ export const MANAGER_SERVICE_SIDEBAR_ITEMS = [
   { id: "update-item", label: "Update/Delete Item", icon: "Edit" },
   { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
+  { id: "cancel-orders", label: "Cancel orders", icon: "Ban" },
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
 ] as const;
 

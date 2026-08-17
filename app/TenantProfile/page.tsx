@@ -33,6 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
 import { SignupPricingSummary } from "@/components/signup/SignupModuleSelector";
+import { SignupCafeOrderModeSelector } from "@/components/signup/SignupCafeOrderModeSelector";
 import { MODULE_OPTIONS, type BusinessType, type ModuleOption } from "@/constants";
 import {
   MODULE_DESCRIPTIONS,
@@ -40,9 +41,17 @@ import {
   isModuleDisabledAtSignup,
 } from "@/lib/subscriptionModules";
 import {
+  readCafeOrderModeFromStorage,
   readTenantBillingFromStorage,
   readTenantModulesFromStorage,
 } from "@/lib/tenantModules";
+import {
+  CAFE_ORDER_MODE_LABELS,
+  cafeModuleSelected,
+  unusedCafeOrderMode,
+  type CafeOrderMode,
+} from "@/lib/cafeOrderMode";
+import { requestTenantModuleChange, requestTenantOrderModeChange, refreshTenantSubscription } from "@/lib/actions";
 import {
   getSubscriptionPeriodStatus,
   isAdminOrManagerRole,
@@ -54,7 +63,6 @@ import {
   readBusinessTypeFromStorage,
   subscriptionRenewalAmountETB,
 } from "@/lib/subscriptionBillingPeriod";
-import { requestTenantModuleChange, refreshTenantSubscription } from "@/lib/actions";
 
 type TenantProfileState = {
   role: string;
@@ -65,6 +73,7 @@ type TenantProfileState = {
   logoUrl: string;
   businessType: BusinessType;
   modules: ModuleOption[];
+  cafeOrderMode: CafeOrderMode;
 };
 
 type ModuleRequestMode = "add" | "remove";
@@ -118,6 +127,7 @@ function readTenantProfileState(): TenantProfileState | null {
     logoUrl: localStorage.getItem("logo_url")?.trim() || "",
     businessType: businessType as BusinessType,
     modules: readTenantModulesFromStorage(),
+    cafeOrderMode: readCafeOrderModeFromStorage(),
   };
 }
 
@@ -128,7 +138,11 @@ function TenantProfileContent() {
   const [requestMode, setRequestMode] = useState<ModuleRequestMode>("add");
   const [selectedModules, setSelectedModules] = useState<ModuleOption[]>([]);
   const [requestNote, setRequestNote] = useState("");
+  const [requestedCafeOrderMode, setRequestedCafeOrderMode] =
+    useState<CafeOrderMode>("digital");
   const [submitting, setSubmitting] = useState(false);
+  const [modeRequestNote, setModeRequestNote] = useState("");
+  const [submittingMode, setSubmittingMode] = useState(false);
 
   useEffect(() => {
     const role = readLoggedInRole();
@@ -203,6 +217,9 @@ function TenantProfileContent() {
       ? "Example: Please enable Inventory and Financial Management before next month because our store and finance teams are starting training."
       : "Example: Please remove Cafe and Restaurant because this branch no longer runs dine-in service and we want billing aligned with active operations.";
 
+  const addingCafeModule =
+    requestMode === "add" && cafeModuleSelected(selectedModules);
+
   const handleToggleModule = (moduleName: ModuleOption, checked: boolean) => {
     setSelectedModules((prev) => {
       const set = new Set(prev);
@@ -220,6 +237,7 @@ function TenantProfileContent() {
         changeType: requestMode,
         modules: selectedModules,
         requestNote: requestNote.trim() || undefined,
+        cafeOrderMode: addingCafeModule ? requestedCafeOrderMode : undefined,
       });
       toast.success(
         requestMode === "add"
@@ -232,6 +250,28 @@ function TenantProfileContent() {
       toast.error(e instanceof Error ? e.message : "Could not send module request");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmitOrderModeRequest = async () => {
+    if (!profile || submittingMode) return;
+    const nextMode = unusedCafeOrderMode(profile.cafeOrderMode);
+    setSubmittingMode(true);
+    try {
+      await requestTenantOrderModeChange({
+        requestedMode: nextMode,
+        requestNote: modeRequestNote.trim() || undefined,
+      });
+      toast.success(
+        `Order-mode request sent to Apex (${CAFE_ORDER_MODE_LABELS[nextMode]}).`,
+      );
+      setModeRequestNote("");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Could not send order-mode request",
+      );
+    } finally {
+      setSubmittingMode(false);
     }
   };
 
@@ -678,6 +718,7 @@ function TenantProfileContent() {
                       onValueChange={(value) => {
                         setRequestMode(value as ModuleRequestMode);
                         setSelectedModules([]);
+                        setRequestedCafeOrderMode("digital");
                       }}
                       className="mt-4 grid gap-3 sm:grid-cols-2"
                     >
@@ -741,6 +782,24 @@ function TenantProfileContent() {
                       })}
                     </div>
                   )}
+
+                  {addingCafeModule ? (
+                    <div className="rounded-2xl border border-border/60 bg-linear-to-br from-card via-card to-primary/4 p-4 shadow-sm">
+                      <p className="text-sm font-semibold text-foreground">
+                        Cafe order mode
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Choose how this property will take cafe orders after Apex approves
+                        Cafe and Restaurant.
+                      </p>
+                      <div className="mt-4">
+                        <SignupCafeOrderModeSelector
+                          value={requestedCafeOrderMode}
+                          onChange={setRequestedCafeOrderMode}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="rounded-2xl border border-border/60 bg-linear-to-br from-cyan-500/5 via-card to-violet-500/5 p-4 shadow-sm">
                     <p className="text-sm font-semibold text-foreground">Request message</p>
@@ -832,6 +891,11 @@ function TenantProfileContent() {
                           ? `${requestTitle}: ${selectedModules.join(", ")}`
                           : `Select at least one module to ${requestVerb}.`}
                       </p>
+                      {addingCafeModule ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Cafe order mode: {CAFE_ORDER_MODE_LABELS[requestedCafeOrderMode]}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="rounded-2xl border border-cyan-500/12 bg-linear-to-br from-cyan-500/6 via-background to-background p-4">
@@ -861,6 +925,52 @@ function TenantProfileContent() {
                   </CardContent>
                 </Card>
               </div>
+              {cafeModuleSelected(profile.modules) ? (
+                <Card className="overflow-hidden border-border/70 bg-card/95 shadow-md ring-1 ring-black/5 dark:ring-white/10">
+                  <CardHeader className="border-b border-border/60 bg-linear-to-r from-amber-500/5 via-card to-orange-500/5 pb-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <div>
+                        <CardTitle className="text-lg">
+                          Café ordering mode request
+                        </CardTitle>
+                        <CardDescription>
+                          Current mode: {CAFE_ORDER_MODE_LABELS[profile.cafeOrderMode]}.
+                          Request the unused option. Apex must approve before it applies.
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4 p-5">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      You can request{" "}
+                      <span className="font-medium text-foreground">
+                        {CAFE_ORDER_MODE_LABELS[unusedCafeOrderMode(profile.cafeOrderMode)]}
+                      </span>
+                      . Until Apex approves, cashiers keep using the current mode.
+                    </p>
+                    <Textarea
+                      value={modeRequestNote}
+                      onChange={(e) => setModeRequestNote(e.target.value)}
+                      placeholder="Optional note for Apex — for example why you need digital screens or thermal printer tickets."
+                      className="min-h-24"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => void handleSubmitOrderModeRequest()}
+                      disabled={submittingMode}
+                      className="gap-2"
+                    >
+                      {submittingMode ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      Request {CAFE_ORDER_MODE_LABELS[unusedCafeOrderMode(profile.cafeOrderMode)]}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : null}
             </div>
           </TabsContent>
         </Tabs>

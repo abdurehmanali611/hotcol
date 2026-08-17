@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ClipboardEdit,
   ShoppingCart,
   Store,
   Loader2,
@@ -35,6 +36,11 @@ import { Button } from "@/components/ui/button";
 import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCorporateCreditPanel";
 import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
 import { CafeCashierPaymentTypePanel } from "@/components/cafe/CafeCashierPaymentTypePanel";
+import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
+import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
+import { useCashierCancelOrdersEnabled } from "@/hooks/useCashierCancelOrdersEnabled";
+import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
+import { submitAnalogPrintedOrders } from "@/lib/analogCafeOrder";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import {
   CAFE_CASHIER_NAV_ITEMS,
@@ -70,6 +76,7 @@ const NAV_ICONS: Record<
   Building2,
   Receipt,
   ArrowLeftRight,
+  ClipboardEdit,
 };
 
 function CashierContent() {
@@ -91,12 +98,15 @@ function CashierContent() {
   const loadCoordinator = useLoadCoordinator();
 
   const tenantModules = useTenantModules();
+  const cafeOrderMode = useCafeOrderMode();
+  const analog = isAnalogCafeOrderMode(cafeOrderMode);
+  const cashierCanCancel = useCashierCancelOrdersEnabled();
   const navItems = useMemo(
     () =>
       CAFE_CASHIER_NAV_ITEMS.filter((item) =>
-        filterCafeCashierNavId(item.id, tenantModules),
+        filterCafeCashierNavId(item.id, tenantModules, cafeOrderMode),
       ),
-    [tenantModules],
+    [tenantModules, cafeOrderMode],
   );
 
   const sectionMeta = useMemo(
@@ -199,8 +209,15 @@ function CashierContent() {
     };
 
     try {
-      const result = await createOrder(orderData);
+      const result = analog
+        ? await submitAnalogPrintedOrders([orderData], {
+            hotelName: resolveCanonicalTenantKey(tenantScope),
+          })
+        : await createOrder(orderData);
       await loadData({ refresh: true });
+      if (analog) {
+        toast.success("Ticket printed — approve payment when the guest pays");
+      }
       setShowOrderModal(false);
       setSelectedItem(null);
       return result;
@@ -285,6 +302,7 @@ function CashierContent() {
         openOrders={orders}
         onItemSelect={handleItemSelect}
         onGoToPayment={() => setActiveView("payment")}
+        analogPrint={analog}
         onBatchOrderSuccess={handleBatchOrderSuccess}
       />
     ) : activeView === "payment" ? (
@@ -300,6 +318,15 @@ function CashierContent() {
         orders={orders}
         hotelName={tenantScope}
         onRefresh={() => loadData({ refresh: true })}
+      />
+    ) : activeView === "order-update" ? (
+      <CafeCashierOrderUpdatePanel
+        orders={orders}
+        items={items}
+        hotelName={tenantScope}
+        onRefresh={() => loadData({ refresh: true })}
+        analogAddOnly
+        allowCancel={cashierCanCancel}
       />
     ) : activeView === "credit" ? (
       <CafeCashierCorporateCreditPanel />

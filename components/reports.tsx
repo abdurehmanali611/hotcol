@@ -13,6 +13,7 @@ import {
   Wallet,
   History,
   Hourglass,
+  AlertTriangle,
   BarChart3,
   PieChart as PieChartIcon,
   CreditCard,
@@ -34,8 +35,10 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-
 import { cn } from "@/lib/utils";
+import { CafeOrderModeChangeNotice } from "@/components/cafe/CafeOrderModeChangeNotice";
+import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
+import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +64,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
 import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
+import FailedOrdersTable from "@/app/FailedOrdersTable/page";
 import PendingPaymentOrders from "@/components/cafe/PendingPaymentOrders";
 import { Cashout, fetchCashout, fetchTables, type Order, type Table } from "@/lib/actions";
 import type { CafeReportType, Item } from "@/lib/api/types";
@@ -330,6 +334,7 @@ export default function Reports({
   const [cafeTables, setCafeTables] = useState<
     Pick<Table, "tableNo" | "orderCaption">[]
   >([]);
+  const analog = isAnalogCafeOrderMode(useCafeOrderMode());
 
   useEffect(() => {
     const d = localStorage.getItem("hotel_display_name")?.trim();
@@ -440,13 +445,27 @@ export default function Reports({
     reportPeriodOrders.filter(
       (o: any) =>
         (!o.status || o.status?.toLowerCase() === "pending") &&
-        o.payment?.toLowerCase() !== "paid",
+        o.payment?.toLowerCase() !== "paid" &&
+        o.status?.toLowerCase() !== "failed" &&
+        o.status?.toLowerCase() !== "cancelled",
     );
   const getPendingPaymentOrders = () =>
     reportPeriodOrders.filter(
       (o: any) =>
         o.status?.toLowerCase() === "completed" &&
         o.payment?.toLowerCase() !== "paid",
+    );
+  const getInProgressOrders = () =>
+    reportPeriodOrders.filter((o: any) => {
+      const st = String(o.status || "").toLowerCase();
+      const pay = String(o.payment || "").toLowerCase();
+      if (st === "cancelled" || st === "failed") return false;
+      if (pay === "paid") return false;
+      return true;
+    });
+  const getFailedOrders = () =>
+    reportPeriodOrders.filter(
+      (o: any) => String(o.status || "").toLowerCase() === "failed",
     );
 
   const filteredCashouts = filterCafeReportCashouts(cashouts, {
@@ -545,6 +564,7 @@ export default function Reports({
 
       {reportData && (
         <div className="space-y-6 animate-in fade-in duration-500">
+          <CafeOrderModeChangeNotice />
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {[
               { label: "Total Sales", value: reportData.totalSales },
@@ -815,14 +835,24 @@ export default function Reports({
                   <TabsTrigger value="cashout" className="py-4 px-6 gap-2">
                     <Wallet className="h-4 w-4 text-orange-500" /> Cashouts
                   </TabsTrigger>
-                  <TabsTrigger value="pending-payment" className="py-4 px-6 gap-2">
-                    <Hourglass className="h-4 w-4 text-amber-500" /> Pending
-                    payment
+                  <TabsTrigger value="in-progress" className="py-4 px-6 gap-2">
+                    <Hourglass className="h-4 w-4 text-amber-500" /> In progress
                   </TabsTrigger>
-                  <TabsTrigger value="Expired" className="py-4 px-6 gap-2">
-                    <History className="h-4 w-4 text-muted-foreground" />{" "}
-                    Expired
+                  <TabsTrigger value="failed" className="py-4 px-6 gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" /> Failed
                   </TabsTrigger>
+                  {analog ? null : (
+                    <>
+                      <TabsTrigger value="pending-payment" className="py-4 px-6 gap-2">
+                        <Hourglass className="h-4 w-4 text-amber-500" /> Pending
+                        payment
+                      </TabsTrigger>
+                      <TabsTrigger value="Expired" className="py-4 px-6 gap-2">
+                        <History className="h-4 w-4 text-muted-foreground" />{" "}
+                        Expired
+                      </TabsTrigger>
+                    </>
+                  )}
                 </TabsList>
                 <div className="p-4 md:p-6">
                   <TabsContent value="completed" className="mt-0">
@@ -840,6 +870,20 @@ export default function Reports({
                   </TabsContent>
                   <TabsContent value="cashout" className="mt-0">
                     <Cashouts cashout={filteredCashouts} />
+                  </TabsContent>
+                  <TabsContent value="in-progress" className="mt-0">
+                    <PendingPaymentOrders
+                      orders={getInProgressOrders()}
+                      tables={cafeTables}
+                      items={items}
+                      variant={analog ? "analog-unpaid" : "unpaid"}
+                    />
+                  </TabsContent>
+                  <TabsContent value="failed" className="mt-0">
+                    <FailedOrdersTable
+                      orders={getFailedOrders()}
+                      tables={cafeTables}
+                    />
                   </TabsContent>
                   <TabsContent value="pending-payment" className="mt-0">
                     <PendingPaymentOrders

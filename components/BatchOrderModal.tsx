@@ -22,7 +22,7 @@ import {
   isValidSelectedCafeTableNo,
   occupiedTableNumbersFromOrders,
 } from "@/lib/cafeTableOrder";
-import { batchOrderItemSchema, batchOrderSchema } from "@/lib/validations";
+import { submitAnalogPrintedOrders } from "@/lib/analogCafeOrder";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Form } from "@/components/ui/form";
@@ -61,6 +61,7 @@ interface BatchOrderModalProps {
     waiterName: string;
     items: (Item & { orderAmount: number })[];
   }) => Promise<void>;
+  analogPrint?: boolean;
 }
 
 export default function BatchOrderModal({
@@ -72,6 +73,7 @@ export default function BatchOrderModal({
   onSubmitSuccess,
   roomOptions,
   onRoomBatchSubmit,
+  analogPrint = false,
 }: BatchOrderModalProps) {
   const roomMode = roomOptions != null;
   const [loading, setLoading] = useState(false);
@@ -260,10 +262,17 @@ export default function BatchOrderModal({
         HotelName: hotelName,
       }));
 
-      await createBatchOrders(finalOrders);
-      toast.success(
-        `Successfully sent ${finalOrders.length} order(s) to kitchen!`,
-      );
+      if (analogPrint) {
+        await submitAnalogPrintedOrders(finalOrders, { hotelName });
+        toast.success(
+          `${finalOrders.length} ticket line(s) printed — approve payment when the guest pays`,
+        );
+      } else {
+        await createBatchOrders(finalOrders);
+        toast.success(
+          `Successfully sent ${finalOrders.length} order(s) to kitchen!`,
+        );
+      }
       onSubmitSuccess();
       onClose();
     } catch (err: any) {

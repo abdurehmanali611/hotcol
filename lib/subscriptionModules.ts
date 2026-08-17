@@ -6,6 +6,11 @@ import {
   type ModuleOption,
   isLodgingBusinessType,
 } from "@/constants";
+import {
+  DEFAULT_CAFE_ORDER_MODE,
+  type CafeOrderMode,
+  type CafeOrderModeHistoryEntry,
+} from "@/lib/cafeOrderMode";
 
 export const BUSINESS_TYPE_SIGNUP_DESCRIPTIONS: Record<BusinessType, string> = {
   "Cafe and Restaurant":
@@ -61,6 +66,9 @@ export type TenantSubscription = SignupPricing & {
   paidQuartersCount: number;
   awaitingSelfSignupSetup?: boolean;
   paymentTransactionRef?: string | null;
+  cafeOrderMode?: CafeOrderMode;
+  cafeOrderModeHistory?: CafeOrderModeHistoryEntry[];
+  cashierCancelOrdersEnabled?: boolean;
 };
 
 export function isModuleComingSoon(mod: ModuleOption): boolean {
@@ -237,6 +245,7 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "update-item": "Cafe and Restaurant",
   "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
+  "cancel-orders": "Cafe and Restaurant",
   "grant-credential": "Credentials(Common)",
   "delete-credential": "Credentials(Common)",
   inventory: "Inventory",
@@ -266,6 +275,7 @@ export const MANAGER_SERVICE_TAB_MODULES: Partial<
   "update-item": "Cafe and Restaurant",
   "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
+  "cancel-orders": "Cafe and Restaurant",
   "credit-registrations": "Credit Management",
   // Legacy ids (pre-parity rename)
   "cafe-reports": "Cafe and Restaurant",
@@ -366,6 +376,7 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
     | "order"
     | "payment"
     | "payment-type"
+    | "order-update"
     | "cashout"
     | "credit",
     ModuleOption
@@ -374,6 +385,7 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
   order: "Cafe and Restaurant",
   payment: "Cafe and Restaurant",
   "payment-type": "Cafe and Restaurant",
+  "order-update": "Cafe and Restaurant",
   cashout: "Cafe and Restaurant",
   credit: "Credit Management",
 };
@@ -381,7 +393,11 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
 export function filterCafeCashierNavId(
   navId: string,
   modules: readonly ModuleOption[],
+  cafeOrderMode: CafeOrderMode = DEFAULT_CAFE_ORDER_MODE,
 ): boolean {
+  if (navId === "order-update") {
+    if (cafeOrderMode !== "analog") return false;
+  }
   const required = CAFE_CASHIER_NAV_MODULES[navId as keyof typeof CAFE_CASHIER_NAV_MODULES];
   if (!required) return true;
   return tenantHasModule(modules, required);
@@ -390,7 +406,14 @@ export function filterCafeCashierNavId(
 export function roleAllowedForModules(
   role: string,
   modules: readonly ModuleOption[],
+  cafeOrderMode: CafeOrderMode = DEFAULT_CAFE_ORDER_MODE,
 ): boolean {
+  if (
+    (role === "Kitchen" || role === "Barista") &&
+    cafeOrderMode === "analog"
+  ) {
+    return false;
+  }
   // Cashier and legacy HotelCashier are one role: café POS and/or corporate credit.
   if (role === "Cashier" || role === "HotelCashier") {
     return (

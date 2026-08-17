@@ -24,6 +24,7 @@ import {
   formatCafeTableDisplayFromRegistry,
   groupCafeOrderUpdateTables,
   isLiveOrderEditable,
+  isAnalogOrderAddable,
   isOpenCafeOrder,
   normalizeOrderTableNo,
   occupiedTableNumbersFromOrders,
@@ -111,6 +112,10 @@ interface Props {
     onRemove: (id: number) => Promise<void>;
     onComplete?: (id: number) => Promise<void>;
   };
+  /** Analog thermal-printer tenants: add items only, then reprint as an update. */
+  analogAddOnly?: boolean;
+  /** When false, hide cancel/remove controls (cashier without manager permission). */
+  allowCancel?: boolean;
 }
 
 type AddItemsTarget = { tableNo: number; waiterName: string };
@@ -179,6 +184,8 @@ export function CafeCashierOrderUpdatePanel({
   groupingNoun = "table",
   customAddItems,
   lodgingLineHandlers,
+  analogAddOnly = false,
+  allowCancel = true,
 }: Props) {
   const isRoomScope = groupingNoun === "room";
   const useLodgingHandlers = Boolean(lodgingLineHandlers);
@@ -193,7 +200,13 @@ export function CafeCashierOrderUpdatePanel({
   const [addItemsTarget, setAddItemsTarget] = useState<AddItemsTarget | null>(
     null,
   );
-  const [sideTab, setSideTab] = useState<"edit" | "add">("edit");
+  const [sideTab, setSideTab] = useState<"edit" | "add">(
+    analogAddOnly ? "add" : "edit",
+  );
+
+  useEffect(() => {
+    if (analogAddOnly) setSideTab("add");
+  }, [analogAddOnly]);
 
   const editableOrders = useMemo(
     () =>
@@ -203,7 +216,9 @@ export function CafeCashierOrderUpdatePanel({
             ? rowHotelMatchesTenantScope(o.HotelName, hotelName) &&
               String(o.payment || "").toLowerCase() !== "paid" &&
               String(o.status || "").toLowerCase() !== "cancelled"
-            : isLiveOrderEditable(o, hotelName),
+            : analogAddOnly
+              ? isAnalogOrderAddable(o, hotelName)
+              : isLiveOrderEditable(o, hotelName),
         )
         .filter(
           (o) =>
@@ -225,6 +240,7 @@ export function CafeCashierOrderUpdatePanel({
       restrictTableNo,
       restrictTableNos,
       useLodgingHandlers,
+      analogAddOnly,
     ],
   );
 
@@ -705,6 +721,7 @@ export function CafeCashierOrderUpdatePanel({
                           </div>
                         </button>
                         <div className="flex items-center border-l px-1">
+                          {allowCancel ? (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -742,6 +759,7 @@ export function CafeCashierOrderUpdatePanel({
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -778,10 +796,12 @@ export function CafeCashierOrderUpdatePanel({
                 className="gap-0"
               >
                 <div className="border-b px-4 py-3">
-                  <TabsList className="grid h-11 w-full grid-cols-2">
-                    <TabsTrigger value="edit" className="text-sm">
-                      Edit
-                    </TabsTrigger>
+                  <TabsList className={cn("grid h-11 w-full", analogAddOnly ? "grid-cols-1" : "grid-cols-2")}>
+                    {!analogAddOnly ? (
+                      <TabsTrigger value="edit" className="text-sm">
+                        Edit
+                      </TabsTrigger>
+                    ) : null}
                     <TabsTrigger value="add" className="text-sm">
                       Add
                     </TabsTrigger>
@@ -889,6 +909,7 @@ export function CafeCashierOrderUpdatePanel({
             tables={tables}
             waiterName={addItemsTarget.waiterName}
             existingOrders={editableOrders}
+            analogPrint={analogAddOnly}
             isOpen
             onClose={() => setAddItemsTarget(null)}
             onSuccess={onRefresh}
@@ -988,9 +1009,11 @@ export function CafeCashierOrderUpdatePanel({
               onValueChange={(v) => setSideTab(v as "edit" | "add")}
             >
               <TabsList className="h-10">
-                <TabsTrigger value="edit" className="px-4 text-sm">
-                  Update lines
-                </TabsTrigger>
+                {!analogAddOnly ? (
+                  <TabsTrigger value="edit" className="px-4 text-sm">
+                    Update lines
+                  </TabsTrigger>
+                ) : null}
                 <TabsTrigger value="add" className="px-4 text-sm">
                   Add items
                 </TabsTrigger>
@@ -1225,6 +1248,7 @@ export function CafeCashierOrderUpdatePanel({
                                     </div>
                                   </button>
                                   <div className="flex shrink-0 flex-col justify-center gap-2 pr-2">
+                                    {allowCancel ? (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button
@@ -1273,6 +1297,7 @@ export function CafeCashierOrderUpdatePanel({
                                         </AlertDialogFooter>
                                       </AlertDialogContent>
                                     </AlertDialog>
+                                    ) : null}
                                   </div>
                                 </div>
                               );
@@ -1328,12 +1353,14 @@ export function CafeCashierOrderUpdatePanel({
                   <TabsList
                     className={cn(
                       "grid h-10 w-full",
-                      customAddItems ? "grid-cols-1" : "grid-cols-2",
+                      analogAddOnly || customAddItems ? "grid-cols-1" : "grid-cols-2",
                     )}
                   >
-                    <TabsTrigger value="edit" className="text-xs sm:text-sm">
-                      Edit line
-                    </TabsTrigger>
+                    {!analogAddOnly ? (
+                      <TabsTrigger value="edit" className="text-xs sm:text-sm">
+                        Edit line
+                      </TabsTrigger>
+                    ) : null}
                     {!customAddItems ? (
                       <TabsTrigger value="add" className="text-xs sm:text-sm">
                         Add items
@@ -1483,6 +1510,7 @@ export function CafeCashierOrderUpdatePanel({
                           </form>
                         </Form>
                         <Separator className="my-2" />
+                        {allowCancel ? (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -1522,6 +1550,7 @@ export function CafeCashierOrderUpdatePanel({
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                        ) : null}
                       </>
                     )}
                     </div>
@@ -1610,6 +1639,7 @@ export function CafeCashierOrderUpdatePanel({
           tables={tables}
           waiterName={addItemsTarget.waiterName}
           existingOrders={editableOrders}
+          analogPrint={analogAddOnly}
           isOpen
           onClose={() => setAddItemsTarget(null)}
           onSuccess={onRefresh}

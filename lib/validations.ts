@@ -78,6 +78,7 @@ export const SignUpSchema = z
     quarterlyFeeETB: z.number().min(0).optional(),
     paymentChannel: signUpPaymentChannelEnum.optional(),
     paymentTransactionRef: z.string().optional(),
+    cafeOrderMode: z.enum(["digital", "analog"]).optional(),
   })
   .superRefine((data, ctx) => {
     if (isBusinessTypeComingSoon(data.type)) {

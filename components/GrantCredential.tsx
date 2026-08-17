@@ -33,6 +33,8 @@ import {
 import { createCredentialSchema } from "@/lib/validations";
 import type { ModuleOption } from "@/constants";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
+import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 import { tenantHasModule } from "@/lib/subscriptionModules";
 import { UserPlus, ShieldCheck, Hotel, KeyRound, Lock } from "lucide-react";
 
@@ -96,15 +98,19 @@ export default function GrantCredential({
 
   const tenantModules = useTenantModules();
 
+  const analog = isAnalogCafeOrderMode(useCafeOrderMode());
   const roleOptions = useMemo(
     () =>
       (variant === "hotel" ? HOTEL_ROLES : CAFE_ROLES).filter((r) => {
+        if (analog && (r.value === "Kitchen" || r.value === "Barista")) {
+          return false;
+        }
         if (r.modulesAny?.length) {
           return r.modulesAny.some((m) => tenantHasModule(tenantModules, m));
         }
         return !r.module || tenantHasModule(tenantModules, r.module);
       }),
-    [variant, tenantModules],
+    [variant, tenantModules, analog],
   );
 
   const defaultRole = (roleOptions[0]?.value ??

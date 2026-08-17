@@ -1,0 +1,10 @@
+{
+  "name": "hotcol-pos-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local USB thermal printer agent for analog café ordering",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

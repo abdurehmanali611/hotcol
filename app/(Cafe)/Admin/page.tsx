@@ -53,11 +53,14 @@ import {
   Coffee,
   CalendarDays,
   AlertTriangle,
+  Ban,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
 import { filterAdminTabId, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
+import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 import { HrPayrollSidebarGroup, hrPayrollViewsForCaps } from "@/components/hr/HrPayrollSidebarGroup";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import {
@@ -92,6 +95,8 @@ import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
+import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
+import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 
 type AdminDatasetKey = "items" | "orders" | "waiters" | "tables" | "credentials";
@@ -102,6 +107,7 @@ const ADMIN_CAFE_TAB_IDS = new Set([
   "update-item",
   "station-prep-qty",
   "waiter-table",
+  "cancel-orders",
   "credit-registrations",
 ]);
 const ADMIN_INVENTORY_TAB_IDS = new Set(["inventory", "item-receipts"]);
@@ -131,6 +137,7 @@ const ADMIN_TAB_DATA_KEYS: Partial<Record<string, AdminDatasetKey[]>> = {
   "station-prep-qty": ["items"],
   "grant-credential": ["credentials"],
   "waiter-table": ["waiters", "tables"],
+  "cancel-orders": ["orders", "items"],
   "delete-credential": ["credentials"],
 };
 
@@ -334,13 +341,18 @@ function AdminDashboardContent() {
     LayoutDashboard,
     CalendarDays,
     AlertTriangle,
+    Ban,
   };
 
   const tenantModules = useTenantModules();
+  const analog = isAnalogCafeOrderMode(useCafeOrderMode());
 
   const sidebarItems = ADMIN_SIDEBAR_ITEMS.filter((item) =>
     filterAdminTabId(item.id, tenantModules),
-  ).map((item) => {
+  )
+    .filter((item) => !(analog && item.id === "station-prep-qty"))
+    .filter((item) => analog || item.id !== "cancel-orders")
+    .map((item) => {
     const Icon = sidebarIconMap[item.icon];
     return {
       id: item.id,
@@ -506,6 +518,11 @@ function AdminDashboardContent() {
               loadData(true);
             }}
           />
+          {analog ? (
+            <div className="mt-6">
+              <ManagerCashierCancelPermissionCard />
+            </div>
+          ) : null}
           </div>
         );
       case "waiter-table":
@@ -526,6 +543,20 @@ function AdminDashboardContent() {
           />
           </div>
         );
+      case "cancel-orders":
+        return analog ? (
+          <div className="flex flex-col gap-6 p-3 sm:p-5 md:p-6">
+            <ManagerCashierCancelPermissionCard />
+            <CafeCashierOrderUpdatePanel
+              orders={orders}
+              items={items}
+              hotelName={tenantScope}
+              onRefresh={() => loadData(true)}
+              analogAddOnly
+              allowCancel
+            />
+          </div>
+        ) : null;
       case "delete-credential":
         return (
           <div className="p-3 sm:p-5 md:p-6 min-w-0 overflow-x-hidden">

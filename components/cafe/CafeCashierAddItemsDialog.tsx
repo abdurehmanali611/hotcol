@@ -38,7 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { submitAnalogPrintedOrders } from "@/lib/analogCafeOrder";
 
 type CartLine = Item & { orderAmount: number };
 type MenuTab = "all" | "food" | "beverage" | "others";
@@ -52,6 +52,7 @@ interface Props {
   waiterName: string;
   /** Today's open lines on this table — used to bump qty on existing tickets. */
   existingOrders?: Order[];
+  analogPrint?: boolean;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
@@ -74,6 +75,7 @@ export function CafeCashierAddItemsDialog({
   tables = [],
   waiterName,
   existingOrders = [],
+  analogPrint = false,
   isOpen,
   onClose,
   onSuccess,
@@ -163,28 +165,8 @@ export function CafeCashierAddItemsDialog({
       const toCreate: OrderCreationData[] = [];
       let mergedCount = 0;
 
-      for (const line of cart) {
-        const existing = findOpenOrderLineForTableItem(
-          existingOrders,
-          hotelName,
-          tableKey,
-          line.name,
-        );
-        if (existing) {
-          const nextQty =
-            Math.max(1, Number(existing.orderAmount) || 1) + line.orderAmount;
-          await updateLiveOrder(
-            {
-              id: existing.id,
-              tableNo: tableKey,
-              waiterName: existing.waiterName,
-              orderAmount: nextQty,
-              title: existing.title,
-            },
-            { silent: true },
-          );
-          mergedCount += 1;
-        } else {
+      if (analogPrint) {
+        for (const line of cart) {
           toCreate.push({
             title: line.name,
             price: line.price,
@@ -199,18 +181,65 @@ export function CafeCashierAddItemsDialog({
             payment: "Unpaid",
           });
         }
-      }
-
-      if (toCreate.length > 0) {
-        await createBatchOrders(toCreate);
-      }
-
-      if (mergedCount > 0 && toCreate.length === 0) {
+        await submitAnalogPrintedOrders(toCreate, {
+          isUpdate: true,
+          hotelName,
+        });
         toast.success(
-          mergedCount === 1
-            ? "Existing ticket updated — kitchen/bar will see the new quantity"
-            : `${mergedCount} existing tickets updated`,
+          "Update ticket printed — approve payment when the guest pays",
         );
+      } else {
+        for (const line of cart) {
+          const existing = findOpenOrderLineForTableItem(
+            existingOrders,
+            hotelName,
+            tableKey,
+            line.name,
+          );
+          if (existing) {
+            const nextQty =
+              Math.max(1, Number(existing.orderAmount) || 1) + line.orderAmount;
+            await updateLiveOrder(
+              {
+                id: existing.id,
+                tableNo: tableKey,
+                waiterName: existing.waiterName,
+                orderAmount: nextQty,
+                title: existing.title,
+              },
+              { silent: true },
+            );
+            mergedCount += 1;
+          } else {
+            toCreate.push({
+              title: line.name,
+              price: line.price,
+              imageUrl: line.imageUrl || "",
+              category: line.category,
+              type: line.type,
+              orderAmount: line.orderAmount,
+              tableNo: tableKey,
+              waiterName,
+              HotelName: hotelName,
+              status: "Pending",
+              payment: "Unpaid",
+            });
+          }
+        }
+
+        if (toCreate.length > 0) {
+          await createBatchOrders(toCreate);
+        }
+
+        if (mergedCount > 0 && toCreate.length === 0) {
+          toast.success(
+            mergedCount === 1
+              ? "Existing ticket updated — kitchen/bar will see the new quantity"
+              : `${mergedCount} existing tickets updated`,
+          );
+        } else if (toCreate.length > 0) {
+          toast.success("New items sent to kitchen/bar");
+        }
       }
       setCart([]);
       setSearch("");

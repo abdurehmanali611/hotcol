@@ -2,6 +2,12 @@
 
 import type { ModuleOption } from "@/constants";
 import {
+  parseCafeOrderMode,
+  parseCafeOrderModeHistory,
+  type CafeOrderMode,
+  type CafeOrderModeHistoryEntry,
+} from "@/lib/cafeOrderMode";
+import {
   parseModulesJson,
   tenantHasModule,
   type TenantSubscription,
@@ -22,6 +28,9 @@ const PAYMENT_APPROVED_KEY = "tenant_subscription_payment_approved";
 const PAID_QUARTERS_KEY = "tenant_paid_quarters_count";
 const AWAITING_SELF_SIGNUP_KEY = "tenant_awaiting_self_signup_setup";
 const PAYMENT_REF_KEY = "tenant_payment_transaction_ref";
+const CAFE_ORDER_MODE_KEY = "tenant_cafe_order_mode";
+const CAFE_ORDER_MODE_HISTORY_KEY = "tenant_cafe_order_mode_history";
+const CASHIER_CANCEL_ORDERS_KEY = "tenant_cashier_cancel_orders";
 
 export const TENANT_SUBSCRIPTION_CHANGED_EVENT =
   "hotcol-tenant-subscription-changed";
@@ -56,6 +65,21 @@ export function persistTenantSubscription(sub: TenantSubscription): void {
     sub.awaitingSelfSignupSetup ? "1" : "0",
   );
   localStorage.setItem(PAYMENT_REF_KEY, sub.paymentTransactionRef ?? "");
+  localStorage.setItem(CAFE_ORDER_MODE_KEY, parseCafeOrderMode(sub.cafeOrderMode));
+  localStorage.setItem(
+    CAFE_ORDER_MODE_HISTORY_KEY,
+    JSON.stringify(
+      parseCafeOrderModeHistory(
+        sub.cafeOrderModeHistory,
+        parseCafeOrderMode(sub.cafeOrderMode),
+        sub.createdAt,
+      ),
+    ),
+  );
+  localStorage.setItem(
+    CASHIER_CANCEL_ORDERS_KEY,
+    sub.cashierCancelOrdersEnabled ? "1" : "0",
+  );
   notifyTenantSubscriptionChanged();
 }
 
@@ -107,12 +131,40 @@ export function readTenantBillingFromStorage(): SubscriptionBillingSnapshot {
   };
 }
 
+export function readCafeOrderModeFromStorage(): CafeOrderMode {
+  if (typeof window === "undefined") return "digital";
+  return parseCafeOrderMode(localStorage.getItem(CAFE_ORDER_MODE_KEY));
+}
+
+export function readCafeOrderModeHistoryFromStorage(): CafeOrderModeHistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  let raw: unknown = [];
+  try {
+    raw = JSON.parse(localStorage.getItem(CAFE_ORDER_MODE_HISTORY_KEY) || "[]");
+  } catch {
+    raw = [];
+  }
+  return parseCafeOrderModeHistory(
+    raw,
+    readCafeOrderModeFromStorage(),
+    localStorage.getItem(CREATED_AT_KEY) || null,
+  );
+}
+
+export function readCashierCancelOrdersEnabledFromStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(CASHIER_CANCEL_ORDERS_KEY) === "1";
+}
+
 export function readTenantSubscriptionFromStorage(): TenantSubscription {
   const modules = readTenantModulesFromStorage();
   const billing = readTenantBillingFromStorage();
   return {
     modules,
     ...billing,
+    cafeOrderMode: readCafeOrderModeFromStorage(),
+    cafeOrderModeHistory: readCafeOrderModeHistoryFromStorage(),
+    cashierCancelOrdersEnabled: readCashierCancelOrdersEnabledFromStorage(),
   };
 }
 
@@ -137,6 +189,9 @@ export function clearTenantSubscriptionStorage(): void {
     PAID_QUARTERS_KEY,
     AWAITING_SELF_SIGNUP_KEY,
     PAYMENT_REF_KEY,
+    CAFE_ORDER_MODE_KEY,
+    CAFE_ORDER_MODE_HISTORY_KEY,
+    CASHIER_CANCEL_ORDERS_KEY,
   ]) {
     localStorage.removeItem(k);
   }

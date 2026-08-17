@@ -302,10 +302,15 @@ async function postOrderCreation(orderData: OrderCreationData) {
   return response.data.data.OrderCreation;
 }
 
-export async function createOrder(orderData: OrderCreationData) {
+export async function createOrder(
+  orderData: OrderCreationData,
+  options?: { silent?: boolean },
+) {
   try {
     const result = await postOrderCreation(orderData);
-    toast.success("Order sent successfully");
+    if (!options?.silent) {
+      toast.success("Order sent successfully");
+    }
     refreshCafeOrdersFeed();
     return result;
   } catch (error: any) {
@@ -328,8 +333,6 @@ export async function createBatchOrders(
   options?: { silent?: boolean },
 ) {
   try {
-    // Backend freezes unitCostAtSale from menu recipe at create time.
-    // Never include unitCostAtSale on OrderInput — schema rejects it (HTTP 400).
     const orders = orderDataArray.map((o) => {
       const row: Record<string, unknown> = {
         title: String(o.title),
@@ -341,8 +344,8 @@ export async function createBatchOrders(
         type: String(o.type),
         price: parseFloat(Number(o.price).toFixed(2)),
         waiterName: String(o.waiterName),
-        status: "Pending",
-        payment: "Unpaid",
+        status: String(o.status ?? "Pending"),
+        payment: String(o.payment ?? "Unpaid"),
       };
       if (o.serviceCaption != null && String(o.serviceCaption).trim()) {
         row.serviceCaption = String(o.serviceCaption).trim();
