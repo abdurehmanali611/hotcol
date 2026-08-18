@@ -168,12 +168,22 @@ export default function PaymentComponent({
     Record<number, PrimaryAmountChannel>
   >({});
 
+  const isReadyForPayment = useCallback(
+    (order: Order) => {
+      const status = String(order.status || "").toLowerCase();
+      if (status === "cancelled" || status === "failed") return false;
+      return analog ? true : status === "completed";
+    },
+    [analog],
+  );
+
   // Filter unpaid orders
   useEffect(() => {
     const unpaid = filterUnpaidOrders(orders, hotelName);
     const payRequire = unpaid.filter(
       (item) =>
         item.status?.toLowerCase() !== "cancelled" &&
+        item.status?.toLowerCase() !== "failed" &&
         (item.credit === false || item.credit === null) &&
         isSameCafeBusinessDay(item.createdAt),
     );
@@ -282,9 +292,7 @@ export default function PaymentComponent({
         tableNo.toString().includes(q) ||
         tableLabel.includes(q);
 
-      const allCompleted = tableOrders.every(
-        (order) => order.status === "Completed",
-      );
+      const allCompleted = tableOrders.every((order) => isReadyForPayment(order));
 
       if (filterType === "ready") {
         return matchesSearch && allCompleted;
@@ -297,7 +305,7 @@ export default function PaymentComponent({
   }, [groupedOrders, searchQuery, filterType, cafeTables]);
 
   const areAllOrdersCompleted = (tableOrders: Order[]) => {
-    return tableOrders.every((order) => order.status === "Completed");
+    return tableOrders.every((order) => isReadyForPayment(order));
   };
 
   const calculateTableTotal = (tableOrders: Order[]) => {
@@ -332,8 +340,8 @@ export default function PaymentComponent({
       .flatMap((tableNo) => {
         const tableOrders = groupedOrders[tableNo];
         if (!tableOrders) return [];
-        const completedOrders = tableOrders.filter(
-          (order) => order.status?.toLowerCase() === "completed",
+        const completedOrders = tableOrders.filter((order) =>
+          isReadyForPayment(order),
         );
         return [
           {
@@ -350,7 +358,7 @@ export default function PaymentComponent({
           },
         ];
       });
-  }, [groupedOrders, selectedReadyTables, cafeTables]);
+  }, [groupedOrders, selectedReadyTables, cafeTables, isReadyForPayment]);
 
   useEffect(() => {
     setSelectedReadyTables(new Set());
@@ -389,12 +397,12 @@ export default function PaymentComponent({
       if (!tableOrders) continue;
       orders.push(
         ...tableOrders.filter(
-          (order) => order.status?.toLowerCase() === "completed",
+          (order) => isReadyForPayment(order),
         ),
       );
     }
     return orders;
-  }, [groupedOrders, selectedReadyTables]);
+  }, [groupedOrders, selectedReadyTables, isReadyForPayment]);
 
   const selectedReadyTablesTotal = useMemo(
     () => calculateTableTotal(selectedReadyTableOrders),
@@ -512,12 +520,16 @@ export default function PaymentComponent({
     if (!tableOrders) return;
 
     if (!areAllOrdersCompleted(tableOrders)) {
-      toast.error("All table orders must be completed before amount settlement");
+      toast.error(
+        analog
+          ? "All unpaid lines on this table must be active before amount settlement"
+          : "All table orders must be completed before amount settlement",
+      );
       return;
     }
 
-    const completedOrders = tableOrders.filter(
-      (order) => order.status?.toLowerCase() === "completed",
+    const completedOrders = tableOrders.filter((order) =>
+      isReadyForPayment(order),
     );
     const form = getTableAmountFormState(tableNo);
     const primaryChannel =
@@ -734,8 +746,8 @@ export default function PaymentComponent({
     setDialogOpen(false);
 
     try {
-      const completedOrders = tableOrders.filter(
-        (order) => order.status?.toLowerCase() === "completed",
+      const completedOrders = tableOrders.filter((order) =>
+        isReadyForPayment(order),
       );
       await settleCompletedOrders(completedOrders, bank);
       toast.success(`Batch payment processed via ${bank ? "Bank" : "Cash"}`);
@@ -817,8 +829,8 @@ export default function PaymentComponent({
     setDialogOpen(false);
 
     try {
-      const completedOrders = tableOrders.filter(
-        (order) => order.status?.toLowerCase() === "completed",
+      const completedOrders = tableOrders.filter((order) =>
+        isReadyForPayment(order),
       );
       await recordCorporateCreditAndPayOrders(completedOrders, totalAmount);
       toast.success("Batch corporate credit payment recorded");
@@ -1295,10 +1307,10 @@ export default function PaymentComponent({
             const allCompleted = areAllOrdersCompleted(tableOrders);
             const tableTotal = calculateTableTotal(tableOrders);
             const pendingOrders = tableOrders.filter(
-              (o) => o.status !== "Completed",
+              (o) => !isReadyForPayment(o),
             );
-            const completedOrders = tableOrders.filter(
-              (o) => o.status === "Completed",
+            const completedOrders = tableOrders.filter((o) =>
+              isReadyForPayment(o),
             );
             const tableDisplay = formatCafeTableDisplayFromRegistry(
               Number(tableNo),
@@ -1714,7 +1726,7 @@ export default function PaymentComponent({
                       <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
                         Order Items
                       </h4>
-                      {!allCompleted && (
+                      {!analog && !allCompleted && (
                         <Badge variant="outline" className="text-xs">
                           Some items pending
                         </Badge>
@@ -1746,12 +1758,12 @@ export default function PaymentComponent({
                                 <div className="flex flex-wrap items-center gap-3 mt-2">
                                   <Badge
                                     variant={
-                                      order.status === "Completed"
+                                      isReadyForPayment(order)
                                         ? "default"
                                         : "secondary"
                                     }
                                     className={`${
-                                      order.status === "Completed"
+                                      isReadyForPayment(order)
                                         ? "bg-green-100 text-green-800 hover:bg-green-100"
                                         : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"
                                     }`}
@@ -1811,19 +1823,19 @@ export default function PaymentComponent({
                                 <Button
                                   className="w-full sm:w-auto gap-2 min-w-30"
                                   disabled={
-                                    order.status !== "Completed" ||
+                                    !isReadyForPayment(order) ||
                                     processingPayment === order.id
                                   }
                                   onClick={() => openPaymentDialog(order.id)}
                                   variant={
-                                    order.status === "Completed"
+                                    isReadyForPayment(order)
                                       ? "default"
                                       : "outline"
                                   }
                                 >
                                   {processingPayment === order.id ? (
                                     <span className="animate-spin">⟳</span>
-                                  ) : order.status !== "Completed" ? (
+                                  ) : !isReadyForPayment(order) ? (
                                     <>
                                       <Clock className="h-4 w-4" /> Waiting
                                     </>

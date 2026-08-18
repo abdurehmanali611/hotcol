@@ -1076,7 +1076,8 @@ export function filterUnpaidOrders(
     const isUnpaid = order.payment !== "Paid";
 
     const notCancelled = order.status?.toLowerCase() !== "cancelled";
+    const notFailed = order.status?.toLowerCase() !== "failed";
 
-    return isSameHotel && isUnpaid && notCancelled;
+    return isSameHotel && isUnpaid && notCancelled && notFailed;
   });
 }

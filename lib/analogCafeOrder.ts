@@ -13,7 +13,7 @@ type AnalogPrintStation = "Kitchen" | "Bar";
 function analogFailedDescription(error: unknown): string {
   const msg = error instanceof Error ? error.message.trim() : "";
   if (msg) return msg;
-  return "The thermal printer did not confirm the ticket. Nothing was saved — try again.";
+  return "Could not print the ticket. Try again.";
 }
 
 export function announceAnalogFailedOrder(error: unknown): void {
@@ -138,7 +138,7 @@ export async function submitAnalogPrintedOrders(
     const saved = await saveAnalogPendingOrders(printed);
     if (failed.length > 0) {
       toast.warning(
-        "Some tickets printed. Failed lines are in Failed orders — reprint those after fixing the printer.",
+        "Some tickets failed to print. Reprint them from Failed orders.",
       );
     }
     return saved;
