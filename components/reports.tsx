@@ -81,7 +81,7 @@ import {
   isCafeReportExpiredOrder,
   isCafeReportFailedOrder,
   isCafeReportInProgressOrder,
-  isCafeReportPendingPaymentOrder,
+  isCafeReportOpenPendingPaymentOrder,
 } from "@/lib/cafeReportFilter";
 import {
   cafeBusinessHalfYear,
@@ -452,7 +452,9 @@ export default function Reports({
       isCafeReportExpiredOrder(o, analog),
     );
   const getPendingPaymentOrders = () =>
-    reportPeriodOrders.filter((o: any) => isCafeReportPendingPaymentOrder(o));
+    reportPeriodOrders.filter((o: any) =>
+      isCafeReportOpenPendingPaymentOrder(o),
+    );
   const getFailedOrders = () =>
     reportPeriodOrders.filter((o: any) => isCafeReportFailedOrder(o));
 
@@ -848,6 +850,7 @@ export default function Reports({
                   </TabsContent>
                   <TabsContent value="cancelled" className="mt-0">
                     <CancelledOrders
+                      analog={analog}
                       orders={getCancelledOrders()}
                       tables={cafeTables}
                     />

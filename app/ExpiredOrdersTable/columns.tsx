@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
 import type { Table } from "@/lib/actions";
 import { cafeOrderTableColumn } from "@/lib/dataTableColumns/cafeOrderTable";
+import { cafeReportLiveStatusLabel } from "@/lib/cafeReportFilter";
 
 export type Order = {
   id: number;
@@ -27,8 +28,17 @@ export type Order = {
   createdAt: Date;
 };
 
+const LIVE_STATUS_STYLES: Record<string, string> = {
+  "In progress": "bg-amber-100 text-amber-800",
+  Expired: "bg-muted text-muted-foreground",
+  "Expired by chef": "bg-orange-100 text-orange-800",
+  "Expired by bar": "bg-blue-100 text-blue-800",
+  "Expired by cashier": "bg-rose-100 text-rose-800",
+};
+
 export function buildExpiredOrderColumns(
   tables: Pick<Table, "tableNo" | "orderCaption">[],
+  analog = false,
 ): ColumnDef<Order>[] {
   return [
   {
@@ -85,6 +95,22 @@ export function buildExpiredOrderColumns(
     cell: ({ row }) => {
       const date = new Date(row.original.createdAt);
       return <div className="text-muted-foreground">{date.toLocaleDateString()}</div>;
+    },
+  },
+  {
+    id: "reportStatus",
+    header: "Status",
+    cell: ({ row }) => {
+      const label = cafeReportLiveStatusLabel(row.original, analog);
+      return (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+            LIVE_STATUS_STYLES[label] ?? "bg-muted text-muted-foreground"
+          }`}
+        >
+          {label || "—"}
+        </span>
+      );
     },
   },
   ];

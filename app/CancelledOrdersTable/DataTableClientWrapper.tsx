@@ -8,13 +8,15 @@ import type { Table } from "@/lib/actions";
 export function DataTableClientWrapper({
   data,
   tables = [],
+  analog = false,
 }: {
   data: Order[];
   tables?: Pick<Table, "tableNo" | "orderCaption">[];
+  analog?: boolean;
 }) {
     const memoizedColumns = useMemo(
-      () => buildCancelledOrderColumns(tables),
-      [tables],
+      () => buildCancelledOrderColumns(tables, analog),
+      [tables, analog],
     );
     return <DataTable columns={memoizedColumns} data={data}/>
 }

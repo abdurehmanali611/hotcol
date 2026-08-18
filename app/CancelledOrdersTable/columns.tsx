@@ -31,6 +31,7 @@ const CANCELLED_BY_STYLES: Record<string, string> = {
   Cashier: "bg-emerald-100 text-emerald-800",
   "Chef/Kitchen": "bg-orange-100 text-orange-700",
   Bar: "bg-blue-100 text-blue-700",
+  Admin: "bg-violet-100 text-violet-800",
 };
 
 function cancelledByBadgeClass(label: string) {
@@ -41,6 +42,7 @@ function cancelledByBadgeClass(label: string) {
 
 export function buildCancelledOrderColumns(
   tables: Pick<Table, "tableNo" | "orderCaption">[],
+  analog = false,
 ): ColumnDef<Order>[] {
   return [
   {
@@ -96,7 +98,7 @@ export function buildCancelledOrderColumns(
     accessorKey: "cancelledBy",
     header: "Cancelled By",
     cell: ({ row }) => {
-      const label = normalizeCafeCancelledByLabel(row.original);
+      const label = normalizeCafeCancelledByLabel(row.original, analog);
       return (
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${cancelledByBadgeClass(label)}`}
