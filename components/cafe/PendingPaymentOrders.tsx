@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Hourglass } from "lucide-react";
 import type { Item } from "@/lib/api/types";
 import type { Table } from "@/lib/actions";
 import {
@@ -8,6 +9,10 @@ import {
   type Order,
 } from "@/components/cafe/pendingPaymentOrderColumns";
 import { DataTable } from "@/app/CompletedOrdersTable/data-table";
+import {
+  CafeReportMoneySummary,
+  sumOrderLines,
+} from "@/components/cafe/CafeReportMoneySummary";
 
 export default function PendingPaymentOrders({
   orders = [],
@@ -26,28 +31,39 @@ export default function PendingPaymentOrders({
     [tables, items],
   );
 
-  const totalRevenue = orders.reduce(
-    (sum, o) => sum + o.price * o.orderAmount,
-    0,
-  );
-
   const bannerCopy =
     variant === "analog-unpaid"
       ? "Ticket printed but payment not verified yet. Cashier must approve cash, bank, or credit in the Payment section."
       : variant === "unpaid"
         ? "Orders waiting for cashier payment approval (not cancelled or failed)."
-        : "Kitchen or bar marked these complete; cashier has not collected payment yet. Profit uses menu item recipes when configured.";
+        : "Kitchen or bar marked these complete; cashier has not collected payment yet.";
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+    <div className="w-full py-6 px-4 md:px-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Pending payment</h1>
         <p className="text-sm text-muted-foreground">{bannerCopy}</p>
-        <p className="mt-2 text-base font-bold tabular-nums">
-          {orders.length} line{orders.length === 1 ? "" : "s"} ·{" "}
-          {totalRevenue.toLocaleString()} ETB pending
-        </p>
       </div>
-      <DataTable columns={columns} data={orders} />
+      <DataTable
+        columns={columns}
+        data={orders}
+        footerSummary={(filteredRows) => {
+          const totals = sumOrderLines(filteredRows);
+          return (
+            <CafeReportMoneySummary
+              items={[
+                {
+                  label: "Pending payment",
+                  amount: totals.amount,
+                  count: totals.count,
+                  tone: "amber",
+                  icon: <Hourglass className="h-4 w-4 text-amber-500" />,
+                },
+              ]}
+            />
+          );
+        }}
+      />
     </div>
   );
 }

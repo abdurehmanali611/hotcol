@@ -15,8 +15,8 @@ export default function CompletedOrders({
   items?: Pick<Item, "name" | "recipeJson">[];
 }) {
     return (
-        <main className="container mx-auto py-10 px-4 md:px-6">
-            <div className="mb-8">
+        <main className="w-full py-6 px-4 md:px-8">
+            <div className="mb-6">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">Completed Orders</h1>
                 <p className="text-sm text-muted-foreground">Overview of all successful transactions and history.</p>
             </div>

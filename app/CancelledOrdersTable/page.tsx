@@ -55,7 +55,7 @@ export default function CancelledOrders({
                     setCancelledByFilter(value as CafeCancelledByFilter)
                   }
                 >
-                  <SelectTrigger className="h-9 w-full">
+                  <SelectTrigger className="h-10 w-full bg-background">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>

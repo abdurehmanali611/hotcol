@@ -37,27 +37,39 @@ export default function CafeReportInProgressExpired({
     useState<CafeReportLiveStatusFilter>("all");
   const filterOptions = cafeReportLiveStatusFilterOptions(analog);
 
-  const inProgressTotal = inProgress.reduce(
+  const filteredInProgress = useMemo(
+    () =>
+      inProgress.filter((order) =>
+        matchesCafeReportLiveStatusFilter(order, analog, statusFilter),
+      ),
+    [analog, inProgress, statusFilter],
+  );
+  const filteredExpired = useMemo(
+    () =>
+      expired.filter((order) =>
+        matchesCafeReportLiveStatusFilter(order, analog, statusFilter),
+      ),
+    [analog, expired, statusFilter],
+  );
+
+  const inProgressTotal = filteredInProgress.reduce(
     (sum, order) => sum + orderLineTotal(order),
     0,
   );
-  const expiredTotal = expired.reduce(
+  const expiredTotal = filteredExpired.reduce(
     (sum, order) => sum + orderLineTotal(order),
     0,
   );
 
   const tableRows = useMemo(
-    () =>
-      [...inProgress, ...expired].filter((order) =>
-        matchesCafeReportLiveStatusFilter(order, analog, statusFilter),
-      ),
-    [analog, expired, inProgress, statusFilter],
+    () => [...filteredInProgress, ...filteredExpired],
+    [filteredExpired, filteredInProgress],
   );
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6 py-6 px-4 md:px-8">
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
           <h3 className="text-base font-semibold tracking-tight">
             In progress
           </h3>
@@ -67,11 +79,12 @@ export default function CafeReportInProgressExpired({
               : "Today's orders that are still with kitchen or bar."}
           </p>
           <p className="mt-2 text-base font-bold tabular-nums">
-            {inProgress.length} line{inProgress.length === 1 ? "" : "s"} ·{" "}
+            {filteredInProgress.length} line
+            {filteredInProgress.length === 1 ? "" : "s"} ·{" "}
             {inProgressTotal.toLocaleString()} ETB
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
+        <div className="rounded-xl border border-border bg-muted/40 px-4 py-3">
           <h3 className="text-base font-semibold tracking-tight">Expired</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {analog
@@ -79,8 +92,8 @@ export default function CafeReportInProgressExpired({
               : "Orders from before today that kitchen or bar never marked complete, or that were completed but never received cashier payment approval."}
           </p>
           <p className="mt-2 text-base font-bold tabular-nums">
-            {expired.length} line{expired.length === 1 ? "" : "s"} ·{" "}
-            {expiredTotal.toLocaleString()} ETB
+            {filteredExpired.length} line{filteredExpired.length === 1 ? "" : "s"}{" "}
+            · {expiredTotal.toLocaleString()} ETB
           </p>
         </div>
       </div>
@@ -95,7 +108,7 @@ export default function CafeReportInProgressExpired({
             setStatusFilter(value as CafeReportLiveStatusFilter)
           }
         >
-          <SelectTrigger className="h-9 w-full">
+          <SelectTrigger className="h-10 w-full bg-background">
             <SelectValue placeholder="All" />
           </SelectTrigger>
           <SelectContent>

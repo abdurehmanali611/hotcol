@@ -36,9 +36,14 @@ import { ChevronLeft, ChevronRight, Settings2, Search } from "lucide-react";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  footerSummary?: (filteredRows: TData[]) => React.ReactNode;
 }
 
-export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  footerSummary,
+}: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -124,6 +129,12 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
           </TableBody>
         </Table>
       </div>
+
+      {footerSummary
+        ? footerSummary(
+            table.getFilteredRowModel().rows.map((row) => row.original),
+          )
+        : null}
 
       <div className="flex items-center justify-between px-2">
         <p className="text-xs text-muted-foreground">

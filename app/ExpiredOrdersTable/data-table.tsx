@@ -36,9 +36,14 @@ import { Settings2, ChevronLeft, ChevronRight, Search } from "lucide-react";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  footerSummary?: (filteredRows: TData[]) => React.ReactNode;
 }
 
-export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  footerSummary,
+}: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -67,13 +72,13 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
             placeholder="Search items..."
             value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
             onChange={(event) => table.getColumn("title")?.setFilterValue(event.target.value)}
-            className="pl-8"
+            className="pl-8 h-9 shadow-sm"
           />
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto flex h-10">
-              <Settings2 className="mr-2 h-4 w-4" />
+            <Button variant="outline" size="sm" className="h-9 gap-2">
+              <Settings2 className="h-4 w-4" />
               Columns
             </Button>
           </DropdownMenuTrigger>
@@ -95,7 +100,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         </DropdownMenu>
       </div>
 
-      <div className="rounded-md border bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden shadow-sm">
         <Table>
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -130,23 +135,46 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         </Table>
       </div>
 
-      <div className="flex items-center justify-end space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" /> Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
+      {footerSummary
+        ? footerSummary(
+            table.getFilteredRowModel().rows.map((row) => row.original),
+          )
+        : null}
+
+      <div className="flex items-center justify-between px-2">
+        <p className="text-xs text-muted-foreground">
+          Showing{" "}
+          <span className="font-bold text-foreground">
+            {table.getFilteredRowModel().rows.length}
+          </span>{" "}
+          items
+        </p>
+        <div className="flex items-center gap-4">
+          <span className="text-xs font-medium">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount() || 1}
+          </span>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
