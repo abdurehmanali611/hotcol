@@ -19,6 +19,7 @@ export type CafePrintTicket = {
 
 export const POS_AGENT_DEFAULT_URL = "http://127.0.0.1:1818";
 export const POS_AGENT_DOWNLOAD_PATH = "/api/pos-agent/server";
+export const POS_AGENT_LAUNCHER_DOWNLOAD_PATH = "/api/pos-agent/launcher";
 const POS_PRINTER_STORAGE_KEY = "hotcol_pos_printer_name";
 
 export function posAgentBaseUrl(): string {

@@ -27,6 +27,9 @@ node server.mjs
 
 You should see: `[hotcol-pos-agent] listening on http://127.0.0.1:1818`.
 
+If you want a double-click start on Windows, use `Start HotCol POS Agent.bat`
+in the same folder as `server.mjs`.
+
 3. Optional env vars (PowerShell):
 
 ```powershell
@@ -49,7 +52,7 @@ If the café app is on another host, set `NEXT_PUBLIC_POS_AGENT_URL` (still usua
 
 ## Ground / production (each analog cashier PC)
 
-Install Node.js LTS on the cashier computer. Copy the `pos-agent` folder (or a packaged start script). Run the agent **at Windows logon** (Task Scheduler, Startup folder, or a small service wrapper).
+Install Node.js LTS on the cashier computer. Copy the `pos-agent` folder (or at least `server.mjs` plus `Start HotCol POS Agent.bat`). Run the agent **at Windows logon** (Task Scheduler, Startup folder, or a small service wrapper).
 
 1. USB printer plugged into **that** cashier PC (not a remote print server unless you know the share name).
 2. Share the printer in Windows (Devices and Printers → printer → Printer properties → Sharing).
@@ -59,6 +62,9 @@ Install Node.js LTS on the cashier computer. Copy the `pos-agent` folder (or a p
 $env:POS_PRINTER_NAME = "POS-80"
 node C:\HotCol\pos-agent\server.mjs
 ```
+
+Or put `Start HotCol POS Agent.bat` beside `server.mjs` and double-click the
+launcher.
 
 4. The cashier uses Chrome/Edge to open the HotCol café URL. The POS agent stays local; the GraphQL API stays on your server.
 5. If two cashiers each have a printer, each PC runs its own agent on `127.0.0.1:1818`. Do not point one browser at another PC’s agent unless you intentionally change the URL (not recommended).

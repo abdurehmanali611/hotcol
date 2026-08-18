@@ -31,6 +31,7 @@ import {
   fetchPosAgentHealth,
   fetchPosAgentPrinters,
   POS_AGENT_DOWNLOAD_PATH,
+  POS_AGENT_LAUNCHER_DOWNLOAD_PATH,
   printPosAgentTestTicket,
   readSavedPosPrinterName,
   writeSavedPosPrinterName,
@@ -128,17 +129,27 @@ export default function PosAgentSetupCard() {
               >
                 Node.js LTS
               </a>
-              , download the agent, then in that folder run{" "}
+              , download the launcher and the agent file into the same folder,
+              then double-click{" "}
               <code className="rounded bg-background px-1.5 py-0.5 text-foreground">
-                node server.mjs
+                Start HotCol POS Agent.bat
               </code>
-              . Keep the window open while the café is open.
+              . Keep that window open while the café is open.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button asChild className="h-10">
+                <a
+                  href={POS_AGENT_LAUNCHER_DOWNLOAD_PATH}
+                  download="Start HotCol POS Agent.bat"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download launcher
+                </a>
+              </Button>
+              <Button asChild className="h-10" variant="outline">
                 <a href={POS_AGENT_DOWNLOAD_PATH} download="server.mjs">
                   <Download className="mr-2 h-4 w-4" />
-                  Download POS agent
+                  Download server file
                 </a>
               </Button>
               <Button
@@ -169,7 +180,7 @@ export default function PosAgentSetupCard() {
                   ? "Looking for the agent on this PC…"
                   : agentUp
                     ? "Agent is running. Choose the printer next."
-                    : "Agent is not running. Download it and start node server.mjs here."}
+                    : "Agent is not running. Download both files and double-click the launcher here."}
               </span>
             </div>
           </div>

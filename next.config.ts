@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
+    "/api/pos-agent/launcher": ["./pos-agent/Start HotCol POS Agent.bat"],
     "/api/pos-agent/server": ["./pos-agent/server.mjs"],
   },
   experimental: {
