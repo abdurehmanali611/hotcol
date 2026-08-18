@@ -95,6 +95,85 @@ export function cafeReportTypeLabel(type: CafeReportType): string {
   }
 }
 
+function orderStatusKey(order: Pick<Order, "status">): string {
+  return String(order.status ?? "").trim().toLowerCase();
+}
+
+function orderPaymentKey(order: Pick<Order, "payment">): string {
+  return String(order.payment ?? "").trim().toLowerCase();
+}
+
+function isKitchenOrBarIncomplete(order: Pick<Order, "status">): boolean {
+  const status = orderStatusKey(order);
+  return status === "" || status === "pending";
+}
+
+export function isCafeReportCancelledOrder(
+  order: Pick<Order, "status">,
+): boolean {
+  return orderStatusKey(order) === "cancelled";
+}
+
+export function isCafeReportFailedOrder(order: Pick<Order, "status">): boolean {
+  return orderStatusKey(order) === "failed";
+}
+
+/** Paid sales — analog tickets stay Pending after print; paid is enough. */
+export function isCafeReportCompletedOrder(
+  order: Pick<Order, "status" | "payment">,
+): boolean {
+  return orderPaymentKey(order) === "paid" && !isCafeReportCancelledOrder(order);
+}
+
+/** Digital: kitchen/bar marked complete, cashier has not collected payment. */
+export function isCafeReportPendingPaymentOrder(
+  order: Pick<Order, "status" | "payment">,
+): boolean {
+  return (
+    orderStatusKey(order) === "completed" &&
+    orderPaymentKey(order) !== "paid" &&
+    !isCafeReportCancelledOrder(order)
+  );
+}
+
+/**
+ * Today's live lines in the selected report period.
+ * Analog: printed / saved but not paid.
+ * Digital: still with kitchen or bar (not marked complete).
+ */
+export function isCafeReportInProgressOrder(
+  order: Pick<Order, "status" | "payment" | "createdAt">,
+  analog: boolean,
+  now: Date | string | number = new Date(),
+): boolean {
+  if (isCafeReportCancelledOrder(order) || isCafeReportFailedOrder(order)) {
+    return false;
+  }
+  if (orderPaymentKey(order) === "paid") return false;
+  if (!isSameCafeBusinessDay(order.createdAt, now)) return false;
+  if (analog) return true;
+  return isKitchenOrBarIncomplete(order);
+}
+
+/**
+ * Lines from before today in the selected report period.
+ * Analog: never received payment approval.
+ * Digital: kitchen or bar never marked the ticket complete.
+ */
+export function isCafeReportExpiredOrder(
+  order: Pick<Order, "status" | "payment" | "createdAt">,
+  analog: boolean,
+  now: Date | string | number = new Date(),
+): boolean {
+  if (isCafeReportCancelledOrder(order) || isCafeReportFailedOrder(order)) {
+    return false;
+  }
+  if (orderPaymentKey(order) === "paid") return false;
+  if (isSameCafeBusinessDay(order.createdAt, now)) return false;
+  if (analog) return true;
+  return isKitchenOrBarIncomplete(order);
+}
+
 export function cafeReportProfitLabel(type: CafeReportType): string {
   switch (type) {
     case "Daily":

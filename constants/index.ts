@@ -66,6 +66,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
   { id: "cancel-orders", label: "Cancel orders", icon: "Ban" },
+  { id: "pos-printer", label: "Printer setup", icon: "Printer" },
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
   { id: "inventory", label: "Inventory", icon: "Store" },

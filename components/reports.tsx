@@ -63,9 +63,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompletedOrders from "@/app/CompletedOrdersTable/page";
 import CancelledOrders from "@/app/CancelledOrdersTable/page";
-import ExpiredOrdersTable from "@/app/ExpiredOrdersTable/page";
 import FailedOrdersTable from "@/app/FailedOrdersTable/page";
 import PendingPaymentOrders from "@/components/cafe/PendingPaymentOrders";
+import CafeReportInProgressExpired from "@/components/cafe/CafeReportInProgressExpired";
 import { Cashout, fetchCashout, fetchTables, type Order, type Table } from "@/lib/actions";
 import type { CafeReportType, Item } from "@/lib/api/types";
 import {
@@ -76,6 +76,12 @@ import {
   cafeReportProfitLabel,
   filterCafeReportCashouts,
   filterCafeReportPeriodOrders,
+  isCafeReportCancelledOrder,
+  isCafeReportCompletedOrder,
+  isCafeReportExpiredOrder,
+  isCafeReportFailedOrder,
+  isCafeReportInProgressOrder,
+  isCafeReportPendingPaymentOrder,
 } from "@/lib/cafeReportFilter";
 import {
   cafeBusinessHalfYear,
@@ -434,39 +440,21 @@ export default function Reports({
   }, [reportRevenueOrders]);
 
   const getCompletedOrders = () =>
-    reportPeriodOrders.filter(
-      (o: any) =>
-        o.payment?.toLowerCase() === "paid" &&
-        o.status?.toLowerCase() === "completed",
-    );
+    reportPeriodOrders.filter((o: any) => isCafeReportCompletedOrder(o));
   const getCancelledOrders = () =>
-    reportPeriodOrders.filter((o: any) => o.status?.toLowerCase() === "cancelled");
+    reportPeriodOrders.filter((o: any) => isCafeReportCancelledOrder(o));
+  const getInProgressOrders = () =>
+    reportPeriodOrders.filter((o: any) =>
+      isCafeReportInProgressOrder(o, analog),
+    );
   const getExpiredOrders = () =>
-    reportPeriodOrders.filter(
-      (o: any) =>
-        (!o.status || o.status?.toLowerCase() === "pending") &&
-        o.payment?.toLowerCase() !== "paid" &&
-        o.status?.toLowerCase() !== "failed" &&
-        o.status?.toLowerCase() !== "cancelled",
+    reportPeriodOrders.filter((o: any) =>
+      isCafeReportExpiredOrder(o, analog),
     );
   const getPendingPaymentOrders = () =>
-    reportPeriodOrders.filter(
-      (o: any) =>
-        o.status?.toLowerCase() === "completed" &&
-        o.payment?.toLowerCase() !== "paid",
-    );
-  const getInProgressOrders = () =>
-    reportPeriodOrders.filter((o: any) => {
-      const st = String(o.status || "").toLowerCase();
-      const pay = String(o.payment || "").toLowerCase();
-      if (st === "cancelled" || st === "failed") return false;
-      if (pay === "paid") return false;
-      return true;
-    });
+    reportPeriodOrders.filter((o: any) => isCafeReportPendingPaymentOrder(o));
   const getFailedOrders = () =>
-    reportPeriodOrders.filter(
-      (o: any) => String(o.status || "").toLowerCase() === "failed",
-    );
+    reportPeriodOrders.filter((o: any) => isCafeReportFailedOrder(o));
 
   const filteredCashouts = filterCafeReportCashouts(cashouts, {
     date,
@@ -835,23 +823,19 @@ export default function Reports({
                   <TabsTrigger value="cashout" className="py-4 px-6 gap-2">
                     <Wallet className="h-4 w-4 text-orange-500" /> Cashouts
                   </TabsTrigger>
-                  <TabsTrigger value="in-progress" className="py-4 px-6 gap-2">
-                    <Hourglass className="h-4 w-4 text-amber-500" /> In progress
+                  <TabsTrigger value="in-progress-expired" className="py-4 px-6 gap-2">
+                    <Hourglass className="h-4 w-4 text-amber-500" /> In progress /
+                    Expired
                   </TabsTrigger>
-                  <TabsTrigger value="failed" className="py-4 px-6 gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" /> Failed
-                  </TabsTrigger>
-                  {analog ? null : (
-                    <>
-                      <TabsTrigger value="pending-payment" className="py-4 px-6 gap-2">
-                        <Hourglass className="h-4 w-4 text-amber-500" /> Pending
-                        payment
-                      </TabsTrigger>
-                      <TabsTrigger value="Expired" className="py-4 px-6 gap-2">
-                        <History className="h-4 w-4 text-muted-foreground" />{" "}
-                        Expired
-                      </TabsTrigger>
-                    </>
+                  {analog ? (
+                    <TabsTrigger value="failed" className="py-4 px-6 gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-500" /> Failed
+                    </TabsTrigger>
+                  ) : (
+                    <TabsTrigger value="pending-payment" className="py-4 px-6 gap-2">
+                      <Hourglass className="h-4 w-4 text-amber-500" /> Pending
+                      payment
+                    </TabsTrigger>
                   )}
                 </TabsList>
                 <div className="p-4 md:p-6">
@@ -871,42 +855,30 @@ export default function Reports({
                   <TabsContent value="cashout" className="mt-0">
                     <Cashouts cashout={filteredCashouts} />
                   </TabsContent>
-                  <TabsContent value="in-progress" className="mt-0">
-                    <PendingPaymentOrders
-                      orders={getInProgressOrders()}
-                      tables={cafeTables}
-                      items={items}
-                      variant={analog ? "analog-unpaid" : "unpaid"}
-                    />
-                  </TabsContent>
-                  <TabsContent value="failed" className="mt-0">
-                    <FailedOrdersTable
-                      orders={getFailedOrders()}
+                  <TabsContent value="in-progress-expired" className="mt-0">
+                    <CafeReportInProgressExpired
+                      analog={analog}
+                      inProgress={getInProgressOrders()}
+                      expired={getExpiredOrders()}
                       tables={cafeTables}
                     />
                   </TabsContent>
-                  <TabsContent value="pending-payment" className="mt-0">
-                    <PendingPaymentOrders
-                      orders={getPendingPaymentOrders()}
-                      tables={cafeTables}
-                      items={items}
-                    />
-                  </TabsContent>
-                  <TabsContent value="Expired" className="mt-0 space-y-4">
-                    <ExpiredOrdersTable
-                      orders={getExpiredOrders()}
-                      tables={cafeTables}
-                    />
-                    <div className="flex justify-end p-4 bg-muted/50 rounded-lg border">
-                      <h3 className="text-lg font-bold">
-                        Total Expired:{" "}
-                        {getExpiredOrders()
-                          .reduce((t: number, o: any) => t + o.price * o.orderAmount, 0)
-                          .toLocaleString()}{" "}
-                        ETB
-                      </h3>
-                    </div>
-                  </TabsContent>
+                  {analog ? (
+                    <TabsContent value="failed" className="mt-0">
+                      <FailedOrdersTable
+                        orders={getFailedOrders()}
+                        tables={cafeTables}
+                      />
+                    </TabsContent>
+                  ) : (
+                    <TabsContent value="pending-payment" className="mt-0">
+                      <PendingPaymentOrders
+                        orders={getPendingPaymentOrders()}
+                        tables={cafeTables}
+                        items={items}
+                      />
+                    </TabsContent>
+                  )}
                 </div>
               </Tabs>
             </CardContent>

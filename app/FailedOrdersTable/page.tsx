@@ -1,6 +1,6 @@
 "use client";
 
-import { DataTableClientWrapper } from "@/app/CancelledOrdersTable/DataTableClientWrapper";
+import { DataTableClientWrapper } from "@/app/FailedOrdersTable/DataTableClientWrapper";
 import type { Order } from "@/lib/actions";
 import type { Table } from "@/lib/actions";
 

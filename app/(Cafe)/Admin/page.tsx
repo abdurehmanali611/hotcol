@@ -54,6 +54,7 @@ import {
   CalendarDays,
   AlertTriangle,
   Ban,
+  Printer,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
@@ -96,6 +97,7 @@ import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
+import PosAgentSetupCard from "@/components/cafe/PosAgentSetupCard";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 
@@ -108,6 +110,7 @@ const ADMIN_CAFE_TAB_IDS = new Set([
   "station-prep-qty",
   "waiter-table",
   "cancel-orders",
+  "pos-printer",
   "credit-registrations",
 ]);
 const ADMIN_INVENTORY_TAB_IDS = new Set(["inventory", "item-receipts"]);
@@ -342,6 +345,7 @@ function AdminDashboardContent() {
     CalendarDays,
     AlertTriangle,
     Ban,
+    Printer,
   };
 
   const tenantModules = useTenantModules();
@@ -352,6 +356,7 @@ function AdminDashboardContent() {
   )
     .filter((item) => !(analog && item.id === "station-prep-qty"))
     .filter((item) => analog || item.id !== "cancel-orders")
+    .filter((item) => analog || item.id !== "pos-printer")
     .map((item) => {
     const Icon = sidebarIconMap[item.icon];
     return {
@@ -543,6 +548,12 @@ function AdminDashboardContent() {
           />
           </div>
         );
+      case "pos-printer":
+        return analog ? (
+          <div className="p-3 sm:p-5 md:p-6">
+            <PosAgentSetupCard />
+          </div>
+        ) : null;
       case "cancel-orders":
         return analog ? (
           <div className="flex flex-col gap-6 p-3 sm:p-5 md:p-6">

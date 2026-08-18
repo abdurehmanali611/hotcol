@@ -272,7 +272,13 @@ export async function createCredential(credentialData: CreateCredentialData) {
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: credentialData,
+      variables: {
+        UserName: credentialData.UserName,
+        Password: credentialData.Password,
+        Role: credentialData.Role,
+        HotelName: credentialData.HotelName,
+        LogoUrl: credentialData.LogoUrl || null,
+      },
     });
 
     if (response.data.errors) {
@@ -285,7 +291,8 @@ export async function createCredential(credentialData: CreateCredentialData) {
     return response.data.data.CreateCredential;
   } catch (error: any) {
     toast.error(
-      "Unable to create user credential. Please check all fields and try again.",
+      error?.message ||
+        "Unable to create user credential. Please check all fields and try again.",
     );
     throw error;
   }

@@ -246,6 +246,7 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
   "cancel-orders": "Cafe and Restaurant",
+  "pos-printer": "Cafe and Restaurant",
   "grant-credential": "Credentials(Common)",
   "delete-credential": "Credentials(Common)",
   inventory: "Inventory",

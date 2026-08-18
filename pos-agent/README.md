@@ -8,9 +8,10 @@ Use it only when the tenant’s café order mode is **analog (thermal printer)**
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /` | Confirms the agent is running and lists endpoints |
 | `GET /health` | Confirms the agent is running |
 | `GET /printers` | Lists Windows printer names |
-| `POST /print` | Prints one kitchen/bar ticket |
+| `POST /print` | Prints one kitchen or bar ticket (the café app calls this; opening it in the browser is not a print) |
 
 If print fails (agent down, USB unplugged, printer not shared), the cashier sees **Failed order**. The line is logged as Failed in manager reports and **is not treated as paid**. Payment is still collected later in the cashier Payment section (cash / bank / credit), same as digital.
 
@@ -34,7 +35,7 @@ $env:POS_PRINTER_NAME = "Exact Windows printer name"
 node server.mjs
 ```
 
-If `POS_PRINTER_NAME` is empty, the agent picks a printer whose name looks like POS / thermal / receipt / 80mm / 58mm, otherwise the first Windows printer.
+If `POS_PRINTER_NAME` is empty, the agent picks a printer whose name looks like POS / thermal / receipt / 80mm / 58mm. It **does not** use OneNote, XPS, PDF, Fax, or AnyDesk. If only those are installed, print fails until a real USB thermal printer is plugged in.
 
 4. Keep `npm run dev` running for the café app. Analog cashiers print from Orders; the app calls `http://127.0.0.1:1818/print`.
 5. Quick checks:
@@ -66,8 +67,9 @@ node C:\HotCol\pos-agent\server.mjs
 
 | Symptom | Likely cause |
 | --- | --- |
+| “Not found” on `/` or `/print` in Chrome | Those URLs are not the print action. Use `GET /health`. Printing is `POST /print` from the café app. Restart `node server.mjs` after updating the agent. |
 | “POS agent is not running…” | `node server.mjs` not started, or port not 1818 |
-| “No Windows printer found” | Driver missing; set `POS_PRINTER_NAME` |
+| “No USB thermal printer found” | Only virtual printers (OneNote/PDF/Fax) are installed; plug in the receipt printer and set `POS_PRINTER_NAME` |
 | “Could not send the ticket…” | Printer not shared as `\\localhost\Name` |
 | Ticket prints but order Failed | API save failed after print — retry; manager sees Failed |
 

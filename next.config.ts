@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/pos-agent/server": ["./pos-agent/server.mjs"],
+  },
   experimental: {
     // Windows: Turbopack FS cache compaction was blocking routes for minutes.
     turbopackFileSystemCacheForDev: false,
