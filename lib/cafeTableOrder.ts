@@ -12,11 +12,12 @@ export function isValidSelectedCafeTableNo(value: unknown): boolean {
   return Number.isFinite(n) && Math.floor(n) >= 0 && Math.floor(n) <= 999;
 }
 
-/** Unpaid, non-cancelled order for today at this property. */
+/** Unpaid, active order for today at this property. Failed tickets never lock tables. */
 export function isOpenCafeOrder(order: Order, hotelName: string): boolean {
   if (!rowHotelMatchesTenantScope(order.HotelName, hotelName)) return false;
   if (String(order.payment || "").toLowerCase() === "paid") return false;
-  if (String(order.status || "").toLowerCase() === "cancelled") return false;
+  const status = String(order.status || "").toLowerCase();
+  if (status === "cancelled" || status === "failed") return false;
   if (!isSameCafeBusinessDay(order.createdAt)) {
     return false;
   }
