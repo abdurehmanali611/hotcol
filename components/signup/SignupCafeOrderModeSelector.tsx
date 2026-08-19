@@ -1,6 +1,6 @@
 "use client";
 
-import { Printer, MonitorSmartphone } from "lucide-react";
+import { Cpu, MonitorSmartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CAFE_ORDER_MODE_DESCRIPTIONS,
@@ -8,9 +8,9 @@ import {
   type CafeOrderMode,
 } from "@/lib/cafeOrderMode";
 
-const OPTIONS: { value: CafeOrderMode; icon: typeof Printer }[] = [
+const OPTIONS: { value: CafeOrderMode; icon: typeof Cpu }[] = [
   { value: "digital", icon: MonitorSmartphone },
-  { value: "analog", icon: Printer },
+  { value: "analog", icon: Cpu },
 ];
 
 export function SignupCafeOrderModeSelector({

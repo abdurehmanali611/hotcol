@@ -36,6 +36,7 @@ import {
   type SignupRegistrationStatus,
 } from "@/lib/api/signupRegistration";
 import { formatETB } from "@/lib/subscriptionModules";
+import { AUTH_BAND, AUTH_CARD_CLASS, AuthPageShell } from "@/components/AuthPageShell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -51,19 +52,11 @@ function StatusShell({
   children: ReactNode;
 }) {
   return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center gap-10 px-4 py-10"
-      style={{
-        backgroundImage: "url('/assets/signup.jpg')",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
-      <Card className="w-full max-w-lg border-primary/15 bg-card/95 shadow-2xl backdrop-blur-sm">
+    <AuthPageShell>
+      <Card className={cn("w-full max-w-lg gap-0 py-0", AUTH_CARD_CLASS)}>
         {children}
       </Card>
-    </div>
+    </AuthPageShell>
   );
 }
 
@@ -179,7 +172,7 @@ export function SignupPendingApprovalScreen({
   if (loading && !status) {
     return (
       <StatusShell>
-        <CardHeader className="space-y-3 border-b border-border/60 pb-6 text-center">
+        <CardHeader className={cn("space-y-3 border-b px-7 pt-9 pb-6 text-center", AUTH_BAND)}>
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <Loader2 className="h-7 w-7 animate-spin" aria-hidden />
           </div>
@@ -197,13 +190,13 @@ export function SignupPendingApprovalScreen({
   if (error && !status) {
     return (
       <StatusShell>
-        <CardHeader className="space-y-3 border-b border-border/60 pb-6 text-center">
+        <CardHeader className={cn("space-y-3 border-b px-7 pt-9 pb-6 text-center", AUTH_BAND)}>
           <CardTitle className="text-2xl tracking-tight">
             Couldn’t load status
           </CardTitle>
           <CardDescription className="text-pretty">{error}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4 px-7 pt-6 pb-7">
           <Button
             type="button"
             variant="outline"
@@ -226,7 +219,7 @@ export function SignupPendingApprovalScreen({
   if (current === "approved") {
     return (
       <StatusShell>
-        <CardHeader className="space-y-3 border-b border-border/60 pb-6 text-center">
+        <CardHeader className={cn("space-y-3 border-b px-7 pt-9 pb-6 text-center", AUTH_BAND)}>
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
             <CheckCircle2 className="h-7 w-7" aria-hidden />
           </div>
@@ -239,7 +232,7 @@ export function SignupPendingApprovalScreen({
             <span className="font-medium text-foreground">{username}</span>.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6">
+        <CardContent className="space-y-6 px-7 pt-6 pb-7">
           <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/80 p-4 text-sm leading-relaxed text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
             Apex verified your setup payment. Staff accounts unlock after you
             sign in as the property admin/manager.
@@ -256,8 +249,8 @@ export function SignupPendingApprovalScreen({
     const channelMeta = SIGNUP_PAYMENT_CHANNEL_META[paymentChannel];
     return (
       <StatusShell>
-        <CardHeader className="space-y-3 border-b border-border/60 pb-6 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+        <CardHeader className={cn("space-y-3 border-b px-7 pt-9 pb-6 text-center", AUTH_BAND)}>
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
             <XCircle className="h-7 w-7" aria-hidden />
           </div>
           <CardTitle className="text-2xl tracking-tight">
@@ -270,8 +263,8 @@ export function SignupPendingApprovalScreen({
             status screen.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6">
-          <div className="rounded-xl border border-rose-200/80 bg-rose-50/80 p-4 text-sm leading-relaxed text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-100">
+        <CardContent className="space-y-6 px-7 pt-6 pb-7">
+          <div className="rounded-xl border border-violet-200/80 bg-violet-50/80 p-4 text-sm leading-relaxed text-violet-950 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-100">
             <p className="font-semibold">Reason from Apex</p>
             <p className="mt-2 text-pretty">
               {status?.rejectionReason ||
@@ -376,8 +369,8 @@ export function SignupPendingApprovalScreen({
 
   return (
     <StatusShell>
-      <CardHeader className="space-y-3 border-b border-border/60 pb-6 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+      <CardHeader className={cn("space-y-3 border-b px-7 pt-9 pb-6 text-center", AUTH_BAND)}>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
           <Clock className="h-7 w-7" aria-hidden />
         </div>
         <CardTitle className="text-2xl tracking-tight">
@@ -389,8 +382,8 @@ export function SignupPendingApprovalScreen({
           enabled.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6 pt-6">
-        <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 p-4 text-sm leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+      <CardContent className="space-y-6 px-7 pt-6 pb-7">
+        <div className="rounded-xl border border-violet-200/80 bg-violet-50/80 p-4 text-sm leading-relaxed text-violet-950 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-100">
           <p className="font-semibold">
             Please wait about {SETUP_APPROVAL_WAIT_MINUTES} minutes
           </p>

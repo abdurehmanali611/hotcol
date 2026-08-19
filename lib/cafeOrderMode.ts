@@ -12,19 +12,19 @@ export const DEFAULT_CAFE_ORDER_MODE: CafeOrderMode = "digital";
 
 export const CAFE_ORDER_MODE_LABELS: Record<CafeOrderMode, string> = {
   digital: "Digital ordering",
-  analog: "Thermal printer (analog)",
+  analog: "POS agent (analog)",
 };
 
 export const CAFE_ORDER_MODE_SHORT_LABELS: Record<CafeOrderMode, string> = {
   digital: "Digital",
-  analog: "Thermal printer",
+  analog: "POS agent",
 };
 
 export const CAFE_ORDER_MODE_DESCRIPTIONS: Record<CafeOrderMode, string> = {
   digital:
     "Kitchen and bar screens, cashier payment, and the current digital order flow.",
   analog:
-    "The cashier computer prints tickets on a USB thermal printer through the POS agent. Printing registers the order for service, but payment is still approved later by cashier payment verification. There is no kitchen/bar login.",
+    "The cashier computer sends tickets through the POS agent. Printing registers the order for service, but payment is still approved later by cashier payment verification. There is no kitchen/bar login.",
 };
 
 export function parseCafeOrderMode(raw: unknown): CafeOrderMode {
@@ -121,8 +121,8 @@ export function cafeOrderModeReportNotices(
       title: `Order mode changed on ${when}`,
       body:
         current.mode === "digital"
-          ? `Until ${when} this property used thermal printer tickets with cashier payment approval and no kitchen/bar screens. From ${when} onward, digital ordering applies: cashier, chef, and bar staff can cancel in their usual workflow, and kitchen/bar screens plus cashier payments are recorded.`
-          : `Until ${when} this property used digital ordering with kitchen/bar screens and cashier payment recording. From ${when} onward, thermal printer tickets apply: tickets print from cashier, payment approval still happens in cashier payment flows, and kitchen/bar logins are no longer used.`,
+          ? `Until ${when} this property used POS agent tickets with cashier payment approval and no kitchen/bar screens. From ${when} onward, digital ordering applies: cashier, chef, and bar staff can cancel in their usual workflow, and kitchen/bar screens plus cashier payments are recorded.`
+          : `Until ${when} this property used digital ordering with kitchen/bar screens and cashier payment recording. From ${when} onward, POS agent tickets apply: tickets print from cashier, payment approval still happens in cashier payment flows, and kitchen/bar logins are no longer used.`,
     });
   }
   return notices;

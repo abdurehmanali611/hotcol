@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/form";
 import type { z } from "zod";
 import { SignUpSchema } from "@/lib/validations";
+import { APEX_SOLUTION } from "@/constants/branding";
 
 export type SignUpFormValues = z.infer<typeof SignUpSchema>;
 
@@ -51,7 +52,15 @@ export function SignupPaymentSection({
     <section className="space-y-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 ring-1 ring-black/5 dark:ring-white/10">
       <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Apex Solution — CBE account (all transfers)
+          <a
+            href={APEX_SOLUTION.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary hover:underline"
+          >
+            {APEX_SOLUTION.name}
+          </a>{" "}
+          — CBE account (all transfers)
         </p>
         <p className="mt-1 font-mono text-xl font-bold tracking-wide text-primary">
           {APEX_SOLUTION_CBE_ACCOUNT}
@@ -69,7 +78,16 @@ export function SignupPaymentSection({
           <span className="font-semibold text-foreground">
             {formatETB(setupFeeETB)}
           </span>{" "}
-          to Apex Solution using one of the channels below, then enter your
+          to{" "}
+          <a
+            href={APEX_SOLUTION.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"
+          >
+            {APEX_SOLUTION.name}
+          </a>{" "}
+          using one of the channels below, then enter your
           transfer reference. After you submit registration, wait about{" "}
           {SETUP_APPROVAL_WAIT_MINUTES} minutes for Apex approval — you cannot
           sign in until then. WhatsApp support:{" "}

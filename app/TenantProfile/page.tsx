@@ -952,7 +952,7 @@ function TenantProfileContent() {
                     <Textarea
                       value={modeRequestNote}
                       onChange={(e) => setModeRequestNote(e.target.value)}
-                      placeholder="Optional note for Apex — for example why you need digital screens or thermal printer tickets."
+                      placeholder="Optional note for Apex — for example why you need digital screens or POS agent tickets."
                       className="min-h-24"
                     />
                     <Button

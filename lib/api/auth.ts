@@ -198,7 +198,7 @@ export async function LoginAction(
       throw new Error(
         cafeOrderMode === "analog" &&
           (user.Role === "Kitchen" || user.Role === "Barista")
-          ? "This property uses thermal printer tickets. Kitchen and bar logins are not available."
+          ? "This property uses POS agent tickets. Kitchen and bar logins are not available."
           : "Your account role is not included in this property's subscribed modules. Contact your administrator.",
       );
     }
