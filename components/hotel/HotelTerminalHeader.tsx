@@ -20,7 +20,7 @@ export function HotelTerminalHeader({
   actions: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 backdrop-blur-xl supports-backdrop-filter:bg-background/75 shadow-sm">
+    <header className="app-chrome-header sticky top-0 z-30 border-b shadow-sm">
       <div className="w-full px-3 md:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center min-w-0">
           {leading && (

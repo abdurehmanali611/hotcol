@@ -122,7 +122,7 @@ function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
       accessorKey: "itemName",
       header: "Item",
       cell: ({ row }) => (
-        <span className="font-medium max-w-[200px] truncate block">
+        <span className="font-medium max-w-50 truncate block">
           {row.original.itemName}
         </span>
       ),
@@ -171,7 +171,7 @@ function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
           return <span className="text-xs text-muted-foreground">—</span>;
         }
         return (
-          <span className="block space-y-0.5 text-xs text-muted-foreground max-w-[240px]">
+          <span className="block space-y-0.5 text-xs text-muted-foreground max-w-60">
             <span className="text-foreground font-medium">
               {formatPurchaseRejectorLine(r)}
             </span>
@@ -397,7 +397,7 @@ function FinanceInner() {
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
-                <Wallet className="h-[18px] w-[18px]" />
+                <Wallet className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -451,7 +451,7 @@ function FinanceInner() {
         </Sidebar>
 
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20">
-          <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">

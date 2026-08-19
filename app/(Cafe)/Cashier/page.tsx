@@ -275,7 +275,7 @@ function CashierContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-muted/20">
-        <header className="h-20 border-b bg-background px-6 flex items-center justify-between">
+        <header className="app-chrome-header relative flex h-20 items-center justify-between border-b px-6">
           <div className="flex gap-4">
             <Skeleton className="h-12 w-12 rounded-full" />
             <div className="space-y-2">
@@ -344,7 +344,7 @@ function CashierContent() {
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
-                <Store className="h-[18px] w-[18px]" />
+                <Store className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -393,7 +393,7 @@ function CashierContent() {
         </Sidebar>
 
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-2 sm:gap-3 sm:px-3 md:h-16 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-2 sm:gap-3 sm:px-3 md:h-16 md:px-6">
             <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
               <SidebarTrigger className="shrink-0" />
               <h1 className="whitespace-nowrap text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs md:text-sm">

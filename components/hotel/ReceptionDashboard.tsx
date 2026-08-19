@@ -455,7 +455,7 @@ export function ReceptionDashboard() {
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
-                <BedDouble className="h-[18px] w-[18px]" />
+                <BedDouble className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -529,7 +529,7 @@ export function ReceptionDashboard() {
         </Sidebar>
 
         <div className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
@@ -1252,7 +1252,7 @@ export function ReceptionDashboard() {
                               </div>
                               <PendingButton
                                 type="button"
-                                className="h-11 w-full sm:w-auto sm:min-w-[220px]"
+                                className="h-11 w-full sm:w-auto sm:min-w-55"
                                 pending={pending === "checkout"}
                                 disabled={checkoutBlocked}
                                 onClick={() => {
@@ -1468,7 +1468,7 @@ export function ReceptionDashboard() {
         {printStay ? (
           <div
             aria-hidden
-            className="pointer-events-none fixed left-[-10000px] top-0 h-0 w-0 overflow-hidden opacity-0 print:pointer-events-auto print:static print:left-auto print:top-auto print:h-auto print:w-auto print:overflow-visible print:opacity-100"
+            className="pointer-events-none fixed left-2500 top-0 h-0 w-0 overflow-hidden opacity-0 print:pointer-events-auto print:static print:left-auto print:top-auto print:h-auto print:w-auto print:overflow-visible print:opacity-100"
           >
             <div
               ref={departurePrintRef}

@@ -566,7 +566,7 @@ export function HotelCashierDashboard({
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
-                <Receipt className="h-[18px] w-[18px]" />
+                <Receipt className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -628,7 +628,7 @@ export function HotelCashierDashboard({
         }
       >
           {!embedded ? (
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
@@ -1240,7 +1240,7 @@ export function HotelCashierDashboard({
                                 label="Date"
                                 value={occurredYmd}
                                 onChange={setOccurredYmd}
-                                className="min-w-[200px]"
+                                className="min-w-50"
                               />
                             </div>
                             <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
@@ -1297,7 +1297,7 @@ export function HotelCashierDashboard({
                                       </div>
                                     )}
                                   </div>
-                                  <div className="min-w-[200px] flex-1 space-y-2">
+                                  <div className="min-w-50 flex-1 space-y-2">
                                     <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                                       Item
                                     </span>
@@ -1525,13 +1525,13 @@ export function HotelCashierDashboard({
                             label="From"
                             value={reportFrom}
                             onChange={setReportFrom}
-                            className="min-w-[180px]"
+                            className="min-w-45"
                           />
                           <HotelDayPicker
                             label="To"
                             value={reportTo}
                             onChange={setReportTo}
-                            className="min-w-[180px]"
+                            className="min-w-45"
                           />
                           <PendingButton
                             type="button"
@@ -1551,7 +1551,7 @@ export function HotelCashierDashboard({
                               value={reportCompanyFilter}
                               onValueChange={setReportCompanyFilter}
                             >
-                              <SelectTrigger className="h-10 w-[220px]">
+                              <SelectTrigger className="h-10 w-55">
                                 <SelectValue placeholder="All companies" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1572,7 +1572,7 @@ export function HotelCashierDashboard({
                               value={reportSearchDraft}
                               onChange={(e) => setReportSearchDraft(e.target.value)}
                               placeholder="Search person name or phone"
-                              className="h-10 w-[260px]"
+                              className="h-10 w-65"
                             />
                           </div>
                           <Button

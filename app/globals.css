@@ -122,6 +122,70 @@
   --scrollbar-thumb-hover: oklch(0.52 0.1 195);
 }
 
+.app-chrome-header {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: #070605;
+  background-image:
+    linear-gradient(180deg, rgba(203, 180, 138, 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse 92% 190% at 50% -45%, #6a5340 0%, #3d3125 34%, #070605 72%);
+  border-bottom-color: rgb(166 139 91 / 0.28);
+  box-shadow:
+    inset 0 1px 0 rgb(255 214 160 / 0.14),
+    0 10px 28px -16px rgb(0 0 0 / 0.7);
+}
+
+.app-chrome-header::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    #241820 0%,
+    #4a2c48 18%,
+    #302030 50%,
+    #4a2c48 82%,
+    #241820 100%
+  );
+  box-shadow: 0 0 16px rgb(90 60 88 / 0.45);
+}
+
+.app-chrome-header::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 8% 8%;
+  top: 0;
+  z-index: 0;
+  height: 100%;
+  background: radial-gradient(
+    ellipse 70% 80% at 50% 0%,
+    rgb(212 175 110 / 0.22) 0%,
+    transparent 70%
+  );
+}
+
+.app-chrome-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-chrome-header h1 {
+  color: #d4b896;
+  text-shadow: 0 0 22px rgb(166 139 91 / 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-chrome-header::before {
+    box-shadow: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

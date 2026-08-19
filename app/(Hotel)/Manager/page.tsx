@@ -1862,7 +1862,7 @@ function ManagerContent() {
         </Sidebar>
 
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">

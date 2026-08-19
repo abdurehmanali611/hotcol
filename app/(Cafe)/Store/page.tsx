@@ -761,7 +761,7 @@ export function StoreComponent({
             <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
               <div className="flex h-full min-w-0 items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
-                  <StoreIcon className="h-[18px] w-[18px]" />
+                  <StoreIcon className="h-4.5 w-4.5" />
                 </div>
                 <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                   <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -976,7 +976,7 @@ export function StoreComponent({
           </SidebarFooter>
           </Sidebar>
           <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10 py-4">
-            <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 border-b bg-background px-3 md:px-6">
+            <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-3 md:h-16 md:px-6">
               <SidebarTrigger />
               <div className="flex-1 min-w-0">
                 <h1 className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider truncate">

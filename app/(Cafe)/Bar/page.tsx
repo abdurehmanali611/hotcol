@@ -191,7 +191,7 @@ function BaristaContent() {
       <Toaster position="top-center" richColors />
 
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+      <header className="app-chrome-header sticky top-0 z-10 border-b">
         <div className="mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border">

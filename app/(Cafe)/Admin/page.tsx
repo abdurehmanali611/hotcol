@@ -733,7 +733,7 @@ function AdminDashboardContent() {
         </Sidebar>
 
         <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b bg-background px-2 sm:gap-2 sm:px-3 md:h-16 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b px-2 sm:gap-2 sm:px-3 md:h-16 md:px-6">
             <SidebarTrigger className="shrink-0" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs md:text-sm">
