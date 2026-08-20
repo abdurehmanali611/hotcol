@@ -13,15 +13,15 @@ export const CLASSICAL_PLAYLISTS: ClassicalPlaylist[] = [
     src: "/assets/Audio/audio1.mp3",
   },
   {
-    id: "baroque",
-    label: "Baroque",
-    composer: "Bach · Preludes",
+    id: "at-ease",
+    label: "At Ease",
+    composer: "Hazelwood",
     src: "/assets/Audio/audio2.mp3",
   },
   {
-    id: "strings",
-    label: "Strings",
-    composer: "Mozart · Quartets",
+    id: "downtown",
+    label: "Downtown",
+    composer: "Moavii",
     src: "/assets/Audio/audio3.mp3",
   },
   {
@@ -35,6 +35,12 @@ export const CLASSICAL_PLAYLISTS: ClassicalPlaylist[] = [
     label: "Evening close",
     composer: "Beethoven · Moonlight",
     src: "/assets/Audio/audio5.mp3",
+  },
+  {
+    id: "keys-of-moon",
+    label: "Keys of Moon",
+    composer: "Ambient piano",
+    src: "/assets/Audio/audio6.mp3",
   },
 ];
 
