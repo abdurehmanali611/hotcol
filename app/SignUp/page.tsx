@@ -30,6 +30,8 @@ import {
 import { SignUpSchema } from "@/lib/validations";
 import { AUTH_BAND, AUTH_BUTTON, AUTH_CARD_CLASS, AUTH_EYEBROW, AUTH_LINK, AUTH_MUTED, AUTH_PANEL_COOL, AUTH_PANEL_WARM, AUTH_SUBTITLE, AUTH_TITLE, AuthPageShell } from "@/components/AuthPageShell";
 import { SignupCafeOrderModeSelector } from "@/components/signup/SignupCafeOrderModeSelector";
+import { SalesAgentSelector } from "@/components/signup/SalesAgentSelector";
+import { fetchSalesAgents, type SalesAgentOption } from "@/lib/api/salesAgents";
 import { cafeModuleSelected, type CafeOrderMode } from "@/lib/cafeOrderMode";
 import { fetchSignupPricingPreview } from "@/lib/api/pricing";
 import { useSignupPricing } from "@/lib/hooks/useSignupPricing";
@@ -58,6 +60,7 @@ const SIGNUP_STEPS = [
       "HotelName",
       "tinNumber",
       "type",
+      "salesAgentId",
       "UserName",
       "Password",
     ] as const satisfies readonly FieldPath<SignUpValues>[],
@@ -171,6 +174,8 @@ export default function SignUp() {
     businessName: string;
     username: string;
   } | null>(null);
+  const [salesAgents, setSalesAgents] = useState<SalesAgentOption[]>([]);
+  const [salesAgentsLoading, setSalesAgentsLoading] = useState(true);
   const form = useForm<SignUpValues>({
     resolver: zodResolver(SignUpSchema),
     defaultValues: {
@@ -184,6 +189,7 @@ export default function SignUp() {
       cafeOrderMode: "digital",
       paymentChannel: undefined,
       paymentTransactionRef: "",
+      salesAgentId: null,
     },
   });
 
@@ -207,6 +213,23 @@ export default function SignUp() {
       });
     }
     setBootstrapped(true);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSalesAgents()
+      .then((rows) => {
+        if (!cancelled) setSalesAgents(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setSalesAgents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSalesAgentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -315,6 +338,7 @@ export default function SignUp() {
                       cafeOrderMode: "digital",
                       paymentChannel: undefined,
                       paymentTransactionRef: "",
+                      salesAgentId: null,
                     });
                     setPreviewUrl(null);
                     setStep(0);
@@ -370,6 +394,25 @@ export default function SignUp() {
                             value={field.value as BusinessType}
                             onChange={field.onChange}
                           />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="salesAgentId"
+                      render={({ field }) => (
+                        <FormItem className="space-y-2">
+                          <FormLabel>Sales agent (optional)</FormLabel>
+                          <SalesAgentSelector
+                            value={field.value ?? null}
+                            onChange={field.onChange}
+                            agents={salesAgents}
+                            loading={salesAgentsLoading}
+                          />
+                          <p className={cn("text-xs", AUTH_MUTED)}>
+                            Skip this if you found HotCol yourself.
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

@@ -79,6 +79,7 @@ export const SignUpSchema = z
     paymentChannel: signUpPaymentChannelEnum.optional(),
     paymentTransactionRef: z.string().optional(),
     cafeOrderMode: z.enum(["digital", "analog"]).optional(),
+    salesAgentId: z.number().int().positive().nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (isBusinessTypeComingSoon(data.type)) {

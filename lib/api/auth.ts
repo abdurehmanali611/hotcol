@@ -38,6 +38,7 @@ export async function handleCredential(
           $paymentChannel: String
           $paymentTransactionRef: String
           $cafeOrderMode: String
+          $salesAgentId: Int
         ) {
           CreateAdmin(
             UserName: $UserName
@@ -53,6 +54,7 @@ export async function handleCredential(
             paymentChannel: $paymentChannel
             paymentTransactionRef: $paymentTransactionRef
             cafeOrderMode: $cafeOrderMode
+            salesAgentId: $salesAgentId
           ) {
             id
             HotelName
@@ -88,6 +90,7 @@ export async function handleCredential(
         paymentChannel: values.paymentChannel ?? null,
         paymentTransactionRef: values.paymentTransactionRef ?? null,
         cafeOrderMode: values.cafeOrderMode ?? "digital",
+        salesAgentId: values.salesAgentId ?? null,
       },
     };
 
