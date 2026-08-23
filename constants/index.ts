@@ -66,7 +66,6 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "station-prep-qty", label: "Prep totals", icon: "ClipboardList" },
   { id: "waiter-table", label: "Waiters & Tables", icon: "Users" },
   { id: "cancel-orders", label: "Cancel orders", icon: "Ban" },
-  { id: "pos-printer", label: "Printer setup", icon: "Printer" },
   { id: "grant-credential", label: "Grant Credential", icon: "Key" },
   { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
   { id: "inventory", label: "Inventory", icon: "Store" },
@@ -108,6 +107,13 @@ export const CAFE_CASHIER_NAV_ITEMS = [
     icon: "ClipboardEdit",
     description:
       "Analog only: add items to a printed table ticket. The reprint is marked as an update, while payment approval still happens later in Payment.",
+  },
+  {
+    id: "pos-printer",
+    label: "Printer setup",
+    icon: "Printer",
+    description:
+      "Analog only: install the POS agent on this cashier PC and choose the USB thermal printer used for tickets.",
   },
   {
     id: "cashout",

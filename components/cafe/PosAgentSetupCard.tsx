@@ -111,9 +111,9 @@ export default function PosAgentSetupCard() {
             Printer setup
           </CardTitle>
           <CardDescription className="max-w-2xl text-pretty leading-relaxed">
-            Do this once on the cashier PC that has the USB printer. Cashiers
-            only take orders after this is running — they do not need this
-            screen.
+            Do this once on this cashier PC that has the USB printer. Start the
+            POS agent, pick the Windows printer name, then keep the agent
+            running while analog tickets are printed.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">

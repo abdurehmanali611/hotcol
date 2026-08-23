@@ -16,6 +16,7 @@ import {
   LogOut,
   Receipt,
   ArrowLeftRight,
+  Printer,
 } from "lucide-react";
 import {
   Item,
@@ -37,6 +38,7 @@ import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCo
 import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
 import { CafeCashierPaymentTypePanel } from "@/components/cafe/CafeCashierPaymentTypePanel";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
+import PosAgentSetupCard from "@/components/cafe/PosAgentSetupCard";
 import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
 import { useCashierCancelOrdersEnabled } from "@/hooks/useCashierCancelOrdersEnabled";
 import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
@@ -77,6 +79,7 @@ const NAV_ICONS: Record<
   Receipt,
   ArrowLeftRight,
   ClipboardEdit,
+  Printer,
 };
 
 function CashierContent() {
@@ -335,6 +338,8 @@ function CashierContent() {
         tenantScope={tenantScope}
         propertyName={displayLabel}
       />
+    ) : activeView === "pos-printer" ? (
+      <PosAgentSetupCard />
     ) : null;
 
   return (
@@ -432,7 +437,8 @@ function CashierContent() {
               className={
                 activeView === "order"
                   ? "min-h-full"
-                  : activeView === "payment-type"
+                  : activeView === "payment-type" ||
+                      activeView === "pos-printer"
                     ? "flex min-h-0 flex-1 flex-col"
                     : "rounded-2xl border bg-background shadow-sm min-h-[min(70vh,800px)] p-2 md:p-4"
               }

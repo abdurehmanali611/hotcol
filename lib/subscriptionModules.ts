@@ -246,7 +246,6 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "station-prep-qty": "Cafe and Restaurant",
   "waiter-table": "Cafe and Restaurant",
   "cancel-orders": "Cafe and Restaurant",
-  "pos-printer": "Cafe and Restaurant",
   "grant-credential": "Credentials(Common)",
   "delete-credential": "Credentials(Common)",
   inventory: "Inventory",
@@ -378,6 +377,7 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
     | "payment"
     | "payment-type"
     | "order-update"
+    | "pos-printer"
     | "cashout"
     | "credit",
     ModuleOption
@@ -387,6 +387,7 @@ export const CAFE_CASHIER_NAV_MODULES: Partial<
   payment: "Cafe and Restaurant",
   "payment-type": "Cafe and Restaurant",
   "order-update": "Cafe and Restaurant",
+  "pos-printer": "Cafe and Restaurant",
   cashout: "Cafe and Restaurant",
   credit: "Credit Management",
 };
@@ -396,7 +397,7 @@ export function filterCafeCashierNavId(
   modules: readonly ModuleOption[],
   cafeOrderMode: CafeOrderMode = DEFAULT_CAFE_ORDER_MODE,
 ): boolean {
-  if (navId === "order-update") {
+  if (navId === "order-update" || navId === "pos-printer") {
     if (cafeOrderMode !== "analog") return false;
   }
   const required = CAFE_CASHIER_NAV_MODULES[navId as keyof typeof CAFE_CASHIER_NAV_MODULES];

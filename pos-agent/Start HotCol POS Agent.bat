@@ -15,7 +15,7 @@ if errorlevel 1 (
 
 if not exist "server.mjs" (
   echo server.mjs was not found in this folder.
-  echo Download server.mjs from the HotCol Printer setup page and keep it beside this launcher.
+  echo Download server.mjs from Cafe cashier → Printer setup and keep it beside this launcher.
   echo.
   pause
   exit /b 1
