@@ -54,6 +54,7 @@ import {
   CalendarDays,
   AlertTriangle,
   Ban,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
@@ -94,7 +95,7 @@ import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
-import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
+import { RecipeUsageStatusPanel } from "@/components/inventory/RecipeUsageStatusPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
@@ -110,7 +111,11 @@ const ADMIN_CAFE_TAB_IDS = new Set([
   "cancel-orders",
   "credit-registrations",
 ]);
-const ADMIN_INVENTORY_TAB_IDS = new Set(["inventory", "item-receipts"]);
+const ADMIN_INVENTORY_TAB_IDS = new Set([
+  "inventory",
+  "recipe-usage",
+  "item-receipts",
+]);
 const ADMIN_ACCESS_TAB_IDS = new Set([
   "grant-credential",
   "delete-credential",
@@ -342,6 +347,7 @@ function AdminDashboardContent() {
     CalendarDays,
     AlertTriangle,
     Ban,
+    UtensilsCrossed,
   };
 
   const tenantModules = useTenantModules();
@@ -506,6 +512,15 @@ function AdminDashboardContent() {
             hotelName={tenantScope}
             onRefresh={() => loadData(true)}
           />
+        );
+      case "recipe-usage":
+        return (
+          <div className="p-3 sm:p-5 md:p-6">
+            <RecipeUsageStatusPanel
+              hotelName={tenantScope}
+              refreshSignal={inventoryRefreshKey}
+            />
+          </div>
         );
       case "grant-credential":
         return (

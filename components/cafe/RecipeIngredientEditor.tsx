@@ -112,6 +112,12 @@ type RecipeIngredientEditorProps = {
   variant?: "default" | "embedded";
   /** Menu price — shows estimated margin in embedded mode */
   menuPrice?: number;
+  /** Inventory catalog suggestions (name / unit / unit price) when Inventory is subscribed */
+  inventorySuggestions?: {
+    name: string;
+    measuredBy?: string;
+    unitPrice?: number;
+  }[];
 };
 
 function emptyLine(): RecipeLine {
@@ -152,12 +158,14 @@ function EmbeddedRecipeLineRow({
   onChange,
   onRemove,
   lineTotal,
+  suggestionListId,
 }: {
   index: number;
   line: RecipeLine;
   onChange: (line: RecipeLine) => void;
   onRemove: () => void;
   lineTotal: string;
+  suggestionListId?: string;
 }) {
   const fieldClass = "h-9 w-full min-w-0 text-sm";
 
@@ -194,6 +202,8 @@ function EmbeddedRecipeLineRow({
             onChange={(e) => onChange({ ...line, name: e.target.value })}
             placeholder="Tomato, flour, oil…"
             className={fieldClass}
+            list={suggestionListId}
+            autoComplete="off"
           />
         </div>
 
@@ -262,6 +272,7 @@ function RecipeLineRow({
   onRemove,
   lineTotal,
   embedded,
+  suggestionListId,
 }: {
   index: number;
   line: RecipeLine;
@@ -269,6 +280,7 @@ function RecipeLineRow({
   onRemove: () => void;
   lineTotal: string;
   embedded: boolean;
+  suggestionListId?: string;
 }) {
   const fieldClass = "h-9 w-full min-w-0 max-w-full text-sm sm:h-10";
 
@@ -335,6 +347,8 @@ function RecipeLineRow({
             onChange={(e) => onChange({ ...line, name: e.target.value })}
             placeholder="Tomato, flour, oil…"
             className={fieldClass}
+            list={suggestionListId}
+            autoComplete="off"
           />
         </div>
 
@@ -421,8 +435,40 @@ export function RecipeIngredientEditor({
   itemName,
   variant = "default",
   menuPrice,
+  inventorySuggestions = [],
 }: RecipeIngredientEditorProps) {
   const embedded = variant === "embedded";
+  const suggestionListId = "recipe-inventory-ingredient-suggestions";
+
+  const uniqueSuggestions = (() => {
+    const seen = new Set<string>();
+    const out: {
+      name: string;
+      measuredBy?: string;
+      unitPrice?: number;
+    }[] = [];
+    for (const row of inventorySuggestions) {
+      const name = String(row?.name ?? "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        name,
+        measuredBy: row.measuredBy,
+        unitPrice: row.unitPrice,
+      });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  const suggestionByName = (raw: string) => {
+    const key = String(raw ?? "").trim().toLowerCase();
+    if (!key) return null;
+    return (
+      uniqueSuggestions.find((s) => s.name.toLowerCase() === key) || null
+    );
+  };
 
   const initial = (() => {
     const lines = linesFromRecipe(value);
@@ -469,8 +515,22 @@ export function RecipeIngredientEditor({
   };
 
   const updateLine = (index: number, line: RecipeLine) => {
+    const match = suggestionByName(line.name);
+    const nextLine = match
+      ? {
+          ...line,
+          name: match.name,
+          measuredBy: line.measuredBy.trim()
+            ? line.measuredBy
+            : String(match.measuredBy || "").trim(),
+          unitPrice:
+            Number(line.unitPrice) > 0
+              ? line.unitPrice
+              : Number(match.unitPrice) || 0,
+        }
+      : line;
     const next = [...lines];
-    next[index] = line;
+    next[index] = nextLine;
     updateLines(next);
   };
 
@@ -529,8 +589,11 @@ export function RecipeIngredientEditor({
             No recipe yet
           </p>
           <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground sm:text-sm">
-            Add ingredients to track cost and profit for{" "}
-            <span className="font-medium text-foreground">{label}</span>.
+            Add ingredients to track cost, profit, and station stock for{" "}
+            <span className="font-medium text-foreground">{label}</span>
+            {uniqueSuggestions.length > 0
+              ? ". Pick inventory names so kitchen/bar deductions match stocked items."
+              : "."}
           </p>
           <Button
             type="button"
@@ -574,6 +637,13 @@ export function RecipeIngredientEditor({
             )}
           >
             <div className="space-y-3 pr-3 sm:pr-4">
+              {uniqueSuggestions.length > 0 ? (
+                <datalist id={suggestionListId}>
+                  {uniqueSuggestions.map((s) => (
+                    <option key={s.name} value={s.name} />
+                  ))}
+                </datalist>
+              ) : null}
               {rowKeys.map((key, index) =>
                 embedded ? (
                   <EmbeddedRecipeLineRow
@@ -583,6 +653,11 @@ export function RecipeIngredientEditor({
                     onChange={(line) => updateLine(index, line)}
                     onRemove={() => removeLine(index)}
                     lineTotal={lineTotal(index)}
+                    suggestionListId={
+                      uniqueSuggestions.length > 0
+                        ? suggestionListId
+                        : undefined
+                    }
                   />
                 ) : (
                   <RecipeLineRow
@@ -593,6 +668,11 @@ export function RecipeIngredientEditor({
                     onRemove={() => removeLine(index)}
                     lineTotal={lineTotal(index)}
                     embedded={false}
+                    suggestionListId={
+                      uniqueSuggestions.length > 0
+                        ? suggestionListId
+                        : undefined
+                    }
                   />
                 ),
               )}

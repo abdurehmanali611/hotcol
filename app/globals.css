@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* Class-based dark mode (next-themes on <html>). :where keeps zero specificity. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -85,6 +86,7 @@
   --scrollbar-thumb-hover: oklch(0.62 0.08 195);
 }
 
+html.dark,
 .dark {
   --background: oklch(0.16 0.022 265);
   --foreground: oklch(0.97 0.01 95);
@@ -209,6 +211,11 @@
     @apply bg-background text-foreground font-sans;
     text-rendering: optimizeLegibility;
   }
+  input,
+  textarea,
+  select {
+    color-scheme: inherit;
+  }
   ::selection {
     background: color-mix(in oklch, var(--primary) 32%, transparent);
     color: var(--foreground);
@@ -238,6 +245,57 @@
   ::-webkit-scrollbar-corner {
     background: var(--scrollbar-track);
   }
+}
+
+/*
+ * Chrome/Edge autofill paints a light wash that beats layered utilities.
+ * Keep this OUTSIDE @layer and use inset box-shadow so dark theme stays dark.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--foreground) !important;
+  caret-color: var(--foreground) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 0 0 1000px var(--background) inset !important;
+  transition: background-color 99999s ease-out 0s !important;
+}
+
+html.dark input:-webkit-autofill,
+html.dark input:-webkit-autofill:hover,
+html.dark input:-webkit-autofill:focus,
+html.dark input:-webkit-autofill:active,
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+html.dark textarea:-webkit-autofill,
+.dark textarea:-webkit-autofill,
+html.dark select:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-text-fill-color: #f5f3ff !important;
+  caret-color: #f5f3ff !important;
+  box-shadow: 0 0 0 1000px #09090b inset !important;
+}
+
+/* Login / signup fields: always dark surface even under autofill */
+.auth-field:-webkit-autofill,
+.auth-field:-webkit-autofill:hover,
+.auth-field:-webkit-autofill:focus,
+.auth-field:-webkit-autofill:active {
+  -webkit-text-fill-color: #ede9fe !important;
+  caret-color: #ede9fe !important;
+  box-shadow: 0 0 0 1000px #09090b inset !important;
+  border-color: rgb(139 92 246 / 0.35) !important;
 }
 
 @media print {

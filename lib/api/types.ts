@@ -444,6 +444,36 @@ export interface ItemStatus {
   stockOutRequestId?: number | null;
 }
 
+/** Live kitchen/bar ingredient on-hand after stock-outs and recipe decrements. */
+export interface StationIngredientStock {
+  id: number;
+  HotelName: string;
+  station: string;
+  itemName: string;
+  measuredBy: string;
+  unitPrice: number;
+  amount: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+/** One ingredient line deducted when kitchen/bar completed a menu order. */
+export interface RecipeStockConsumption {
+  id: number;
+  HotelName: string;
+  orderId: number;
+  menuItemTitle: string;
+  orderAmount: number;
+  station: string;
+  ingredientName: string;
+  amount: number;
+  measuredBy: string;
+  unitPrice: number;
+  shortfallAmount: number;
+  completedBy: string;
+  createdAt: Date | string;
+}
+
 /** Archived kitchen/bar-received inventory fully stocked out (fresh bazaar). */
 export interface FreshBazaarRow {
   id: number;

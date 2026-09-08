@@ -487,7 +487,7 @@ const CreditRegistrationForm = ({
           </AlertDescription>
         </Alert>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-3 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border h-fit">
+          <div className="lg:col-span-3 bg-muted/40 dark:bg-slate-900/50 p-6 rounded-xl border h-fit">
             <Tabs
               value={registrantMode}
               onValueChange={(v) => setRegistrantMode(v as "STAFF" | "COMPANY")}

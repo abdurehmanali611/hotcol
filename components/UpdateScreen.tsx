@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
-import { updateItem } from "@/lib/actions";
+import { updateItem, fetchItemRegistrations, type ItemRegistration } from "@/lib/actions";
 import { HoverOrTouchOverlay } from "@/components/ui/hover-or-touch-overlay";
 import { RecipeIngredientEditor } from "@/components/cafe/RecipeIngredientEditor";
 import {
@@ -28,6 +28,9 @@ import {
 } from "@/lib/cafeRecipe";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTenantModules } from "@/hooks/useTenantModules";
+import { tenantHasModule } from "@/lib/subscriptionModules";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 
 const MENU_TYPE_OPTIONS = [
   { id: 1, name: "BreakFast" },
@@ -57,6 +60,41 @@ export default function UpdateScreen({
     parseMenuRecipe(item.recipeJson),
   );
   const [activeTab, setActiveTab] = useState("details");
+  const [inventoryItems, setInventoryItems] = useState<ItemRegistration[]>([]);
+  const tenantModules = useTenantModules();
+  const hasInventory = tenantHasModule(tenantModules, "Inventory");
+  const scopeHotel = hotelName || item.HotelName || "";
+
+  useEffect(() => {
+    if (!hasInventory || !scopeHotel) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await fetchItemRegistrations();
+        if (cancelled) return;
+        setInventoryItems(Array.isArray(rows) ? rows : []);
+      } catch {
+        if (!cancelled) setInventoryItems([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasInventory, scopeHotel]);
+
+  const inventorySuggestions = useMemo(
+    () =>
+      inventoryItems
+        .filter((row) =>
+          rowHotelMatchesTenantScope(row.HotelName, scopeHotel),
+        )
+        .map((row) => ({
+          name: row.name,
+          measuredBy: row.measuredBy,
+          unitPrice: row.unitPrice,
+        })),
+    [inventoryItems, scopeHotel],
+  );
 
   const form = useForm<z.infer<typeof updateItemSchema>>({
     resolver: zodResolver(updateItemSchema),
@@ -252,6 +290,7 @@ export default function UpdateScreen({
                   itemName={itemName}
                   menuPrice={Number(menuPrice) || 0}
                   variant="embedded"
+                  inventorySuggestions={inventorySuggestions}
                 />
               </div>
             </div>

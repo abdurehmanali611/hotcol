@@ -115,6 +115,7 @@ import {
   CalendarDays,
   AlertTriangle,
   Ban,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -181,6 +182,7 @@ import Reports from "@/components/reports";
 import WaiterAndTable from "@/components/Waiter_And_Table";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
+import { RecipeUsageStatusPanel } from "@/components/inventory/RecipeUsageStatusPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
@@ -221,6 +223,7 @@ const managerSidebarIconMap: Record<
   CalendarDays,
   AlertTriangle,
   Ban,
+  UtensilsCrossed,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -237,6 +240,7 @@ const MANAGER_INVENTORY_TAB_IDS = new Set<TabId>([
   "department-leaders",
   "reports-inventory",
   "reports-movements",
+  "recipe-usage",
   "reports-purchases",
   "authorize-item-registrations",
   "authorize-purchases",
@@ -347,6 +351,7 @@ function ManagerContent() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [inventoryRefreshKey, setInventoryRefreshKey] = useState(0);
   const loadCoordinator = useLoadCoordinator();
   const [credentials, setCredentials] = useState<any[]>([]);
   const [items, setItems] = useState<ItemRegistration[]>([]);
@@ -496,6 +501,7 @@ function ManagerContent() {
           if (!isStale()) {
             setLoading(false);
             setRefreshing(false);
+            if (isRefresh) setInventoryRefreshKey((n) => n + 1);
           }
         }
       });
@@ -725,6 +731,8 @@ function ManagerContent() {
         "Browse active inventory lines registered for this hotel property.",
       "reports-movements":
         "Review stock movement history after cost-control decisions.",
+      "recipe-usage":
+        "Station on-hand and recipe ingredient deductions when kitchen or bar completes orders.",
       "reports-purchases":
         "Follow purchase requests through cost control and finance gates.",
       "authorize-item-registrations":
@@ -1306,6 +1314,16 @@ function ManagerContent() {
             hotelName={tenantScope || ""}
             onRefresh={() => loadData(true)}
           />
+        );
+
+      case "recipe-usage":
+        return (
+          <div className="p-3 sm:p-5 md:p-6">
+            <RecipeUsageStatusPanel
+              hotelName={tenantScope || ""}
+              refreshSignal={inventoryRefreshKey}
+            />
+          </div>
         );
 
       case "waiter-table":

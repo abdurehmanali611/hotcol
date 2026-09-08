@@ -38,4 +38,6 @@ export {
   fetchItemStatus,
   fetchFreshBazaarArchives,
   DeleteItemStatus,
+  fetchStationIngredientStocks,
+  fetchRecipeStockConsumptions,
 } from "./hotelInventory";

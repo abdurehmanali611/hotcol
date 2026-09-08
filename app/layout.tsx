@@ -19,20 +19,27 @@ export const metadata: Metadata = {
   description: "Hotel Management System",
 };
 
+/** Keep next-themes storage on dark so hydration never flips back to light. */
+const FORCE_DARK_BOOT = `(function(){try{localStorage.setItem("theme","dark");}catch(e){}document.documentElement.classList.add("dark");})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: FORCE_DARK_BOOT }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-dvh antialiased`}
       >
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
-          enableSystem
+          forcedTheme="dark"
+          enableSystem={false}
           disableTransitionOnChange
         >
           {children}

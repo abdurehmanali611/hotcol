@@ -809,3 +809,81 @@ export async function DeleteItemStatus(id: number) {
     throw error
   }
 }
+
+export async function fetchStationIngredientStocks() {
+  try {
+    return await dedupeHotelListRead("stationIngredientStocks:list", async () => {
+      const query = `
+      query {
+        stationIngredientStocks {
+          id
+          HotelName
+          station
+          itemName
+          measuredBy
+          unitPrice
+          amount
+          createdAt
+          updatedAt
+        }
+      }
+      `;
+      const response = await api.post(API_URL, { query });
+      if (response.data.errors) {
+        throw new Error(
+          response.data.errors[0]?.message ||
+            "Failed to fetch station ingredient stock",
+        );
+      }
+      return response.data.data.stationIngredientStocks || [];
+    });
+  } catch (error: any) {
+    toast.error("Failed to fetch station ingredient stock");
+    throw error;
+  }
+}
+
+export async function fetchRecipeStockConsumptions(range?: {
+  from?: Date | string;
+  to?: Date | string;
+}) {
+  try {
+    const query = `
+      query RecipeStockConsumptions($from: DateTime, $to: DateTime) {
+        recipeStockConsumptions(from: $from, to: $to) {
+          id
+          HotelName
+          orderId
+          menuItemTitle
+          orderAmount
+          station
+          ingredientName
+          amount
+          measuredBy
+          unitPrice
+          shortfallAmount
+          completedBy
+          createdAt
+        }
+      }
+    `;
+    const response = await api.post(API_URL, {
+      query,
+      variables: {
+        from: range?.from ? new Date(range.from).toISOString() : null,
+        to: range?.to ? new Date(range.to).toISOString() : null,
+      },
+    });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message ||
+          "Failed to fetch recipe stock usage",
+      );
+    }
+    return response.data.data.recipeStockConsumptions || [];
+  } catch (error: any) {
+    toast.error("Failed to fetch recipe stock usage");
+    throw error;
+  }
+}
+

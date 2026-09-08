@@ -3,16 +3,16 @@ import { cn } from "@/lib/utils";
 import { APEX_SOLUTION } from "@/constants/branding";
 
 export const AUTH_CARD_CLASS =
-  "auth-shimmer relative overflow-hidden rounded-2xl border-violet-500/20 bg-linear-to-br from-violet-500/14 via-card/85 to-indigo-500/14 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.72),0_0_44px_-12px_rgba(139,92,246,0.28)] ring-1 ring-violet-500/15 backdrop-blur-md before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-1 before:bg-linear-to-r before:from-violet-400 before:to-indigo-400";
+  "auth-shimmer relative overflow-hidden rounded-2xl border-violet-500/20 bg-linear-to-br from-violet-950/90 via-zinc-950/95 to-indigo-950/90 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.72),0_0_44px_-12px_rgba(139,92,246,0.28)] ring-1 ring-violet-500/15 backdrop-blur-md before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-1 before:bg-linear-to-r before:from-violet-400 before:to-indigo-400";
 
 export const AUTH_PANEL_WARM =
-  "rounded-2xl border border-violet-500/25 bg-linear-to-br from-violet-500/16 via-card/80 to-purple-500/8 p-4 shadow-sm ring-1 ring-violet-500/10";
+  "rounded-2xl border border-violet-500/25 bg-linear-to-br from-violet-500/20 via-zinc-950/70 to-purple-500/10 p-4 shadow-sm ring-1 ring-violet-500/10";
 
 export const AUTH_PANEL_COOL =
-  "rounded-2xl border border-indigo-500/25 bg-linear-to-br from-indigo-500/16 via-card/80 to-blue-900/8 p-4 shadow-sm ring-1 ring-indigo-500/10";
+  "rounded-2xl border border-indigo-500/25 bg-linear-to-br from-indigo-500/20 via-zinc-950/70 to-blue-900/20 p-4 shadow-sm ring-1 ring-indigo-500/10";
 
 export const AUTH_BAND =
-  "border-violet-500/20 bg-linear-to-r from-violet-500/14 via-card/40 to-indigo-500/10";
+  "border-violet-500/20 bg-linear-to-r from-violet-500/20 via-zinc-950/50 to-indigo-500/15";
 
 export const AUTH_EYEBROW =
   "text-[11px] font-medium tracking-[0.22em] text-violet-300 uppercase";

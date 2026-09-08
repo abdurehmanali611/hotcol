@@ -58,7 +58,7 @@ const PhoneInput = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-10 w-full animate-pulse rounded-md bg-gray-200"></div>
+      <div className="h-10 w-full animate-pulse rounded-md bg-muted"></div>
     ),
   },
 );
@@ -216,7 +216,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
                   "w-full min-w-0",
                   props.inputClassName,
                   {
-                    "h-12 px-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200":
+                    "h-12 px-4 rounded-xl border-2 border-border bg-input/40 text-foreground focus:border-primary focus:ring-2 focus:ring-ring/40 transition-all duration-200":
                       !props.inputClassName && !props.add,
                   },
                 )}
@@ -535,7 +535,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
             </CldUploadButton>
             {props.previewUrl && (
               <div className="relative flex flex-col items-center">
-                <div className="border rounded-lg p-2 bg-gray-50 w-fit">
+                <div className="border rounded-lg p-2 bg-muted w-fit">
                   {props.fileType === "video" ||
                   isVideoUrl(props.previewUrl) ? (
                     <div className="relative w-40 h-40">
@@ -612,7 +612,7 @@ const CustomFormField = (props: customProps) => {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {props.dialogError && (
-                <div className="flex items-center text-sm text-red-600 border border-red-300 bg-red-50 p-2 rounded-md">
+                <div className="flex items-center rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   {props.dialogError}
                 </div>

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,6 +21,10 @@ import { createItemSchema } from "@/lib/validations";
 import { Label } from "@/components/ui/label";
 import { RecipeIngredientEditor } from "@/components/cafe/RecipeIngredientEditor";
 import { menuRecipeToJson, type MenuRecipe } from "@/lib/cafeRecipe";
+import { fetchItemRegistrations, type ItemRegistration } from "@/lib/actions";
+import { useTenantModules } from "@/hooks/useTenantModules";
+import { tenantHasModule } from "@/lib/subscriptionModules";
+import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 
 interface ItemCreationFormProps {
   hotelName: string;
@@ -56,6 +60,40 @@ export default function ItemCreationForm({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<MenuRecipe | null>(null);
   const [recipeEditorKey, setRecipeEditorKey] = useState(0);
+  const [inventoryItems, setInventoryItems] = useState<ItemRegistration[]>([]);
+  const tenantModules = useTenantModules();
+  const hasInventory = tenantHasModule(tenantModules, "Inventory");
+
+  useEffect(() => {
+    if (!hasInventory || !hotelName) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await fetchItemRegistrations();
+        if (cancelled) return;
+        setInventoryItems(Array.isArray(rows) ? rows : []);
+      } catch {
+        if (!cancelled) setInventoryItems([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasInventory, hotelName]);
+
+  const inventorySuggestions = useMemo(
+    () =>
+      inventoryItems
+        .filter((row) =>
+          rowHotelMatchesTenantScope(row.HotelName, hotelName),
+        )
+        .map((row) => ({
+          name: row.name,
+          measuredBy: row.measuredBy,
+          unitPrice: row.unitPrice,
+        })),
+    [inventoryItems, hotelName],
+  );
 
   const form = useForm<z.infer<typeof createItemSchema>>({
     resolver: zodResolver(createItemSchema),
@@ -196,6 +234,7 @@ export default function ItemCreationForm({
                 value={recipe}
                 onChange={setRecipe}
                 itemName={form.watch("name")}
+                inventorySuggestions={inventorySuggestions}
               />
 
               <div className="rounded-xl border border-border/70 bg-muted/20 p-4 sm:p-5 space-y-3">

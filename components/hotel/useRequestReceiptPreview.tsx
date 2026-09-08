@@ -82,7 +82,7 @@ export function useRequestReceiptPreview({
             <div className="px-4 py-4 sm:px-6">
               <div
                 ref={printRef}
-                className="rounded-xl border border-border/60 bg-white dark:bg-card shadow-sm overflow-hidden"
+                className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden"
               >
                 <StoreItemRegistrationReceipt
                   bundle={bundle}

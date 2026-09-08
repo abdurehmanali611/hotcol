@@ -459,7 +459,7 @@ const AdminInventory = ({ hotelName, refreshSignal = 0 }: AdminInventoryProps) =
                   value="ItemsStatus"
                   className="px-6 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm"
                 >
-                  Usage Status
+                  Stock movements
                 </TabsTrigger>
               </TabsList>
 

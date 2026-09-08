@@ -373,7 +373,7 @@ export default function SignUp() {
                         fieldType={formFieldTypes.INPUT}
                         label="Business name"
                         placeholder="Your registered business name"
-                        inputClassName="h-11 w-full"
+                        inputClassName="auth-field h-11 w-full border-violet-500/30 bg-zinc-950 text-violet-50 placeholder:text-violet-200/45"
                       />
                       <CustomFormField
                         name="tinNumber"
@@ -381,7 +381,7 @@ export default function SignUp() {
                         fieldType={formFieldTypes.INPUT}
                         label="TIN (optional)"
                         placeholder="10 digits, or leave blank"
-                        inputClassName="h-11 w-full"
+                        inputClassName="auth-field h-11 w-full border-violet-500/30 bg-zinc-950 text-violet-50 placeholder:text-violet-200/45"
                       />
                     </div>
                     <FormField
@@ -430,7 +430,7 @@ export default function SignUp() {
                         fieldType={formFieldTypes.INPUT}
                         label="Username"
                         placeholder="Choose a username"
-                        inputClassName="h-11 w-full"
+                        inputClassName="auth-field h-11 w-full border-indigo-500/35 bg-zinc-950 text-indigo-50 placeholder:text-indigo-200/45"
                       />
                       <CustomFormField
                         name="Password"
@@ -438,7 +438,7 @@ export default function SignUp() {
                         fieldType={formFieldTypes.INPUT}
                         label="Password"
                         placeholder="Choose a password"
-                        inputClassName="h-11 w-full"
+                        inputClassName="auth-field h-11 w-full border-indigo-500/35 bg-zinc-950 text-indigo-50 placeholder:text-indigo-200/45"
                         type="password"
                       />
                     </div>

@@ -231,7 +231,7 @@ export function CafeTablePaymentModePanel({
                 </div>
                 <Badge
                   variant="outline"
-                  className="border-emerald-300/60 bg-white/60 px-3 py-1 text-base font-bold tabular-nums text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
+                  className="border-emerald-300/60 bg-background/80 px-3 py-1 text-base font-bold tabular-nums text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
                 >
                   {formatETB(tableTotal)} ETB
                 </Badge>

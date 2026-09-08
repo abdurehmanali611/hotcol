@@ -249,6 +249,7 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "grant-credential": "Credentials(Common)",
   "delete-credential": "Credentials(Common)",
   inventory: "Inventory",
+  "recipe-usage": "Inventory",
   "item-receipts": "Inventory",
   "credit-registrations": "Credit Management",
   "hr-overview": "HR Module",
@@ -289,6 +290,7 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "delete-credential": "Credentials(Common)",
   "reports-inventory": "Inventory",
   "reports-movements": "Inventory",
+  "recipe-usage": "Inventory",
   "reports-purchases": "Financial Management",
   "authorize-item-registrations": "Financial Management",
   "authorize-purchases": "Financial Management",
@@ -432,6 +434,12 @@ export function filterAdminTabId(
   tabId: string,
   modules: readonly ModuleOption[],
 ): boolean {
+  if (tabId === "recipe-usage") {
+    return (
+      tenantHasModule(modules, "Cafe and Restaurant") &&
+      tenantHasModule(modules, "Inventory")
+    );
+  }
   const required = ADMIN_TAB_MODULES[tabId];
   if (!required) return true;
   return tenantHasModule(modules, required);
@@ -449,6 +457,12 @@ export function filterManagerTabId(
   tabId: string,
   modules: readonly ModuleOption[],
 ): boolean {
+  if (tabId === "recipe-usage") {
+    return (
+      tenantHasModule(modules, "Cafe and Restaurant") &&
+      tenantHasModule(modules, "Inventory")
+    );
+  }
   const required = MANAGER_TAB_MODULES[tabId];
   if (!required) return true;
   return tenantHasModule(modules, required);

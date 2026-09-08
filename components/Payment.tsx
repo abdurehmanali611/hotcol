@@ -1256,14 +1256,14 @@ export default function PaymentComponent({
       </AlertDialog>
 
       {searchQuery && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border border-sky-500/30 bg-sky-500/10 p-3">
           <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-blue-600" />
-            <span className="text-blue-800 text-sm">
+            <Search className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+            <span className="text-sm text-sky-900 dark:text-sky-100">
               Searching for: <strong>{searchQuery}</strong>
             </span>
           </div>
-          <Badge variant="outline" className="bg-white">
+          <Badge variant="outline" className="bg-background/80">
             {filteredGroupedOrders.length}{" "}
             {filteredGroupedOrders.length === 1 ? "table" : "tables"} found
           </Badge>
@@ -1385,7 +1385,7 @@ export default function PaymentComponent({
                                 {tableDisplay}
                               </Badge>
                               {allCompleted && (
-                                <Badge className="bg-green-100 text-green-800 text-sm px-2 py-1">
+                                <Badge className="bg-emerald-500/15 text-emerald-800 text-sm px-2 py-1 dark:text-emerald-300">
                                   Ready
                                 </Badge>
                               )}
@@ -1764,8 +1764,8 @@ export default function PaymentComponent({
                                     }
                                     className={`${
                                       isReadyForPayment(order)
-                                        ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                        : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"
+                                        ? "bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300"
+                                        : "bg-amber-500/15 text-amber-900 hover:bg-amber-500/20 dark:text-amber-300"
                                     }`}
                                   >
                                     {order.status || "Pending"}
@@ -2041,7 +2041,7 @@ export default function PaymentComponent({
                                         {order.title}
                                       </h3>
                                       <div className="flex flex-wrap items-center gap-3 mt-2">
-                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                        <Badge className="bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300">
                                           {order.status || "Completed"}
                                         </Badge>
                             <Badge variant="outline">

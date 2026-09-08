@@ -84,7 +84,7 @@ const Login = () => {
                 label="Username"
                 placeholder="Enter your username"
                 labelClassName={AUTH_LABEL_WARM}
-                inputClassName="h-11 w-full border-violet-500/30 bg-black/25 text-violet-50 placeholder:text-violet-200/45 focus-visible:border-violet-400/60 focus-visible:ring-violet-400/25"
+                inputClassName="auth-field h-11 w-full border-violet-500/30 bg-zinc-950 text-violet-50 placeholder:text-violet-200/45 focus-visible:border-violet-400/60 focus-visible:ring-violet-400/25"
               />
             </div>
             <div className={AUTH_PANEL_COOL}>
@@ -95,7 +95,7 @@ const Login = () => {
                 label="Password"
                 placeholder="Enter your password"
                 labelClassName={AUTH_LABEL_COOL}
-                inputClassName="h-11 w-full border-indigo-500/35 bg-black/25 text-indigo-50 placeholder:text-indigo-200/45 focus-visible:border-indigo-400/70 focus-visible:ring-indigo-400/30"
+                inputClassName="auth-field h-11 w-full border-indigo-500/35 bg-zinc-950 text-indigo-50 placeholder:text-indigo-200/45 focus-visible:border-indigo-400/70 focus-visible:ring-indigo-400/30"
                 type="password"
               />
             </div>
