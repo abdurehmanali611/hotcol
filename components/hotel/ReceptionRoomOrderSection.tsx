@@ -20,6 +20,7 @@ import {
   roomServiceTableNo,
   withCafeOrderMarker,
 } from "@/lib/lodgingRoomService";
+import { useRecipeStockBlockedIds } from "@/hooks/useRecipeStockBlockedIds";
 import { toast } from "sonner";
 
 const PLACEHOLDER_IMG = "/placeholder-food.jpg";
@@ -83,6 +84,9 @@ export function ReceptionRoomOrderSection({
 }) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const roomOptions = useMemo(() => stayRoomOptions(stays), [stays]);
+  const { blockedIds: recipeStockBlockedIds } = useRecipeStockBlockedIds(items, {
+    enabled: mode === "food_drink",
+  });
 
   const chargeStay = async (
     stayId: number,
@@ -190,6 +194,7 @@ export function ReceptionRoomOrderSection({
           toast.message("Checkout and settlement are under Active stays")
         }
         onBatchOrderSuccess={() => void onCompleted()}
+        recipeStockBlockedIds={recipeStockBlockedIds}
         onRoomBatchSubmit={async ({ stayId, waiterName, items: batch }) => {
           await chargeStay(
             stayId,

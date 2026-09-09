@@ -51,6 +51,11 @@ interface OrderProps {
   }) => Promise<void>;
   /** Hide type select + category tabs (e.g. laundry ordering). */
   hideTypeFilters?: boolean;
+  /**
+   * Dual Cafe+Inventory: menu item ids blocked because recipe ingredients
+   * are missing from kitchen/bar station on-hand.
+   */
+  recipeStockBlockedIds?: ReadonlySet<number>;
 }
 
 type MenuCategory = "all" | "food" | "beverage" | "others";
@@ -66,6 +71,7 @@ export default function OrderComponent({
   roomOptions,
   onRoomBatchSubmit,
   hideTypeFilters = false,
+  recipeStockBlockedIds,
 }: OrderProps) {
   const [searchedText, setSearchedText] = useState("");
   const [selectedType, setSelectedType] = useState<string>("All");
@@ -170,7 +176,7 @@ export default function OrderComponent({
   return (
     <div className="relative flex min-h-full flex-col bg-linear-to-b from-background to-muted/20">
       <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-        <div className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-5">
+        <div className="mx-auto max-w-400 space-y-4 px-4 py-4 md:px-6 md:py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
@@ -292,7 +298,7 @@ export default function OrderComponent({
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 md:px-6 md:py-6">
+      <div className="mx-auto w-full max-w-400 flex-1 px-4 py-5 md:px-6 md:py-6">
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 py-20 text-center">
             <ShoppingCart className="mb-4 h-12 w-12 text-muted-foreground/30" />
@@ -310,6 +316,16 @@ export default function OrderComponent({
               const quantity = itemQuantities[item.id] || 1;
               const totalPrice = item.price * quantity;
               const suspended = !!item.isSuspended;
+              const stockBlocked = Boolean(
+                recipeStockBlockedIds?.has(item.id),
+              );
+              const unavailable = suspended || stockBlocked;
+              const unavailableLabel = suspended
+                ? "Temporarily Unavailable"
+                : "Out of station stock";
+              const unavailableHint = suspended
+                ? "Temporarily unavailable — cannot be ordered"
+                : "Recipe ingredients missing at kitchen/bar — stock out first";
 
               return (
                 <Card
@@ -317,20 +333,20 @@ export default function OrderComponent({
                   className={cn(
                     "group flex flex-col overflow-hidden border-border/70 shadow-sm transition-all hover:border-primary/40 hover:shadow-md",
                     isSelected && "border-primary ring-2 ring-primary/15",
-                    suspended &&
+                    unavailable &&
                       "border-dashed opacity-90 hover:border-border/70 hover:shadow-sm",
                   )}
-                  aria-disabled={suspended}
+                  aria-disabled={unavailable}
                 >
                   <button
                     type="button"
-                    disabled={suspended}
+                    disabled={unavailable}
                     className={cn(
                       "relative aspect-square w-full overflow-hidden bg-muted",
-                      suspended && "cursor-not-allowed",
+                      unavailable && "cursor-not-allowed",
                     )}
                     onClick={() => {
-                      if (!suspended) onItemSelect(item);
+                      if (!unavailable) onItemSelect(item);
                     }}
                   >
                     <Image
@@ -340,16 +356,16 @@ export default function OrderComponent({
                       sizes="(max-width: 640px) 50vw, 200px"
                       className={cn(
                         "object-cover transition-transform duration-300 group-hover:scale-105",
-                        suspended && "grayscale",
+                        unavailable && "grayscale",
                       )}
                     />
-                    {suspended ? (
+                    {unavailable ? (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/45">
                         <Badge
                           variant="secondary"
                           className="-rotate-6 bg-background/90 text-[11px] font-semibold uppercase tracking-wide text-foreground shadow-md"
                         >
-                          Temporarily Unavailable
+                          {unavailableLabel}
                         </Badge>
                       </div>
                     ) : null}
@@ -376,13 +392,13 @@ export default function OrderComponent({
                       </Badge>
                     </div>
 
-                    {suspended ? (
+                    {unavailable ? (
                       <p className="w-full rounded-lg bg-muted/60 px-2 py-1.5 text-center text-[11px] font-medium text-muted-foreground">
-                        Temporarily unavailable — cannot be ordered
+                        {unavailableHint}
                       </p>
                     ) : null}
 
-                    {isSelected && !suspended ? (
+                    {isSelected && !unavailable ? (
                       <div className="flex w-full items-center justify-between rounded-lg bg-primary/5 px-2 py-1.5">
                         <div className="flex items-center gap-1">
                           <Button
@@ -417,14 +433,14 @@ export default function OrderComponent({
                       <label
                         className={cn(
                           "flex items-center gap-2 text-xs text-muted-foreground",
-                          suspended
+                          unavailable
                             ? "cursor-not-allowed opacity-50"
                             : "cursor-pointer",
                         )}
                       >
                         <Checkbox
                           checked={isSelected}
-                          disabled={suspended}
+                          disabled={unavailable}
                           onCheckedChange={(checked) =>
                             handleItemCheck(item, checked === true)
                           }
@@ -436,10 +452,10 @@ export default function OrderComponent({
                         size="sm"
                         variant="secondary"
                         className="h-8 text-xs"
-                        disabled={suspended}
+                        disabled={unavailable}
                         onClick={() => onItemSelect(item)}
                       >
-                        {suspended ? "Unavailable" : "Order"}
+                        {unavailable ? "Unavailable" : "Order"}
                       </Button>
                     </div>
                   </CardFooter>
@@ -452,7 +468,7 @@ export default function OrderComponent({
 
       {selectedItems.length > 0 ? (
         <div className="sticky bottom-0 z-20 border-t bg-background/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur md:px-6">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3">
+          <div className="mx-auto flex max-w-400 flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <ShoppingBag className="h-5 w-5" />

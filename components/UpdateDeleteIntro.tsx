@@ -23,12 +23,14 @@ import {
   Loader2,
   PauseCircle,
   PlayCircle,
+  PackageX,
 } from "lucide-react";
 import UpdateScreen from "./UpdateScreen";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 import { updateItemSuspension } from "@/lib/actions";
+import { useRecipeStockBlockedIds } from "@/hooks/useRecipeStockBlockedIds";
 import { cn } from "@/lib/utils";
 
 export default function UpdateDeleteIntro({
@@ -41,6 +43,8 @@ export default function UpdateDeleteIntro({
   const [deletingItem, setDeletingItem] = useState<any>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [suspendingId, setSuspendingId] = useState<number | null>(null);
+  const { blockedIds: recipeStockBlockedIds, enforce: enforceRecipeStock } =
+    useRecipeStockBlockedIds(items || []);
 
   const filteredItems = (cat: string) =>
     items.filter((i: any) => i.category.toLowerCase() === cat.toLowerCase());
@@ -70,6 +74,15 @@ export default function UpdateDeleteIntro({
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
+      {enforceRecipeStock ? (
+        <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+          Inventory + Cafe are both active: items whose recipe ingredients are
+          missing from Kitchen/Bar station stock are blocked from ordering
+          (shown as{" "}
+          <span className="font-semibold">Out of station stock</span>), in
+          addition to manual suspension.
+        </p>
+      ) : null}
       <Tabs defaultValue="food" className="min-w-0">
         <TabsList className="grid h-10 w-full grid-cols-3 sm:max-w-md">
           <TabsTrigger value="Food" className="gap-1 px-1 text-xs sm:gap-2 sm:px-3 sm:text-sm">
@@ -87,6 +100,7 @@ export default function UpdateDeleteIntro({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredItems(cat).map((item: any) => {
                 const suspended = !!item.isSuspended;
+                const stockBlocked = recipeStockBlockedIds.has(item.id);
                 const busy = suspendingId === item.id;
                 return (
                 <Card key={item.id} className="group overflow-hidden border-none shadow-md hover:shadow-lg transition-all">
@@ -98,14 +112,23 @@ export default function UpdateDeleteIntro({
                         fill
                         className={cn(
                           "object-cover transition-all",
-                          suspended && "grayscale opacity-60",
+                          (suspended || stockBlocked) && "grayscale opacity-60",
                         )}
                       />
-                      <div className="absolute left-2 top-2 flex items-center gap-1">
+                      <div className="absolute left-2 top-2 flex flex-wrap items-center gap-1">
                         {suspended ? (
                           <Badge variant="destructive" className="gap-1 text-[10px] shadow-md">
                             <PauseCircle className="h-3 w-3" />
                             Suspended
+                          </Badge>
+                        ) : null}
+                        {stockBlocked ? (
+                          <Badge
+                            variant="secondary"
+                            className="gap-1 text-[10px] shadow-md border-amber-500/30 bg-amber-500/15 text-amber-950 dark:text-amber-100"
+                          >
+                            <PackageX className="h-3 w-3" />
+                            Out of station stock
                           </Badge>
                         ) : null}
                         <div className="hidden rounded-lg bg-background/90 p-0.5 shadow-md backdrop-blur-sm transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100">

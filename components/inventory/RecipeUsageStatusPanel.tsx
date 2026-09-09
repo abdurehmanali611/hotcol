@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  fetchItems,
   fetchRecipeStockConsumptions,
   fetchStationIngredientStocks,
+  type Item,
   type RecipeStockConsumption,
   type StationIngredientStock,
 } from "@/lib/actions";
@@ -14,6 +16,10 @@ import {
   matchesDailyCountStationFilter,
   normalizeKitchenBarStationKey,
 } from "@/lib/hotelDailyStation";
+import {
+  evaluateRecipeStationAvailability,
+  normalizeIngredientNameKey,
+} from "@/lib/recipeStationAvailability";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { Label } from "@/components/ui/label";
@@ -26,19 +32,17 @@ import {
 } from "@/components/ui/select";
 import { RecipeUsageDataTable } from "@/components/inventory/RecipeUsageDataTable";
 import {
-  recipeUsageStatusColumns,
-  type RecipeUsageStatusRow,
+  menuItemUsageStatusColumns,
+  type MenuItemUsageGroup,
 } from "@/lib/dataTableColumns/recipeUsage";
 
 type StationFilter = "ALL" | "KITCHEN" | "BAR";
 
 type Props = {
   hotelName: string;
-  /** Bumped by Admin/Manager header refresh. */
   refreshSignal?: number;
 };
 
-/** Refresh on-hand + usage together after kitchen/barista completes orders. */
 const LIVE_POLL_MS = 8_000;
 
 function startOfYmd(ymd: string): Date {
@@ -53,38 +57,126 @@ function endOfYmd(ymd: string): Date {
   return d;
 }
 
-function nameKey(name: string): string {
-  return String(name || "")
-    .normalize("NFKC")
-    .replace(/\u00a0/g, " ")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+function laterDate(
+  a: Date | string | null | undefined,
+  b: Date | string | null | undefined,
+): Date | string | null {
+  const ta = a ? new Date(a).getTime() : NaN;
+  const tb = b ? new Date(b).getTime() : NaN;
+  if (!Number.isFinite(ta) && !Number.isFinite(tb)) return null;
+  if (!Number.isFinite(ta)) return b ?? null;
+  if (!Number.isFinite(tb)) return a ?? null;
+  return ta >= tb ? (a ?? null) : (b ?? null);
 }
 
-function stockLookupKey(station: string, ingredient: string): string {
-  return `${normalizeKitchenBarStationKey(station)}\t${nameKey(ingredient)}`;
-}
-
-/** Map live station on-hand onto each usage-status (deduction) row. */
-function withLiveOnHand(
+function buildMenuItemUsageGroups(
   consumptions: RecipeStockConsumption[],
   stocks: StationIngredientStock[],
-): RecipeUsageStatusRow[] {
-  const onHandByKey = new Map<string, number>();
-  for (const s of stocks) {
-    const key = stockLookupKey(s.station, s.itemName);
-    const prev = onHandByKey.get(key) || 0;
-    onHandByKey.set(
-      key,
-      Math.round((prev + (Number(s.amount) || 0) + Number.EPSILON) * 100) / 100,
-    );
+  menuItems: Item[],
+): MenuItemUsageGroup[] {
+  type Acc = {
+    menuItemTitle: string;
+    station: string;
+    orderIds: Set<number>;
+    servingByOrder: Map<number, number>;
+    ingredients: Map<
+      string,
+      { ingredientName: string; measuredBy: string; amount: number; lineCount: number }
+    >;
+    recentLines: RecipeStockConsumption[];
+    lastUpdatedAt: Date | string | null;
+  };
+
+  const map = new Map<string, Acc>();
+
+  for (const c of consumptions) {
+    const title = String(c.menuItemTitle || "").trim();
+    if (!title) continue;
+    const station = normalizeKitchenBarStationKey(c.station);
+    if (station !== "KITCHEN" && station !== "BAR") continue;
+    const key = `${normalizeIngredientNameKey(title)}\t${station}`;
+    let row = map.get(key);
+    if (!row) {
+      row = {
+        menuItemTitle: title,
+        station,
+        orderIds: new Set(),
+        servingByOrder: new Map(),
+        ingredients: new Map(),
+        recentLines: [],
+        lastUpdatedAt: null,
+      };
+      map.set(key, row);
+    }
+    row.orderIds.add(c.orderId);
+    const prevServings = row.servingByOrder.get(c.orderId);
+    if (prevServings == null) {
+      row.servingByOrder.set(
+        c.orderId,
+        Math.max(0, Math.floor(Number(c.orderAmount) || 0)),
+      );
+    }
+    const ingKey = normalizeIngredientNameKey(c.ingredientName);
+    const ing = row.ingredients.get(ingKey) || {
+      ingredientName: String(c.ingredientName || "").trim(),
+      measuredBy: String(c.measuredBy || "").trim(),
+      amount: 0,
+      lineCount: 0,
+    };
+    ing.amount =
+      Math.round((ing.amount + (Number(c.amount) || 0) + Number.EPSILON) * 100) /
+      100;
+    ing.lineCount += 1;
+    if (!ing.measuredBy && c.measuredBy) ing.measuredBy = String(c.measuredBy).trim();
+    row.ingredients.set(ingKey, ing);
+    row.recentLines.push(c);
+    row.lastUpdatedAt = laterDate(row.lastUpdatedAt, c.createdAt);
   }
 
-  return consumptions.map((c) => ({
-    ...c,
-    onHand: onHandByKey.get(stockLookupKey(c.station, c.ingredientName)) || 0,
-  }));
+  const menuByName = new Map(
+    menuItems.map((i) => [normalizeIngredientNameKey(i.name), i]),
+  );
+
+  return [...map.entries()]
+    .map(([id, row]) => {
+      const servingTotal = [...row.servingByOrder.values()].reduce(
+        (s, n) => s + n,
+        0,
+      );
+      const recentLines = [...row.recentLines].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      const menuItem = menuByName.get(normalizeIngredientNameKey(row.menuItemTitle));
+      let servingsAvailable = 0;
+      if (menuItem) {
+        servingsAvailable = evaluateRecipeStationAvailability({
+          item: menuItem,
+          stocks,
+          servings: 1,
+        }).servingsAvailable;
+      } else {
+        servingsAvailable = Number.NaN;
+      }
+
+      return {
+        id,
+        menuItemTitle: row.menuItemTitle,
+        station: row.station,
+        orderCount: row.orderIds.size,
+        servingTotal,
+        servingsAvailable,
+        ingredientUsage: [...row.ingredients.values()].sort((a, b) =>
+          a.ingredientName.localeCompare(b.ingredientName),
+        ),
+        recentLines: recentLines.slice(0, 40),
+        lastUpdatedAt: row.lastUpdatedAt,
+      } satisfies MenuItemUsageGroup;
+    })
+    .sort((a, b) => {
+      if (a.station !== b.station) return a.station.localeCompare(b.station);
+      return a.menuItemTitle.localeCompare(b.menuItemTitle);
+    });
 }
 
 export function RecipeUsageStatusPanel({
@@ -96,6 +188,7 @@ export function RecipeUsageStatusPanel({
   const [consumptions, setConsumptions] = useState<RecipeStockConsumption[]>(
     [],
   );
+  const [menuItems, setMenuItems] = useState<Item[]>([]);
   const [fromYmd, setFromYmd] = useState(() => toYmdLocal(new Date()));
   const [toYmd, setToYmd] = useState(() => toYmdLocal(new Date()));
   const [station, setStation] = useState<StationFilter>("ALL");
@@ -107,15 +200,17 @@ export function RecipeUsageStatusPanel({
       const silent = Boolean(opts?.silent);
       if (!silent) setLoading(true);
       try {
-        const [stockRows, usageRows] = await Promise.all([
+        const [stockRows, usageRows, items] = await Promise.all([
           fetchStationIngredientStocks(),
           fetchRecipeStockConsumptions({
             from: startOfYmd(fromYmd),
             to: endOfYmd(toYmd),
           }),
+          fetchItems(),
         ]);
         setStocks(Array.isArray(stockRows) ? stockRows : []);
         setConsumptions(Array.isArray(usageRows) ? usageRows : []);
+        setMenuItems(Array.isArray(items) ? items : []);
         setLastSyncedAt(new Date());
       } catch (err) {
         const msg =
@@ -136,7 +231,6 @@ export function RecipeUsageStatusPanel({
     void load({ silent: false });
   }, [load, refreshSignal]);
 
-  // Same table continuously updates: usage rows appear, on-hand column drops.
   useEffect(() => {
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) return;
@@ -157,11 +251,11 @@ export function RecipeUsageStatusPanel({
   }, [load]);
 
   const rows = useMemo(() => {
-    const withStock = withLiveOnHand(consumptions, stocks);
-    return withStock.filter((row) =>
+    const groups = buildMenuItemUsageGroups(consumptions, stocks, menuItems);
+    return groups.filter((row) =>
       matchesDailyCountStationFilter(row.station, station),
     );
-  }, [consumptions, stocks, station]);
+  }, [consumptions, stocks, menuItems, station]);
 
   const today = toYmdLocal(new Date());
   const filtersActive =
@@ -174,11 +268,12 @@ export function RecipeUsageStatusPanel({
           Usage status
         </h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          Recipe deductions with live{" "}
-          <span className="font-medium text-foreground">On hand</span> and{" "}
-          <span className="font-medium text-foreground">Usage</span> columns.
-          When an order is completed, usage is added and on-hand is deducted in
-          this same table.
+          One row per menu item.{" "}
+          <span className="font-medium text-foreground">On hand</span> is how
+          many servings the station can still make;{" "}
+          <span className="font-medium text-foreground">Usage</span> hover shows
+          ingredient detail, click opens the full sheet. Completing an order
+          updates both.
           {hotelName ? ` · ${hotelName}` : ""}.
         </p>
         {lastSyncedAt ? (
@@ -237,12 +332,12 @@ export function RecipeUsageStatusPanel({
         </div>
       ) : (
         <RecipeUsageDataTable
-          columns={recipeUsageStatusColumns}
+          columns={menuItemUsageStatusColumns}
           data={rows}
           searchColumnId="menuItemTitle"
           searchPlaceholder="Search menu item…"
-          initialSorting={[{ id: "createdAt", desc: true }]}
-          emptyMessage="No recipe deductions in this range. Complete a kitchen/barista order that has a recipe — On hand and Usage will update in this table."
+          initialSorting={[{ id: "menuItemTitle", desc: false }]}
+          emptyMessage="No menu-item usage in this range yet. Complete kitchen/barista orders with recipes — rows appear here with on-hand and usage."
         />
       )}
     </div>

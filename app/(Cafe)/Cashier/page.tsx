@@ -50,6 +50,7 @@ import {
 } from "@/constants";
 import { filterCafeCashierNavId } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
+import { useRecipeStockBlockedIds } from "@/hooks/useRecipeStockBlockedIds";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
@@ -101,6 +102,7 @@ function CashierContent() {
   const loadCoordinator = useLoadCoordinator();
 
   const tenantModules = useTenantModules();
+  const { blockedIds: recipeStockBlockedIds } = useRecipeStockBlockedIds(items);
   const cafeOrderMode = useCafeOrderMode();
   const analog = isAnalogCafeOrderMode(cafeOrderMode);
   const cashierCanCancel = useCashierCancelOrdersEnabled();
@@ -307,6 +309,7 @@ function CashierContent() {
         onGoToPayment={() => setActiveView("payment")}
         analogPrint={analog}
         onBatchOrderSuccess={handleBatchOrderSuccess}
+        recipeStockBlockedIds={recipeStockBlockedIds}
       />
     ) : activeView === "payment" ? (
       <PaymentComponent

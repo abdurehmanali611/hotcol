@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { submitAnalogPrintedOrders } from "@/lib/analogCafeOrder";
+import { useRecipeStockBlockedIds } from "@/hooks/useRecipeStockBlockedIds";
 import { cn } from "@/lib/utils";
 
 type CartLine = Item & { orderAmount: number };
@@ -93,6 +94,8 @@ export function CafeCashierAddItemsDialog({
       ),
     [items, hotelName],
   );
+  const { blockedIds: recipeStockBlockedIds } =
+    useRecipeStockBlockedIds(menuItems);
 
   const cartQtyById = useMemo(() => {
     const map = new Map<number, number>();
@@ -335,19 +338,24 @@ export function CafeCashierAddItemsDialog({
                     const inCart = cartQtyById.get(item.id) ?? 0;
                     const station = orderStationLabel(item);
                     const suspended = !!item.isSuspended;
+                    const stockBlocked = recipeStockBlockedIds.has(item.id);
+                    const unavailable = suspended || stockBlocked;
+                    const unavailableLabel = suspended
+                      ? "Suspended"
+                      : "Out of station stock";
 
                     return (
                       <button
                         key={item.id}
                         type="button"
-                        disabled={suspended}
-                        aria-disabled={suspended}
+                        disabled={unavailable}
+                        aria-disabled={unavailable}
                         onClick={() => {
-                          if (!suspended) addToCart(item);
+                          if (!unavailable) addToCart(item);
                         }}
                         className={cn(
                           "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all",
-                          suspended
+                          unavailable
                             ? "cursor-not-allowed border-dashed bg-muted/30 opacity-70"
                             : inCart > 0
                               ? "border-primary/40 bg-primary/5 shadow-sm"
@@ -361,7 +369,7 @@ export function CafeCashierAddItemsDialog({
                             fill
                             className={cn(
                               "object-cover",
-                              suspended && "grayscale",
+                              unavailable && "grayscale",
                             )}
                             sizes="48px"
                           />
@@ -381,12 +389,12 @@ export function CafeCashierAddItemsDialog({
                               <StationIcon type={item.type} />
                               {station}
                             </Badge>
-                            {suspended ? (
+                            {unavailable ? (
                               <Badge
                                 variant="secondary"
                                 className="h-5 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
                               >
-                                Temporarily Unavailable
+                                {unavailableLabel}
                               </Badge>
                             ) : inCart > 0 ? (
                               <Badge className="h-5 px-1.5 text-[10px]">
@@ -398,7 +406,7 @@ export function CafeCashierAddItemsDialog({
                         <div
                           className={cn(
                             "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                            suspended
+                            unavailable
                               ? "bg-muted text-muted-foreground"
                               : "bg-primary/10 text-primary",
                           )}
@@ -436,7 +444,7 @@ export function CafeCashierAddItemsDialog({
                   <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-background/60 px-4 py-14 text-center">
                     <ShoppingBag className="mb-3 h-10 w-10 text-muted-foreground/40" />
                     <p className="text-sm font-medium">Cart is empty</p>
-                    <p className="mt-1 max-w-[200px] text-xs text-muted-foreground">
+                    <p className="mt-1 max-w-50 text-xs text-muted-foreground">
                       Tap items on the left to build the order for this table.
                     </p>
                   </div>
@@ -504,7 +512,7 @@ export function CafeCashierAddItemsDialog({
           <Button
             type="button"
             disabled={submitting || cart.length === 0}
-            className="min-w-[140px] gap-2"
+            className="min-w-35 gap-2"
             onClick={() => void handleSubmit()}
           >
             {submitting ? (
