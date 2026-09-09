@@ -3,11 +3,14 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
-import type {
-  RecipeStockConsumption,
-  StationIngredientStock,
-} from "@/lib/api/types";
+import type { RecipeStockConsumption } from "@/lib/api/types";
 import { AlertTriangle } from "lucide-react";
+
+/** Usage-status row = one recipe deduction, with live station on-hand attached. */
+export type RecipeUsageStatusRow = RecipeStockConsumption & {
+  /** Current station on-hand for this ingredient (live). */
+  onHand: number;
+};
 
 function formatQty(n: number, unit?: string): string {
   const q = Number(n) || 0;
@@ -30,61 +33,8 @@ function formatWhen(iso: Date | string): string {
   });
 }
 
-export const stationOnHandColumns: ColumnDef<StationIngredientStock>[] = [
-  {
-    accessorKey: "itemName",
-    header: "Ingredient",
-    cell: ({ row }) => (
-      <span className="font-medium text-foreground">{row.original.itemName}</span>
-    ),
-  },
-  {
-    accessorKey: "station",
-    header: "Station",
-    cell: ({ row }) => (
-      <Badge variant="secondary" className="font-normal">
-        {displayKitchenBarStation(row.original.station)}
-      </Badge>
-    ),
-  },
-  {
-    accessorKey: "amount",
-    header: () => <div className="text-right">On hand</div>,
-    cell: ({ row }) => {
-      const low = Number(row.original.amount) <= 0;
-      return (
-        <div className="text-right">
-          <Badge
-            variant={low ? "destructive" : "outline"}
-            className="tabular-nums"
-          >
-            {formatQty(row.original.amount, row.original.measuredBy)}
-          </Badge>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "measuredBy",
-    header: "Unit",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">
-        {row.original.measuredBy || "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Updated",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground tabular-nums">
-        {formatWhen(row.original.updatedAt)}
-      </span>
-    ),
-  },
-];
-
-export const recipeUsageColumns: ColumnDef<RecipeStockConsumption>[] = [
+/** Usage status table: On hand + Usage as columns (no view selector). */
+export const recipeUsageStatusColumns: ColumnDef<RecipeUsageStatusRow>[] = [
   {
     accessorKey: "createdAt",
     header: "When",
@@ -125,8 +75,25 @@ export const recipeUsageColumns: ColumnDef<RecipeStockConsumption>[] = [
     ),
   },
   {
+    accessorKey: "onHand",
+    header: () => <div className="text-right">On hand</div>,
+    cell: ({ row }) => {
+      const low = Number(row.original.onHand) <= 0;
+      return (
+        <div className="text-right">
+          <Badge
+            variant={low ? "destructive" : "outline"}
+            className="tabular-nums"
+          >
+            {formatQty(row.original.onHand, row.original.measuredBy)}
+          </Badge>
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: "amount",
-    header: () => <div className="text-right">Deducted</div>,
+    header: () => <div className="text-right">Usage</div>,
     cell: ({ row }) => (
       <div className="text-right font-medium tabular-nums text-foreground">
         −{formatQty(row.original.amount, row.original.measuredBy)}
@@ -166,3 +133,10 @@ export const recipeUsageColumns: ColumnDef<RecipeStockConsumption>[] = [
     ),
   },
 ];
+
+/** @deprecated Use recipeUsageStatusColumns */
+export const recipeUsageColumns = recipeUsageStatusColumns;
+/** @deprecated Use recipeUsageStatusColumns */
+export const stationOnHandColumns = recipeUsageStatusColumns;
+/** @deprecated Use recipeUsageStatusColumns */
+export const ingredientStationStatusColumns = recipeUsageStatusColumns;
