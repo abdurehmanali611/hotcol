@@ -302,11 +302,14 @@ export default function PaymentComponent({
 
       return matchesSearch;
     });
-  }, [groupedOrders, searchQuery, filterType, cafeTables]);
+  }, [groupedOrders, searchQuery, filterType, cafeTables, isReadyForPayment]);
 
-  const areAllOrdersCompleted = (tableOrders: Order[]) => {
-    return tableOrders.every((order) => isReadyForPayment(order));
-  };
+  const areAllOrdersCompleted = useCallback(
+    (tableOrders: Order[]) => {
+      return tableOrders.every((order) => isReadyForPayment(order));
+    },
+    [isReadyForPayment],
+  );
 
   const calculateTableTotal = (tableOrders: Order[]) => {
     return tableOrders.reduce((total, order) => {
@@ -319,7 +322,7 @@ export default function PaymentComponent({
       filteredGroupedOrders.filter(([, tableOrders]) =>
         areAllOrdersCompleted(tableOrders),
       ),
-    [filteredGroupedOrders],
+    [filteredGroupedOrders, areAllOrdersCompleted],
   );
 
   const allReadyTablesSelected =

@@ -218,7 +218,6 @@ function qtyCompatible(sigA, sigB) {
   const b = parse(sigB);
   if (a.length !== b.length) return false;
 
-  // Match as multisets of amounts; allow empty unit vs provided unit
   const used = new Set();
   for (const x of a) {
     let found = -1;
@@ -237,8 +236,159 @@ function qtyCompatible(sigA, sigB) {
 }
 
 /**
- * High-care similarity: same size/qty signature required; typo merge only on
- * letter cores. Never merge water 1/2 L with water 2 L.
+ * Domain product identities from operator approval notes.
+ * Same id → may merge (typos). Different id → never merge.
+ */
+function productIdentity(normalized) {
+  const n = normalized;
+  const core = letterCore(n);
+
+  // Cleaning soap/detergent (shbo) — includes "eka matebiya shbo"
+  if (
+    /\b(eka\s+mateb[ei]ya\s+)?(shbo|shebo|shibo)\b/.test(n) ||
+    core === "shbo" ||
+    core === "shebo" ||
+    core === "shibo" ||
+    /ekamateb.*shb/.test(core)
+  ) {
+    return "shbo_cleaning";
+  }
+
+  // Shiro / shro food ingredient (not cleaning)
+  if (
+    /\b(shro|shero|shiro|shrowet)\b/.test(n) ||
+    core === "shro" ||
+    core === "shero" ||
+    core === "shiro" ||
+    core === "shrowet" ||
+    /\byeshro\b/.test(n)
+  ) {
+    return "shiro_food";
+  }
+
+  // Fish fillet vs selit (food oilseed/ingredient)
+  if (
+    /\b(flite|filite|fillet|filet|flito|felite|felit)\b/.test(n) ||
+    ["flite", "filite", "fillet", "filet", "flito", "felite", "felit"].includes(
+      core,
+    )
+  ) {
+    return "fish_fillet";
+  }
+  if (/\bselit\b/.test(n) || core === "selit") return "selit_ingredient";
+
+  // Agricultural kosta vs industrial pasta vs packaging posta
+  if (/\b(kosta|koseta)\b/.test(n) || core === "kosta" || core === "koseta") {
+    return "kosta_food";
+  }
+  if (
+    (/\bpasta\b/.test(n) || core === "pasta") &&
+    !/\btomato\b/.test(n) &&
+    !/\bpeste\b/.test(n)
+  ) {
+    return "pasta_food";
+  }
+  if (/\bposta\b/.test(n) || core === "posta") return "posta_packaging";
+
+  // Flours
+  if (/\bwheat\s+flour\b/.test(n) || core === "wheatflour") return "wheat_flour";
+  if (/\bwhite\s+flour\b/.test(n) || core === "whiteflour") return "white_flour";
+
+  // Flaming / fire-starting keberete family
+  if (
+    /\b(keberete|keberet|kebrete|keberate|kebererti)\b/.test(n) ||
+    core.startsWith("keberet") ||
+    core === "kebrete"
+  ) {
+    return "keberete_flame";
+  }
+
+  // Coffee drink typos (coffee/coffe) — never powder / cup / mug ware
+  if (
+    !/\b(powder|powders|cup|cups|glass|glasses|mug|mugs)\b/.test(n) &&
+    (core === "coffee" || core === "coffe")
+  ) {
+    return "coffee_drink";
+  }
+  if (/\bcoffee\s+powder\b/.test(n) || core === "coffeepowder") {
+    return "coffee_powder";
+  }
+  if (
+    /\b(coffee|coffe)\s+(cup|cups)\b/.test(n) ||
+    core === "coffeecup" ||
+    core === "coffecup"
+  ) {
+    return "coffee_cup";
+  }
+
+  // Addis tea ingredient vs bag packaging
+  if (/\b(addis|adis|adiss)\s+tea\s+bags?\b/.test(n)) return "addis_tea_bag";
+  if (/\b(addis|adis|adiss)\s+tea\b/.test(n)) return "addis_tea";
+
+  // Short hardware — lamp ≈ lump (typo); both ≠ pump.
+  // Exact product only (do not tag "energy saving lamp" / "h2op … lamp").
+  if (core === "pump" || n === "pump") return "pump";
+  if (core === "lamp" || n === "lamp" || core === "lump" || n === "lump") {
+    return "lamp";
+  }
+
+  return null;
+}
+
+/** Serving / packaging role — coffee ≠ coffee cup; tea ≠ tea bag. */
+function roleSignature(normalized) {
+  const n = ` ${normalized} `;
+  if (/\b(cups?|glasses?|mugs?|plates?|bowls?|saucers?)\b/.test(n)) {
+    return "serving_ware";
+  }
+  if (
+    /\b(bags?|packet|packets|sachet|sachets|packaging|wrapper|wrappers|carton|cartons)\b/.test(
+      n,
+    )
+  ) {
+    return "packaging";
+  }
+  if (/\b(holder|holders|dispenser|dispensers)\b/.test(n)) return "accessory";
+  return "product";
+}
+
+/**
+ * Model / SKU tokens (Toner 85A ≠ Toner 83A ≠ plain Toner).
+ * Prefers trailing codes like 85a / 83a / 42a.
+ */
+function modelSignature(normalized) {
+  const n = normalized;
+  const models = [];
+  const re = /\b(\d{2,4})\s*([a-z])\b/gi;
+  let m;
+  while ((m = re.exec(n)) !== null) {
+    models.push(`${m[1]}${m[2].toLowerCase()}`);
+  }
+  // glued: toner83a
+  const glued = n.matchAll(/(\d{2,4}[a-z])\b/gi);
+  for (const g of glued) {
+    const token = g[1].toLowerCase();
+    if (!models.includes(token)) models.push(token);
+  }
+  if (models.length === 0) return "NONE";
+  return [...new Set(models)].sort().join("|");
+}
+
+function modelCompatible(a, b) {
+  return a === b;
+}
+
+function roleCompatible(a, b) {
+  return a === b;
+}
+
+/**
+ * High-care similarity:
+ * - qty / model / serving-role must agree
+ * - known domain identities never cross (shbo≠shro, pasta≠posta≠kosta, …)
+ * - same known identity may merge across wording (eka matebiya shbo ≈ shbo)
+ * - short cores: no fuzzy (blocks pump↔lamp, flite↔selit via weak edits)
+ * - lamp ≈ lump (same identity); coffee ≈ coffe; coffee powder / coffee cup stay separate
  */
 function similarEnough(a, b) {
   if (!a || !b) return false;
@@ -247,6 +397,27 @@ function similarEnough(a, b) {
   const qtyA = extractQtySignature(a);
   const qtyB = extractQtySignature(b);
   if (!qtyCompatible(qtyA, qtyB)) return false;
+
+  const modelA = modelSignature(a);
+  const modelB = modelSignature(b);
+  if (!modelCompatible(modelA, modelB)) return false;
+
+  const roleA = roleSignature(a);
+  const roleB = roleSignature(b);
+  if (!roleCompatible(roleA, roleB)) return false;
+
+  const idA = productIdentity(a);
+  const idB = productIdentity(b);
+  if (idA && idB && idA !== idB) return false;
+  if (idA && idB && idA === idB) return true;
+
+  // If only one side is tagged, do not fuzzy-merge into an untagged lookalike
+  // unless cores are exact (avoids shro absorbing unknown shebo-like noise).
+  if ((idA && !idB) || (!idA && idB)) {
+    const cA = letterCore(a);
+    const cB = letterCore(b);
+    return Boolean(cA && cA === cB);
+  }
 
   const coreA = letterCore(a);
   const coreB = letterCore(b);
@@ -257,28 +428,30 @@ function similarEnough(a, b) {
   const lenB = coreB.length;
   const minLen = Math.min(lenA, lenB);
   const maxLen = Math.max(lenA, lenB);
-  if (minLen < 4) return false;
-  // Reject large length gaps (salt vs selata, soft vs gebetasoftnapkin)
+
+  // Short product names: exact core only (no skeleton / edit distance)
+  if (minLen <= 5) return false;
+
   if (maxLen - minLen > Math.max(2, Math.floor(maxLen * 0.2))) return false;
 
   const skA = skeleton(coreA);
   const skB = skeleton(coreB);
+  // Skeleton only when long enough and not a known confusable family prefix
   if (
     skA &&
     skA === skB &&
-    skA.length >= 4 &&
-    Math.abs(lenA - lenB) <= 2
+    skA.length >= 5 &&
+    Math.abs(lenA - lenB) <= 2 &&
+    !/^(whtflr|pmp|lmp)/.test(skA)
   ) {
     return true;
   }
 
   const dist = levenshtein(coreA, coreB);
   const ratio = dist / maxLen;
-  // Very strict typo tolerance only
-  if (maxLen <= 5) return dist === 1;
   if (maxLen <= 9) return dist <= 1;
-  if (maxLen <= 14) return dist <= 2 && ratio <= 0.18;
-  return dist <= 2 && ratio <= 0.12;
+  if (maxLen <= 14) return dist <= 2 && ratio <= 0.15;
+  return dist <= 2 && ratio <= 0.1;
 }
 
 function proposeCrystal(variants) {
@@ -426,42 +599,99 @@ function extractRecipeIngredients(recipeJson) {
     .filter(Boolean);
 }
 
+/** Demo / sales illustration properties — names are not reliable for crystal approval. */
+const ILLUSTRATION_HOTEL_NAMES = new Set([
+  "apex cafe and restaurant",
+  "apex hotel",
+]);
+
+/**
+ * Build exclusion set: HotelName keys on inventory rows may be display name OR tinNumber.
+ * Prefer DB flag isIllustrationTenant; also hard-exclude known Apex illustration properties.
+ */
+async function loadExcludedTenantKeys(prisma) {
+  const users = await prisma.user.findMany({
+    select: {
+      HotelName: true,
+      tinNumber: true,
+      isIllustrationTenant: true,
+    },
+  });
+
+  const excluded = new Set();
+  for (const u of users) {
+    const display = String(u.HotelName || "").trim();
+    const displayKey = display.toLowerCase();
+    const tin = String(u.tinNumber || "").trim();
+    const namedIllustration = ILLUSTRATION_HOTEL_NAMES.has(displayKey);
+    if (u.isIllustrationTenant || namedIllustration) {
+      if (display) {
+        excluded.add(display);
+        excluded.add(displayKey);
+      }
+      if (tin) excluded.add(tin);
+    }
+  }
+  // Always exclude by canonical illustration display names (any casing)
+  for (const name of ILLUSTRATION_HOTEL_NAMES) {
+    excluded.add(name);
+  }
+  return excluded;
+}
+
+function isExcludedHotel(hotel, excludedKeys) {
+  const raw = String(hotel || "").trim();
+  if (!raw) return false;
+  if (excludedKeys.has(raw)) return true;
+  if (excludedKeys.has(raw.toLowerCase())) return true;
+  return ILLUSTRATION_HOTEL_NAMES.has(raw.toLowerCase());
+}
+
 async function collectHits(prisma) {
   /** @type {NameHit[]} */
   const hits = [];
+  const excludedHotels = await loadExcludedTenantKeys(prisma);
+  console.log(
+    `Excluding illustration tenants (${excludedHotels.size} keys): ${[...excludedHotels].slice(0, 12).join(", ")}${excludedHotels.size > 12 ? "…" : ""}`,
+  );
+
+  function push(raw, source, hotel) {
+    if (isExcludedHotel(hotel, excludedHotels)) return;
+    pushHit(hits, raw, source, hotel);
+  }
 
   const registrations = await prisma.itemRegistration.findMany({
     select: { name: true, HotelName: true },
   });
-  for (const r of registrations) pushHit(hits, r.name, "Inventory registration", r.HotelName);
+  for (const r of registrations) push(r.name, "Inventory registration", r.HotelName);
 
   const statuses = await prisma.itemStatus.findMany({
     select: { name: true, HotelName: true },
   });
-  for (const r of statuses) pushHit(hits, r.name, "Inventory movement", r.HotelName);
+  for (const r of statuses) push(r.name, "Inventory movement", r.HotelName);
 
   const purchases = await prisma.purchaseRequest.findMany({
     select: { itemName: true, HotelName: true },
   });
-  for (const r of purchases) pushHit(hits, r.itemName, "Purchase request", r.HotelName);
+  for (const r of purchases) push(r.itemName, "Purchase request", r.HotelName);
 
   const stockOuts = await prisma.stockOutRequest.findMany({
     select: { itemNameSnapshot: true, HotelName: true },
   });
   for (const r of stockOuts) {
-    pushHit(hits, r.itemNameSnapshot, "Stock-out snapshot", r.HotelName);
+    push(r.itemNameSnapshot, "Stock-out snapshot", r.HotelName);
   }
 
   const stationStock = await prisma.stationIngredientStock.findMany({
     select: { itemName: true, HotelName: true },
   });
-  for (const r of stationStock) pushHit(hits, r.itemName, "Station stock", r.HotelName);
+  for (const r of stationStock) push(r.itemName, "Station stock", r.HotelName);
 
   const consumptions = await prisma.recipeStockConsumption.findMany({
     select: { ingredientName: true, HotelName: true },
   });
   for (const r of consumptions) {
-    pushHit(hits, r.ingredientName, "Recipe consumption", r.HotelName);
+    push(r.ingredientName, "Recipe consumption", r.HotelName);
   }
 
   const menuItems = await prisma.item.findMany({
@@ -470,7 +700,7 @@ async function collectHits(prisma) {
   });
   for (const item of menuItems) {
     for (const name of extractRecipeIngredients(item.recipeJson)) {
-      pushHit(hits, name, "Recipe ingredient", item.HotelName);
+      push(name, "Recipe ingredient", item.HotelName);
     }
   }
 
@@ -552,8 +782,8 @@ function buildPdf(clusters, meta) {
   doc.setTextColor(50);
   const intro = [
     "Purpose: Propose one crystal (canonical) name per ingredient/product group so inventory, purchase requests, and recipe lines can align later.",
-    "Scope: All tenants. Sources: inventory registrations, inventory movements, purchase requests, stock-out snapshots, station stock, recipe ingredients, recipe consumptions.",
-    "Clustering (high care): different sizes/quantities never merge (e.g. Water 1/2 L ≠ Water 2 L). Only spelling/typo variants of the same product core are grouped. No loose substring matching.",
+    "Scope: Real tenants only (Apex Cafe and Restaurant / Apex Hotel illustration properties excluded). Sources: inventory registrations, inventory movements, purchase requests, stock-out snapshots, station stock, recipe ingredients, recipe consumptions.",
+    "Clustering (high care): different sizes never merge; packaging/serving roles stay separate (tea ≠ tea bag; coffee/coffe ≠ coffee powder ≠ coffee cup); model codes stay separate (Toner ≠ 85A ≠ 83A). Domain rules: shbo(cleaning)≠shro/shiro(food); flite≠selit; kosta≠pasta≠posta; wheat flour≠white flour; lamp≈lump but ≠pump; eka matebiya shbo≈shbo.",
     "Important: This PDF is for review/approval only. No database or system changes were made.",
     `Stats: ${meta.totalHits} name hits · ${meta.uniqueNormalized} unique spellings · ${meta.clusterCount} groups · ${meta.multiVariantCount} groups with multiple spellings · ${meta.tenantCount} tenants.`,
   ];

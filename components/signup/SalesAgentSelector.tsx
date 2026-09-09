@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -31,12 +30,6 @@ export function SalesAgentSelector({
   loading?: boolean;
   disabled?: boolean;
 }) {
-  const [ready, setReady] = useState(!loading);
-
-  useEffect(() => {
-    if (!loading) setReady(true);
-  }, [loading]);
-
   return (
     <Select
       value={value != null ? String(value) : NONE}
@@ -44,7 +37,7 @@ export function SalesAgentSelector({
         if (next === NONE) onChange(null);
         else onChange(Number(next));
       }}
-      disabled={disabled || !ready}
+      disabled={disabled || !!loading}
     >
       <SelectTrigger className="h-11 w-full">
         <SelectValue

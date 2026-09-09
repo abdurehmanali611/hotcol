@@ -96,6 +96,7 @@ import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyRevenueCards";
 import { RecipeUsageStatusPanel } from "@/components/inventory/RecipeUsageStatusPanel";
+import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
