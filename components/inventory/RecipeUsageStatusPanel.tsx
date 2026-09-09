@@ -10,6 +10,7 @@ import {
   type StationIngredientStock,
 } from "@/lib/actions";
 import { toYmdLocal, parseYmdToDate } from "@/lib/hotelDateYmd";
+import { matchesDailyCountStationFilter } from "@/lib/hotelDailyStation";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { Label } from "@/components/ui/label";
@@ -87,17 +88,15 @@ export function RecipeUsageStatusPanel({
   }, [load, refreshSignal]);
 
   const filteredStocks = useMemo(() => {
-    return stocks.filter((row) => {
-      const st = String(row.station || "").toUpperCase();
-      return station === "ALL" || st === station;
-    });
+    return stocks.filter((row) =>
+      matchesDailyCountStationFilter(row.station, station),
+    );
   }, [stocks, station]);
 
   const filteredUsage = useMemo(() => {
-    return consumptions.filter((row) => {
-      const st = String(row.station || "").toUpperCase();
-      return station === "ALL" || st === station;
-    });
+    return consumptions.filter((row) =>
+      matchesDailyCountStationFilter(row.station, station),
+    );
   }, [consumptions, station]);
 
   const today = toYmdLocal(new Date());
@@ -111,8 +110,10 @@ export function RecipeUsageStatusPanel({
           Usage status
         </h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          Station on-hand after stock-outs, and recipe deductions when kitchen
-          or bar completes a plated item
+          Station on-hand after stock-outs to Kitchen or Barista, and recipe
+          deductions when kitchen or barista completes a plated item. Ingredient
+          names match regardless of capitalisation (Milk = milk); Bar and
+          Barista are the same station.
           {hotelName ? ` · ${hotelName}` : ""}.
         </p>
       </header>
@@ -147,7 +148,7 @@ export function RecipeUsageStatusPanel({
               <SelectContent>
                 <SelectItem value="ALL">All stations</SelectItem>
                 <SelectItem value="KITCHEN">Kitchen</SelectItem>
-                <SelectItem value="BAR">Bar</SelectItem>
+                <SelectItem value="BAR">Bar / Barista</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -181,7 +182,7 @@ export function RecipeUsageStatusPanel({
           searchColumnId="menuItemTitle"
           searchPlaceholder="Search menu item…"
           initialSorting={[{ id: "createdAt", desc: true }]}
-          emptyMessage="No recipe deductions in this range. Complete a kitchen/bar order that has a recipe."
+          emptyMessage="No recipe deductions in this range. Complete a kitchen/barista order that has a recipe, with Inventory module on."
         />
       ) : (
         <RecipeUsageDataTable
@@ -190,7 +191,7 @@ export function RecipeUsageStatusPanel({
           searchColumnId="itemName"
           searchPlaceholder="Search ingredient…"
           initialSorting={[{ id: "itemName", desc: false }]}
-          emptyMessage="No station stock yet. Stock out inventory to Kitchen or Bar first."
+          emptyMessage="No station stock yet. Stock out inventory to Kitchen or Barista first."
         />
       )}
     </div>

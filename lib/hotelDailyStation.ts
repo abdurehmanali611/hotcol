@@ -9,7 +9,7 @@ import { resolveStockOutDestinationDepartmentCode } from "@/lib/departments";
 export const HOTEL_DAILY_COUNT_STATIONS = [
   { value: "KITCHEN", label: "Kitchen" },
   /** Canonical key stays `BAR` (DB / APIs); label matches store stock-out stakeholder "Barista". */
-  { value: "BAR", label: "Bar" },
+  { value: "BAR", label: "Bar / Barista" },
   { value: "ROOM", label: "Room" },
 ] as const;
 
