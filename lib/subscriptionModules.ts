@@ -6,6 +6,8 @@ import {
   type ModuleOption,
   isLodgingBusinessType,
 } from "@/constants";
+
+export type { ModuleOption } from "@/constants";
 import {
   DEFAULT_CAFE_ORDER_MODE,
   type CafeOrderMode,

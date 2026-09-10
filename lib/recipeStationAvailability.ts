@@ -3,11 +3,12 @@
  * Keep aligned with BackEnd/lib/recipeStockDecrement.js name/station matching.
  */
 
+import type { ModuleOption } from "@/constants";
 import { parseMenuRecipe, type MenuRecipe } from "@/lib/cafeRecipe";
 import { isBarStationOrder } from "@/lib/cafeOrderStation";
 import { normalizeKitchenBarStationKey } from "@/lib/hotelDailyStation";
 import type { Item, StationIngredientStock } from "@/lib/api/types";
-import { tenantHasModule, type ModuleOption } from "@/lib/subscriptionModules";
+import { tenantHasModule } from "@/lib/subscriptionModules";
 
 export function normalizeIngredientNameKey(name: string): string {
   return String(name || "")
