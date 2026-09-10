@@ -17,7 +17,13 @@ import {
 } from "@/components/ui/sheet";
 import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
+import {
+  ChevronRight,
+  Coffee,
+  Layers3,
+  Sparkles,
+  Utensils,
+} from "lucide-react";
 import type { MenuItemUsageGroup } from "@/lib/dataTableColumns/recipeUsage";
 
 function formatQty(n: number, unit?: string): string {
@@ -41,111 +47,175 @@ function formatWhen(iso: Date | string): string {
   });
 }
 
+function StationBadge({ station }: { station: string }) {
+  const isBar = String(station).toUpperCase().includes("BAR");
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-1 text-[10px] font-normal",
+        isBar
+          ? "border-violet-500/25 bg-violet-500/10 text-violet-800 dark:text-violet-200"
+          : "border-sky-500/25 bg-sky-500/10 text-sky-900 dark:text-sky-200",
+      )}
+    >
+      {isBar ? (
+        <Coffee className="h-3 w-3" />
+      ) : (
+        <Utensils className="h-3 w-3" />
+      )}
+      {displayKitchenBarStation(station)}
+    </Badge>
+  );
+}
+
+function IngredientLineCard({
+  name,
+  amount,
+  measuredBy,
+  lineCount,
+  compact = false,
+}: {
+  name: string;
+  amount: number;
+  measuredBy: string;
+  lineCount: number;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-border/50 bg-linear-to-br from-card to-muted/20 shadow-sm transition-colors",
+        compact ? "px-2.5 py-2" : "px-3 py-2.5",
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium truncate">{name}</p>
+        <p className="text-sm font-semibold tabular-nums shrink-0 text-rose-700 dark:text-rose-300">
+          −{formatQty(amount, measuredBy)}
+        </p>
+      </div>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        {lineCount} deduction{lineCount === 1 ? "" : "s"}
+        {!compact ? " in selected range" : ""}
+      </p>
+    </div>
+  );
+}
+
 function PreviewBody({ group }: { group: MenuItemUsageGroup }) {
   const preview = group.ingredientUsage.slice(0, 5);
   const more = group.ingredientUsage.length - preview.length;
   return (
-    <div className="space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">{group.menuItemTitle}</p>
-          <p className="text-[11px] text-muted-foreground">
-            {group.orderCount} order{group.orderCount === 1 ? "" : "s"} ·{" "}
-            {group.servingTotal} serving
-            {group.servingTotal === 1 ? "" : "s"} ·{" "}
-            {displayKitchenBarStation(group.station)}
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-sm font-semibold tracking-tight truncate">
+            {group.menuItemTitle}
           </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StationBadge station={group.station} />
+            <span className="text-[11px] text-muted-foreground">
+              {group.orderCount} order{group.orderCount === 1 ? "" : "s"} ·{" "}
+              {group.servingTotal} serving
+              {group.servingTotal === 1 ? "" : "s"}
+            </span>
+          </div>
         </div>
-        <p className="text-xs font-semibold tabular-nums shrink-0">
+        <div className="shrink-0 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold tabular-nums text-rose-700 dark:text-rose-300">
           −{group.servingTotal}
-        </p>
+        </div>
       </div>
+
       <div className="max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
         {preview.map((line) => (
-          <div
+          <IngredientLineCard
             key={line.ingredientName}
-            className="rounded-lg border border-border/60 bg-card/80 px-2.5 py-2"
-          >
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-sm font-medium truncate">
-                {line.ingredientName}
-              </p>
-              <p className="text-sm font-semibold tabular-nums shrink-0">
-                −{formatQty(line.amount, line.measuredBy)}
-              </p>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              {line.lineCount} deduction{line.lineCount === 1 ? "" : "s"}
-            </p>
-          </div>
+            name={line.ingredientName}
+            amount={line.amount}
+            measuredBy={line.measuredBy}
+            lineCount={line.lineCount}
+            compact
+          />
         ))}
       </div>
-      {more > 0 ? (
-        <p className="text-[11px] text-muted-foreground">
-          +{more} more ingredient{more === 1 ? "" : "s"} — click for full detail
-        </p>
-      ) : (
-        <p className="text-[11px] text-muted-foreground">Click for full detail</p>
-      )}
+
+      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+        <Sparkles className="h-3 w-3 opacity-70" />
+        {more > 0
+          ? `+${more} more ingredient${more === 1 ? "" : "s"} — open full detail`
+          : "Click for the full usage sheet"}
+      </p>
     </div>
   );
 }
 
 function SheetBody({ group }: { group: MenuItemUsageGroup }) {
+  const onHand = Number.isFinite(group.servingsAvailable)
+    ? group.servingsAvailable
+    : null;
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <div className="shrink-0 space-y-2 rounded-xl border border-border/60 bg-muted/25 p-3">
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums">
-          <span>
-            <span className="text-muted-foreground text-xs">Orders </span>
-            <span className="font-semibold">{group.orderCount}</span>
+    <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
+      <div className="shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-linear-to-br from-muted/40 via-background to-primary/5 p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+            <Layers3 className="h-3.5 w-3.5 text-primary/80" />
+            {group.ingredientUsage.length} ingredient
+            {group.ingredientUsage.length === 1 ? "" : "s"}
           </span>
-          <span>
-            <span className="text-muted-foreground text-xs">Servings </span>
-            <span className="font-semibold">{group.servingTotal}</span>
-          </span>
-          <span>
-            <span className="text-muted-foreground text-xs">On hand </span>
-            <span className="font-semibold">
-              {Number.isFinite(group.servingsAvailable)
-                ? `${group.servingsAvailable} left`
-                : "—"}
-            </span>
-          </span>
+          <StationBadge station={group.station} />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Orders", value: String(group.orderCount) },
+            { label: "Servings used", value: String(group.servingTotal) },
+            {
+              label: "On hand",
+              value: onHand == null ? "—" : `${onHand} left`,
+            },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-xl border border-border/50 bg-background/70 px-2.5 py-2 text-center shadow-sm backdrop-blur-sm"
+            >
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {stat.label}
+              </p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                {stat.value}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold">Ingredients used</h3>
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
+        <section className="space-y-2.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Ingredients used
+          </h3>
           <div className="space-y-1.5">
             {group.ingredientUsage.map((line) => (
-              <div
+              <IngredientLineCard
                 key={line.ingredientName}
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2.5"
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium">{line.ingredientName}</p>
-                  <p className="text-sm font-semibold tabular-nums">
-                    −{formatQty(line.amount, line.measuredBy)}
-                  </p>
-                </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {line.lineCount} deduction{line.lineCount === 1 ? "" : "s"} in
-                  range
-                </p>
-              </div>
+                name={line.ingredientName}
+                amount={line.amount}
+                measuredBy={line.measuredBy}
+                lineCount={line.lineCount}
+              />
             ))}
           </div>
         </section>
 
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold">Recent deductions</h3>
+        <section className="space-y-2.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent deductions
+          </h3>
           <div className="space-y-1.5">
             {group.recentLines.map((line) => (
               <div
                 key={line.id}
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2"
+                className="rounded-xl border border-border/50 bg-card/90 px-3 py-2.5 shadow-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium truncate">
@@ -155,9 +225,11 @@ function SheetBody({ group }: { group: MenuItemUsageGroup }) {
                     {formatWhen(line.createdAt)}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  −{formatQty(line.amount, line.measuredBy)} · order #
-                  {line.orderId} ×{line.orderAmount}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  <span className="font-medium tabular-nums text-rose-700 dark:text-rose-300">
+                    −{formatQty(line.amount, line.measuredBy)}
+                  </span>
+                  {" · "}order #{line.orderId} ×{line.orderAmount}
                   {line.completedBy ? ` · ${line.completedBy}` : ""}
                 </p>
               </div>
@@ -226,8 +298,8 @@ export function MenuItemUsageDetailTrigger({
           <button
             type="button"
             className={cn(
-              "group/detail max-w-full rounded-md text-left outline-none transition-colors",
-              "hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/40",
+              "group/detail max-w-full rounded-md text-left outline-none transition-all",
+              "hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring/40",
               "cursor-pointer",
               className,
             )}
@@ -249,15 +321,15 @@ export function MenuItemUsageDetailTrigger({
           >
             <span className="inline-flex max-w-full items-center gap-1">
               <span className="min-w-0 flex-1">{children}</span>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/detail:opacity-70" />
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-all group-hover/detail:translate-x-0.5 group-hover/detail:opacity-80" />
             </span>
           </button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
           side="bottom"
-          sideOffset={6}
-          className="w-[min(100vw-2rem,22rem)] p-3 shadow-lg border-border/70"
+          sideOffset={8}
+          className="w-[min(100vw-2rem,23rem)] rounded-2xl border-border/70 p-3.5 shadow-xl"
           onMouseEnter={schedulePreviewOpen}
           onMouseLeave={schedulePreviewClose}
           onOpenAutoFocus={(e) => e.preventDefault()}
@@ -266,11 +338,11 @@ export function MenuItemUsageDetailTrigger({
           <Button
             type="button"
             size="sm"
-            variant="secondary"
-            className="mt-3 w-full cursor-pointer"
+            className="mt-3.5 w-full cursor-pointer rounded-xl"
             onClick={openSheet}
           >
             Open full detail
+            <ChevronRight className="ml-1 h-3.5 w-3.5" />
           </Button>
         </PopoverContent>
       </Popover>
@@ -278,15 +350,15 @@ export function MenuItemUsageDetailTrigger({
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="flex w-full flex-col gap-0 sm:max-w-lg p-0"
+          className="flex w-full flex-col gap-0 border-l border-border/70 p-0 sm:max-w-lg"
         >
-          <SheetHeader className="shrink-0 space-y-1 border-b border-border/60 px-5 py-4 pr-12 text-left">
-            <SheetTitle className="text-base leading-snug">
+          <SheetHeader className="shrink-0 space-y-1.5 border-b border-border/60 bg-linear-to-br from-background via-background to-primary/4 px-5 py-5 pr-12 text-left">
+            <SheetTitle className="text-lg font-semibold leading-snug tracking-tight">
               {group.menuItemTitle}
             </SheetTitle>
-            <SheetDescription className="text-xs text-pretty">
-              Recipe usage for this menu item — hover preview and full sheet keep
-              ingredient deductions auditable.
+            <SheetDescription className="text-xs text-pretty text-muted-foreground">
+              Live recipe usage for this menu item — ingredients deducted when
+              kitchen or barista completes the order.
             </SheetDescription>
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
@@ -305,7 +377,10 @@ export function MenuItemUsageTriggerBadge({
 }) {
   return (
     <MenuItemUsageDetailTrigger group={group} className="px-1 py-0.5 -mx-1">
-      <Badge variant="outline" className="tabular-nums font-medium cursor-pointer">
+      <Badge
+        variant="outline"
+        className="cursor-pointer tabular-nums font-medium shadow-sm"
+      >
         −{group.servingTotal} serving{group.servingTotal === 1 ? "" : "s"}
       </Badge>
     </MenuItemUsageDetailTrigger>

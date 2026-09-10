@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { displayKitchenBarStation } from "@/lib/hotelDailyStation";
 import type { RecipeStockConsumption } from "@/lib/api/types";
 import { MenuItemUsageDetailTrigger } from "@/components/inventory/MenuItemUsageDetailTrigger";
+import { cn } from "@/lib/utils";
+import { Coffee, Utensils } from "lucide-react";
 
 export type MenuItemIngredientUsage = {
   ingredientName: string;
@@ -40,6 +42,29 @@ function formatWhen(iso: Date | string | null | undefined): string {
   });
 }
 
+function StationChip({ station }: { station: string }) {
+  const label = displayKitchenBarStation(station);
+  const isBar = String(station).toUpperCase().includes("BAR");
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-1.5 font-normal border-border/70 bg-background/80 shadow-sm",
+        isBar
+          ? "text-violet-800 dark:text-violet-200 border-violet-500/25 bg-violet-500/10"
+          : "text-sky-900 dark:text-sky-200 border-sky-500/25 bg-sky-500/10",
+      )}
+    >
+      {isBar ? (
+        <Coffee className="h-3 w-3 opacity-80" />
+      ) : (
+        <Utensils className="h-3 w-3 opacity-80" />
+      )}
+      {label}
+    </Badge>
+  );
+}
+
 /** Usage status: one row per menu item — On hand + Usage (hover/sheet). */
 export const menuItemUsageStatusColumns: ColumnDef<MenuItemUsageGroup>[] = [
   {
@@ -55,13 +80,13 @@ export const menuItemUsageStatusColumns: ColumnDef<MenuItemUsageGroup>[] = [
       return (
         <MenuItemUsageDetailTrigger
           group={g}
-          className="px-1 py-0.5 -mx-1"
+          className="px-1.5 py-1 -mx-1.5 rounded-lg"
         >
-          <div className="flex flex-col gap-0.5 max-w-65">
-            <span className="font-medium truncate underline-offset-2 group-hover/detail:underline">
+          <div className="flex flex-col gap-0.5 max-w-[16rem]">
+            <span className="font-semibold tracking-tight truncate underline-offset-4 decoration-primary/40 group-hover/detail:underline group-hover/detail:decoration-primary/70">
               {g.menuItemTitle}
             </span>
-            <span className="text-[10px] leading-snug text-muted-foreground">
+            <span className="text-[10px] leading-snug text-muted-foreground/90">
               {footerParts.join(" · ")}
             </span>
           </div>
@@ -72,28 +97,41 @@ export const menuItemUsageStatusColumns: ColumnDef<MenuItemUsageGroup>[] = [
   {
     accessorKey: "station",
     header: "Station",
-    cell: ({ row }) => (
-      <Badge variant="secondary" className="font-normal">
-        {displayKitchenBarStation(row.original.station)}
-      </Badge>
-    ),
+    cell: ({ row }) => <StationChip station={row.original.station} />,
   },
   {
     accessorKey: "servingsAvailable",
     header: () => <div className="text-right">On hand</div>,
     cell: ({ row }) => {
       const left = Number(row.original.servingsAvailable);
-      const low = !Number.isFinite(left) || left <= 0;
-      const label = !Number.isFinite(left)
+      const unknown = !Number.isFinite(left);
+      const empty = !unknown && left <= 0;
+      const low = !unknown && left > 0 && left <= 3;
+      const label = unknown
         ? "—"
-        : `${left} serving${left === 1 ? "" : "s"} left`;
+        : `${left} serving${left === 1 ? "" : "s"}`;
       return (
         <div className="text-right">
           <Badge
-            variant={low ? "destructive" : "outline"}
-            className="tabular-nums"
+            variant="outline"
+            className={cn(
+              "tabular-nums font-medium shadow-sm",
+              empty &&
+                "border-destructive/35 bg-destructive/10 text-destructive",
+              low &&
+                !empty &&
+                "border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200",
+              !empty &&
+                !low &&
+                !unknown &&
+                "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
+              unknown && "text-muted-foreground",
+            )}
           >
             {label}
+            {!unknown ? (
+              <span className="ml-1 font-normal opacity-70">left</span>
+            ) : null}
           </Badge>
         </div>
       );
@@ -106,15 +144,18 @@ export const menuItemUsageStatusColumns: ColumnDef<MenuItemUsageGroup>[] = [
       <div className="text-right">
         <MenuItemUsageDetailTrigger
           group={row.original}
-          className="inline-flex justify-end px-1 py-0.5"
+          className="inline-flex justify-end rounded-lg px-1.5 py-1"
         >
-          <span className="font-medium tabular-nums text-foreground underline-offset-2 group-hover/detail:underline">
-            −{row.original.servingTotal} serving
-            {row.original.servingTotal === 1 ? "" : "s"}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-foreground shadow-sm underline-offset-4 group-hover/detail:underline group-hover/detail:bg-muted/70">
+            <span className="text-rose-600/90 dark:text-rose-300">−</span>
+            {row.original.servingTotal}
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              srv
+            </span>
           </span>
         </MenuItemUsageDetailTrigger>
-        <p className="text-[11px] text-muted-foreground">
-          Hover for ingredients
+        <p className="mt-1 text-[10px] text-muted-foreground/80">
+          Hover · click detail
         </p>
       </div>
     ),
@@ -123,7 +164,7 @@ export const menuItemUsageStatusColumns: ColumnDef<MenuItemUsageGroup>[] = [
     accessorKey: "lastUpdatedAt",
     header: "Updated",
     cell: ({ row }) => (
-      <span className="text-muted-foreground tabular-nums">
+      <span className="text-xs tabular-nums text-muted-foreground">
         {formatWhen(row.original.lastUpdatedAt)}
       </span>
     ),
