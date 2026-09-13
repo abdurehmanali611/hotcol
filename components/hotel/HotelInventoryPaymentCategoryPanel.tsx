@@ -30,10 +30,12 @@ import {
   itemPaymentLabel,
   lineOwedETB,
   lineVatETB,
+  mergeCafeInventoryPaymentRows,
   mergeInventoryPaymentRows,
   registeredAmountOf,
 } from "@/lib/hotelInventoryPayment";
 import type { InventoryPaymentRow } from "@/lib/hotelInventoryPayment";
+import type { ItemStatus } from "@/lib/actions";
 import { buildInventoryPaymentGroupColumns } from "@/lib/dataTableColumns/inventoryPayment";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
 import { formatQtyWithUnit } from "@/lib/hotelDisplayLabels";
@@ -60,7 +62,9 @@ export type PaymentCategoryMode =
   | "with-vat"
   | "without-vat";
 
-const COPY: Record<
+export type InventoryPaymentPanelVariant = "hotel" | "cafe";
+
+const HOTEL_COPY: Record<
   PaymentCategoryMode,
   { title: string; description: string; sheet: string }
 > = {
@@ -96,6 +100,42 @@ const COPY: Record<
   },
 };
 
+const CAFE_COPY: Record<
+  PaymentCategoryMode,
+  { title: string; description: string; sheet: string }
+> = {
+  all: {
+    title: "All inventory payment & tax lines",
+    description:
+      "Café store receiving only — lines still in store plus store-out history. No fresh bazaar or department receive.",
+    sheet: "All_payment_tax",
+  },
+  credit: {
+    title: "Credit receiving vouchers",
+    description:
+      "Store-received lines on supplier credit (still in store or already stored out).",
+    sheet: "Credit_vouchers",
+  },
+  paid: {
+    title: "Paid receiving items",
+    description:
+      "Store-received lines where the supplier has been paid in full at registration.",
+    sheet: "Paid_receiving",
+  },
+  "with-vat": {
+    title: "Items purchased with VAT",
+    description:
+      "Store registrations where unit price includes 15% VAT on the purchase.",
+    sheet: "With_VAT",
+  },
+  "without-vat": {
+    title: "Items purchased without VAT",
+    description:
+      "Store registrations recorded at net unit price without VAT.",
+    sheet: "Without_VAT",
+  },
+};
+
 const CREDIT_AMOUNT_OPTIONS: { id: CreditAmountFilter; label: string }[] = [
   { id: "all", label: "All credit" },
   { id: "under_10k", label: "Under 10k ETB" },
@@ -105,7 +145,7 @@ const CREDIT_AMOUNT_OPTIONS: { id: CreditAmountFilter; label: string }[] = [
 
 type VatFilter = "all" | "with" | "without";
 type PayFilter = "all" | "credit" | "paid";
-type SourceFilter = "all" | "store" | "fresh_bazaar";
+type SourceFilter = "all" | "store" | "fresh_bazaar" | "depleted";
 
 const VAT_FILTER_OPTIONS: { id: VatFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -119,10 +159,16 @@ const PAY_FILTER_OPTIONS: { id: PayFilter; label: string }[] = [
   { id: "credit", label: "On credit" },
 ];
 
-const SOURCE_FILTER_OPTIONS: { id: SourceFilter; label: string }[] = [
+const HOTEL_SOURCE_FILTER_OPTIONS: { id: SourceFilter; label: string }[] = [
   { id: "all", label: "Store + fresh bazaar" },
   { id: "store", label: "Store / stocked out (non-fresh)" },
   { id: "fresh_bazaar", label: "Fresh bazaar only (kitchen/bar)" },
+];
+
+const CAFE_SOURCE_FILTER_OPTIONS: { id: SourceFilter; label: string }[] = [
+  { id: "all", label: "Store in + store out" },
+  { id: "store", label: "Still in store" },
+  { id: "depleted", label: "Store out only" },
 ];
 
 const DEPARTMENT_SELECT_ALL = "__all_departments__";
@@ -150,13 +196,15 @@ export function HotelInventoryPaymentCategoryPanel({
   inventoryItems,
   freshBazaarArchives = [],
   stockOutMovements = [],
+  itemStatuses = [],
+  variant = "hotel",
 }: {
   mode: PaymentCategoryMode;
   tenantLabel: string;
   inventoryItems: ItemRegistration[];
-  /** Fully stocked-out kitchen/bar-received lines archived as fresh bazaar. */
+  /** Fully stocked-out kitchen/bar-received lines archived as fresh bazaar (hotel only). */
   freshBazaarArchives?: FreshBazaarRow[];
-  /** Approved stock movements — used to sum registered qty and classify fresh bazaar. */
+  /** Approved stock movements — used to sum registered qty and classify fresh bazaar (hotel). */
   stockOutMovements?: {
     itemRegistrationId: number;
     amount: number;
@@ -165,8 +213,16 @@ export function HotelInventoryPaymentCategoryPanel({
     requestedByDepartment?: string | null;
     stakeHolderOrReason?: string | null;
   }[];
+  /** Café inactive store-out / wastage / return history (cafe only). */
+  itemStatuses?: ItemStatus[];
+  /** Hotel keeps fresh bazaar + department filters; cafe is store receive only. */
+  variant?: InventoryPaymentPanelVariant;
 }) {
-  const meta = COPY[mode];
+  const isCafe = variant === "cafe";
+  const meta = (isCafe ? CAFE_COPY : HOTEL_COPY)[mode];
+  const sourceFilterOptions = isCafe
+    ? CAFE_SOURCE_FILTER_OPTIONS
+    : HOTEL_SOURCE_FILTER_OPTIONS;
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [creditAmountFilter, setCreditAmountFilter] =
@@ -176,7 +232,7 @@ export function HotelInventoryPaymentCategoryPanel({
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   /** Empty = all suppliers; otherwise case-insensitive contains match. */
   const [supplierQuery, setSupplierQuery] = useState("");
-  /** Empty = all departments. Shown for credit / fully paid modes. */
+  /** Empty = all departments. Hotel credit/paid/VAT modes only. */
   const [departmentFilter, setDepartmentFilter] = useState("");
 
   const { options: departmentFilterOptions } = useDepartmentLeaderSelectOptions(
@@ -184,10 +240,11 @@ export function HotelInventoryPaymentCategoryPanel({
   );
 
   const showDepartmentFilter =
-    mode === "credit" ||
-    mode === "paid" ||
-    mode === "with-vat" ||
-    mode === "without-vat";
+    !isCafe &&
+    (mode === "credit" ||
+      mode === "paid" ||
+      mode === "with-vat" ||
+      mode === "without-vat");
   const inventoryGroupColumns = useMemo(
     () =>
       buildInventoryPaymentGroupColumns({
@@ -198,12 +255,20 @@ export function HotelInventoryPaymentCategoryPanel({
 
   const paymentRows = useMemo(
     () =>
-      mergeInventoryPaymentRows(
-        inventoryItems,
-        freshBazaarArchives,
-        stockOutMovements,
-      ),
-    [inventoryItems, freshBazaarArchives, stockOutMovements],
+      isCafe
+        ? mergeCafeInventoryPaymentRows(inventoryItems, itemStatuses)
+        : mergeInventoryPaymentRows(
+            inventoryItems,
+            freshBazaarArchives,
+            stockOutMovements,
+          ),
+    [
+      isCafe,
+      inventoryItems,
+      itemStatuses,
+      freshBazaarArchives,
+      stockOutMovements,
+    ],
   );
 
   const supplierOptions = useMemo(() => {
@@ -256,13 +321,20 @@ export function HotelInventoryPaymentCategoryPanel({
   const filtered = useMemo(() => {
     return filterRowsByMode(paymentRows, mode)
       .filter((r) => {
-        if (sourceFilter === "store" && r.paymentSource === "fresh_bazaar") {
-          return false;
+        if (sourceFilter === "store") {
+          if (isCafe) {
+            if (r.paymentSource !== "store") return false;
+          } else if (r.paymentSource === "fresh_bazaar") {
+            return false;
+          }
         }
         if (
           sourceFilter === "fresh_bazaar" &&
           r.paymentSource !== "fresh_bazaar"
         ) {
+          return false;
+        }
+        if (sourceFilter === "depleted" && r.paymentSource !== "depleted") {
           return false;
         }
         if (
@@ -309,14 +381,19 @@ export function HotelInventoryPaymentCategoryPanel({
         );
         if (sup !== 0) return sup;
         const src =
-          (a.paymentSource === "fresh_bazaar" ? 1 : 0) -
-          (b.paymentSource === "fresh_bazaar" ? 1 : 0);
+          (a.paymentSource === "fresh_bazaar" || a.paymentSource === "depleted"
+            ? 1
+            : 0) -
+          (b.paymentSource === "fresh_bazaar" || b.paymentSource === "depleted"
+            ? 1
+            : 0);
         if (src !== 0) return src;
         return String(a.name).localeCompare(String(b.name));
       });
   }, [
     paymentRows,
     mode,
+    isCafe,
     sourceFilter,
     supplierQueryNormalized,
     dateFrom,
@@ -362,7 +439,15 @@ export function HotelInventoryPaymentCategoryPanel({
         depletedQty += q;
       } else {
         storeLines += 1;
-        storeQty += q;
+        const onHandRaw = Number(r.onHandAmount);
+        const onHand =
+          Number.isFinite(onHandRaw) && onHandRaw >= 0 ? onHandRaw : q;
+        const stockedFromLive = Math.max(0, q - onHand);
+        storeQty += onHand;
+        if (stockedFromLive > 0) {
+          depletedQty += stockedFromLive;
+          depletedLines += 1;
+        }
       }
     }
     return {
@@ -426,12 +511,26 @@ export function HotelInventoryPaymentCategoryPanel({
                 {meta.description}
               </CardDescription>
               <p className="text-xs text-muted-foreground pt-1 tabular-nums">
-                Loaded: {sourceCounts.store} store · {sourceCounts.fresh} fresh
-                bazaar ({sourceCounts.freshSupplierCount} supplier
-                {sourceCounts.freshSupplierCount !== 1 ? "s" : ""})
-                {sourceCounts.depleted > 0
-                  ? ` · ${sourceCounts.depleted} stocked out (non-fresh)`
-                  : ""}
+                {isCafe ? (
+                  <>
+                    Loaded: {sourceCounts.store} receiving line
+                    {sourceCounts.store !== 1 ? "s" : ""} still in store
+                    {sourceCounts.depleted > 0
+                      ? ` · ${sourceCounts.depleted} fully stocked-out receiving line${sourceCounts.depleted !== 1 ? "s" : ""}`
+                      : ""}
+                    {" "}
+                    (row labels show exact qty in store vs stocked out)
+                  </>
+                ) : (
+                  <>
+                    Loaded: {sourceCounts.store} store · {sourceCounts.fresh}{" "}
+                    fresh bazaar ({sourceCounts.freshSupplierCount} supplier
+                    {sourceCounts.freshSupplierCount !== 1 ? "s" : ""})
+                    {sourceCounts.depleted > 0
+                      ? ` · ${sourceCounts.depleted} stocked out (non-fresh)`
+                      : ""}
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -452,11 +551,25 @@ export function HotelInventoryPaymentCategoryPanel({
             filteredBreakdown.storeLines > 0) && (
             <p className="w-full text-xs text-muted-foreground tabular-nums">
               Across lines:{" "}
-              {formatPaymentSourceBreakdown({
-                freshBazaarLines: filteredBreakdown.freshLines,
-                depletedLines: filteredBreakdown.depletedLines,
-                storeLines: filteredBreakdown.storeLines,
-              })}
+              {isCafe
+                ? [
+                    filteredBreakdown.storeQty > 0
+                      ? `${filteredBreakdown.storeQty} in store`
+                      : null,
+                    filteredBreakdown.depletedQty > 0
+                      ? `${filteredBreakdown.depletedQty} stocked out`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "—"
+                : formatPaymentSourceBreakdown({
+                    freshBazaarLines: filteredBreakdown.freshLines,
+                    freshBazaarQty: filteredBreakdown.freshQty,
+                    depletedLines: filteredBreakdown.depletedLines,
+                    depletedQty: filteredBreakdown.depletedQty,
+                    storeLines: filteredBreakdown.storeLines,
+                    storeQty: filteredBreakdown.storeQty,
+                  })}
             </p>
           )}
           <Button
@@ -613,7 +726,7 @@ export function HotelInventoryPaymentCategoryPanel({
               <SelectContent className="rounded-xl shadow-2xl">
                 <SelectGroup>
                   <SelectLabel>Source</SelectLabel>
-                  {SOURCE_FILTER_OPTIONS.map((opt) => (
+                  {sourceFilterOptions.map((opt) => (
                     <SelectItem
                       key={opt.id}
                       value={opt.id}

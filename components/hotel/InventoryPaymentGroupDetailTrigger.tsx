@@ -77,8 +77,20 @@ function LineDetailCard({
   line: InventoryPaymentRow;
   compact?: boolean;
 }) {
-  const qty = registeredAmountOf(line);
+  const registered = registeredAmountOf(line);
+  const onHandRaw = Number(line.onHandAmount);
+  const isStoreLine = (line.paymentSource ?? "store") === "store";
+  const hasOnHandSplit =
+    isStoreLine &&
+    Number.isFinite(onHandRaw) &&
+    onHandRaw >= 0 &&
+    onHandRaw < registered - 0.0001;
+  const onHandQty = hasOnHandSplit ? onHandRaw : registered;
+  const stockedOutQty = hasOnHandSplit
+    ? Math.max(0, registered - onHandRaw)
+    : 0;
   const bucket = itemPaymentBucket(line);
+
   return (
     <div
       className={cn(
@@ -87,14 +99,31 @@ function LineDetailCard({
       )}
     >
       <div className="flex flex-wrap items-center gap-1.5 mb-1">
-        {sourceBadge(line)}
+        {hasOnHandSplit ? (
+          <>
+            <Badge
+              variant="outline"
+              className="w-fit text-[9px] font-normal border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+            >
+              {formatQtyWithUnit(onHandQty, line.measuredBy)} in store
+            </Badge>
+            <Badge
+              variant="outline"
+              className="w-fit text-[9px] font-normal border-border/70 bg-muted/40 text-muted-foreground"
+            >
+              {formatQtyWithUnit(stockedOutQty, line.measuredBy)} stocked out
+            </Badge>
+          </>
+        ) : (
+          sourceBadge(line)
+        )}
         <span className="text-[10px] tabular-nums text-muted-foreground">
           {rowRegistrationYmd(line.registrationDate) || "—"}
         </span>
       </div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium tabular-nums">
-          {formatQtyWithUnit(qty, line.measuredBy)}
+          {formatQtyWithUnit(registered, line.measuredBy)}
           <span className="text-muted-foreground font-normal">
             {" "}
             · {lineOwedETB(line).toLocaleString()} ETB
@@ -107,6 +136,13 @@ function LineDetailCard({
           {itemPaymentLabel(bucket)}
         </Badge>
       </div>
+      {hasOnHandSplit ? (
+        <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+          Received {formatQtyWithUnit(registered, line.measuredBy)} ·{" "}
+          {formatQtyWithUnit(onHandQty, line.measuredBy)} still in store ·{" "}
+          {formatQtyWithUnit(stockedOutQty, line.measuredBy)} stocked out
+        </p>
+      ) : null}
       <p className="mt-1 text-xs text-muted-foreground truncate">
         <span className="text-foreground/90">{line.supplierName || "—"}</span>
         {isVatEnabled(line.purchaseWithVat) ? " · With VAT" : " · Without VAT"}
@@ -358,8 +394,9 @@ export function InventoryPaymentGroupDetailTrigger({
           <SheetHeader className="shrink-0 space-y-1 border-b border-border/60 px-5 py-4 pr-12 text-left">
             <SheetTitle className="text-base leading-snug">{group.name}</SheetTitle>
             <SheetDescription className="text-xs text-pretty">
-              Purchase lines for this item — fresh bazaar, stocked out, and store
-              balances stay separate so payment stays auditable.
+              Purchase lines for this item — exact quantities still in store vs
+              stocked out, with supplier payment and VAT kept auditable on each
+              receiving line.
             </SheetDescription>
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col px-5 py-4">

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { menuRecipeToJson, type MenuRecipe } from "@/lib/cafeRecipe";
+import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
 
 const UNIT_OPTIONS = [
   "Litre",
@@ -197,13 +197,11 @@ function EmbeddedRecipeLineRow({
       <div className="space-y-3 p-3">
         <div className="space-y-1.5">
           <Label className={EMBEDDED_FIELD_LABEL}>Ingredient</Label>
-          <Input
+          <CrystalNameSelector
             value={line.name}
-            onChange={(e) => onChange({ ...line, name: e.target.value })}
-            placeholder="Tomato, flour, oil…"
+            onChange={(name) => onChange({ ...line, name })}
+            placeholder="Search crystal name…"
             className={fieldClass}
-            list={suggestionListId}
-            autoComplete="off"
           />
         </div>
 
@@ -342,13 +340,11 @@ function RecipeLineRow({
           <Label className="text-xs font-medium text-muted-foreground sm:sr-only">
             Ingredient
           </Label>
-          <Input
+          <CrystalNameSelector
             value={line.name}
-            onChange={(e) => onChange({ ...line, name: e.target.value })}
-            placeholder="Tomato, flour, oil…"
+            onChange={(name) => onChange({ ...line, name })}
+            placeholder="Search crystal name…"
             className={fieldClass}
-            list={suggestionListId}
-            autoComplete="off"
           />
         </div>
 
@@ -631,8 +627,9 @@ export function RecipeIngredientEditor({
 
           {!embedded ? <RecipeColumnHeaders embedded={false} /> : null}
 
-          <ScrollArea
+          <div
             className={cn(
+              "overflow-x-hidden overflow-y-auto overscroll-contain pr-1",
               embedded ? "h-[min(28vh,240px)]" : "h-[min(42vh,420px)]",
             )}
           >
@@ -677,7 +674,7 @@ export function RecipeIngredientEditor({
                 ),
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <Button
             type="button"

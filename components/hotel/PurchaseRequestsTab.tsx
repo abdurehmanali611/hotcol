@@ -35,6 +35,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
 import { PURCHASE_REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
+import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
 import { Switch } from "@/components/ui/switch";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
@@ -251,13 +252,13 @@ export default function PurchaseRequestsTab({
                         }`}
                       >
                         <Label htmlFor={`pr-item-${l.key}`}>Item name</Label>
-                        <Input
+                        <CrystalNameSelector
                           id={`pr-item-${l.key}`}
                           value={l.itemName}
-                          onChange={(e) =>
-                            updateLine(l.key, { itemName: e.target.value })
+                          onChange={(itemName) =>
+                            updateLine(l.key, { itemName })
                           }
-                          placeholder="What to order"
+                          placeholder="Search crystal name…"
                           className="h-10 min-w-0"
                         />
                       </div>

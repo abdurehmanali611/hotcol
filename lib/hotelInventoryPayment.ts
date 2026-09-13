@@ -1,4 +1,9 @@
-import type { FreshBazaarRow, ItemRegistration } from "@/lib/api/types";
+import type {
+  FreshBazaarRow,
+  ItemRegistration,
+  ItemStatus,
+} from "@/lib/api/types";
+import { isStockMovementInactiveRow } from "@/lib/inactiveItemFilters";
 
 export const INVENTORY_VAT_RATE = 0.15;
 
@@ -394,6 +399,113 @@ export function mergeInventoryPaymentRows(
   return [...storeRows, ...archiveRows];
 }
 
+/** Match key to fold cafe live stock + ItemStatus outs for the same receiving line. */
+export function cafePaymentMatchKey(row: {
+  name?: string | null;
+  supplierName?: string | null;
+  unitPrice?: number | null;
+  measuredBy?: string | null;
+}): string {
+  return [
+    String(row.name ?? "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim(),
+    String(row.supplierName ?? "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim(),
+    String(Number(row.unitPrice) || 0),
+    String(row.measuredBy ?? "")
+      .toLowerCase()
+      .trim(),
+  ].join("|");
+}
+
+/** Map a cafe ItemStatus store-out / wastage / return into a payment row. */
+export function cafeItemStatusToPaymentRow(
+  row: ItemStatus,
+): InventoryPaymentRow {
+  const qty = Number(row.amount) || 0;
+  const unitPrice = Number(row.unitPrice) || 0;
+  const owed = computeInventoryPaidAmountETB(
+    qty,
+    unitPrice,
+    row.purchaseWithVat,
+  );
+  // Status rows often copy the full registration paidAmount — cap to this slice.
+  const rawPaid = Number(row.paidAmount) || 0;
+  const paidAmount = Math.min(rawPaid, owed);
+  const registrationDate = (row.actionDate || new Date()) as Date;
+  const syntheticId = -(Math.abs(Number(row.id) || 0) + 1_000_000_000);
+  return {
+    id: syntheticId,
+    name: row.name,
+    imageUrl: row.imageUrl || "",
+    category: row.category || "",
+    amount: 0,
+    measuredBy: row.measuredBy,
+    unitPrice,
+    registrationDate,
+    expireDate: registrationDate,
+    supplierName: row.supplierName,
+    supplierPhone: row.supplierPhone,
+    purchaseWithVat: row.purchaseWithVat,
+    supplierTinNumber: row.supplierTinNumber,
+    Address: row.Address,
+    paidAmount,
+    registeredAmount: qty,
+    registeredValue: owed,
+    HotelName: row.HotelName,
+    approvalStatus: "AUTHORIZED",
+    paymentSource: "depleted",
+    onHandAmount: 0,
+    receivedByDepartment: "STORE",
+    receivedByLeaderName: null,
+  };
+}
+
+/**
+ * Café payment & tax: store receiving only (no fresh bazaar / department receive).
+ * Live on-hand lines absorb matching ItemStatus outs into registered qty;
+ * fully stocked-out lines (registration deleted) appear from ItemStatus history.
+ */
+export function mergeCafeInventoryPaymentRows(
+  inventoryItems: readonly ItemRegistration[],
+  itemStatuses: readonly ItemStatus[] = [],
+): InventoryPaymentRow[] {
+  const movements = itemStatuses.filter(isStockMovementInactiveRow);
+  const outByKey = new Map<string, number>();
+  for (const s of movements) {
+    const key = cafePaymentMatchKey(s);
+    outByKey.set(key, (outByKey.get(key) || 0) + (Number(s.amount) || 0));
+  }
+  const liveKeys = new Set(inventoryItems.map((r) => cafePaymentMatchKey(r)));
+
+  const storeRows: InventoryPaymentRow[] = inventoryItems.map((r) => {
+    const onHand = Number(r.amount) || 0;
+    const fromOuts = outByKey.get(cafePaymentMatchKey(r)) || 0;
+    const existing = Number(r.registeredAmount);
+    const registeredAmount =
+      Number.isFinite(existing) && existing > 0
+        ? Math.max(existing, onHand + fromOuts)
+        : onHand + fromOuts;
+    return {
+      ...r,
+      paymentSource: "store" as const,
+      onHandAmount: onHand,
+      registeredAmount,
+      receivedByDepartment: "STORE",
+    };
+  });
+
+  const depletedRows = movements
+    .filter((s) => !liveKeys.has(cafePaymentMatchKey(s)))
+    .map((s) => cafeItemStatusToPaymentRow(s));
+
+  return [...storeRows, ...depletedRows];
+}
+
 /**
  * Group key for payment & tax item rollups: case-insensitive, collapses
  * whitespace, and folds `(staff)` variants into the same product.
@@ -443,20 +555,54 @@ export type InventoryPaymentItemGroup = {
 
 export function formatPaymentSourceBreakdown(group: {
   freshBazaarLines: number;
+  freshBazaarQty?: number;
   depletedLines: number;
+  depletedQty?: number;
   storeLines: number;
+  storeQty?: number;
+  measuredBy?: string;
 }): string {
+  const unit = String(group.measuredBy ?? "").trim();
+  const unitPart = unit && unit.toLowerCase() !== "mixed" ? ` ${unit}` : "";
+
+  const fmtQty = (qty: number) => {
+    if (!Number.isFinite(qty) || qty <= 0) return null;
+    const rounded = Math.round(qty * 1000) / 1000;
+    const text = Number.isInteger(rounded)
+      ? String(rounded)
+      : String(rounded);
+    return `${text}${unitPart}`;
+  };
+
   const parts: string[] = [];
-  if (group.freshBazaarLines > 0) {
-    parts.push(
-      `${group.freshBazaarLines} fresh bazaar${group.freshBazaarLines === 1 ? "" : "s"}`,
-    );
-  }
-  if (group.depletedLines > 0) {
-    parts.push(`${group.depletedLines} stocked out`);
-  }
-  if (group.storeLines > 0) {
-    parts.push(`${group.storeLines} in store`);
+  const storeQty = Number(group.storeQty);
+  const depletedQty = Number(group.depletedQty);
+  const freshQty = Number(group.freshBazaarQty);
+  const useQty =
+    (Number.isFinite(storeQty) && storeQty > 0) ||
+    (Number.isFinite(depletedQty) && depletedQty > 0) ||
+    (Number.isFinite(freshQty) && freshQty > 0);
+
+  if (useQty) {
+    const fresh = fmtQty(freshQty);
+    if (fresh) parts.push(`${fresh} fresh bazaar`);
+    const depleted = fmtQty(depletedQty);
+    if (depleted) parts.push(`${depleted} stocked out`);
+    const store = fmtQty(storeQty);
+    if (store) parts.push(`${store} in store`);
+  } else {
+    // Fallback to line counts when qty fields are absent
+    if (group.freshBazaarLines > 0) {
+      parts.push(
+        `${group.freshBazaarLines} fresh bazaar${group.freshBazaarLines === 1 ? "" : "s"}`,
+      );
+    }
+    if (group.depletedLines > 0) {
+      parts.push(`${group.depletedLines} stocked out`);
+    }
+    if (group.storeLines > 0) {
+      parts.push(`${group.storeLines} in store`);
+    }
   }
   return parts.join(" · ") || "—";
 }
@@ -539,8 +685,17 @@ export function groupInventoryPaymentRowsByItem(
         depletedLines += 1;
         depletedQty += qty;
       } else {
+        // Live store line: split on-hand vs already stocked-out portion.
         storeLines += 1;
-        storeQty += qty;
+        const onHandRaw = Number(line.onHandAmount);
+        const onHand =
+          Number.isFinite(onHandRaw) && onHandRaw >= 0 ? onHandRaw : qty;
+        const stockedFromLive = Math.max(0, qty - onHand);
+        storeQty += onHand;
+        if (stockedFromLive > 0) {
+          depletedQty += stockedFromLive;
+          depletedLines += 1;
+        }
       }
 
       const rd = line.registrationDate;

@@ -37,6 +37,7 @@ import { findRowByTenantScope } from "@/lib/tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { hasRegistrationImage } from "@/lib/registrationImageUrl";
 import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
+import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
 import {
   HotelFormFieldStack,
   HotelFormSection,
@@ -383,13 +384,11 @@ export function BatchItemRegistrationForm({
                       }`}
                     >
                       <Label htmlFor={`reg-name-${l.key}`}>Item name</Label>
-                      <Input
+                      <CrystalNameSelector
                         id={`reg-name-${l.key}`}
                         value={l.name}
-                        onChange={(e) =>
-                          updateLine(l.key, { name: e.target.value })
-                        }
-                        placeholder="Product name"
+                        onChange={(name) => updateLine(l.key, { name })}
+                        placeholder="Search crystal name…"
                         className="h-10 min-w-0"
                       />
                     </div>

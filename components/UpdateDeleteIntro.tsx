@@ -43,7 +43,7 @@ export default function UpdateDeleteIntro({
   const [deletingItem, setDeletingItem] = useState<any>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [suspendingId, setSuspendingId] = useState<number | null>(null);
-  const { blockedIds: recipeStockBlockedIds, enforce: enforceRecipeStock } =
+  const { blockedIds: recipeStockBlockedIds } =
     useRecipeStockBlockedIds(items || []);
 
   const filteredItems = (cat: string) =>
@@ -74,15 +74,6 @@ export default function UpdateDeleteIntro({
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
-      {enforceRecipeStock ? (
-        <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
-          Inventory + Cafe are both active: items whose recipe ingredients are
-          missing from Kitchen/Bar station stock are blocked from ordering
-          (shown as{" "}
-          <span className="font-semibold">Out of station stock</span>), in
-          addition to manual suspension.
-        </p>
-      ) : null}
       <Tabs defaultValue="food" className="min-w-0">
         <TabsList className="grid h-10 w-full grid-cols-3 sm:max-w-md">
           <TabsTrigger value="Food" className="gap-1 px-1 text-xs sm:gap-2 sm:px-3 sm:text-sm">

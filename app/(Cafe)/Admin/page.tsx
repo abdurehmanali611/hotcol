@@ -31,11 +31,14 @@ import {
   exportToExcel,
   fetchCashout,
   fetchItemRegistrations,
+  fetchItemStatus,
   logoutAction,
   type ItemRegistration,
+  type ItemStatus,
 } from "@/lib/actions";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import { filterItemStatusForInventoryChannel } from "@/lib/lodgingStoreContext";
 import {
   FileText,
   PlusCircle,
@@ -81,6 +84,13 @@ import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCr
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
 import { ManagerCollapsibleSidebarGroup } from "@/components/hotel/ManagerCollapsibleSidebarGroup";
+import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import { HotelInventoryPaymentSidebarGroup } from "@/components/hotel/HotelInventoryPaymentSidebarGroup";
+import type { PaymentCategoryMode } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
+import {
+  isPaymentCategorySection,
+  paymentModeFromSection,
+} from "@/constants/hotelInventoryNav";
 import AdminInventory from "@/components/AdminInventory";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
@@ -175,6 +185,9 @@ function AdminDashboardContent() {
   const [inventoryAlerts, setInventoryAlerts] = useState<ItemRegistration[]>(
     [],
   );
+  const [inventoryItemStatus, setInventoryItemStatus] = useState<ItemStatus[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [inventoryRefreshKey, setInventoryRefreshKey] = useState(0);
@@ -262,15 +275,24 @@ function AdminDashboardContent() {
           await ensureAdminData(keys, { refresh: isRefresh });
           if (isStale()) return;
           try {
-            const regs = await fetchItemRegistrations();
+            const [regs, statuses] = await Promise.all([
+              fetchItemRegistrations(),
+              fetchItemStatus(),
+            ]);
             if (isStale()) return;
             setInventoryAlerts(
               (regs as ItemRegistration[]).filter((r) =>
                 rowHotelMatchesTenantScope(r.HotelName, tenantScope),
               ),
             );
+            const scopedStatuses = (statuses as ItemStatus[]).filter((r) =>
+              rowHotelMatchesTenantScope(r.HotelName, tenantScope),
+            );
+            setInventoryItemStatus(
+              filterItemStatusForInventoryChannel(scopedStatuses, "cafe"),
+            );
           } catch {
-            /* alerts are optional */
+            /* inventory optional for non-inventory tabs */
           }
         } catch {
           if (!isStale()) {
@@ -393,7 +415,8 @@ function AdminDashboardContent() {
     if (
       sidebarItems.length > 0 &&
       !sidebarItems.some((item) => item.id === activeTab) &&
-      !isHrPayrollTab(activeTab)
+      !isHrPayrollTab(activeTab) &&
+      !isPaymentCategorySection(activeTab)
     ) {
       setActiveTab(sidebarItems[0]!.id);
     }
@@ -640,6 +663,21 @@ function AdminDashboardContent() {
           />
         );
       default:
+        if (isPaymentCategorySection(activeTab)) {
+          const mode = paymentModeFromSection(activeTab);
+          if (!mode) return null;
+          return (
+            <div className="p-3 sm:p-5 md:p-6">
+              <HotelInventoryPaymentCategoryPanel
+                mode={mode as PaymentCategoryMode}
+                tenantLabel={displayName || headerLabel}
+                inventoryItems={inventoryAlerts}
+                itemStatuses={inventoryItemStatus}
+                variant="cafe"
+              />
+            </div>
+          );
+        }
         return null;
     }
   };
@@ -689,10 +727,18 @@ function AdminDashboardContent() {
                   icon={Store}
                   items={inventorySidebarItems}
                   activeSection={activeTab}
-                  isGroupActive={ADMIN_INVENTORY_TAB_IDS.has(activeTab)}
+                  isGroupActive={
+                    ADMIN_INVENTORY_TAB_IDS.has(activeTab) ||
+                    isPaymentCategorySection(activeTab)
+                  }
                   onSelect={setActiveTab}
                   layout="flat"
-                />
+                >
+                  <HotelInventoryPaymentSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={setActiveTab}
+                  />
+                </ManagerCollapsibleSidebarGroup>
               ) : null}
               {hrSidebarItems.length > 0 ||
               tenantHasModule(tenantModules, "HR Module") ? (

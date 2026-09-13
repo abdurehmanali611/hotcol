@@ -14,6 +14,7 @@ import {
 import { ymdWithTimeOf } from "@/lib/hotelDateYmd";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import { inventoryUnitSelectValues } from "@/lib/inventoryUnits";
+import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
   Dialog,
@@ -143,10 +144,11 @@ function PurchaseReviewEditDialogForm({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="pr-edit-item">Item name</Label>
-                <Input
+                <CrystalNameSelector
                   id="pr-edit-item"
                   value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
+                  onChange={setItemName}
+                  placeholder="Search crystal name…"
                   className="h-10"
                 />
               </div>

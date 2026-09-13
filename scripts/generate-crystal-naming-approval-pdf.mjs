@@ -10,6 +10,24 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath, pathToFileURL } from "url";
 import { jsPDF } from "jspdf";
+import {
+  BY_CORE,
+  BY_IDENTITY,
+  BY_PHRASE,
+  englishOnlyCrystal,
+  extractSizeSuffix,
+  formatCrystalTriple,
+  lookupCoreTriple,
+} from "./lib/crystalNameLexicon.mjs";
+import {
+  RECOMMENDED_CRYSTAL_ADDITIONS,
+  formatRecommendedCrystal,
+} from "./lib/crystalNameRecommendedAdditions.mjs";
+import {
+  ANTI_OVERCORRECTION_POLICY,
+  OPERATOR_LOCKS,
+  assertOperatorLocks,
+} from "./lib/crystalNameOperatorLocks.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -88,8 +106,8 @@ const UNIT_WORDS = new Set([
   "dozen",
   "dz",
   "pair",
-  "roll",
-  "rolls",
+  // NOTE: do NOT list "roll"/"rolls" here — strips "Roll soft" down to "soft"
+  // and falsely merges drinking-soft tissue with roll soft.
   "sheet",
   "sheets",
   "unit",
@@ -243,24 +261,63 @@ function productIdentity(normalized) {
   const n = normalized;
   const core = letterCore(n);
 
-  // Cleaning soap/detergent (shbo) — includes "eka matebiya shbo"
+  // Esteplar shbo ≠ eka matebiya / plain shbo (operator correction)
   if (
-    /\b(eka\s+mateb[ei]ya\s+)?(shbo|shebo|shibo)\b/.test(n) ||
+    /\b(esetaprale|setapelare|esteplar|estetaprale|estepler)\s+(shbo|shebo|shibo)\b/.test(
+      n,
+    ) ||
+    [
+      "esetapraleshebo",
+      "setapelareshebo",
+      "esteplarshebo",
+      "esteplarshbo",
+      "estetapraleshebo",
+    ].includes(core)
+  ) {
+    return "esteplar_shbo";
+  }
+
+  // Cleaning soap/detergent (shbo) — eka matebiya shbo + plain shbo/shebo
+  if (
+    /\beka\s+mateb[aei]ya\s+(shbo|shebo|shibo)\b/.test(n) ||
     core === "shbo" ||
     core === "shebo" ||
     core === "shibo" ||
-    /ekamateb.*shb/.test(core)
+    /ekamateb.*sh[ei]?bo/.test(core)
   ) {
     return "shbo_cleaning";
   }
 
-  // Shiro / shro food ingredient (not cleaning)
+  // Shiro / shro food — subtypes are different products (never merge):
+  // plain shro ≠ yeshro bakela ≠ yeshro ater ≠ mtn shro
+  if (
+    /\b(ye\s*)?(shro|shero|shiro)\s+bakela\b/.test(n) ||
+    /\byeshro\s+bakela\b/.test(n) ||
+    ["yeshrobakela", "shrobakela", "sherobakela", "shirobakela"].includes(core)
+  ) {
+    return "shiro_bakela";
+  }
+  if (
+    /\b(ye\s*)?(shro|shero|shiro)\s+ater\b/.test(n) ||
+    /\byeshro\s+ater\b/.test(n) ||
+    ["yeshroater", "shroater", "sheroater", "shiroater"].includes(core)
+  ) {
+    return "shiro_ater";
+  }
+  if (
+    /\bmtn\s+(shro|shero|shiro)\b/.test(n) ||
+    ["mtnshro", "mtnshero", "mtnshiro"].includes(core)
+  ) {
+    return "shiro_mtn";
+  }
   if (
     /\b(shro|shero|shiro|shrowet)\b/.test(n) ||
     core === "shro" ||
     core === "shero" ||
     core === "shiro" ||
     core === "shrowet" ||
+    core === "shrostaff" ||
+    core === "shrokitchen" ||
     /\byeshro\b/.test(n)
   ) {
     return "shiro_food";
@@ -296,9 +353,14 @@ function productIdentity(normalized) {
 
   // Flaming / fire-starting keberete family
   if (
-    /\b(keberete|keberet|kebrete|keberate|kebererti)\b/.test(n) ||
+    /\b(keberete|keberet|kebrete|keberate|kebererti|keberte|keberite|meberte)\b/.test(
+      n,
+    ) ||
     core.startsWith("keberet") ||
-    core === "kebrete"
+    core === "kebrete" ||
+    core === "keberte" ||
+    core === "keberite" ||
+    core === "meberte"
   ) {
     return "keberete_flame";
   }
@@ -330,6 +392,119 @@ function productIdentity(normalized) {
   if (core === "pump" || n === "pump") return "pump";
   if (core === "lamp" || n === "lamp" || core === "lump" || n === "lump") {
     return "lamp";
+  }
+
+  // Peanut / nut: lewuz ≈ gewuze ≈ ocholoni (not chewza snack spice; not peanut butter)
+  if (
+    !/\b(butter|better|kibe|wetet|milk)\b/.test(n) &&
+    (/\b(lewuz|lewuze|lewz|gewuze|gewuz|geuze|gawuze|peanut|peanuts|ocholoni|ocholony)\b/.test(
+      n,
+    ) ||
+      [
+        "lewuz",
+        "lewuze",
+        "lewz",
+        "gewuze",
+        "gewuz",
+        "geuze",
+        "gawuze",
+        "peanut",
+        "peanuts",
+        "ocholoni",
+        "ocholony",
+        "ocholonyewz",
+        "ocholonilewz",
+      ].includes(core) ||
+      /ocholon.*lew/.test(core))
+  ) {
+    return "lewuz_peanut";
+  }
+
+  // Drinking straw ≠ Estracho (lookalike spellings; keep separate)
+  if (
+    [
+      "estracho",
+      "esteracho",
+      "esetercho",
+      "eseteracho",
+    ].includes(core) ||
+    /\b(estracho|esteracho|esetercho|eseteracho)\b/.test(n)
+  ) {
+    return "estracho_item";
+  }
+  if (
+    !/\b(berry|syrap|syrup|cerap)\b/.test(n) &&
+    ([
+      "straw",
+      "stro",
+      "estrow",
+      "estro",
+      "extrasstraw",
+      "extrastraw",
+    ].includes(core) ||
+      /\b(straw|estrow|estro)\b/.test(n) ||
+      /\bextra\s*\/?\s*straw\b/.test(n))
+  ) {
+    return "straw_drinking";
+  }
+
+  // Garlic uses ነጭ ሽንኩርት (operator). Keep explicit "white onion" spellings separate.
+  if (
+    /\bgarlic\b/.test(n) ||
+    ["garlic", "garlicstaff", "chingiya", "chinigiya", "nechshengurt"].includes(
+      core,
+    )
+  ) {
+    return "garlic_bulb";
+  }
+  if (
+    /\bgradia\b.*\bwhite\s+onion\b|\bwhite\s+onion\b/.test(n) ||
+    /\bnech\s+shenkurt\b|\bnech\s+shenkuret\b|\bnech\s+senkuret\b|\bnech\s+shenkurte\b/.test(
+      n,
+    ) ||
+    ["nechshenkuret", "nechshenkurt", "nechsenkuret", "nechshenkurte", "gradiawhiteonion"].includes(
+      core,
+    )
+  ) {
+    return "white_onion";
+  }
+
+  // Soft tissue paper — soft ≈ roll soft (operator)
+  if (
+    /\broll\s+soft\b/.test(n) ||
+    core === "rollsoft" ||
+    /rollsoft/.test(core) ||
+    ((core === "soft" || n === "soft") &&
+      !/\b(drink|dirnk|drike|napkin|gebeta|gebata|toilet)\b/.test(n))
+  ) {
+    return "soft_tissue";
+  }
+
+  // Tomato paste ≠ tomato pasta (operator: pasta is pasta)
+  if (
+    /\btomato\s+(peste|pest|paste)\b/.test(n) ||
+    ["tomatopeste", "tomatopest", "tomatopaste"].includes(core)
+  ) {
+    return "tomato_paste";
+  }
+  if (/\btomato\s+pasta\b/.test(n) || core === "tomatopasta") {
+    return "tomato_pasta";
+  }
+
+  // Soft drink brands before generic soft drink
+  if (
+    /\b(soft\s+dr(?:i|ie|in)nk\s+)?pep[si]{1,2}\b|\bpepis\b/.test(n) ||
+    ["pepsi", "softdirnkpepis", "softdrinkpepsi", "softdrinkpepis"].includes(core)
+  ) {
+    return "pepsi_drink";
+  }
+
+  // H2O proof abrasive ≠ plain waterproof ≠ waterproof bulb
+  if (/\babrass?ive\b/.test(n) || /proofabras/.test(core)) {
+    return "h20_abrasive";
+  }
+  if (/\bh20proof\s*\(?\s*ampole/.test(n) || /proofampole/.test(core)) {
+    return "h20_proof_ampole";
   }
 
   return null;
@@ -454,6 +629,11 @@ function similarEnough(a, b) {
   return dist <= 2 && ratio <= 0.1;
 }
 
+/**
+ * Crystal format: AmharicScript|RomanizedAmharic|EnglishMeaning
+ * e.g. ዳቦ|Dabo|Bread
+ * Middle part = Amharic in English letters (romanization), not Latin-as-language.
+ */
 function proposeCrystal(variants) {
   // Prefer forms with slash gloss (acheto/vinegar), then most occurrences, then longest.
   const scored = [...variants].sort((a, b) => {
@@ -463,21 +643,51 @@ function proposeCrystal(variants) {
     if (b.tenants !== a.tenants) return b.tenants - a.tenants;
     return b.display.length - a.display.length;
   });
-  const best = scored[0]?.display || "";
-  return best
-    .split("/")
-    .map((part) =>
-      part
-        .trim()
-        .split(/\s+/)
-        .map((w) =>
-          w.length <= 2
-            ? w.toUpperCase()
-            : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
-        )
-        .join(" "),
-    )
-    .join("/");
+  const bestDisplay = scored[0]?.display || "";
+  const norms = scored.map((v) => normalizeKey(v.display)).filter(Boolean);
+  const primary = norms[0] || normalizeKey(bestDisplay);
+  const sizeSuffix = extractSizeSuffix(primary);
+
+  // 1) productIdentity on any variant (domain-tagged items)
+  for (const n of norms) {
+    const id = productIdentity(n);
+    if (id && BY_IDENTITY[id]) {
+      return formatCrystalTriple(BY_IDENTITY[id], sizeSuffix);
+    }
+  }
+
+  // 2) phrase patterns — only against the top spelling (avoid rare variants stealing the crystal)
+  for (const { re, triple } of BY_PHRASE) {
+    if (re.test(primary)) {
+      return formatCrystalTriple(triple, sizeSuffix);
+    }
+  }
+
+  // 3) letterCore lookup — prefer cores from highest-count spellings, then longer
+  const coresByPriority = [];
+  for (const v of scored) {
+    const core = letterCore(normalizeKey(v.display));
+    if (core) coresByPriority.push(core);
+  }
+  const cores = [...new Set(coresByPriority)];
+  for (const core of cores) {
+    const hit = lookupCoreTriple(core, levenshtein);
+    if (hit) return formatCrystalTriple(hit, sizeSuffix);
+  }
+
+  // 4) Token-wise fallback for multi-word leftovers (e.g. rare compounds)
+  for (const n of norms) {
+    const tokens = n.split(/\s+/).filter((t) => t.length >= 4);
+    for (const t of tokens) {
+      const hit = lookupCoreTriple(letterCore(t), levenshtein);
+      if (hit && tokens.length === 1) {
+        return formatCrystalTriple(hit, sizeSuffix);
+      }
+    }
+  }
+
+  // 5) Fallback: keep observed English spelling in pipe format
+  return englishOnlyCrystal(bestDisplay);
 }
 
 function clusterNames(hits) {
@@ -707,29 +917,71 @@ async function collectHits(prisma) {
   return hits;
 }
 
-function buildPdf(clusters, meta) {
+function registerEthiopicFont(doc) {
+  const candidates = [
+    path.join("C:", "Windows", "Fonts", "nyala.ttf"),
+    path.join("C:", "Windows", "Fonts", "ebrima.ttf"),
+    "/usr/share/fonts/truetype/noto/NotoSansEthiopic-Regular.ttf",
+  ];
+  for (const fontPath of candidates) {
+    if (!fs.existsSync(fontPath)) continue;
+    try {
+      const b64 = fs.readFileSync(fontPath).toString("base64");
+      const vfsName = path.basename(fontPath);
+      doc.addFileToVFS(vfsName, b64);
+      doc.addFont(vfsName, "Ethiopic", "normal");
+      doc.addFont(vfsName, "Ethiopic", "bold");
+      return "Ethiopic";
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+function buildPdf(clusters, meta, recommendedAdditions) {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  const ethiopicFont = registerEthiopicFont(doc);
+  const crystalFont = ethiopicFont || "helvetica";
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 12;
   const contentW = pageW - margin * 2;
   let y = margin;
   let page = 1;
+  /** @type {"observed" | "recommended"} */
+  let activeTable = "observed";
 
-  const cols = [
-    { key: "n", label: "#", w: 8 },
-    { key: "crystal", label: "Proposed crystal name", w: 48 },
-    { key: "variants", label: "Observed spellings (count)", w: 78 },
-    { key: "sources", label: "Sources", w: 42 },
-    { key: "tenants", label: "Tenants", w: 16 },
-    { key: "occ", label: "Hits", w: 14 },
-    { key: "examples", label: "Example tenants", w: 66 },
+  const observedCols = [
+    { key: "n", label: "#", w: 7 },
+    { key: "crystal", label: "Proposed crystal (Amharic|Romanized|English)", w: 72 },
+    { key: "variants", label: "Observed spellings (count)", w: 62 },
+    { key: "sources", label: "Sources", w: 36 },
+    { key: "tenants", label: "Tenants", w: 14 },
+    { key: "occ", label: "Hits", w: 12 },
+    { key: "examples", label: "Example tenants", w: 54 },
   ];
-  // normalize widths to contentW
-  const sumW = cols.reduce((s, c) => s + c.w, 0);
-  cols.forEach((c) => {
-    c.w = (c.w / sumW) * contentW;
-  });
+  const recommendedCols = [
+    { key: "n", label: "#", w: 8 },
+    { key: "crystal", label: "Proposed crystal (Amharic|Romanized|English)", w: 90 },
+    { key: "category", label: "Category", w: 45 },
+    { key: "purpose", label: "Purpose", w: 55 },
+    { key: "note", label: "Note", w: 40 },
+  ];
+
+  function normalizeCols(cols) {
+    const sumW = cols.reduce((s, c) => s + c.w, 0);
+    cols.forEach((c) => {
+      c.w = (c.w / sumW) * contentW;
+    });
+    return cols;
+  }
+  normalizeCols(observedCols);
+  normalizeCols(recommendedCols);
+
+  function activeCols() {
+    return activeTable === "recommended" ? recommendedCols : observedCols;
+  }
 
   function footer() {
     doc.setFont("helvetica", "normal");
@@ -757,6 +1009,7 @@ function buildPdf(clusters, meta) {
   }
 
   function drawHeaderRow() {
+    const cols = activeCols();
     doc.setFillColor(25, 55, 85);
     doc.rect(margin, y, contentW, 8, "F");
     doc.setFont("helvetica", "bold");
@@ -782,12 +1035,15 @@ function buildPdf(clusters, meta) {
   doc.setTextColor(50);
   const intro = [
     "Purpose: Propose one crystal (canonical) name per ingredient/product group so inventory, purchase requests, and recipe lines can align later.",
+    "Crystal format: AmharicScript|RomanizedAmharic|EnglishMeaning (example: ዳቦ|Dabo|Bread). The middle part is Amharic written with English letters (romanization), not Latin-as-a-language. When Amharic is unknown: —|English|English.",
     "Scope: Real tenants only (Apex Cafe and Restaurant / Apex Hotel illustration properties excluded). Sources: inventory registrations, inventory movements, purchase requests, stock-out snapshots, station stock, recipe ingredients, recipe consumptions.",
-    "Clustering (high care): different sizes never merge; packaging/serving roles stay separate (tea ≠ tea bag; coffee/coffe ≠ coffee powder ≠ coffee cup); model codes stay separate (Toner ≠ 85A ≠ 83A). Domain rules: shbo(cleaning)≠shro/shiro(food); flite≠selit; kosta≠pasta≠posta; wheat flour≠white flour; lamp≈lump but ≠pump; eka matebiya shbo≈shbo.",
+    "Clustering (high care): different sizes never merge; packaging/serving roles stay separate (tea ≠ tea bag; coffee/coffe ≠ coffee powder ≠ coffee cup); model codes stay separate (Toner ≠ 85A ≠ 83A). Domain rules: shbo(cleaning)≠shro/shiro(food); plain shro ≠ yeshro bakela ≠ yeshro ater ≠ mtn shro; flite≠selit; kosta≠pasta≠posta; wheat flour≠white flour; lamp≈lump but ≠pump; eka matebiya shbo≈shbo.",
     "Important: This PDF is for review/approval only. No database or system changes were made.",
-    `Stats: ${meta.totalHits} name hits · ${meta.uniqueNormalized} unique spellings · ${meta.clusterCount} groups · ${meta.multiVariantCount} groups with multiple spellings · ${meta.tenantCount} tenants.`,
+    "Anti-overcorrection: prefer operator product knowledge; if English meaning is unknown, keep the local name (Akezha|Akezha). Do not merge lookalikes across products; do not split products the operator says are the same.",
+    `Stats: ${meta.totalHits} name hits · ${meta.uniqueNormalized} unique spellings · ${meta.clusterCount} groups · ${meta.multiVariantCount} groups with multiple spellings · ${meta.tenantCount} tenants · ${meta.recommendedAdditionCount} recommended additions (section C).`,
   ];
   for (const line of intro) {
+    doc.setFont(ethiopicFont && /[\u1200-\u137F]/.test(line) ? crystalFont : "helvetica", "normal");
     const wrapped = doc.splitTextToSize(line, contentW);
     doc.text(wrapped, margin, y);
     y += wrapped.length * 4.2 + 1.5;
@@ -798,6 +1054,7 @@ function buildPdf(clusters, meta) {
   const multi = clusters.filter((c) => c.variants.length > 1);
   const singles = clusters.filter((c) => c.variants.length === 1);
 
+  activeTable = "observed";
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(25, 55, 85);
@@ -808,6 +1065,7 @@ function buildPdf(clusters, meta) {
   drawHeaderRow();
 
   function drawRow(row, idx, zebra) {
+    const cols = activeCols();
     const variantText = row.variants
       .map((v) => `${v.display} (${v.count})`)
       .join("; ");
@@ -821,11 +1079,11 @@ function buildPdf(clusters, meta) {
       examples: row.exampleTenants.join(", "),
     };
 
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
-    const cellLines = cols.map((c) =>
-      doc.splitTextToSize(cells[c.key] || "", c.w - 2.2),
-    );
+    const cellLines = cols.map((c, i) => {
+      doc.setFont(i === 1 ? crystalFont : "helvetica", i === 1 ? "bold" : "normal");
+      return doc.splitTextToSize(cells[c.key] || "", c.w - 2.2);
+    });
     const lineH = 3.2;
     const rowH = Math.max(7, ...cellLines.map((lines) => lines.length * lineH + 2));
     ensureSpace(rowH + 1);
@@ -842,8 +1100,7 @@ function buildPdf(clusters, meta) {
     for (let i = 0; i < cols.length; i++) {
       const lines = cellLines[i];
       doc.setTextColor(i === 1 ? 20 : 30, i === 1 ? 60 : 30, i === 1 ? 90 : 30);
-      if (i === 1) doc.setFont("helvetica", "bold");
-      else doc.setFont("helvetica", "normal");
+      doc.setFont(i === 1 ? crystalFont : "helvetica", i === 1 ? "bold" : "normal");
       doc.text(lines, x + 1.1, y + 3.6);
       x += cols[i].w;
       if (i < cols.length - 1) {
@@ -882,8 +1139,151 @@ function buildPdf(clusters, meta) {
     .slice(0, 120)
     .forEach((row, i) => drawRow(row, i + 1, i % 2 === 1));
 
+  // Section C — recommended additions (not observed inventory hits)
+  ensureSpace(24);
+  y += 8;
+  activeTable = "recommended";
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(25, 55, 85);
+  doc.text(
+    `C. Recommended additions (${recommendedAdditions.length}) — proposed for fuller registration / purchase / recipe options`,
+    margin,
+    y,
+  );
+  y += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(70);
+  const sectionCNote = doc.splitTextToSize(
+    "These are not observed inventory hits. They are candidate crystal names to add so pickers cover common kitchen, cafe, and store gaps. Dishes (kitfo, tibs, etc.) are intentionally omitted.",
+    contentW,
+  );
+  doc.text(sectionCNote, margin, y);
+  y += sectionCNote.length * 3.6 + 3;
+  doc.setTextColor(0);
+  drawHeaderRow();
+
+  function drawRecommendedRow(row, idx, zebra) {
+    const cols = activeCols();
+    const cells = {
+      n: String(idx),
+      crystal: row.crystalName,
+      category: row.category,
+      purpose: row.purpose,
+      note: "Candidate — not a DB hit",
+    };
+    doc.setFontSize(6.5);
+    const cellLines = cols.map((c, i) => {
+      doc.setFont(i === 1 ? crystalFont : "helvetica", i === 1 ? "bold" : "normal");
+      return doc.splitTextToSize(cells[c.key] || "", c.w - 2.2);
+    });
+    const lineH = 3.2;
+    const rowH = Math.max(7, ...cellLines.map((lines) => lines.length * lineH + 2));
+    ensureSpace(rowH + 1);
+
+    if (zebra) {
+      doc.setFillColor(245, 248, 252);
+      doc.rect(margin, y, contentW, rowH, "F");
+    }
+    doc.setDrawColor(220);
+    doc.setLineWidth(0.1);
+    doc.rect(margin, y, contentW, rowH, "S");
+
+    let x = margin;
+    for (let i = 0; i < cols.length; i++) {
+      const lines = cellLines[i];
+      doc.setTextColor(i === 1 ? 20 : 30, i === 1 ? 60 : 30, i === 1 ? 90 : 30);
+      doc.setFont(i === 1 ? crystalFont : "helvetica", i === 1 ? "bold" : "normal");
+      doc.text(lines, x + 1.1, y + 3.6);
+      x += cols[i].w;
+      if (i < cols.length - 1) {
+        doc.setDrawColor(230);
+        doc.line(x, y, x, y + rowH);
+      }
+    }
+    doc.setTextColor(0);
+    y += rowH;
+  }
+
+  recommendedAdditions.forEach((row, i) =>
+    drawRecommendedRow(row, i + 1, i % 2 === 1),
+  );
+
   footer();
   return doc;
+}
+
+/**
+ * Human-review candidates only — never auto-changed.
+ * Flags interpretive English on local-only spellings, and same Am|Rom with different EN.
+ */
+function buildReviewFlags(clusters) {
+  /** @type {Array<Record<string, unknown>>} */
+  const flags = [];
+
+  const byAR = new Map();
+  for (const c of clusters) {
+    const [am, rom, en] = c.crystalName.split("|");
+    const key = `${am || ""}|${rom || ""}`;
+    if (!byAR.has(key)) byAR.set(key, []);
+    byAR.get(key).push(c);
+  }
+  for (const [key, rows] of byAR) {
+    const ens = new Set(rows.map((r) => r.crystalName.split("|")[2] || ""));
+    if (ens.size > 1) {
+      flags.push({
+        type: "same_am_rom_different_english",
+        key,
+        englishMeanings: [...ens],
+        note: "Same Amharic|Romanized with different English — confirm if intentional (e.g. garlic vs white onion).",
+        examples: rows.map((r) => ({
+          crystalName: r.crystalName,
+          variants: r.variants.map((v) => v.display),
+          hits: r.occurrenceCount,
+        })),
+      });
+    }
+  }
+
+  for (const c of clusters) {
+    const [am, rom, en] = c.crystalName.split("|");
+    if (!rom || !en) continue;
+    const romCore = rom.toLowerCase().replace(/[^a-z]/g, "");
+    const enCore = en.toLowerCase().replace(/[^a-z]/g, "");
+    if (!romCore || romCore === enCore) continue;
+    const blob = c.variants.map((v) => v.display.toLowerCase()).join(" | ");
+    const enTokens = en
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 4);
+    if (enTokens.some((t) => blob.includes(t))) continue;
+    // local-looking variants (mostly non-English product words)
+    const localHeavy = c.variants.every((v) => {
+      const d = v.display.toLowerCase();
+      return !/\b(milk|egg|meat|soap|oil|beer|rice|water|potato|onion|garlic|coffee|sugar|tomato|butter|cheese|paper|plastic|powder|sauce|drink)\b/.test(
+        d,
+      );
+    });
+    if (!localHeavy) continue;
+    if (
+      /\b(snack|blend|detergent|kindling|starter|skewer|cocktail|relish|pickle|shallot|cottage|fixture|cilantro|coriander|greens|herb|spice|flour|sieve|tray|drawer|packaging)\b/i.test(
+        en,
+      )
+    ) {
+      flags.push({
+        type: "interpretive_english_on_local_name",
+        crystalName: c.crystalName,
+        variants: c.variants.map((v) => `${v.display}(${v.count})`),
+        hits: c.occurrenceCount,
+        note: "English gloss may be interpretive. If unsure, prefer using the local name itself as English.",
+      });
+    }
+  }
+
+  flags.sort((a, b) => (b.hits || 0) - (a.hits || 0));
+  return flags;
 }
 
 async function main() {
@@ -900,6 +1300,28 @@ async function main() {
         b.occurrenceCount - a.occurrenceCount,
     );
 
+    const lockCheck = assertOperatorLocks(clusters);
+    if (!lockCheck.ok) {
+      console.error("OPERATOR LOCK FAILURES (refusing to overwrite approval pack):");
+      for (const f of lockCheck.failures) console.error(" -", f);
+      process.exitCode = 2;
+      return;
+    }
+    console.log(`Operator locks OK (${OPERATOR_LOCKS.length} rules)`);
+
+    const reviewFlags = buildReviewFlags(clusters);
+
+    const recommendedAdditions = RECOMMENDED_CRYSTAL_ADDITIONS.map((row) => ({
+      crystalName: formatRecommendedCrystal(row),
+      category: row.category,
+      purpose: row.purpose,
+      am: row.triple.am,
+      rom: row.triple.rom,
+      en: row.triple.en,
+      cores: row.cores || [],
+      note: "Candidate addition — not an observed inventory hit",
+    }));
+
     const tenants = new Set(hits.map((h) => h.hotel));
     const meta = {
       generatedAt: new Date().toISOString(),
@@ -908,23 +1330,27 @@ async function main() {
       clusterCount: clusters.length,
       multiVariantCount: clusters.filter((c) => c.variants.length > 1).length,
       tenantCount: tenants.size,
-      note: "Approval draft only — no DB or system changes.",
+      recommendedAdditionCount: recommendedAdditions.length,
+      operatorLockCount: OPERATOR_LOCKS.length,
+      reviewFlagCount: reviewFlags.length,
+      antiOvercorrectionPolicy: ANTI_OVERCORRECTION_POLICY,
+      note: "Approval draft only — no DB or system changes. Section C items are proposed additions, not DB hits. reviewFlags are for human review only (not auto-changed).",
     };
 
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(
       outJson,
-      JSON.stringify({ meta, clusters }, null, 2),
+      JSON.stringify({ meta, clusters, recommendedAdditions, reviewFlags }, null, 2),
       "utf8",
     );
 
-    const doc = buildPdf(clusters, meta);
+    const doc = buildPdf(clusters, meta, recommendedAdditions);
     doc.save(outPdf);
 
     console.log(`Wrote ${outPdf}`);
     console.log(`Wrote ${outJson}`);
     console.log(
-      `Groups: ${meta.clusterCount} total, ${meta.multiVariantCount} with multiple spellings, ${meta.tenantCount} tenants`,
+      `Groups: ${meta.clusterCount} total, ${meta.multiVariantCount} with multiple spellings, ${meta.tenantCount} tenants, ${meta.recommendedAdditionCount} recommended additions, ${meta.reviewFlagCount} review flags`,
     );
   } finally {
     await prisma.$disconnect();

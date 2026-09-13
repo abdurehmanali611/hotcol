@@ -546,6 +546,11 @@ export function StoreComponent({
     tenantModules,
     "Financial Management",
   );
+  /** Cafe cannot subscribe to Financial Management — gate payment & tax on Inventory. */
+  const cafeHasInventory = tenantHasModule(tenantModules, "Inventory");
+  const showPaymentTaxNav = hotelInventory
+    ? hotelHasFinance
+    : cafeHasInventory;
 
   const storeNavTop = useMemo(() => {
     const base = hotelInventory ? HOTEL_STORE_NAV_TOP : CAFE_STORE_NAV_TOP;
@@ -560,8 +565,16 @@ export function StoreComponent({
       HOTEL_STORE_FINANCE_VIEWS.has(activeView)
     ) {
       setActiveView("Register");
+      return;
     }
-  }, [activeView, hotelHasFinance, hotelInventory]);
+    if (
+      !hotelInventory &&
+      !cafeHasInventory &&
+      PAYMENT_VAT_VIEWS.includes(activeView)
+    ) {
+      setActiveView("Register");
+    }
+  }, [activeView, cafeHasInventory, hotelHasFinance, hotelInventory]);
 
   const panels =
         activeView === "Register" ? (
@@ -685,54 +698,74 @@ export function StoreComponent({
               />
             )}
           </div>
-        ) : activeView === "PaymentAll" && hotelInventory ? (
+        ) : activeView === "PaymentAll" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <HotelInventoryPaymentCategoryPanel
               mode="all"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
-              freshBazaarArchives={freshBazaarArchives}
-              stockOutMovements={requestStatusData.myStocks}
+              freshBazaarArchives={hotelInventory ? freshBazaarArchives : []}
+              stockOutMovements={
+                hotelInventory ? requestStatusData.myStocks : []
+              }
+              itemStatuses={hotelInventory ? [] : scopedItemStatus}
+              variant={hotelInventory ? "hotel" : "cafe"}
             />
           </div>
-        ) : activeView === "PaymentCredit" && hotelInventory ? (
+        ) : activeView === "PaymentCredit" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <HotelInventoryPaymentCategoryPanel
               mode="credit"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
-              freshBazaarArchives={freshBazaarArchives}
-              stockOutMovements={requestStatusData.myStocks}
+              freshBazaarArchives={hotelInventory ? freshBazaarArchives : []}
+              stockOutMovements={
+                hotelInventory ? requestStatusData.myStocks : []
+              }
+              itemStatuses={hotelInventory ? [] : scopedItemStatus}
+              variant={hotelInventory ? "hotel" : "cafe"}
             />
           </div>
-        ) : activeView === "PaymentPaid" && hotelInventory ? (
+        ) : activeView === "PaymentPaid" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <HotelInventoryPaymentCategoryPanel
               mode="paid"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
-              freshBazaarArchives={freshBazaarArchives}
-              stockOutMovements={requestStatusData.myStocks}
+              freshBazaarArchives={hotelInventory ? freshBazaarArchives : []}
+              stockOutMovements={
+                hotelInventory ? requestStatusData.myStocks : []
+              }
+              itemStatuses={hotelInventory ? [] : scopedItemStatus}
+              variant={hotelInventory ? "hotel" : "cafe"}
             />
           </div>
-        ) : activeView === "PaymentWithVat" && hotelInventory ? (
+        ) : activeView === "PaymentWithVat" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <HotelInventoryPaymentCategoryPanel
               mode="with-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
-              freshBazaarArchives={freshBazaarArchives}
-              stockOutMovements={requestStatusData.myStocks}
+              freshBazaarArchives={hotelInventory ? freshBazaarArchives : []}
+              stockOutMovements={
+                hotelInventory ? requestStatusData.myStocks : []
+              }
+              itemStatuses={hotelInventory ? [] : scopedItemStatus}
+              variant={hotelInventory ? "hotel" : "cafe"}
             />
           </div>
-        ) : activeView === "PaymentWithoutVat" && hotelInventory ? (
+        ) : activeView === "PaymentWithoutVat" ? (
           <div className="animate-in fade-in zoom-in-95 duration-300 py-4">
             <HotelInventoryPaymentCategoryPanel
               mode="without-vat"
               tenantLabel={displayLabel}
               inventoryItems={storeItem}
-              freshBazaarArchives={freshBazaarArchives}
-              stockOutMovements={requestStatusData.myStocks}
+              freshBazaarArchives={hotelInventory ? freshBazaarArchives : []}
+              stockOutMovements={
+                hotelInventory ? requestStatusData.myStocks : []
+              }
+              itemStatuses={hotelInventory ? [] : scopedItemStatus}
+              variant={hotelInventory ? "hotel" : "cafe"}
             />
           </div>
         ) : activeView === "Inactive" ? (
@@ -868,7 +901,7 @@ export function StoreComponent({
                 </Collapsible>
                 ) : null}
 
-                {hotelInventory && hotelHasFinance ? (
+                {showPaymentTaxNav ? (
                 <Collapsible
                   defaultOpen={false}
                   className="group/collapsible"

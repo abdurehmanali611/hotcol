@@ -10,6 +10,7 @@ export * from "./storeRequestDraft";
 export * from "./departmentLeaders";
 export * from "./lodgingRooms";
 export * from "./hr";
+export * from "./crystalNames";
 
 export {
   CreateCreditLevel,
