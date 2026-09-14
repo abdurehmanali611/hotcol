@@ -65,7 +65,14 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
 import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
-import { formatCafeTableDisplayFromRegistry } from "@/lib/cafeTableOrder";
+import {
+  cafePhysicalTableNo,
+  compareCafeTableNos,
+  formatCafeTableDisplayFromRegistry,
+  groupByCafePhysicalTable,
+  normalizeOrderTableNo,
+  tableCaptionForNo,
+} from "@/lib/cafeTableOrder";
 import {
   buildAmountTablePaymentPlan,
   type OrderPaymentChannel,
@@ -75,6 +82,7 @@ import {
   CafeTablePaymentModePanel,
   type TablePaymentMode,
 } from "@/components/cafe/CafeTablePaymentModePanel";
+import { CafeTableSeatTabs } from "@/components/cafe/CafeTableSeatTabs";
 import { cn } from "@/lib/utils";
 import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
 import { useCashierCancelOrdersEnabled } from "@/hooks/useCashierCancelOrdersEnabled";
@@ -164,6 +172,8 @@ export default function PaymentComponent({
   const [processingAmountTable, setProcessingAmountTable] = useState<
     number | null
   >(null);
+  const [activePaymentSeatByPhysical, setActivePaymentSeatByPhysical] =
+    useState<Record<number, number>>({});
   const tableAmountPrimaryChannelRef = useRef<
     Record<number, PrimaryAmountChannel>
   >({});
@@ -259,12 +269,12 @@ export default function PaymentComponent({
     setCreditParties([]);
   };
 
-  // Group orders by table
+  // Group orders by table (original and each split are separate tickets)
   const groupedOrders = useMemo(() => {
     const groups: Record<number, Order[]> = {};
 
     unpaidOrders.forEach((order) => {
-      const key = order.tableNo;
+      const key = normalizeOrderTableNo(order);
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -272,9 +282,9 @@ export default function PaymentComponent({
     });
 
     return Object.fromEntries(
-      Object.entries(groups).sort(([, ordersA], [, ordersB]) => {
-        return ordersA[0].id - ordersB[0].id;
-      }),
+      Object.entries(groups).sort(([a], [b]) =>
+        compareCafeTableNos(Number(a), Number(b)),
+      ),
     );
   }, [unpaidOrders]);
 
@@ -303,6 +313,25 @@ export default function PaymentComponent({
       return matchesSearch;
     });
   }, [groupedOrders, searchQuery, filterType, cafeTables, isReadyForPayment]);
+
+  /** Nest original + splits under one physical table card with seat tabs. */
+  const filteredPhysicalFamilies = useMemo(() => {
+    const matchingSeatNos = new Set(
+      filteredGroupedOrders.map(([tableNo]) => Number(tableNo)),
+    );
+    const matchingPhysicals = new Set(
+      [...matchingSeatNos].map((n) => cafePhysicalTableNo(n)),
+    );
+    const familyEntries = Object.entries(groupedOrders)
+      .filter(([tableNo]) =>
+        matchingPhysicals.has(cafePhysicalTableNo(Number(tableNo))),
+      )
+      .map(([tableNo, items]) => ({
+        tableNo: Number(tableNo),
+        items,
+      }));
+    return groupByCafePhysicalTable(familyEntries);
+  }, [filteredGroupedOrders, groupedOrders]);
 
   const areAllOrdersCompleted = useCallback(
     (tableOrders: Order[]) => {
@@ -339,7 +368,7 @@ export default function PaymentComponent({
 
   const selectedReadyTablesSummary = useMemo((): ReadyTableSummary[] => {
     return [...selectedReadyTables]
-      .sort((a, b) => a - b)
+      .sort(compareCafeTableNos)
       .flatMap((tableNo) => {
         const tableOrders = groupedOrders[tableNo];
         if (!tableOrders) return [];
@@ -448,11 +477,12 @@ export default function PaymentComponent({
     );
     const tableNos = [...new Set(updatedOrders.map((o) => o.tableNo))];
     for (const tableNo of tableNos) {
-      const table = tables.find((item) => item.tableNo === tableNo);
+      const physical = cafePhysicalTableNo(tableNo);
+      const table = tables.find((item) => item.tableNo === physical);
       const tableOrders = updatedOrders.filter((o) => o.tableNo === tableNo);
       if (table) {
         await updateTablePayment(
-          transformOrderDataForTableUpdate(tableOrders, table.id, tableNo),
+          transformOrderDataForTableUpdate(tableOrders, table.id, physical),
         );
       }
     }
@@ -706,11 +736,12 @@ export default function PaymentComponent({
       rowHotelMatchesTenantScope(item.HotelName, hotelName),
     );
     for (const tableNo of tableNos) {
-      const table = tables.find((item) => item.tableNo === tableNo);
+      const physical = cafePhysicalTableNo(tableNo);
+      const table = tables.find((item) => item.tableNo === physical);
       const tableOrders = updatedOrders.filter((o) => o.tableNo === tableNo);
       if (table) {
         await updateTablePayment(
-          transformOrderDataForTableUpdate(tableOrders, table.id, tableNo),
+          transformOrderDataForTableUpdate(tableOrders, table.id, physical),
         );
       }
     }
@@ -887,8 +918,11 @@ export default function PaymentComponent({
 
   const findTableForHotel = async (tableNo: number) => {
     const tables = await fetchTables();
+    const physical = cafePhysicalTableNo(tableNo);
     return tables.find(
-      (item) => item.tableNo === tableNo && rowHotelMatchesTenantScope(item.HotelName, hotelName),
+      (item) =>
+        item.tableNo === physical &&
+        rowHotelMatchesTenantScope(item.HotelName, hotelName),
     );
   };
 
@@ -1267,13 +1301,13 @@ export default function PaymentComponent({
             </span>
           </div>
           <Badge variant="outline" className="bg-background/80">
-            {filteredGroupedOrders.length}{" "}
-            {filteredGroupedOrders.length === 1 ? "table" : "tables"} found
+            {filteredPhysicalFamilies.length}{" "}
+            {filteredPhysicalFamilies.length === 1 ? "table" : "tables"} found
           </Badge>
         </div>
       )}
 
-      {filteredGroupedOrders.length === 0 &&
+      {filteredPhysicalFamilies.length === 0 &&
       Object.keys(groupedOrders).length > 0 ? (
         <Card className="border-dashed py-12 text-center">
           <Filter className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
@@ -1304,9 +1338,27 @@ export default function PaymentComponent({
             All orders have been settled and paid.
           </p>
         </Card>
-      ) : filteredGroupedOrders.length > 0 ? (
+      ) : filteredPhysicalFamilies.length > 0 ? (
         <div className="space-y-6">
-          {filteredGroupedOrders.map(([tableNo, tableOrders]) => {
+          {filteredPhysicalFamilies.map((family) => {
+            const seatEntries = family.seats;
+            const hasSplits = seatEntries.length > 1;
+            const parentCaption = tableCaptionForNo(
+              cafeTables,
+              family.physicalTableNo,
+            );
+            const preferredSeat =
+              seatEntries.find(
+                (s) => s.tableNo === family.physicalTableNo,
+              )?.tableNo ?? seatEntries[0]!.tableNo;
+            const activeSeat =
+              activePaymentSeatByPhysical[family.physicalTableNo] ??
+              preferredSeat;
+            const activeSeatEntry =
+              seatEntries.find((s) => s.tableNo === activeSeat) ??
+              seatEntries[0]!;
+            const tableNo = String(activeSeatEntry.tableNo);
+            const tableOrders = activeSeatEntry.items;
             const allCompleted = areAllOrdersCompleted(tableOrders);
             const tableTotal = calculateTableTotal(tableOrders);
             const pendingOrders = tableOrders.filter(
@@ -1316,27 +1368,47 @@ export default function PaymentComponent({
               isReadyForPayment(o),
             );
             const tableDisplay = formatCafeTableDisplayFromRegistry(
-              Number(tableNo),
+              activeSeatEntry.tableNo,
               cafeTables,
               tableOrders.find((o) => o.serviceCaption)?.serviceCaption,
             );
-            const tableNoNum = Number(tableNo);
+            const parentDisplay = formatCafeTableDisplayFromRegistry(
+              family.physicalTableNo,
+              cafeTables,
+              tableOrders.find((o) => o.serviceCaption)?.serviceCaption ||
+                parentCaption,
+            );
+            const tableNoNum = activeSeatEntry.tableNo;
             const tablePayMode = getTablePaymentMode(tableNoNum);
             const tableAmountFormState = getTableAmountFormState(tableNoNum);
             const completedTableTotal = calculateTableTotal(completedOrders);
+            const familyOrders = seatEntries.flatMap((s) => s.items);
+            const familyTotal = calculateTableTotal(familyOrders);
+            const familyAllReady = seatEntries.every((s) =>
+              areAllOrdersCompleted(s.items),
+            );
+            const readySeats = seatEntries.filter((s) =>
+              areAllOrdersCompleted(s.items),
+            );
+            const allReadySeatsSelected =
+              readySeats.length > 0 &&
+              readySeats.every((s) => selectedReadyTables.has(s.tableNo));
+            const someReadySeatsSelected = readySeats.some((s) =>
+              selectedReadyTables.has(s.tableNo),
+            );
 
             return (
               <Collapsible
-                key={tableNo}
+                key={family.physicalTableNo}
                 defaultOpen={false}
                 className="group/table"
               >
                 <Card
                   className={cn(
                     "overflow-hidden border-l-4 transition-all hover:shadow-md",
-                    allCompleted && selectedReadyTables.has(Number(tableNo))
+                    familyAllReady && allReadySeatsSelected
                       ? "border-l-green-600 bg-green-50/30 ring-2 ring-green-200/70 shadow-md dark:bg-green-950/10 dark:ring-green-900/50"
-                      : allCompleted
+                      : familyAllReady
                         ? "border-l-green-500/70"
                         : "border-l-primary",
                   )}
@@ -1350,33 +1422,37 @@ export default function PaymentComponent({
                       <CardHeader
                         className={cn(
                           "w-full pb-4",
-                          allCompleted && selectedReadyTables.has(Number(tableNo))
+                          familyAllReady && allReadySeatsSelected
                             ? "bg-green-50/50 dark:bg-green-950/20"
                             : "bg-muted/30",
                         )}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            {allCompleted ? (
+                            {familyAllReady ? (
                               <label
                                 className={cn(
                                   "flex shrink-0 items-center rounded-md p-1 transition-colors",
-                                  selectedReadyTables.has(Number(tableNo)) &&
+                                  allReadySeatsSelected &&
                                     "bg-green-100/80 dark:bg-green-900/40",
                                 )}
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <Checkbox
-                                  checked={selectedReadyTables.has(
-                                    Number(tableNo),
-                                  )}
-                                  onCheckedChange={(checked) =>
-                                    toggleReadyTable(
-                                      Number(tableNo),
-                                      checked === true,
-                                    )
+                                  checked={
+                                    allReadySeatsSelected
+                                      ? true
+                                      : someReadySeatsSelected
+                                        ? "indeterminate"
+                                        : false
                                   }
-                                  aria-label={`Select ${tableDisplay} for batch payment`}
+                                  onCheckedChange={(checked) => {
+                                    const on = checked === true;
+                                    for (const seat of readySeats) {
+                                      toggleReadyTable(seat.tableNo, on);
+                                    }
+                                  }}
+                                  aria-label={`Select ${parentDisplay} for batch payment`}
                                 />
                               </label>
                             ) : null}
@@ -1385,9 +1461,17 @@ export default function PaymentComponent({
                                 variant="outline"
                                 className="text-base px-3 py-1 font-mono"
                               >
-                                {tableDisplay}
+                                {parentDisplay}
                               </Badge>
-                              {allCompleted && (
+                              {hasSplits ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="h-6 gap-1 px-2 text-[10px] font-semibold uppercase tracking-wide"
+                                >
+                                  Split · {seatEntries.length}
+                                </Badge>
+                              ) : null}
+                              {familyAllReady && (
                                 <Badge className="bg-emerald-500/15 text-emerald-800 text-sm px-2 py-1 dark:text-emerald-300">
                                   Ready
                                 </Badge>
@@ -1405,11 +1489,11 @@ export default function PaymentComponent({
                               variant="secondary"
                               className="text-sm px-3 py-1"
                             >
-                              {tableOrders.length}{" "}
-                              {tableOrders.length === 1 ? "order" : "orders"}
+                              {familyOrders.length}{" "}
+                              {familyOrders.length === 1 ? "order" : "orders"}
                             </Badge>
                             <span className="font-bold text-lg">
-                              {tableTotal.toFixed(2)} ETB
+                              {familyTotal.toFixed(2)} ETB
                             </span>
                             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/table:rotate-180" />
                           </div>
@@ -1419,6 +1503,23 @@ export default function PaymentComponent({
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>
+                    {hasSplits ? (
+                      <CafeTableSeatTabs
+                        seats={seatEntries.map((seat) => ({
+                          tableNo: seat.tableNo,
+                          ready: areAllOrdersCompleted(seat.items),
+                          hint: `${calculateTableTotal(seat.items).toFixed(0)}`,
+                        }))}
+                        value={activeSeatEntry.tableNo}
+                        onValueChange={(next) =>
+                          setActivePaymentSeatByPhysical((prev) => ({
+                            ...prev,
+                            [family.physicalTableNo]: next,
+                          }))
+                        }
+                        parentCaption={parentCaption}
+                      />
+                    ) : null}
                     <CardContent className="p-6">
                   <CafeTablePaymentModePanel
                     tableNo={tableNoNum}

@@ -12,6 +12,7 @@ import {
 import type { Order, Table } from "@/lib/actions";
 import {
   groupCafeStationOrderCards,
+  isCafeTableSplitCode,
   normalizeOrderTableNo,
   type CafeStationOrderGroup,
 } from "@/lib/cafeTableOrder";
@@ -186,6 +187,14 @@ function OrderGroupCard({
             serviceCaption={anchor.serviceCaption}
             className={cn(groupTier?.badge)}
           />
+          {isCafeTableSplitCode(normalizeOrderTableNo(anchor)) ? (
+            <Badge
+              variant="secondary"
+              className="h-5 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+            >
+              Split
+            </Badge>
+          ) : null}
           <h3
             className={cn(
               "flex items-center gap-2 text-lg",

@@ -21,11 +21,15 @@ import {
 } from "@/lib/validations";
 import {
   buildEditTableSelectOptions,
+  cafePhysicalTableNo,
   formatCafeTableDisplayFromRegistry,
+  groupByCafePhysicalTable,
   groupCafeOrderUpdateTables,
   isLiveOrderEditable,
   isAnalogOrderAddable,
+  isCafeTableSplitCode,
   isOpenCafeOrder,
+  listOpenCafeTableSplitNos,
   normalizeOrderTableNo,
   occupiedTableNumbersFromOrders,
   orderStationLabel,
@@ -36,6 +40,7 @@ import {
 } from "@/lib/cafeTableOrder";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { CafeCashierAddItemsDialog } from "@/components/cafe/CafeCashierAddItemsDialog";
+import { CafeTableSeatTabs } from "@/components/cafe/CafeTableSeatTabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -200,6 +205,9 @@ export function CafeCashierOrderUpdatePanel({
   const [addItemsTarget, setAddItemsTarget] = useState<AddItemsTarget | null>(
     null,
   );
+  const [activeUpdateSeatByPhysical, setActiveUpdateSeatByPhysical] = useState<
+    Record<number, number>
+  >({});
   const [sideTab, setSideTab] = useState<"edit" | "add">(
     analogAddOnly ? "add" : "edit",
   );
@@ -355,6 +363,35 @@ export function CafeCashierOrderUpdatePanel({
     resolveTableDisplay,
   ]);
 
+  const filteredPhysicalFamilies = useMemo(() => {
+    if (isRoomScope || useLodgingHandlers) {
+      return filteredTableGroups.map((group) => ({
+        physicalTableNo: group.tableNo,
+        seats: [
+          {
+            tableNo: group.tableNo,
+            items: [group],
+          },
+        ],
+      }));
+    }
+    const matchingSeatNos = new Set(
+      filteredTableGroups.map((g) => g.tableNo),
+    );
+    const matchingPhysicals = new Set(
+      [...matchingSeatNos].map((n) => cafePhysicalTableNo(n)),
+    );
+    const familyEntries = openTableGroups
+      .filter((g) => matchingPhysicals.has(cafePhysicalTableNo(g.tableNo)))
+      .map((g) => ({ tableNo: g.tableNo, items: [g] }));
+    return groupByCafePhysicalTable(familyEntries);
+  }, [
+    filteredTableGroups,
+    openTableGroups,
+    isRoomScope,
+    useLodgingHandlers,
+  ]);
+
   const openTotal = useMemo(
     () =>
       useLodgingHandlers
@@ -453,7 +490,16 @@ export function CafeCashierOrderUpdatePanel({
         realValue: n,
       }));
     }
-    return buildEditTableSelectOptions(tables, occupied, selectedTableNo);
+    const parent = cafePhysicalTableNo(selectedTableNo);
+    const siblingSplits = listOpenCafeTableSplitNos(
+      orders,
+      hotelName,
+      parent,
+    );
+    return buildEditTableSelectOptions(tables, occupied, selectedTableNo, [
+      parent,
+      ...siblingSplits,
+    ]);
   }, [
     tables,
     occupied,
@@ -461,6 +507,8 @@ export function CafeCashierOrderUpdatePanel({
     isRoomScope,
     restrictTableNos,
     tableCaptionOverrides,
+    orders,
+    hotelName,
   ]);
 
   const waiterOptions = useMemo(() => {
@@ -908,8 +956,18 @@ export function CafeCashierOrderUpdatePanel({
             tableCaption={tableCaptionForNo(tables, addItemsTarget.tableNo)}
             tables={tables}
             waiterName={addItemsTarget.waiterName}
-            existingOrders={editableOrders}
+            waiters={waiters}
+            existingOrders={orders.filter((o) =>
+              analogAddOnly
+                ? isAnalogOrderAddable(o, hotelName)
+                : isOpenCafeOrder(o, hotelName),
+            )}
             analogPrint={analogAddOnly}
+            allowTableSplit={
+              !isRoomScope &&
+              !useLodgingHandlers &&
+              !isCafeTableSplitCode(addItemsTarget.tableNo)
+            }
             isOpen
             onClose={() => setAddItemsTarget(null)}
             onSuccess={onRefresh}
@@ -1023,14 +1081,14 @@ export function CafeCashierOrderUpdatePanel({
         ) : null}
 
         {customAddItems && sideTab === "add" ? (
-          <div className="min-h-[420px] rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+          <div className="min-h-105 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
             {customAddItems}
           </div>
         ) : (
-        <div className="grid h-[min(calc(100dvh-14rem),700px)] min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,440px)]">
+        <div className="grid h-[min(calc(100dvh-14rem),700px)] min-h-105 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,440px)]">
           <div className="min-h-0 overflow-y-auto overscroll-y-contain rounded-xl border bg-muted/15 p-2 pr-1">
             <div className="space-y-3 pb-1">
-              {filteredTableGroups.length === 0 ? (
+              {filteredPhysicalFamilies.length === 0 ? (
                 <Card className="border-dashed py-10 text-center">
                   <p className="text-sm font-medium">
                     {searchQuery
@@ -1059,10 +1117,40 @@ export function CafeCashierOrderUpdatePanel({
                   ) : null}
                 </Card>
               ) : (
-                filteredTableGroups.map(({ tableNo, pendingOrders, waiterName, serviceCaption }) => {
+                filteredPhysicalFamilies.map((family) => {
+                  const seatGroups = family.seats.map((s) => s.items[0]!);
+                  const hasSplits = seatGroups.length > 1;
+                  const parentCaption =
+                    tableCaptionOverrides?.[family.physicalTableNo] ||
+                    tableCaptionForNo(tables, family.physicalTableNo);
+                  const preferredSeat =
+                    seatGroups.find(
+                      (g) => g.tableNo === family.physicalTableNo,
+                    )?.tableNo ?? seatGroups[0]!.tableNo;
+                  const activeSeatNo =
+                    activeUpdateSeatByPhysical[family.physicalTableNo] ??
+                    preferredSeat;
+                  const activeGroup =
+                    seatGroups.find((g) => g.tableNo === activeSeatNo) ??
+                    seatGroups[0]!;
+                  const {
+                    tableNo,
+                    pendingOrders,
+                    waiterName,
+                    serviceCaption,
+                  } = activeGroup;
                   const tableDisplay = resolveTableDisplay(
                     tableNo,
                     serviceCaption,
+                  );
+                  const parentDisplay = resolveTableDisplay(
+                    family.physicalTableNo,
+                    serviceCaption || parentCaption,
+                  );
+                  const familyTotal = seatGroups.reduce(
+                    (sum, g) =>
+                      sum + sumOpenTableOrdersETB(orders, hotelName, g.tableNo),
+                    0,
                   );
                   const tableTotal = sumOpenTableOrdersETB(
                     orders,
@@ -1070,8 +1158,20 @@ export function CafeCashierOrderUpdatePanel({
                     tableNo,
                   );
                   const pendingOnlyOrders = pendingOrders.filter(
-                    (order) => String(order.status || "Pending").toLowerCase() === "pending",
+                    (order) =>
+                      String(order.status || "Pending").toLowerCase() ===
+                      "pending",
                   );
+                  const familyPendingCount = seatGroups.reduce((sum, g) => {
+                    return (
+                      sum +
+                      g.pendingOrders.filter(
+                        (order) =>
+                          String(order.status || "Pending").toLowerCase() ===
+                          "pending",
+                      ).length
+                    );
+                  }, 0);
                   const lineCount = pendingOnlyOrders.length;
                   const allReady = lineCount === 0;
                   const selectedPendingIds = pendingOnlyOrders
@@ -1080,7 +1180,7 @@ export function CafeCashierOrderUpdatePanel({
 
                   return (
                     <Collapsible
-                      key={tableNo}
+                      key={family.physicalTableNo}
                       defaultOpen={tableScoped || embedded}
                       className="group/table-update"
                     >
@@ -1098,22 +1198,30 @@ export function CafeCashierOrderUpdatePanel({
                                     variant="outline"
                                     className="font-mono text-sm font-semibold"
                                   >
-                                    {tableDisplay}
+                                    {parentDisplay}
                                   </Badge>
-                                  {allReady ? (
+                                  {hasSplits ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className="h-5 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                                    >
+                                      Split · {seatGroups.length}
+                                    </Badge>
+                                  ) : null}
+                                  {familyPendingCount === 0 ? (
                                     <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-[10px]">
                                       All ready · add more
                                     </Badge>
                                   ) : (
                                     <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 text-[10px]">
-                                      {lineCount} pending
+                                      {familyPendingCount} pending
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
                                   <div className="hidden text-right sm:block">
                                     <p className="text-sm font-bold tabular-nums">
-                                      {tableTotal.toFixed(2)} ETB
+                                      {familyTotal.toFixed(2)} ETB
                                     </p>
                                     <p className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                                       <User className="h-3 w-3" />
@@ -1121,7 +1229,7 @@ export function CafeCashierOrderUpdatePanel({
                                     </p>
                                   </div>
                                   <Badge variant="secondary" className="tabular-nums">
-                                    {lineCount}
+                                    {familyPendingCount}
                                   </Badge>
                                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]/table-update:rotate-180" />
                                 </div>
@@ -1130,6 +1238,28 @@ export function CafeCashierOrderUpdatePanel({
                           </Button>
                         </CollapsibleTrigger>
                         <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-out data-[state=open]:animate-in">
+                          {hasSplits ? (
+                            <CafeTableSeatTabs
+                              seats={seatGroups.map((seat) => ({
+                                tableNo: seat.tableNo,
+                                ready:
+                                  seat.pendingOrders.filter(
+                                    (order) =>
+                                      String(
+                                        order.status || "Pending",
+                                      ).toLowerCase() === "pending",
+                                  ).length === 0,
+                              }))}
+                              value={tableNo}
+                              onValueChange={(next) =>
+                                setActiveUpdateSeatByPhysical((prev) => ({
+                                  ...prev,
+                                  [family.physicalTableNo]: next,
+                                }))
+                              }
+                              parentCaption={parentCaption}
+                            />
+                          ) : null}
                           <CardContent className="space-y-2 border-t bg-muted/10 px-3 pb-3 pt-2">
                             <div className="flex items-center justify-between rounded-lg bg-background/80 px-3 py-2 text-sm sm:hidden">
                               <span className="text-muted-foreground">
@@ -1324,7 +1454,7 @@ export function CafeCashierOrderUpdatePanel({
             </div>
           </div>
 
-          <Card className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-primary/10 shadow-md lg:min-w-[280px]">
+          <Card className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-primary/10 shadow-md lg:min-w-70">
             <CardHeader className="shrink-0 space-y-1 border-b bg-muted/20 px-4 py-3">
               <CardTitle className="text-base font-semibold">
                 {selectedOrder ? "Edit line" : "Actions"}
@@ -1379,7 +1509,7 @@ export function CafeCashierOrderUpdatePanel({
                       <div className="flex flex-col items-center rounded-xl border border-dashed bg-muted/20 px-4 py-12 text-center">
                         <MousePointerClick className="mb-3 h-10 w-10 text-muted-foreground/40" />
                         <p className="text-sm font-medium">Select a line</p>
-                        <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+                        <p className="mt-1 max-w-55 text-xs leading-relaxed text-muted-foreground">
                           Expand a {isRoomScope ? "room" : "table"} on the left
                           and tap an order to edit
                           {useLodgingHandlers
@@ -1613,7 +1743,7 @@ export function CafeCashierOrderUpdatePanel({
                         <p className="text-sm font-medium">
                           Add to a {isRoomScope ? "room" : "table"}
                         </p>
-                        <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+                        <p className="mt-1 max-w-55 text-xs leading-relaxed text-muted-foreground">
                           Select a line first, or expand a{" "}
                           {isRoomScope ? "room" : "table"} and use the add
                           button under its orders.
@@ -1638,8 +1768,18 @@ export function CafeCashierOrderUpdatePanel({
           tableCaption={tableCaptionForNo(tables, addItemsTarget.tableNo)}
           tables={tables}
           waiterName={addItemsTarget.waiterName}
-          existingOrders={editableOrders}
+          waiters={waiters}
+          existingOrders={orders.filter((o) =>
+            analogAddOnly
+              ? isAnalogOrderAddable(o, hotelName)
+              : isOpenCafeOrder(o, hotelName),
+          )}
           analogPrint={analogAddOnly}
+          allowTableSplit={
+            !isRoomScope &&
+            !useLodgingHandlers &&
+            !isCafeTableSplitCode(addItemsTarget.tableNo)
+          }
           isOpen
           onClose={() => setAddItemsTarget(null)}
           onSuccess={onRefresh}

@@ -1,6 +1,26 @@
 import type { Order, Table } from "@/lib/actions";
 import { isSameCafeBusinessDay } from "@/lib/cafeBusinessDay";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
+import {
+  cafePhysicalTableNo,
+  compareCafeTableNos,
+  decodeCafeTableSplit,
+  encodeCafeTableSplit,
+  formatCafeTableSeatTabLabel,
+  formatCafeTableSplitLabel,
+  isCafeTableSplitCode,
+  CAFE_TABLE_SPLIT_MAX_INDEX,
+} from "@/lib/cafeTableSplit";
+
+export {
+  cafePhysicalTableNo,
+  compareCafeTableNos,
+  decodeCafeTableSplit,
+  encodeCafeTableSplit,
+  formatCafeTableSeatTabLabel,
+  formatCafeTableSplitLabel,
+  isCafeTableSplitCode,
+} from "@/lib/cafeTableSplit";
 
 /** Form sentinel when no table is chosen yet (not a real table number). */
 export const CAFE_TABLE_UNSELECTED = -1;
@@ -33,10 +53,71 @@ export function occupiedTableNumbersFromOrders(
   for (const order of orders) {
     if (exceptOrderId != null && order.id === exceptOrderId) continue;
     if (isOpenCafeOrder(order, hotelName)) {
-      occupied.add(normalizeOrderTableNo(order));
+      // Physical table stays in-use while original or any split is unpaid.
+      occupied.add(cafePhysicalTableNo(normalizeOrderTableNo(order)));
     }
   }
   return occupied;
+}
+
+/** Open unpaid tickets for a physical table (original + all splits). */
+export function openOrdersForPhysicalTable(
+  orders: Order[],
+  hotelName: string,
+  parentTableNo: number,
+): Order[] {
+  const parent = Math.floor(Number(parentTableNo));
+  return orders.filter(
+    (order) =>
+      isOpenCafeOrder(order, hotelName) &&
+      cafePhysicalTableNo(normalizeOrderTableNo(order)) === parent,
+  );
+}
+
+/** Encoded split tableNos that currently have open unpaid lines. */
+export function listOpenCafeTableSplitNos(
+  orders: Order[],
+  hotelName: string,
+  parentTableNo: number,
+): number[] {
+  const parent = Math.floor(Number(parentTableNo));
+  const found = new Set<number>();
+  for (const order of openOrdersForPhysicalTable(orders, hotelName, parent)) {
+    const n = normalizeOrderTableNo(order);
+    if (decodeCafeTableSplit(n)?.parentTableNo === parent) {
+      found.add(n);
+    }
+  }
+  return [...found].sort(compareCafeTableNos);
+}
+
+/** Next split index (.1, .2, …) while this physical table is still in use. */
+export function nextCafeTableSplitIndex(
+  orders: Order[],
+  hotelName: string,
+  parentTableNo: number,
+): number {
+  let max = 0;
+  for (const order of openOrdersForPhysicalTable(
+    orders,
+    hotelName,
+    parentTableNo,
+  )) {
+    const parts = decodeCafeTableSplit(normalizeOrderTableNo(order));
+    if (parts) max = Math.max(max, parts.splitIndex);
+  }
+  return Math.min(max + 1, CAFE_TABLE_SPLIT_MAX_INDEX);
+}
+
+export function allocateNextCafeTableSplit(
+  orders: Order[],
+  hotelName: string,
+  parentTableNo: number,
+): number {
+  return encodeCafeTableSplit(
+    parentTableNo,
+    nextCafeTableSplitIndex(orders, hotelName, parentTableNo),
+  );
 }
 
 export function formatTableSelectLabel(
@@ -44,7 +125,7 @@ export function formatTableSelectLabel(
   occupied: boolean,
 ): string {
   const caption = String(table.orderCaption ?? "").trim();
-  const base = caption || `Table ${table.tableNo}`;
+  const base = caption || formatCafeTableLabel(Number(table.tableNo));
   return occupied ? `${base} (In use)` : base;
 }
 
@@ -71,29 +152,44 @@ export function buildEditTableSelectOptions(
   tables: Table[],
   occupiedTableNos: Set<number>,
   currentTableNo: number,
+  extraTableNos: number[] = [],
 ) {
   const current = Math.floor(Number(currentTableNo));
+  const physicalCurrent = cafePhysicalTableNo(current);
   const options = buildTableSelectOptions(tables, occupiedTableNos).map(
     (option) => {
-      if (Number(option.realValue) !== current) return option;
-      const currentTable = tables.find((t) => Number(t.tableNo) === current);
+      const optionNo = Number(option.realValue);
+      // Keep current seat (or its physical parent) selectable while editing.
+      if (optionNo !== current && optionNo !== physicalCurrent) {
+        return option;
+      }
+      const currentTable = tables.find(
+        (t) => Number(t.tableNo) === physicalCurrent,
+      );
       return {
         ...option,
-        // Keep the current table selectable while editing this order.
         disabled: false,
         name: formatTableSelectLabel(
           {
-            tableNo: current,
-            orderCaption: currentTable?.orderCaption ?? null,
+            tableNo: optionNo === current ? current : optionNo,
+            orderCaption:
+              optionNo === current
+                ? null
+                : currentTable?.orderCaption ?? null,
           },
           false,
         ),
-        subText: captionOrEmpty(currentTable?.orderCaption ?? null),
+        subText:
+          optionNo === current
+            ? undefined
+            : captionOrEmpty(currentTable?.orderCaption ?? null),
       };
     },
   );
-  const currentTable = tables.find((t) => Number(t.tableNo) === current);
-  const withCurrent = options.some((o) => Number(o.realValue) === current)
+  const currentTable = tables.find(
+    (t) => Number(t.tableNo) === physicalCurrent,
+  );
+  let withCurrent = options.some((o) => Number(o.realValue) === current)
     ? options
     : [
         {
@@ -101,22 +197,44 @@ export function buildEditTableSelectOptions(
           name: formatTableSelectLabel(
             {
               tableNo: current,
-              orderCaption: currentTable?.orderCaption ?? null,
+              orderCaption: isCafeTableSplitCode(current)
+                ? null
+                : currentTable?.orderCaption ?? null,
             },
             false,
           ),
           realValue: current,
           disabled: false,
-          subText: captionOrEmpty(currentTable?.orderCaption ?? null),
+          subText: isCafeTableSplitCode(current)
+            ? "Table split"
+            : captionOrEmpty(currentTable?.orderCaption ?? null),
         },
         ...options,
       ];
+
+  const seen = new Set(withCurrent.map((o) => Number(o.realValue)));
+  for (const raw of extraTableNos) {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || seen.has(n)) continue;
+    seen.add(n);
+    withCurrent = [
+      ...withCurrent,
+      {
+        id: -1000 - n,
+        name: formatCafeTableLabel(n),
+        realValue: n,
+        disabled: false,
+        subText: isCafeTableSplitCode(n) ? "Table split" : undefined,
+      },
+    ];
+  }
+
   return [...withCurrent].sort((a, b) => {
     const av = Number(a.realValue);
     const bv = Number(b.realValue);
     if (av === current) return -1;
     if (bv === current) return 1;
-    return av - bv;
+    return compareCafeTableNos(av, bv);
   });
 }
 
@@ -129,11 +247,18 @@ export function normalizeOrderTableNo(order: {
   return Number.isFinite(n) ? Math.floor(n) : 0;
 }
 
-export function formatCafeTableLabel(tableNo: number): string {
+export function formatCafeTableLabel(
+  tableNo: number,
+  parentCaption?: string | null,
+): string {
   const n = Math.floor(Number(tableNo));
+  const splitLabel = formatCafeTableSplitLabel(n, parentCaption);
+  if (splitLabel) return splitLabel;
   if (n >= 900_000) {
     return `Room service · stay ${n - 900_000}`;
   }
+  const caption = String(parentCaption ?? "").trim();
+  if (caption) return caption;
   return `Table ${n}`;
 }
 
@@ -141,6 +266,9 @@ export function formatCafeTableDisplay(
   tableNo: number,
   caption?: string | null,
 ): string {
+  if (isCafeTableSplitCode(tableNo)) {
+    return formatCafeTableLabel(tableNo, caption);
+  }
   const c = String(caption ?? "").trim();
   if (c) return c;
   return formatCafeTableLabel(tableNo);
@@ -151,8 +279,9 @@ export function tableCaptionForNo(
   tables: Pick<Table, "tableNo" | "orderCaption">[],
   tableNo: number,
 ): string | null {
-  const n = Math.floor(Number(tableNo));
-  const row = tables.find((t) => Math.floor(Number(t.tableNo)) === n);
+  // Splits inherit the physical parent’s caption for “delivery 0.1” labels.
+  const physical = cafePhysicalTableNo(tableNo);
+  const row = tables.find((t) => Math.floor(Number(t.tableNo)) === physical);
   const c = String(row?.orderCaption ?? "").trim();
   return c || null;
 }
@@ -176,11 +305,40 @@ export function formatCafeTableDisplayFromRegistry(
   tables: Pick<Table, "tableNo" | "orderCaption">[],
   orderServiceCaption?: string | null,
 ): string {
+  const physical = cafePhysicalTableNo(tableNo);
   const caption =
-    tableCaptionForNo(tables, tableNo) ||
+    tableCaptionForNo(tables, physical) ||
     String(orderServiceCaption ?? "").trim() ||
     null;
   return formatCafeTableDisplay(tableNo, caption);
+}
+
+export type CafePhysicalTableFamily<T> = {
+  physicalTableNo: number;
+  /** Seat tableNos: original first, then .1, .2, … */
+  seats: { tableNo: number; items: T[] }[];
+};
+
+/** Collapse original + split seats under one physical table for tabbed UIs. */
+export function groupByCafePhysicalTable<T extends { tableNo: number | string }>(
+  entries: { tableNo: number; items: T[] }[],
+): CafePhysicalTableFamily<T>[] {
+  const byPhysical = new Map<number, { tableNo: number; items: T[] }[]>();
+  for (const entry of entries) {
+    const physical = cafePhysicalTableNo(entry.tableNo);
+    const list = byPhysical.get(physical) ?? [];
+    list.push(entry);
+    byPhysical.set(physical, list);
+  }
+
+  return [...byPhysical.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([physicalTableNo, seats]) => ({
+      physicalTableNo,
+      seats: [...seats].sort((a, b) =>
+        compareCafeTableNos(a.tableNo, b.tableNo),
+      ),
+    }));
 }
 
 /** Alias used across café UIs for order / payment table labels. */
@@ -286,7 +444,7 @@ export function groupEditableOrdersByTable(
     else map.set(key, [order]);
   }
   return [...map.entries()]
-    .sort(([a], [b]) => a - b)
+    .sort(([a], [b]) => compareCafeTableNos(a, b))
     .map(([tableNo, tableOrders]) => ({
       tableNo,
       orders: tableOrders.sort((a, b) => b.id - a.id),
@@ -320,7 +478,7 @@ export function groupCafeOrderUpdateTables(
   }
 
   return [...openByTable.entries()]
-    .sort(([a], [b]) => a - b)
+    .sort(([a], [b]) => compareCafeTableNos(a, b))
     .map(([tableNo, tableOrders]) => {
       const sorted = [...tableOrders].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -621,7 +779,14 @@ export function groupCafeStationOrderCards(orders: Order[]): CafeStationOrderGro
     });
   }
 
-  return groups.sort((a, b) => a.orders[0].id - b.orders[0].id);
+  return groups.sort((a, b) => {
+    const tableDiff = compareCafeTableNos(
+      normalizeOrderTableNo(a.orders[0]),
+      normalizeOrderTableNo(b.orders[0]),
+    );
+    if (tableDiff !== 0) return tableDiff;
+    return a.orders[0].id - b.orders[0].id;
+  });
 }
 
 /** One menu line rolled up across all tables for kitchen/bar prep totals. */

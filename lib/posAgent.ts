@@ -1,3 +1,6 @@
+import { formatCafeTableSplitLabel } from "@/lib/cafeTableSplit";
+import { isRoomServiceTableNo } from "@/lib/lodgingRoomService";
+
 export type CafePrintLine = {
   title: string;
   quantity: number;
@@ -44,6 +47,11 @@ function cafePrintPropertyName(hotelName?: string): string {
 function cafePrintTableLabel(tableNo: number, tableLabel?: string): string {
   const explicit = String(tableLabel || "").trim();
   if (explicit) return explicit;
+  const splitLabel = formatCafeTableSplitLabel(tableNo);
+  if (splitLabel) return splitLabel;
+  if (isRoomServiceTableNo(tableNo)) {
+    return `Room service · stay ${Math.floor(Number(tableNo)) - 900_000}`;
+  }
   if (Number.isFinite(tableNo) && tableNo > 0) return `Table ${tableNo}`;
   return "Counter";
 }

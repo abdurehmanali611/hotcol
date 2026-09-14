@@ -14,7 +14,7 @@ import {
 import { ymdWithTimeOf } from "@/lib/hotelDateYmd";
 import { formatVoucherDisplay } from "@/lib/voucherFormat";
 import { inventoryUnitSelectValues } from "@/lib/inventoryUnits";
-import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
+import { CrystalItemNameField } from "@/components/crystal/CrystalItemNameField";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
   Dialog,
@@ -144,12 +144,11 @@ function PurchaseReviewEditDialogForm({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="pr-edit-item">Item name</Label>
-                <CrystalNameSelector
+                <CrystalItemNameField
                   id="pr-edit-item"
                   value={itemName}
                   onChange={setItemName}
                   placeholder="Search crystal name…"
-                  className="h-10"
                 />
               </div>
               <div className="space-y-1.5">
@@ -261,7 +260,7 @@ function PurchaseReviewEditDialogForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="resize-none min-h-[80px]"
+              className="resize-none min-h-20"
               placeholder="Delivery instructions, urgency, etc."
             />
           </HotelFormSection>
@@ -276,7 +275,7 @@ function PurchaseReviewEditDialogForm({
         <PendingButton
           type="button"
           pending={isPending(`save-pr-${row.id}`)}
-          className="gap-2 shadow-sm min-w-[140px]"
+          className="gap-2 shadow-sm min-w-35"
           onClick={() =>
             void run(`save-pr-${row.id}`, async () => {
               try {

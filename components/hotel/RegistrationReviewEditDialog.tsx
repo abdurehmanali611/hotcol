@@ -26,7 +26,7 @@ import {
   REGISTRATION_CATEGORIES,
   normalizeRegistrationCategory,
 } from "@/lib/registrationFormConstants";
-import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
+import { CrystalItemNameField } from "@/components/crystal/CrystalItemNameField";
 import { RegistrationImageUploadField } from "@/components/hotel/RegistrationImageUploadField";
 import {
   Dialog,
@@ -242,11 +242,10 @@ function RegistrationReviewEditDialogForm({
                     <FormItem className="sm:col-span-2">
                       <FormLabel>Item name</FormLabel>
                       <FormControl>
-                        <CrystalNameSelector
+                        <CrystalItemNameField
                           value={field.value}
                           onChange={field.onChange}
                           placeholder="Search crystal name…"
-                          className="h-10"
                         />
                       </FormControl>
                       <FormMessage />

@@ -37,19 +37,34 @@ function analogPrintStation(order: OrderCreationData): AnalogPrintStation {
 
 function groupOrdersByPrintStation(orders: OrderCreationData[]): {
   station: AnalogPrintStation;
+  tableNo: number;
+  waiterName: string;
   orders: OrderCreationData[];
 }[] {
-  const kitchen: OrderCreationData[] = [];
-  const bar: OrderCreationData[] = [];
+  const map = new Map<
+    string,
+    {
+      station: AnalogPrintStation;
+      tableNo: number;
+      waiterName: string;
+      orders: OrderCreationData[];
+    }
+  >();
+
   for (const order of orders) {
-    if (analogPrintStation(order) === "Bar") bar.push(order);
-    else kitchen.push(order);
+    const station = analogPrintStation(order);
+    const tableNo = Math.floor(Number(order.tableNo) || 0);
+    const waiterName = String(order.waiterName || "").trim();
+    const key = `${station}|${tableNo}|${waiterName}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.orders.push(order);
+    } else {
+      map.set(key, { station, tableNo, waiterName, orders: [order] });
+    }
   }
-  const groups: { station: AnalogPrintStation; orders: OrderCreationData[] }[] =
-    [];
-  if (kitchen.length) groups.push({ station: "Kitchen", orders: kitchen });
-  if (bar.length) groups.push({ station: "Bar", orders: bar });
-  return groups;
+
+  return [...map.values()];
 }
 
 /** Persist lines that never printed so manager reports can list POS failures. */
@@ -111,8 +126,8 @@ export async function submitAnalogPrintedOrders(
       await printCafeOrderTicket({
         isUpdate: base.isUpdate,
         hotelName: base.hotelName,
-        tableNo: Number(first.tableNo),
-        waiterName: String(first.waiterName || ""),
+        tableNo: group.tableNo,
+        waiterName: group.waiterName || String(first.waiterName || ""),
         station: group.station,
         lines: group.orders.map(toPrintLine),
       });

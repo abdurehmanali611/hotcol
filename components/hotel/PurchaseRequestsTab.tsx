@@ -35,7 +35,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DepartmentLeaderSelect } from "@/components/hotel/DepartmentLeaderSelect";
 import { PURCHASE_REQUESTED_BY_DEPARTMENT_CODES } from "@/lib/departments";
-import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
+import { CrystalItemNameField } from "@/components/crystal/CrystalItemNameField";
 import { Switch } from "@/components/ui/switch";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 
@@ -245,39 +245,30 @@ export default function PurchaseRequestsTab({
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 min-w-0">
-                      <div
-                        className={`space-y-1.5 min-w-0 ${
-                          index === 0 ? "col-span-2" : "col-span-2 sm:col-span-4"
-                        }`}
-                      >
-                        <Label htmlFor={`pr-item-${l.key}`}>Item name</Label>
-                        <CrystalNameSelector
-                          id={`pr-item-${l.key}`}
-                          value={l.itemName}
-                          onChange={(itemName) =>
-                            updateLine(l.key, { itemName })
-                          }
-                          placeholder="Search crystal name…"
-                          className="h-10 min-w-0"
-                        />
-                      </div>
+                    <div className="flex min-w-0 flex-col gap-3">
+                      <CrystalItemNameField
+                        id={`pr-item-${l.key}`}
+                        value={l.itemName}
+                        onChange={(itemName) =>
+                          updateLine(l.key, { itemName })
+                        }
+                        placeholder="Search crystal name…"
+                      />
                       {index === 0 ? (
-                        <div className="col-span-2 space-y-1.5 min-w-0">
-                          <DepartmentLeaderSelect
-                            id="pr-requested-by"
-                            label="Requested by"
-                            description="House Keeping (Room) and House Keeping (Public) are listed separately when both leaders are registered. When a department has multiple leaders, pick the accountable one."
-                            compact
-                            value={requestedByDepartment}
-                            leaderName={requestedByLeaderName}
-                            onChange={(dept, leader) => {
-                              setRequestedByDepartment(dept);
-                              setRequestedByLeaderName(leader);
-                            }}
-                            allowedDepartments={PURCHASE_REQUESTED_BY_DEPARTMENT_CODES}
-                          />
-                        </div>
+                        <DepartmentLeaderSelect
+                          id="pr-requested-by"
+                          label="Requested by"
+                          compact
+                          value={requestedByDepartment}
+                          leaderName={requestedByLeaderName}
+                          onChange={(dept, leader) => {
+                            setRequestedByDepartment(dept);
+                            setRequestedByLeaderName(leader);
+                          }}
+                          allowedDepartments={
+                            PURCHASE_REQUESTED_BY_DEPARTMENT_CODES
+                          }
+                        />
                       ) : null}
                     </div>
                     <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">

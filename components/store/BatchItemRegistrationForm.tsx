@@ -37,7 +37,7 @@ import { findRowByTenantScope } from "@/lib/tenantRowMatch";
 import { computeInventoryPaidAmountETB } from "@/lib/hotelInventoryPayment";
 import { hasRegistrationImage } from "@/lib/registrationImageUrl";
 import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
-import { CrystalNameSelector } from "@/components/crystal/CrystalNameSelector";
+import { CrystalItemNameField } from "@/components/crystal/CrystalItemNameField";
 import {
   HotelFormFieldStack,
   HotelFormSection,
@@ -375,38 +375,26 @@ export function BatchItemRegistrationForm({
                     </Button>
                   </div>
 
-                  <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div
-                      className={`space-y-1.5 min-w-0 ${
-                        index === 0 && hotelInventory
-                          ? "col-span-2"
-                          : "col-span-2 sm:col-span-4"
-                      }`}
-                    >
-                      <Label htmlFor={`reg-name-${l.key}`}>Item name</Label>
-                      <CrystalNameSelector
-                        id={`reg-name-${l.key}`}
-                        value={l.name}
-                        onChange={(name) => updateLine(l.key, { name })}
-                        placeholder="Search crystal name…"
-                        className="h-10 min-w-0"
-                      />
-                    </div>
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <CrystalItemNameField
+                      id={`reg-name-${l.key}`}
+                      value={l.name}
+                      onChange={(name) => updateLine(l.key, { name })}
+                      placeholder="Search crystal name…"
+                    />
                     {index === 0 && hotelInventory ? (
-                      <div className="col-span-2 space-y-1.5 min-w-0">
-                        <DepartmentLeaderSelect
-                          id="reg-received-by"
-                          label="Received by"
-                          compact
-                          value={receivedByDepartment}
-                          leaderName={receivedByLeaderName}
-                          onChange={(dept, leader) => {
-                            setReceivedByDepartment(dept);
-                            setReceivedByLeaderName(leader);
-                          }}
-                          allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
-                        />
-                      </div>
+                      <DepartmentLeaderSelect
+                        id="reg-received-by"
+                        label="Received by"
+                        compact
+                        value={receivedByDepartment}
+                        leaderName={receivedByLeaderName}
+                        onChange={(dept, leader) => {
+                          setReceivedByDepartment(dept);
+                          setReceivedByLeaderName(leader);
+                        }}
+                        allowedDepartments={REGISTRATION_RECEIVED_BY_CODES}
+                      />
                     ) : null}
                   </div>
 
