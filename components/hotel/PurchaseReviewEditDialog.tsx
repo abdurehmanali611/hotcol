@@ -149,6 +149,7 @@ function PurchaseReviewEditDialogForm({
                   value={itemName}
                   onChange={setItemName}
                   placeholder="Search crystal name…"
+                  source="purchase"
                 />
               </div>
               <div className="space-y-1.5">

@@ -51,6 +51,7 @@ export interface Order {
   unitCostAtSale?: number | null;
   tableNo: number;
   waiterName: string;
+  waiterId?: number | null;
   status: string | null;
   payment: string;
   withBank?: boolean | null;
@@ -63,6 +64,7 @@ export interface Order {
   cancelledBy?: string | null;
   orderRevisedAt?: string | null;
   orderRevisionCount?: number | null;
+  paymentApprovalRequestId?: number | null;
   createdAt: Date;
 }
 
@@ -123,6 +125,8 @@ export interface Waiter {
   sex: string;
   experience: number;
   phoneNumber: string;
+  passkey?: string | null;
+  isActive?: boolean;
   tablesServed: number[];
   price: number[];
   payment: string[];
@@ -171,6 +175,8 @@ export interface CreateWaiterData {
   age: number;
   experience: number;
   phoneNumber: string;
+  passkey?: string | null;
+  isActive?: boolean;
 }
 
 export interface UpdateWaiterData extends CreateWaiterData {

@@ -41,6 +41,9 @@ import {
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { CafeCashierAddItemsDialog } from "@/components/cafe/CafeCashierAddItemsDialog";
 import { CafeTableSeatTabs } from "@/components/cafe/CafeTableSeatTabs";
+import { useRecipeStockBlockedIds } from "@/hooks/useRecipeStockBlockedIds";
+import { canCoverRecipeServings } from "@/lib/recipeStationAvailability";
+import { readTenantSubscriptionFromStorage } from "@/lib/tenantModules";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -211,6 +214,15 @@ export function CafeCashierOrderUpdatePanel({
   const [sideTab, setSideTab] = useState<"edit" | "add">(
     analogAddOnly ? "add" : "edit",
   );
+
+  const menuItems = useMemo(
+    () =>
+      items.filter((item) =>
+        rowHotelMatchesTenantScope(item.HotelName, hotelName),
+      ),
+    [items, hotelName],
+  );
+  const { stocks, enforce, maxServingsById } = useRecipeStockBlockedIds(menuItems);
 
   useEffect(() => {
     if (analogAddOnly) setSideTab("add");
@@ -473,6 +485,22 @@ export function CafeCashierOrderUpdatePanel({
     ? normalizeOrderTableNo(selectedOrder)
     : null;
 
+  const selectedOrderMaxServings = useMemo(() => {
+    if (!enforce || !selectedOrder) return null;
+    const menuItem =
+      menuItems.find(
+        (i) =>
+          i.name.trim().toLowerCase() ===
+          String(selectedOrder.title || "")
+            .trim()
+            .toLowerCase(),
+      ) || null;
+    if (!menuItem) return null;
+    const max = maxServingsById.get(menuItem.id);
+    if (max == null || !Number.isFinite(max)) return null;
+    return max;
+  }, [enforce, selectedOrder, menuItems, maxServingsById]);
+
   const tableOptions = useMemo(() => {
     if (selectedTableNo == null) return [];
     if (isRoomScope) {
@@ -548,9 +576,41 @@ export function CafeCashierOrderUpdatePanel({
       toast.error("Select an order line to update");
       return;
     }
+    const prevQty = Math.max(1, Number(selectedOrder.orderAmount) || 1);
+    const nextQty = Math.max(1, Math.floor(Number(values.orderAmount) || 1));
+    if (enforce && nextQty > prevQty) {
+      const menuItem =
+        menuItems.find(
+          (i) =>
+            i.name.trim().toLowerCase() ===
+            String(selectedOrder.title || "")
+              .trim()
+              .toLowerCase(),
+        ) ||
+        menuItems.find(
+          (i) =>
+            i.name.trim().toLowerCase() ===
+            String(values.title || "")
+              .trim()
+              .toLowerCase(),
+        );
+      if (
+        menuItem &&
+        !canCoverRecipeServings(
+          menuItem,
+          stocks,
+          readTenantSubscriptionFromStorage().modules,
+          nextQty,
+        )
+      ) {
+        toast.error(
+          `Cannot increase “${selectedOrder.title}” to ${nextQty} — not enough kitchen/bar recipe stock on hand.`,
+        );
+        return;
+      }
+    }
     setSaving(true);
     try {
-      const prevQty = Math.max(1, Number(selectedOrder.orderAmount) || 1);
       if (lodgingLineHandlers) {
         await lodgingLineHandlers.onUpdate({
           id: values.id,
@@ -886,6 +946,13 @@ export function CafeCashierOrderUpdatePanel({
                           formItemClassName="w-full"
                           inputClassName="h-11 w-full text-base"
                         />
+                        {selectedOrderMaxServings != null ? (
+                          <p className="-mt-2 text-xs text-muted-foreground">
+                            {selectedOrderMaxServings <= 0
+                              ? "No station stock for this recipe — cannot increase quantity."
+                              : `Station can cover up to ${selectedOrderMaxServings} total for this recipe.`}
+                          </p>
+                        ) : null}
                         <CustomFormField
                           control={form.control}
                           name="waiterName"
@@ -1592,6 +1659,13 @@ export function CafeCashierOrderUpdatePanel({
                                 inputClassName="h-12 w-full text-base"
                               />
                             </div>
+                            {selectedOrderMaxServings != null ? (
+                              <p className="-mt-2 text-xs text-muted-foreground">
+                                {selectedOrderMaxServings <= 0
+                                  ? "No station stock for this recipe — cannot increase quantity."
+                                  : `Station can cover up to ${selectedOrderMaxServings} total for this recipe.`}
+                              </p>
+                            ) : null}
                             {!useLodgingHandlers ? (
                               <>
                                 <CustomFormField

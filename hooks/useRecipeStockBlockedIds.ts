@@ -7,7 +7,9 @@ import {
   type StationIngredientStock,
 } from "@/lib/actions";
 import {
+  canCoverRecipeServings,
   isRecipeStationStockBlocked,
+  maxRecipeServingsAvailable,
   tenantEnforcesRecipeStationStock,
 } from "@/lib/recipeStationAvailability";
 import { readTenantSubscriptionFromStorage } from "@/lib/tenantModules";
@@ -60,16 +62,45 @@ export function useRecipeStockBlockedIds(
     };
   }, [enforce, load, pollMs]);
 
+  const modules = useMemo(
+    () => readTenantSubscriptionFromStorage().modules,
+    // Re-read when stocks refresh so module flips after re-login are picked up with poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: bind to stock load cycle
+    [stocks, enforce],
+  );
+
   const blockedIds = useMemo(() => {
     const set = new Set<number>();
     if (!enforce) return set;
     for (const item of items) {
-      if (isRecipeStationStockBlocked(item, stocks, readTenantSubscriptionFromStorage().modules)) {
+      if (isRecipeStationStockBlocked(item, stocks, modules)) {
         set.add(item.id);
       }
     }
     return set;
-  }, [enforce, items, stocks]);
+  }, [enforce, items, stocks, modules]);
 
-  return { blockedIds, stocks, enforce, reload: load };
+  const maxServingsById = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!enforce) return map;
+    for (const item of items) {
+      map.set(item.id, maxRecipeServingsAvailable(item, stocks, modules));
+    }
+    return map;
+  }, [enforce, items, stocks, modules]);
+
+  const canServe = useCallback(
+    (item: Item, servings: number) =>
+      canCoverRecipeServings(item, stocks, modules, servings),
+    [stocks, modules],
+  );
+
+  return {
+    blockedIds,
+    maxServingsById,
+    stocks,
+    enforce,
+    canServe,
+    reload: load,
+  };
 }

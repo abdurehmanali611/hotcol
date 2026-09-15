@@ -84,7 +84,8 @@ export function ReceptionRoomOrderSection({
 }) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const roomOptions = useMemo(() => stayRoomOptions(stays), [stays]);
-  const { blockedIds: recipeStockBlockedIds } = useRecipeStockBlockedIds(items, {
+  const { blockedIds: recipeStockBlockedIds, maxServingsById: recipeMaxServingsById } =
+    useRecipeStockBlockedIds(items, {
     enabled: mode === "food_drink",
   });
 
@@ -195,6 +196,7 @@ export function ReceptionRoomOrderSection({
         }
         onBatchOrderSuccess={() => void onCompleted()}
         recipeStockBlockedIds={recipeStockBlockedIds}
+        recipeMaxServingsById={recipeMaxServingsById}
         onRoomBatchSubmit={async ({ stayId, waiterName, items: batch }) => {
           await chargeStay(
             stayId,
@@ -218,6 +220,11 @@ export function ReceptionRoomOrderSection({
           onClose={() => setSelectedItem(null)}
           hotelName={hotelName}
           roomOptions={roomOptions}
+          maxServings={
+            mode === "food_drink"
+              ? recipeMaxServingsById.get(selectedItem.id)
+              : undefined
+          }
           onSubmit={async (data: OrderCreationData) => {
             try {
               await chargeStay(Number(data.tableNo), data.waiterName, [

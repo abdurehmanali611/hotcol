@@ -115,6 +115,7 @@ export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[
           unitCostAtSale
           tableNo
           waiterName
+          waiterId
           status
           payment
           withBank
@@ -127,6 +128,7 @@ export async function fetchOrders(options?: { fresh?: boolean }): Promise<Order[
           cancelledBy
           orderRevisedAt
           orderRevisionCount
+          paymentApprovalRequestId
           createdAt
         }
       }

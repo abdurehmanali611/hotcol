@@ -6,15 +6,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
-import { Form } from "./ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./ui/form";
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import { PendingButton } from "./ui/pending-button";
+import { useWaiterOrderingEnabled } from "@/hooks/useWaiterOrderingEnabled";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Switch } from "@/components/ui/switch";
 
 interface updateWaiterFormProps {
   waiter: Waiter;
   onSuccess: () => void;
 }
 const UpdateWaiterForm = ({ waiter, onSuccess }: updateWaiterFormProps) => {
+  const waiterOrderingEnabled = useWaiterOrderingEnabled();
   const [loading, setLoading] = useState(false);
   const form = useForm<z.infer<typeof updateWaiterSchema>>({
     resolver: zodResolver(updateWaiterSchema) as any,
@@ -25,6 +29,8 @@ const UpdateWaiterForm = ({ waiter, onSuccess }: updateWaiterFormProps) => {
       sex: waiter.sex as "Male" | "Female",
       experience: waiter.experience,
       phoneNumber: waiter.phoneNumber,
+      passkey: waiter.passkey || "",
+      isActive: waiter.isActive !== false,
     },
   });
 
@@ -34,8 +40,10 @@ const UpdateWaiterForm = ({ waiter, onSuccess }: updateWaiterFormProps) => {
       await updateWaiter({
         ...data,
         HotelName: localStorage.getItem("hotel_name") || "",
+        passkey: waiterOrderingEnabled ? data.passkey || null : undefined,
+        isActive: waiterOrderingEnabled ? data.isActive : undefined,
       });
-      form.reset()
+      form.reset();
       onSuccess();
     } finally {
       setLoading(false);
@@ -90,6 +98,48 @@ const UpdateWaiterForm = ({ waiter, onSuccess }: updateWaiterFormProps) => {
           label="Phone Number: "
           inputClassName="h-fit w-full p-2 sm:max-w-sm"
         />
+        {waiterOrderingEnabled ? (
+          <>
+            <FormField
+              control={form.control}
+              name="passkey"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Portal passkey (6 digits)</FormLabel>
+                  <FormControl>
+                    <InputOTP
+                      maxLength={6}
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                    >
+                      <InputOTPGroup>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <InputOTPSlot key={i} index={i} />
+                        ))}
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border px-3 py-2">
+                  <FormLabel className="m-0">Active (can log in & order)</FormLabel>
+                  <FormControl>
+                    <Switch
+                      checked={Boolean(field.value)}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </>
+        ) : null}
         <PendingButton
           type="submit"
           pending={loading}

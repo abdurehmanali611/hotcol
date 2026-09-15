@@ -56,6 +56,8 @@ interface OrderProps {
    * are missing from kitchen/bar station on-hand.
    */
   recipeStockBlockedIds?: ReadonlySet<number>;
+  /** Max station-coverable servings per menu item id (omit = no qty cap). */
+  recipeMaxServingsById?: ReadonlyMap<number, number>;
 }
 
 type MenuCategory = "all" | "food" | "beverage" | "others";
@@ -72,6 +74,7 @@ export default function OrderComponent({
   onRoomBatchSubmit,
   hideTypeFilters = false,
   recipeStockBlockedIds,
+  recipeMaxServingsById,
 }: OrderProps) {
   const [searchedText, setSearchedText] = useState("");
   const [selectedType, setSelectedType] = useState<string>("All");
@@ -143,7 +146,14 @@ export default function OrderComponent({
   const updateItemQuantity = (itemId: number, amount: number) => {
     setItemQuantities((prev) => {
       const current = prev[itemId] || 1;
-      return { ...prev, [itemId]: Math.max(1, current + amount) };
+      const next = Math.max(1, current + amount);
+      if (amount > 0 && recipeMaxServingsById) {
+        const max = recipeMaxServingsById.get(itemId);
+        if (max != null && Number.isFinite(max) && next > max) {
+          return prev;
+        }
+      }
+      return { ...prev, [itemId]: next };
     });
   };
 
@@ -418,6 +428,14 @@ export default function OrderComponent({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
+                            disabled={
+                              !!recipeMaxServingsById &&
+                              Number.isFinite(
+                                recipeMaxServingsById.get(item.id) ?? Infinity,
+                              ) &&
+                              quantity >=
+                                (recipeMaxServingsById.get(item.id) ?? Infinity)
+                            }
                             onClick={() => updateItemQuantity(item.id, 1)}
                           >
                             <Plus className="h-3.5 w-3.5" />

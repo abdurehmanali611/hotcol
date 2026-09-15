@@ -36,6 +36,11 @@ import {
 } from "@/lib/actions";
 import { rowHotelMatchesTenantScope } from "@/lib/tenantRowMatch";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
+import { ManagerWaiterPaymentApprovalCard } from "@/components/cafe/ManagerWaiterPaymentApprovalCard";
+import { useWaiterOrderingEnabled } from "@/hooks/useWaiterOrderingEnabled";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
 
 export default function WaiterAndTable({
   waiters,
@@ -44,6 +49,7 @@ export default function WaiterAndTable({
   onAddWaiter,
   onAddTable,
 }: any) {
+  const waiterOrderingEnabled = useWaiterOrderingEnabled();
   const [waiterOpen, setWaiterOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
   const [waiterSubmitting, setWaiterSubmitting] = useState(false);
@@ -64,6 +70,8 @@ export default function WaiterAndTable({
       age: 21,
       phoneNumber: "",
       experience: 0,
+      passkey: "",
+      isActive: true,
     },
   });
   const tableForm = useForm<z.infer<typeof createTableSchema>>({
@@ -83,6 +91,10 @@ export default function WaiterAndTable({
         hotelName={hotelName}
       />
 
+      {waiterOrderingEnabled ? (
+        <ManagerWaiterPaymentApprovalCard />
+      ) : null}
+
       <Tabs defaultValue="waiters" className="w-full min-w-0">
         <Card className="overflow-hidden border-primary/15 bg-card/95 shadow-lg ring-1 ring-black/3 dark:ring-white/6">
           <div className="h-1 bg-linear-to-r from-emerald-500 via-teal-400 to-cyan-400/90" />
@@ -99,7 +111,7 @@ export default function WaiterAndTable({
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <TabsList className="grid h-10 w-full grid-cols-2 lg:h-9 lg:w-auto lg:min-w-[240px]">
+              <TabsList className="grid h-10 w-full grid-cols-2 lg:h-9 lg:w-auto lg:min-w-60">
                 <TabsTrigger
                   value="waiters"
                   className="gap-1.5 text-xs sm:text-sm"
@@ -199,6 +211,48 @@ export default function WaiterAndTable({
                           placeholder="Phone number"
                           inputClassName="h-10 w-full"
                         />
+                        {waiterOrderingEnabled ? (
+                          <>
+                            <FormField
+                              control={waiterForm.control}
+                              name="passkey"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Waiter portal passkey (optional)</FormLabel>
+                                  <FormControl>
+                                    <InputOTP
+                                      maxLength={6}
+                                      value={field.value || ""}
+                                      onChange={field.onChange}
+                                    >
+                                      <InputOTPGroup>
+                                        {Array.from({ length: 6 }).map((_, i) => (
+                                          <InputOTPSlot key={i} index={i} />
+                                        ))}
+                                      </InputOTPGroup>
+                                    </InputOTP>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={waiterForm.control}
+                              name="isActive"
+                              render={({ field }) => (
+                                <FormItem className="flex items-center justify-between rounded-lg border px-3 py-2">
+                                  <FormLabel className="m-0">Active</FormLabel>
+                                  <FormControl>
+                                    <Switch
+                                      checked={Boolean(field.value)}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        ) : null}
                         <PendingButton
                           type="submit"
                           pending={waiterSubmitting}

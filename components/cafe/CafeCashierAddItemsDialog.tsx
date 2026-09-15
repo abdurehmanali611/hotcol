@@ -57,6 +57,10 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { submitAnalogPrintedOrders } from "@/lib/analogCafeOrder";
 import { useRecipeStockBlockedIds } from "@/hooks/useRecipeStockBlockedIds";
+import {
+  findCartRecipeStationShortfall,
+} from "@/lib/recipeStationAvailability";
+import { readTenantSubscriptionFromStorage } from "@/lib/tenantModules";
 import { cn } from "@/lib/utils";
 
 type CartLine = Item & { orderAmount: number };
@@ -131,8 +135,40 @@ export function CafeCashierAddItemsDialog({
       ),
     [items, hotelName],
   );
-  const { blockedIds: recipeStockBlockedIds } =
+  const { blockedIds: recipeStockBlockedIds, maxServingsById, stocks, enforce } =
     useRecipeStockBlockedIds(menuItems);
+
+  const committedQtyByName = useMemo(() => {
+    const map = new Map<string, number>();
+    if (isCafeTableSplitCode(contextTableNo)) {
+      // Split seat: only lines already on this exact table code.
+    }
+    for (const order of existingOrders) {
+      if (!rowHotelMatchesTenantScope(order.HotelName, hotelName)) continue;
+      if (normalizeOrderTableNo(order) !== contextTableNo) continue;
+      if (String(order.payment || "").toLowerCase() === "paid") continue;
+      if (String(order.status || "").toLowerCase() === "cancelled") continue;
+      if (String(order.status || "").toLowerCase() === "completed") continue;
+      const key = String(order.title || "")
+        .trim()
+        .toLowerCase();
+      if (!key) continue;
+      map.set(
+        key,
+        (map.get(key) || 0) + Math.max(1, Number(order.orderAmount) || 1),
+      );
+    }
+    return map;
+  }, [existingOrders, hotelName, contextTableNo]);
+
+  const maxOrderableQty = (item: Item) => {
+    if (!enforce) return Number.POSITIVE_INFINITY;
+    const max = maxServingsById.get(item.id);
+    if (max == null || !Number.isFinite(max)) return Number.POSITIVE_INFINITY;
+    const committed =
+      committedQtyByName.get(item.name.trim().toLowerCase()) || 0;
+    return Math.max(0, max - committed);
+  };
 
   const parentCaptionResolved = useMemo(() => {
     const caption = String(tableCaption ?? "").trim();
@@ -187,11 +223,20 @@ export function CafeCashierAddItemsDialog({
   const addToCart = (item: Item) => {
     setCart((prev) => {
       const existing = prev.find((l) => l.id === item.id);
+      const currentCart = existing?.orderAmount ?? 0;
+      const nextCart = currentCart + 1;
+      const maxQty = maxOrderableQty(item);
+      if (Number.isFinite(maxQty) && nextCart > maxQty) {
+        toast.error(
+          maxQty <= 0
+            ? `“${item.name}” is out of station stock`
+            : `Only ${maxQty}× “${item.name}” can be covered by kitchen/bar stock`,
+        );
+        return prev;
+      }
       if (existing) {
         return prev.map((l) =>
-          l.id === item.id
-            ? { ...l, orderAmount: l.orderAmount + 1 }
-            : l,
+          l.id === item.id ? { ...l, orderAmount: nextCart } : l,
         );
       }
       return [...prev, { ...item, orderAmount: 1 }];
@@ -199,15 +244,29 @@ export function CafeCashierAddItemsDialog({
   };
 
   const adjustCart = (itemId: number, delta: number) => {
-    setCart((prev) =>
-      prev
+    setCart((prev) => {
+      const line = prev.find((l) => l.id === itemId);
+      if (!line) return prev;
+      if (delta > 0) {
+        const nextCart = line.orderAmount + delta;
+        const maxQty = maxOrderableQty(line);
+        if (Number.isFinite(maxQty) && nextCart > maxQty) {
+          toast.error(
+            maxQty <= 0
+              ? `“${line.name}” is out of station stock`
+              : `Only ${maxQty}× “${line.name}” can be covered by kitchen/bar stock`,
+          );
+          return prev;
+        }
+      }
+      return prev
         .map((l) =>
           l.id === itemId
             ? { ...l, orderAmount: Math.max(0, l.orderAmount + delta) }
             : l,
         )
-        .filter((l) => l.orderAmount > 0),
-    );
+        .filter((l) => l.orderAmount > 0);
+    });
   };
 
   const clearCart = () => setCart([]);
@@ -227,6 +286,58 @@ export function CafeCashierAddItemsDialog({
     if (createSplitChecked && !String(newSplitWaiter).trim()) {
       toast.error("Select a waiter for the new table split");
       return;
+    }
+
+    // Block submit when cart (+ existing table lines if merging) exceeds station stock.
+    if (enforce) {
+      const proposed: Array<{ item: Item; servings: number }> = [];
+      for (const line of cart) {
+        const existing =
+          !createSplitChecked
+            ? findOpenOrderLineForTableItem(
+                existingOrders,
+                hotelName,
+                contextTableNo,
+                line.name,
+              )
+            : undefined;
+        const base = existing
+          ? Math.max(1, Number(existing.orderAmount) || 1)
+          : 0;
+        proposed.push({ item: line, servings: base + line.orderAmount });
+      }
+      // Also keep other open lines on this table that are not in the cart
+      // so shared ingredients are not double-spent in the client check.
+      const cartNames = new Set(
+        cart.map((l) => l.name.trim().toLowerCase()),
+      );
+      for (const order of existingOrders) {
+        if (!rowHotelMatchesTenantScope(order.HotelName, hotelName)) continue;
+        if (normalizeOrderTableNo(order) !== contextTableNo) continue;
+        if (createSplitChecked) continue;
+        if (String(order.payment || "").toLowerCase() === "paid") continue;
+        const st = String(order.status || "").toLowerCase();
+        if (st === "cancelled" || st === "completed") continue;
+        const key = String(order.title || "").trim().toLowerCase();
+        if (!key || cartNames.has(key)) continue;
+        const menu = menuItems.find(
+          (i) => i.name.trim().toLowerCase() === key,
+        );
+        if (!menu) continue;
+        proposed.push({
+          item: menu,
+          servings: Math.max(1, Number(order.orderAmount) || 1),
+        });
+      }
+      const short = findCartRecipeStationShortfall(
+        proposed.map((p) => ({ item: p.item, servings: p.servings })),
+        stocks,
+        readTenantSubscriptionFromStorage().modules,
+      );
+      if (short) {
+        toast.error(short);
+        return;
+      }
     }
 
     if (createSplitChecked) {
@@ -637,6 +748,10 @@ export function CafeCashierAddItemsDialog({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
+                          disabled={
+                            Number.isFinite(maxOrderableQty(line)) &&
+                            line.orderAmount >= maxOrderableQty(line)
+                          }
                           onClick={() => adjustCart(line.id, 1)}
                         >
                           <Plus className="h-3.5 w-3.5" />

@@ -18,6 +18,8 @@ type CrystalItemNameFieldProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** registration | purchase | recipe | other — sent with Add-as-new proposals */
+  source?: string;
 };
 
 /**
@@ -31,6 +33,7 @@ export function CrystalItemNameField({
   placeholder = "Search crystal name…",
   disabled = false,
   className,
+  source = "registration",
 }: CrystalItemNameFieldProps) {
   const parsed = useMemo(() => parseCrystalItemName(value), [value]);
   const baseValue = useMemo(() => crystalBaseLabel(value), [value]);
@@ -52,6 +55,7 @@ export function CrystalItemNameField({
           placeholder={placeholder}
           disabled={disabled}
           className="h-10 w-full min-w-0"
+          source={source}
         />
       </div>
       <div className="min-w-0 space-y-1.5">

@@ -101,6 +101,26 @@ export const columns = (refresh: () => void): ColumnDef<Waiter>[] => [
     ),
   },
   {
+    id: "portal",
+    header: "Portal",
+    cell: ({ row }) => {
+      const active = row.original.isActive !== false;
+      const hasKey = Boolean(row.original.passkey);
+      return (
+        <div className="flex flex-wrap gap-1">
+          <Badge variant={active ? "default" : "secondary"} className="text-[10px]">
+            {active ? "Active" : "Off"}
+          </Badge>
+          {hasKey ? (
+            <Badge variant="outline" className="text-[10px]">
+              PIN set
+            </Badge>
+          ) : null}
+        </div>
+      );
+    },
+  },
+  {
     id: "tablesServedCount",
     header: "Served",
     cell: ({ row }) => {

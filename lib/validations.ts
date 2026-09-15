@@ -272,6 +272,14 @@ export const createWaiterSchema = z.object({
     .min(0, "Experience cannot be negative")
     .max(50, "Invalid experience"),
   phoneNumber: z.string().min(6, "Valid phone number is required"),
+  passkey: z
+    .string()
+    .optional()
+    .transform((s) => (s == null ? "" : String(s).trim()))
+    .refine((s) => s === "" || /^\d{6}$/.test(s), {
+      message: "Passkey must be exactly 6 digits",
+    }),
+  isActive: z.boolean().optional().default(true),
 });
 
 export const updateWaiterSchema = createWaiterSchema.extend({

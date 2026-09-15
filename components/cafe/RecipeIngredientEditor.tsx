@@ -202,6 +202,7 @@ function EmbeddedRecipeLineRow({
             onChange={(name) => onChange({ ...line, name })}
             placeholder="Search crystal name…"
             className={fieldClass}
+            source="recipe"
           />
         </div>
 
@@ -345,6 +346,7 @@ function RecipeLineRow({
             onChange={(name) => onChange({ ...line, name })}
             placeholder="Search crystal name…"
             className={fieldClass}
+            source="recipe"
           />
         </div>
 

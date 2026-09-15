@@ -410,6 +410,8 @@ export async function fetchWaiters(): Promise<Waiter[]> {
           sex
           experience
           phoneNumber
+          passkey
+          isActive
           tablesServed
           price
           payment
@@ -434,8 +436,26 @@ export async function fetchWaiters(): Promise<Waiter[]> {
 export async function createWaiter(waiterData: CreateWaiterData) {
   try {
     const mutation = `
-      mutation CreateWaiter($name: String!, $HotelName: String!, $sex: String!, $age: Int!, $experience: Int!, $phoneNumber: String!) {
-        CreateWaiter(name: $name, HotelName: $HotelName, sex: $sex, age: $age, experience: $experience, phoneNumber: $phoneNumber) {
+      mutation CreateWaiter(
+        $name: String!
+        $HotelName: String!
+        $sex: String!
+        $age: Int!
+        $experience: Int!
+        $phoneNumber: String!
+        $passkey: String
+        $isActive: Boolean
+      ) {
+        CreateWaiter(
+          name: $name
+          HotelName: $HotelName
+          sex: $sex
+          age: $age
+          experience: $experience
+          phoneNumber: $phoneNumber
+          passkey: $passkey
+          isActive: $isActive
+        ) {
           id
           name
           HotelName
@@ -443,6 +463,8 @@ export async function createWaiter(waiterData: CreateWaiterData) {
           sex
           experience
           phoneNumber
+          passkey
+          isActive
           createdAt
         }
       }
@@ -450,7 +472,11 @@ export async function createWaiter(waiterData: CreateWaiterData) {
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: waiterData,
+      variables: {
+        ...waiterData,
+        passkey: waiterData.passkey?.trim() || null,
+        isActive: waiterData.isActive ?? true,
+      },
     });
 
     if (response.data.errors) {
@@ -462,7 +488,7 @@ export async function createWaiter(waiterData: CreateWaiterData) {
     toast.success("Waiter added successfully");
     return response.data.data.CreateWaiter;
   } catch (error: any) {
-    toast.error("Failed to create waiter");
+    toast.error(error?.message || "Failed to create waiter");
     throw error;
   }
 }
@@ -470,14 +496,34 @@ export async function createWaiter(waiterData: CreateWaiterData) {
 export async function updateWaiter(waiterData: UpdateWaiterData) {
   try {
     const mutation = `
-      mutation UpdateWaiter($id: Int!, $name: String!, $age: Int!, $sex: String!, $experience: Int!, $phoneNumber: String!) {
-        UpdateWaiter(id: $id, name: $name, age: $age, sex: $sex, experience: $experience, phoneNumber: $phoneNumber) {
+      mutation UpdateWaiter(
+        $id: Int!
+        $name: String!
+        $age: Int!
+        $sex: String!
+        $experience: Int!
+        $phoneNumber: String!
+        $passkey: String
+        $isActive: Boolean
+      ) {
+        UpdateWaiter(
+          id: $id
+          name: $name
+          age: $age
+          sex: $sex
+          experience: $experience
+          phoneNumber: $phoneNumber
+          passkey: $passkey
+          isActive: $isActive
+        ) {
           id
           name
           age
           sex
           experience
           phoneNumber
+          passkey
+          isActive
           HotelName
           createdAt
         }
@@ -486,7 +532,14 @@ export async function updateWaiter(waiterData: UpdateWaiterData) {
 
     const response = await api.post(API_URL, {
       query: mutation,
-      variables: waiterData,
+      variables: {
+        ...waiterData,
+        passkey:
+          waiterData.passkey === undefined
+            ? undefined
+            : waiterData.passkey?.trim() || null,
+        isActive: waiterData.isActive ?? true,
+      },
     });
 
     if (response.data.errors) {
@@ -498,7 +551,7 @@ export async function updateWaiter(waiterData: UpdateWaiterData) {
     toast.success("Waiter updated successfully");
     return response.data.data.UpdateWaiter;
   } catch (error: any) {
-    toast.error("Failed to update waiter");
+    toast.error(error?.message || "Failed to update waiter");
     throw error;
   }
 }

@@ -1476,6 +1476,13 @@ export default function PaymentComponent({
                                   Ready
                                 </Badge>
                               )}
+                              {familyOrders.some(
+                                (o) => o.paymentApprovalRequestId != null,
+                              ) ? (
+                                <Badge className="bg-amber-500/15 text-amber-900 text-sm px-2 py-1 dark:text-amber-200">
+                                  Payment approval
+                                </Badge>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                               <User className="h-4 w-4 text-muted-foreground" />

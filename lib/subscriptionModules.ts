@@ -71,6 +71,8 @@ export type TenantSubscription = SignupPricing & {
   cafeOrderMode?: CafeOrderMode;
   cafeOrderModeHistory?: CafeOrderModeHistoryEntry[];
   cashierCancelOrdersEnabled?: boolean;
+  waiterOrderingEnabled?: boolean;
+  waiterPaymentApprovalEnabled?: boolean;
 };
 
 export function isModuleComingSoon(mod: ModuleOption): boolean {

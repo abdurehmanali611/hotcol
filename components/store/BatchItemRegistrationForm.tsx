@@ -381,6 +381,7 @@ export function BatchItemRegistrationForm({
                       value={l.name}
                       onChange={(name) => updateLine(l.key, { name })}
                       placeholder="Search crystal name…"
+                      source="registration"
                     />
                     {index === 0 && hotelInventory ? (
                       <DepartmentLeaderSelect

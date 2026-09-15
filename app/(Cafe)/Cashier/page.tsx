@@ -38,6 +38,7 @@ import { CafeCashierCorporateCreditPanel } from "@/components/cafe/CafeCashierCo
 import { CafeCashierCashoutPanel } from "@/components/cafe/CafeCashierCashoutPanel";
 import { CafeCashierPaymentTypePanel } from "@/components/cafe/CafeCashierPaymentTypePanel";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
+import { WaiterPaymentApprovalBell } from "@/components/cafe/WaiterPaymentApprovalBell";
 import PosAgentSetupCard from "@/components/cafe/PosAgentSetupCard";
 import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
 import { useCashierCancelOrdersEnabled } from "@/hooks/useCashierCancelOrdersEnabled";
@@ -102,7 +103,8 @@ function CashierContent() {
   const loadCoordinator = useLoadCoordinator();
 
   const tenantModules = useTenantModules();
-  const { blockedIds: recipeStockBlockedIds } = useRecipeStockBlockedIds(items);
+  const { blockedIds: recipeStockBlockedIds, maxServingsById: recipeMaxServingsById } =
+    useRecipeStockBlockedIds(items);
   const cafeOrderMode = useCafeOrderMode();
   const analog = isAnalogCafeOrderMode(cafeOrderMode);
   const cashierCanCancel = useCashierCancelOrdersEnabled();
@@ -310,6 +312,7 @@ function CashierContent() {
         analogPrint={analog}
         onBatchOrderSuccess={handleBatchOrderSuccess}
         recipeStockBlockedIds={recipeStockBlockedIds}
+        recipeMaxServingsById={recipeMaxServingsById}
       />
     ) : activeView === "payment" ? (
       <PaymentComponent
@@ -410,6 +413,9 @@ function CashierContent() {
             </div>
             <LiveDateTimeClock className="min-w-0 flex-1" />
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+              <WaiterPaymentApprovalBell
+                onResolved={() => void loadData({ refresh: true })}
+              />
               <RefreshIconButton
                 busy={refreshing}
                 disabled={loading}
@@ -465,6 +471,7 @@ function CashierContent() {
           hotelName={tenantScope}
           openOrders={orders}
           onSubmit={handleOrderSubmit}
+          maxServings={recipeMaxServingsById.get(selectedItem.id)}
         />
       ) : null}
     </SidebarProvider>

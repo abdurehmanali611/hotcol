@@ -87,6 +87,12 @@ export const RECOMMENDED_CRYSTAL_ADDITIONS = [
   },
   {
     category: "Kitchen / recipe",
+    purpose: "Plant / fiber",
+    triple: { am: "ቀጤማ", rom: "Qetema", en: "Sedge grass / rush" },
+    cores: ["qetema", "qetemma", "sedgegrass"],
+  },
+  {
+    category: "Kitchen / recipe",
     purpose: "Spice",
     triple: { am: "ነትሜግ", rom: "Nutmeg", en: "Nutmeg" },
     cores: ["nutmeg"],

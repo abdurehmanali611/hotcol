@@ -31,6 +31,7 @@ import {
 import CustomFormField, { formFieldTypes } from "./customFormField";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 const tableOrderSchema = orderDetailsSchema.extend({
   orderAmount: z.number().min(1),
@@ -57,6 +58,8 @@ interface OrderDetailsModalProps {
   onSubmit: (data: OrderCreationData) => Promise<unknown>;
   /** When set, "Table" becomes "Room" and these options replace café tables (value = stay id). */
   roomOptions?: { id: number; name: string; realValue: number }[];
+  /** Station on-hand max servings for this recipe (Infinity / omit = no cap). */
+  maxServings?: number;
 }
 
 export default function OrderDetailsModal({
@@ -67,6 +70,7 @@ export default function OrderDetailsModal({
   openOrders = [],
   onSubmit,
   roomOptions,
+  maxServings,
 }: OrderDetailsModalProps) {
   const roomMode = roomOptions != null;
   const [loading, setLoading] = useState(false);
@@ -121,6 +125,19 @@ export default function OrderDetailsModal({
   const anchorOptions = roomMode ? roomOptions ?? [] : tableSelectOptions;
 
   const onValidSubmit = async (values: z.infer<typeof tableOrderSchema>) => {
+    const qty = Math.max(1, Math.floor(Number(values.orderAmount) || 1));
+    if (
+      maxServings != null &&
+      Number.isFinite(maxServings) &&
+      qty > maxServings
+    ) {
+      toast.error(
+        maxServings <= 0
+          ? `“${item.name}” is out of station stock`
+          : `Only ${maxServings} of “${item.name}” can be ordered — not enough kitchen/bar recipe stock on hand.`,
+      );
+      return;
+    }
     setLoading(true);
     try {
       const fullOrderData: OrderCreationData = {
@@ -129,7 +146,7 @@ export default function OrderDetailsModal({
         imageUrl: item.imageUrl,
         category: item.category,
         type: item.type,
-        orderAmount: values.orderAmount,
+        orderAmount: qty,
         tableNo: values.tableNo,
         waiterName: values.waiterName,
         HotelName: hotelName,
@@ -197,6 +214,13 @@ export default function OrderDetailsModal({
                 label="Quantity"
                 inputClassName="h-fit p-2 w-75"
               />
+              {maxServings != null && Number.isFinite(maxServings) ? (
+                <p className="text-xs text-muted-foreground">
+                  {maxServings <= 0
+                    ? "No station stock for this recipe."
+                    : `Up to ${maxServings} available from kitchen/bar on-hand.`}
+                </p>
+              ) : null}
               <Separator />
               <div className="flex justify-between text-sm font-bold">
                 <span>Total Amount:</span>

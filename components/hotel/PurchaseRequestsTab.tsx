@@ -253,6 +253,7 @@ export default function PurchaseRequestsTab({
                           updateLine(l.key, { itemName })
                         }
                         placeholder="Search crystal name…"
+                        source="purchase"
                       />
                       {index === 0 ? (
                         <DepartmentLeaderSelect

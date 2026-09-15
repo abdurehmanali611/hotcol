@@ -246,6 +246,7 @@ function RegistrationReviewEditDialogForm({
                           value={field.value}
                           onChange={field.onChange}
                           placeholder="Search crystal name…"
+                          source="registration"
                         />
                       </FormControl>
                       <FormMessage />
