@@ -19,6 +19,10 @@ export type WaiterPaymentApprovalRequest = {
   resolvedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  selectedTotal?: number | null;
+  remainderAmount?: number | null;
+  remainderMethod?: string | null;
+  fullyPaid?: boolean | null;
 };
 
 const REQUEST_FIELDS = `
@@ -26,6 +30,7 @@ const REQUEST_FIELDS = `
   amountPaid paymentMethod withBank status
   requestNote cashierNote resolvedByUserName
   requestedAt resolvedAt createdAt updatedAt
+  selectedTotal remainderAmount remainderMethod fullyPaid
 `;
 
 function normalizeRequest(row: WaiterPaymentApprovalRequest): WaiterPaymentApprovalRequest {

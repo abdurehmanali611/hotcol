@@ -86,6 +86,8 @@ import { CafeTableSeatTabs } from "@/components/cafe/CafeTableSeatTabs";
 import { cn } from "@/lib/utils";
 import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
 import { useCashierCancelOrdersEnabled } from "@/hooks/useCashierCancelOrdersEnabled";
+import { useWaiterOrderingEnabled } from "@/hooks/useWaiterOrderingEnabled";
+import { useWaiterPaymentApprovalEnabled } from "@/hooks/useWaiterPaymentApprovalEnabled";
 import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 
 type ReadyTableSummary = {
@@ -123,6 +125,10 @@ export default function PaymentComponent({
 }: PaymentProps) {
   const analog = isAnalogCafeOrderMode(useCafeOrderMode());
   const cashierCanCancel = useCashierCancelOrdersEnabled();
+  const waiterOrderingEnabled = useWaiterOrderingEnabled();
+  const waiterPaymentApprovalEnabled = useWaiterPaymentApprovalEnabled();
+  const requiresWaiterPaymentRequest =
+    waiterOrderingEnabled && waiterPaymentApprovalEnabled;
   const [unpaidOrders, setUnpaidOrders] = useState<Order[]>([]);
   const [processingPayment, setProcessingPayment] = useState<number | null>(
     null,
@@ -178,13 +184,42 @@ export default function PaymentComponent({
     Record<number, PrimaryAmountChannel>
   >({});
 
-  const isReadyForPayment = useCallback(
+  const isKitchenReadyForPayment = useCallback(
     (order: Order) => {
       const status = String(order.status || "").toLowerCase();
       if (status === "cancelled" || status === "failed") return false;
       return analog ? true : status === "completed";
     },
     [analog],
+  );
+
+  const isReadyForPayment = useCallback(
+    (order: Order) => {
+      if (!isKitchenReadyForPayment(order)) return false;
+      if (!requiresWaiterPaymentRequest) return true;
+      return (
+        order.paymentApprovalRequestId != null &&
+        Number(order.paymentApprovalRequestId) > 0
+      );
+    },
+    [isKitchenReadyForPayment, requiresWaiterPaymentRequest],
+  );
+
+  const paymentWaitingLabel = useCallback(
+    (order: Order) => {
+      if (!isKitchenReadyForPayment(order)) return "Waiting";
+      if (
+        requiresWaiterPaymentRequest &&
+        !(
+          order.paymentApprovalRequestId != null &&
+          Number(order.paymentApprovalRequestId) > 0
+        )
+      ) {
+        return "Awaiting waiter";
+      }
+      return "Waiting";
+    },
+    [isKitchenReadyForPayment, requiresWaiterPaymentRequest],
   );
 
   // Filter unpaid orders
@@ -1533,6 +1568,11 @@ export default function PaymentComponent({
                     completedOrders={completedOrders}
                     tableTotal={completedTableTotal}
                     allOrdersCompleted={allCompleted}
+                    awaitingWaiterApproval={
+                      requiresWaiterPaymentRequest &&
+                      !allCompleted &&
+                      tableOrders.every((o) => isKitchenReadyForPayment(o))
+                    }
                     mode={tablePayMode}
                     onModeChange={(mode) =>
                       setTablePaymentModes((prev) => ({
@@ -1596,16 +1636,19 @@ export default function PaymentComponent({
                   {allCompleted && tablePayMode === "orders" && (
                     <div className="mb-6 p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        <div className="flex-1">
+                          <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <CheckCircle2 className="h-5 w-5 text-green-600" />
                             <h3 className="font-bold text-lg text-green-800">
-                              All orders ready for payment!
+                              {requiresWaiterPaymentRequest
+                                ? "Waiter payment approval received"
+                                : "All orders ready for payment!"}
                             </h3>
                           </div>
                           <p className="text-green-700 text-sm">
-                            You can pay all {tableOrders.length} orders for
-                            {` ${tableDisplay}`} at once to save time.
+                            {requiresWaiterPaymentRequest
+                              ? `You can pay all ${tableOrders.length} approved orders for${` ${tableDisplay}`} now.`
+                              : `You can pay all ${tableOrders.length} orders for${` ${tableDisplay}`} at once to save time.`}
                           </p>
                         </div>
                         <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -1839,7 +1882,10 @@ export default function PaymentComponent({
                       </h4>
                       {!analog && !allCompleted && (
                         <Badge variant="outline" className="text-xs">
-                          Some items pending
+                          {requiresWaiterPaymentRequest &&
+                          tableOrders.every((o) => isKitchenReadyForPayment(o))
+                            ? "Awaiting waiter approval request"
+                            : "Some items pending"}
                         </Badge>
                       )}
                     </div>
@@ -1948,7 +1994,8 @@ export default function PaymentComponent({
                                     <span className="animate-spin">⟳</span>
                                   ) : !isReadyForPayment(order) ? (
                                     <>
-                                      <Clock className="h-4 w-4" /> Waiting
+                                      <Clock className="h-4 w-4" />{" "}
+                                      {paymentWaitingLabel(order)}
                                     </>
                                   ) : (
                                     <>

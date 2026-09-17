@@ -135,12 +135,30 @@ export function WaiterPaymentApprovalBell({ onResolved }: Props) {
                         {row.tableNo != null ? ` · Table ${row.tableNo}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {row.paymentMethod} ·{" "}
-                        {Number(row.amountPaid).toLocaleString()} ETB
+                        {(() => {
+                          const primary = Number(row.amountPaid) || 0;
+                          const isBank =
+                            row.withBank === true ||
+                            /bank|transfer|withbank/i.test(
+                              String(row.paymentMethod || ""),
+                            );
+                          const primaryLabel = isBank ? "Bank" : "Cash";
+                          const fullyPaid = row.fullyPaid !== false;
+                          const remainder = Number(row.remainderAmount) || 0;
+                          const other =
+                            row.remainderMethod || (isBank ? "Cash" : "Bank");
+                          if (fullyPaid || remainder < 0.001) {
+                            return `Fully paid · ${primaryLabel} ${primary.toLocaleString()} ETB`;
+                          }
+                          return `${primaryLabel} ${primary.toLocaleString()} + ${other} ${remainder.toLocaleString()} ETB`;
+                        })()}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
                         {row.orderIds.length} line
                         {row.orderIds.length === 1 ? "" : "s"}
+                        {row.selectedTotal != null
+                          ? ` · total ${Number(row.selectedTotal).toLocaleString()} ETB`
+                          : ""}
                       </p>
                     </div>
                   </div>

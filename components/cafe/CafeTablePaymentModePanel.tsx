@@ -75,6 +75,8 @@ type Props = {
   completedOrders: Order[];
   tableTotal: number;
   allOrdersCompleted: boolean;
+  /** Kitchen done but waiter payment approval request not yet sent. */
+  awaitingWaiterApproval?: boolean;
   mode: TablePaymentMode;
   onModeChange: (mode: TablePaymentMode) => void;
   primaryChannel: PrimaryAmountChannel;
@@ -92,6 +94,7 @@ export function CafeTablePaymentModePanel({
   completedOrders,
   tableTotal,
   allOrdersCompleted,
+  awaitingWaiterApproval = false,
   mode,
   onModeChange,
   primaryChannel,
@@ -197,10 +200,15 @@ export function CafeTablePaymentModePanel({
           {!allOrdersCompleted ? (
             <Alert className="border-amber-200/80 bg-amber-50/80 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
               <Clock className="h-4 w-4" />
-              <AlertTitle>Waiting on kitchen</AlertTitle>
+              <AlertTitle>
+                {awaitingWaiterApproval
+                  ? "Awaiting waiter payment request"
+                  : "Waiting on kitchen"}
+              </AlertTitle>
               <AlertDescription>
-                Amount settlement unlocks when every order on this table is
-                marked completed.
+                {awaitingWaiterApproval
+                  ? "Amount settlement unlocks after the waiter sends a payment approval request for these completed lines."
+                  : "Amount settlement unlocks when every order on this table is marked completed."}
               </AlertDescription>
             </Alert>
           ) : completedOrders.length === 0 ? (
