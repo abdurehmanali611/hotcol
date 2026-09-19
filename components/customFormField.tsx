@@ -315,14 +315,16 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
             <Button
               variant="outline"
               className={clsx(
-                "w-fit justify-between ml-6 font-normal cursor-pointer",
+                "w-full min-w-0 justify-between font-normal cursor-pointer",
                 props.inputClassName,
               )}
               disabled={props.disabled}
               type="button"
             >
-              <Calendar1 className="mr-2 h-4 w-4" />
-              {field.value ? field.value.toDateString() : "Select Date"}
+              <Calendar1 className="mr-2 h-4 w-4 shrink-0" />
+              <span className="truncate">
+                {field.value ? field.value.toDateString() : "Select Date"}
+              </span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">

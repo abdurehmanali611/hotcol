@@ -36,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Separator } from "@/components/ui/separator";
 
@@ -87,7 +86,7 @@ function StockReviewEditDialogForm({
   );
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <DialogHeader className="px-6 pt-6 pb-4 space-y-3 border-b border-border/60 bg-muted/15 shrink-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="font-mono tabular-nums text-xs">
@@ -113,7 +112,7 @@ function StockReviewEditDialogForm({
         </div>
       </DialogHeader>
 
-      <ScrollArea className="max-h-[min(62vh,520px)]">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-6 py-5 space-y-6">
           <HotelFormSection
             title="Linked item"
@@ -235,10 +234,10 @@ function StockReviewEditDialogForm({
             )}
           </HotelFormSection>
         </div>
-      </ScrollArea>
+      </div>
 
-      <Separator />
-      <DialogFooter className="px-6 py-4 gap-2 sm:gap-2 bg-muted/10 shrink-0">
+      <Separator className="shrink-0" />
+      <DialogFooter className="shrink-0 border-t border-border/60 px-6 py-4 gap-2 sm:gap-2 bg-muted/10">
         <Button type="button" variant="outline" onClick={onDismiss}>
           Cancel
         </Button>
@@ -282,7 +281,7 @@ function StockReviewEditDialogForm({
           Save changes
         </PendingButton>
       </DialogFooter>
-    </>
+    </div>
   );
 }
 
@@ -305,8 +304,8 @@ export function StockReviewEditDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-hidden p-0 gap-0 border-border/80 shadow-2xl">
-        <div className="h-1 bg-linear-to-r from-amber-500/70 via-orange-500/55 to-rose-400/45 shrink-0" />
+      <DialogContent className="flex max-h-[min(92vh,720px)] max-w-2xl flex-col overflow-hidden p-0 gap-0 border-border/80 shadow-2xl sm:max-w-2xl">
+        <div className="h-1 shrink-0 bg-linear-to-r from-amber-500/70 via-orange-500/55 to-rose-400/45" />
         {open && row ? (
           <StockReviewEditDialogForm
             key={row.id}

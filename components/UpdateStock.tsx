@@ -21,7 +21,14 @@ import {
   normalizeRegistrationCategory,
   type RegistrationCategory,
 } from "@/lib/registrationFormConstants";
-import { Form } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
 import { ImageIcon } from "lucide-react";
 import Image from "next/image";
@@ -30,6 +37,9 @@ import {
   isVatEnabled,
 } from "@/lib/hotelInventoryPayment";
 import { registrationPreviewImageUrl } from "@/lib/registrationImageUrl";
+import { CrystalItemNameField } from "@/components/crystal/CrystalItemNameField";
+import { Separator } from "@/components/ui/separator";
+import { INVENTORY_UNIT_SELECT_OPTIONS } from "@/lib/inventoryUnits";
 
 interface UpdateStockProps {
   isOpen: boolean;
@@ -38,6 +48,8 @@ interface UpdateStockProps {
   hotelInventory?: boolean;
   onUpdateSuccess: () => void;
 }
+
+const FIELD_INPUT = "h-10 w-full min-w-0";
 
 const UpdateStock = ({
   isOpen,
@@ -85,7 +97,9 @@ const UpdateStock = ({
     form.reset({
       name: item.name,
       imageUrl: item.imageUrl,
-      category: normalizeRegistrationCategory(item.category) as RegistrationCategory,
+      category: normalizeRegistrationCategory(
+        item.category,
+      ) as RegistrationCategory,
       amount: item.amount,
       measuredBy: item.measuredBy,
       unitPrice: item.unitPrice,
@@ -175,7 +189,7 @@ const UpdateStock = ({
         imageUrl: values.imageUrl ?? "",
         supplierPhone: values.supplierPhone ?? "",
       });
-      toast.success(`${item.name} updated successfully`);
+      toast.success(`${values.name.trim() || item.name} updated successfully`);
       onUpdateSuccess();
       onOpenChange(false);
     } catch (error: any) {
@@ -187,108 +201,108 @@ const UpdateStock = ({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-fit sm:max-w-2xl overflow-y-auto p-3">
-        <SheetHeader>
-          <SheetTitle>Update Stock Item</SheetTitle>
+      <SheetContent
+        side="right"
+        className="flex h-full w-full max-w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+      >
+        <SheetHeader className="shrink-0 space-y-1 border-b border-border/60 px-6 py-4 pr-12 text-left">
+          <SheetTitle>Update stock item</SheetTitle>
           <SheetDescription>
-            Edit the item details below. Click save when you&apos;re done.
+            Edit the item details below, then save.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-3">
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4 flex flex-col gap-4 items-center"
-            >
-              <div className="grid grid-cols-2 gap-4">
-                <CustomFormField
+
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="mx-auto w-full max-w-lg space-y-5">
+                <FormField
+                  control={form.control}
                   name="name"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Name:"
-                  placeholder="Item name"
-                  inputClassName="h-fit p-2 w-56"
+                  render={({ field }) => (
+                    <FormItem className="min-w-0 space-y-2">
+                      <FormControl>
+                        <CrystalItemNameField
+                          id="update-stock-name"
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Search crystal name…"
+                          source="registration"
+                          className="grid-cols-2 gap-3 items-end"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <CustomFormField
-                  name="category"
-                  control={form.control}
-                  fieldType={formFieldTypes.SELECT}
-                  label="Category:"
-                  placeholder="Choose Category"
-                  listdisplay={REGISTRATION_CATEGORIES.map((name, index) => ({
-                    id: index + 1,
-                    name,
-                  }))}
-                  inputClassName="h-fit p-2 w-56"
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <CustomFormField
-                  name="amount"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Amount:"
-                  type="number"
-                  allowDecimal
-                  min={0}
-                  step="any"
-                  inputClassName="h-fit p-2 w-56"
-                />
-                <CustomFormField
-                  name="measuredBy"
-                  control={form.control}
-                  fieldType={formFieldTypes.SELECT}
-                  label="Measured By:"
-                  listdisplay={[
-                    { id: 1, name: "Litre" },
-                    { id: 2, name: "Kilogram" },
-                    { id: 3, name: "Piece" },
-                    { id: 4, name: "Packet" },
-                    { id: 5, name: "Dozen" },
-                    { id: 6, name: "Other" },
-                  ]}
-                  inputClassName="h-fit p-2 w-56"
-                />
-              </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <CustomFormField
+                    name="category"
+                    control={form.control}
+                    fieldType={formFieldTypes.SELECT}
+                    label="Category"
+                    placeholder="Choose category"
+                    listdisplay={REGISTRATION_CATEGORIES.map((name, index) => ({
+                      id: index + 1,
+                      name,
+                    }))}
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="measuredBy"
+                    control={form.control}
+                    fieldType={formFieldTypes.SELECT}
+                    label="Unit"
+                    listdisplay={[...INVENTORY_UNIT_SELECT_OPTIONS]}
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="amount"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Quantity"
+                    type="number"
+                    allowDecimal
+                    min={0}
+                    step="any"
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="unitPrice"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Unit price (ETB)"
+                    type="number"
+                    allowDecimal
+                    min={0}
+                    step="any"
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="registrationDate"
+                    control={form.control}
+                    fieldType={formFieldTypes.CALENDAR}
+                    label="Registration date"
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="expireDate"
+                    control={form.control}
+                    fieldType={formFieldTypes.CALENDAR}
+                    label="Expiry date"
+                    inputClassName={FIELD_INPUT}
+                  />
+                </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <CustomFormField
-                  name="unitPrice"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Unit Price:"
-                  type="number"
-                  allowDecimal
-                  min={0}
-                  step="any"
-                  inputClassName="h-fit p-2 w-56"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <CustomFormField
-                  name="registrationDate"
-                  control={form.control}
-                  fieldType={formFieldTypes.CALENDAR}
-                  label="Registration Date:"
-                  inputClassName="h-fit p-2 w-56 mx-1"
-                />
-                <CustomFormField
-                  name="expireDate"
-                  control={form.control}
-                  fieldType={formFieldTypes.CALENDAR}
-                  label="Expire Date:"
-                  inputClassName="h-fit p-2 w-56 mx-1"
-                />
-              </div>
-
-              <div className="space-y-4 self-center">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <FormLabel>
                     Item image <span className="text-destructive">*</span>
-                  </label>
-                  <div className="relative w-42 h-42 rounded-lg flex items-center justify-center overflow-hidden group mt-2">
+                  </FormLabel>
+                  <div className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-muted/20 group">
                     {previewUrl ? (
                       <>
                         <Image
@@ -297,36 +311,33 @@ const UpdateStock = ({
                           fill
                           className="object-cover"
                         />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                           <Button
                             type="button"
                             variant="secondary"
                             size="sm"
-                            className="cursor-pointer"
                             onClick={() =>
                               document.getElementById("image-upload")?.click()
                             }
                           >
-                            Change Image
+                            Change image
                           </Button>
                         </div>
                       </>
                     ) : (
-                      <div className="text-center p-6">
-                        <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                        <div className="mt-2">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="cursor-pointer"
-                            onClick={() =>
-                              document.getElementById("image-upload")?.click()
-                            }
-                          >
-                            Upload Image
-                          </Button>
-                        </div>
+                      <div className="p-4 text-center">
+                        <ImageIcon className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() =>
+                            document.getElementById("image-upload")?.click()
+                          }
+                        >
+                          Upload image
+                        </Button>
                       </div>
                     )}
                     <input
@@ -343,83 +354,83 @@ const UpdateStock = ({
                     </p>
                   ) : null}
                 </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <CustomFormField
+                    name="supplierName"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Supplier name"
+                    placeholder="ABC company"
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="supplierPhone"
+                    control={form.control}
+                    fieldType={formFieldTypes.PHONE_INPUT}
+                    label="Supplier phone (optional)"
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="Address"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Address / note"
+                    placeholder="123 street"
+                    inputClassName={FIELD_INPUT}
+                  />
+                  <CustomFormField
+                    name="supplierTinNumber"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Supplier TIN (optional)"
+                    placeholder="10-digit TIN"
+                    inputClassName={FIELD_INPUT}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <CustomFormField
+                    name="purchaseWithVat"
+                    control={form.control}
+                    fieldType={formFieldTypes.SWITCH}
+                    label="Purchase price includes VAT"
+                    formItemClassName="flex w-full min-w-0 flex-col items-start gap-2"
+                  />
+                  <CustomFormField
+                    name="paidAmount"
+                    control={form.control}
+                    fieldType={formFieldTypes.INPUT}
+                    label="Paid amount (ETB)"
+                    type="number"
+                    allowDecimal
+                    min={0}
+                    step="any"
+                    inputClassName={FIELD_INPUT}
+                  />
+                </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <CustomFormField
-                  name="supplierName"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Supplier Name:"
-                  placeholder="ABC company"
-                  inputClassName="h-fit p-2 w-56"
-                />
-                <CustomFormField
-                  name="supplierPhone"
-                  control={form.control}
-                  fieldType={formFieldTypes.PHONE_INPUT}
-                  label="Supplier Contact (optional)"
-                  inputClassName="h-fit p-2 w-56"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <CustomFormField
-                  name="Address"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Address:"
-                  placeholder="123 street"
-                  inputClassName="h-fit p-2 w-56"
-                />
-                <CustomFormField
-                  name="supplierTinNumber"
-                  control={form.control}
-                  fieldType={formFieldTypes.INPUT}
-                  label="Supplier TIN (optional)"
-                  placeholder="10-digit TIN"
-                  inputClassName="h-fit p-2 w-56"
-                />
-              </div>
-
-              <CustomFormField
-                name="purchaseWithVat"
-                control={form.control}
-                fieldType={formFieldTypes.SWITCH}
-                label="Purchase price includes VAT"
-              />
-
-              <CustomFormField
-                name="paidAmount"
-                control={form.control}
-                fieldType={formFieldTypes.INPUT}
-                label="Paid Amount:"
-                type="number"
-                allowDecimal
-                min={0}
-                step="any"
-                inputClassName="h-fit p-2 w-56"
-              />
-
-              <div className="flex gap-10 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Cancel
-                </Button>
-                <PendingButton
-                  type="submit"
-                  pending={loading}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {loading ? "Updating…" : "Update Item"}
-                </PendingButton>
-              </div>
-            </form>
-          </Form>
-        </div>
+            <Separator className="shrink-0" />
+            <div className="flex shrink-0 flex-wrap justify-end gap-3 bg-muted/10 px-6 py-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <PendingButton
+                type="submit"
+                pending={loading}
+                className="min-w-[132px] bg-green-600 hover:bg-green-700"
+              >
+                {loading ? "Updating…" : "Update item"}
+              </PendingButton>
+            </div>
+          </form>
+        </Form>
       </SheetContent>
     </Sheet>
   );

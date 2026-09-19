@@ -71,7 +71,7 @@ export function CrystalItemNameField({
           value={qualifier}
           disabled={disabled}
           placeholder="staff"
-          className="h-10"
+          className="h-10 w-full min-w-0"
           onChange={(e) => {
             const nextQ = e.target.value.replace(/[()]/g, "");
             onChange(composeCrystalItemName(baseValue, nextQ));

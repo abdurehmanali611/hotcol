@@ -119,10 +119,17 @@ function draftFromSearch(search: string): {
     };
   }
   if (hasEthiopic(raw)) {
-    // Keep all three filled so Enter can auto-propose without a dialog.
-    return { amharic: raw, romanized: raw, english: raw };
+    return { amharic: raw, romanized: "", english: "" };
   }
-  return { amharic: "—", romanized: raw, english: raw };
+  // Latin / mixed typed text — leave Amharic blank; Apex can complete it.
+  return { amharic: "", romanized: raw, english: raw };
+}
+
+/** Treat em-dash / ellipsis placeholders as empty optional fields. */
+function normalizeLangPart(value: string): string {
+  const t = value.trim();
+  if (!t || t === "—" || t === "-" || t === "…" || t === "...") return "";
+  return t;
 }
 
 /**
@@ -157,6 +164,8 @@ export function CrystalNameSelector({
   const [highlightIndex, setHighlightIndex] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const proposingRef = useRef(false);
+  /** Preserved when the popover closes (which clears `search`) so propose still has typed text. */
+  const proposeRawRef = useRef("");
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -275,33 +284,31 @@ export function CrystalNameSelector({
       nextDraft: { amharic: string; romanized: string; english: string },
       rawText: string,
     ) => {
-      const typed = rawText.trim();
-      if (!typed) {
+      const typed = rawText.trim() || proposeRawRef.current.trim();
+      const amharic = normalizeLangPart(nextDraft.amharic);
+      const romanized = normalizeLangPart(nextDraft.romanized);
+      const english = normalizeLangPart(nextDraft.english);
+      // Prefer any filled language fields, then the typed search text.
+      const fallbackRaw =
+        typed ||
+        [amharic, romanized, english].filter(Boolean).join("|") ||
+        romanized ||
+        english ||
+        amharic;
+      if (!fallbackRaw) {
         toast.error("Type a name first");
-        return;
-      }
-      const amharic = nextDraft.amharic.trim();
-      const romanized = nextDraft.romanized.trim();
-      const english = nextDraft.english.trim();
-      // Partial triples are OK — Apex completes languages on approve.
-      // If any segment is filled, require all three so we don't store half labels.
-      const anyFilled = Boolean(amharic || romanized || english);
-      const allFilled = Boolean(amharic && romanized && english);
-      if (anyFilled && !allFilled) {
-        toast.error(
-          "Fill Amharic, romanized, and English — or leave all blank to send typed text only",
-        );
         return;
       }
       if (proposingRef.current) return;
       proposingRef.current = true;
       setProposing(true);
       try {
+        // All language fields are optional — send only what the user filled.
         const proposal = await proposeCrystalName({
-          rawText: typed,
-          amharic: allFilled ? amharic : undefined,
-          romanized: allFilled ? romanized : undefined,
-          english: allFilled ? english : undefined,
+          rawText: fallbackRaw,
+          amharic: amharic || undefined,
+          romanized: romanized || undefined,
+          english: english || undefined,
           source,
         });
         await applyProposalResult(proposal);
@@ -316,7 +323,9 @@ export function CrystalNameSelector({
   );
 
   const openPropose = () => {
-    setDraft(draftFromSearch(search));
+    const typed = search.trim();
+    proposeRawRef.current = typed;
+    setDraft(draftFromSearch(typed));
     setProposeOpen(true);
     setOpen(false);
   };
@@ -324,9 +333,11 @@ export function CrystalNameSelector({
   /** Enter with no matches: typed text only → Apex fills the triple later. */
   const quickProposeFromSearch = useCallback(() => {
     if (!canPropose) return;
+    const typed = search.trim();
+    proposeRawRef.current = typed;
     void proposeWithDraft(
       { amharic: "", romanized: "", english: "" },
-      search.trim(),
+      typed,
     );
   }, [canPropose, proposeWithDraft, search]);
 
@@ -392,7 +403,7 @@ export function CrystalNameSelector({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              "h-10 w-full min-w-0 justify-between px-3 font-normal",
+              "h-10 w-full min-w-0 max-w-full justify-between gap-2 px-3 font-normal",
               !value && "text-muted-foreground",
               className,
             )}
@@ -400,10 +411,10 @@ export function CrystalNameSelector({
             <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
               {selected ? (
                 <>
-                  <span className="truncate text-left">
+                  <span className="min-w-0 truncate text-left">
                     {displayPrimary(selected)}
                   </span>
-                  <span className="ml-auto shrink-0 truncate text-xs text-muted-foreground">
+                  <span className="ml-auto max-w-[45%] shrink truncate text-xs text-muted-foreground">
                     {selected.english}
                   </span>
                 </>
@@ -411,7 +422,7 @@ export function CrystalNameSelector({
                 <span className="truncate">{placeholder}</span>
               )}
             </span>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -527,10 +538,9 @@ export function CrystalNameSelector({
           <DialogHeader>
             <DialogTitle>Propose crystal name</DialogTitle>
             <DialogDescription>
-              Optional: fill Amharic|Romanized|English now, or leave them blank
-              and send only what you typed — Apex will complete the languages
-              when approving. You can use the typed name on this form right
-              away.
+              Optional: fill any of Amharic, Romanized, or English now — leave
+              blanks for Apex to complete when approving. What you typed is
+              saved and usable on this form right away.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -570,7 +580,7 @@ export function CrystalNameSelector({
             <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               Preview:{" "}
               <code className="text-foreground">
-                {`${draft.amharic.trim() || "…"}|${draft.romanized.trim() || "…"}|${draft.english.trim() || "…"}`}
+                {`${normalizeLangPart(draft.amharic) || "…"}|${normalizeLangPart(draft.romanized) || "…"}|${normalizeLangPart(draft.english) || "…"}`}
               </code>
             </p>
           </div>
@@ -586,7 +596,12 @@ export function CrystalNameSelector({
             <Button
               type="button"
               disabled={proposing}
-              onClick={() => void proposeWithDraft(draft, search.trim())}
+              onClick={() =>
+                void proposeWithDraft(
+                  draft,
+                  proposeRawRef.current || search.trim(),
+                )
+              }
             >
               {proposing ? "Saving…" : "Use & send to Apex"}
             </Button>

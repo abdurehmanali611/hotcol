@@ -56,7 +56,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Separator } from "@/components/ui/separator";
 
@@ -197,7 +196,7 @@ function RegistrationReviewEditDialogForm({
   };
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <DialogHeader className="px-6 pt-6 pb-4 space-y-3 border-b border-border/60 bg-muted/15 shrink-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="font-mono tabular-nums text-xs">
@@ -223,7 +222,7 @@ function RegistrationReviewEditDialogForm({
         </div>
       </DialogHeader>
 
-      <ScrollArea className="max-h-[min(62vh,520px)]">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <Form {...form}>
           <form
             id={`registration-review-edit-${row.id}`}
@@ -508,10 +507,10 @@ function RegistrationReviewEditDialogForm({
             </HotelFormSection>
           </form>
         </Form>
-      </ScrollArea>
+      </div>
 
-      <Separator />
-      <DialogFooter className="px-6 py-4 gap-2 sm:gap-2 bg-muted/10 shrink-0">
+      <Separator className="shrink-0" />
+      <DialogFooter className="shrink-0 border-t border-border/60 px-6 py-4 gap-2 sm:gap-2 bg-muted/10">
         <Button type="button" variant="outline" onClick={onDismiss}>
           Cancel
         </Button>
@@ -524,7 +523,7 @@ function RegistrationReviewEditDialogForm({
           Save changes
         </PendingButton>
       </DialogFooter>
-    </>
+    </div>
   );
 }
 
@@ -545,8 +544,8 @@ export function RegistrationReviewEditDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-hidden p-0 gap-0 border-border/80 shadow-2xl">
-        <div className="h-1 bg-linear-to-r from-emerald-500/70 via-green-500/55 to-teal-400/45 shrink-0" />
+      <DialogContent className="flex max-h-[min(92vh,720px)] max-w-2xl flex-col overflow-hidden p-0 gap-0 border-border/80 shadow-2xl sm:max-w-2xl">
+        <div className="h-1 shrink-0 bg-linear-to-r from-emerald-500/70 via-green-500/55 to-teal-400/45" />
         {open && row ? (
           <RegistrationReviewEditDialogForm
             key={row.id}
