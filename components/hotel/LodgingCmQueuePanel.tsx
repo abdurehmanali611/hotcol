@@ -261,6 +261,7 @@ export function LodgingCmQueuePanel({
         next[id] = {
           names: [...base.names],
           notes: base.notes,
+          expectedEndAt: "",
         };
       }
       return next;
@@ -279,6 +280,7 @@ export function LodgingCmQueuePanel({
         next[id] = {
           names: [...source.names],
           notes: source.notes,
+          expectedEndAt: "",
         };
       }
       return next;

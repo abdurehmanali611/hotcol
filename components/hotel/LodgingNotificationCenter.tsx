@@ -19,7 +19,6 @@ import {
   type LodgingNotificationInput,
 } from "@/lib/lodgingNotifications";
 import {
-  inventoryNotificationSeenKey,
   readSeenNotificationIds,
   writeSeenNotificationIds,
 } from "@/lib/inventoryNotificationSeen";
@@ -95,7 +94,7 @@ export function LodgingNotificationCenter({
     () => summarizeLodgingNotifications(notifications),
     [notifications],
   );
-  const seenKey = inventoryNotificationSeenKey(SEEN_SCOPE);
+  const seenKey = `hotcol-inv-seen:${SEEN_SCOPE}`;
   const [seen, setSeen] = useState(() => readSeenNotificationIds(seenKey));
   const [filter, setFilter] = useState<"all" | LodgingAlertSeverity>("all");
   const [open, setOpen] = useState(false);

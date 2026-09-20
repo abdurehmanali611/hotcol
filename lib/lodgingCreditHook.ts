@@ -10,7 +10,7 @@
 export const LODGING_CREDIT_PAYMENT_ENABLED = false;
 
 export function isLodgingCreditPaymentEnabled(): boolean {
-  return LODGING_CREDIT_PAYMENT_ENABLED === true;
+  return Boolean(LODGING_CREDIT_PAYMENT_ENABLED);
 }
 
 export type LodgingCreditSettlementInput = {
