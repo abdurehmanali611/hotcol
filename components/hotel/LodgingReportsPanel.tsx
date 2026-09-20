@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import {
+  BarChart3,
   FileSpreadsheet,
   FileText,
   Loader2,
@@ -27,10 +28,12 @@ import {
   fetchLodgingActionLogs,
   fetchLodgingDashboardStats,
   fetchLodgingGuests,
+  fetchLodgingPerformanceReport,
   fetchLodgingStaysByDate,
   type LodgingActionLog,
   type LodgingDashboardStats,
   type LodgingGuest,
+  type LodgingPerformanceReport,
   type LodgingStay,
 } from "@/lib/api/lodgingRooms";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
@@ -151,6 +154,8 @@ export function LodgingReportsPanel({
   const [loadingStays, setLoadingStays] = useState(false);
   const [guests, setGuests] = useState<LodgingGuest[]>([]);
   const [loadingGuests, setLoadingGuests] = useState(false);
+  const [perf, setPerf] = useState<LodgingPerformanceReport | null>(null);
+  const [loadingPerf, setLoadingPerf] = useState(false);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -270,6 +275,22 @@ export function LodgingReportsPanel({
     ],
     [],
   );
+
+  const loadPerf = useCallback(async () => {
+    setLoadingPerf(true);
+    try {
+      setPerf(await fetchLodgingPerformanceReport(from, to));
+    } catch (e) {
+      notifyApiFailure(e, "Could not load ADR / RevPAR");
+      setPerf(null);
+    } finally {
+      setLoadingPerf(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => {
+    void loadPerf();
+  }, [loadPerf]);
 
   const loadStays = async () => {
     setLoadingStays(true);
@@ -405,6 +426,133 @@ export function LodgingReportsPanel({
               </div>
             ) : (
               <LodgingStatCardsGrid stats={stats} />
+            )}
+          </HotelFormSection>
+
+          <HotelFormSection
+            title="ADR · RevPAR · occupancy pack"
+            description="Period KPIs from room night revenue vs inventory. Change From/To below (same range as stay payments) — metrics refresh automatically."
+          >
+            <div className="flex flex-wrap items-end gap-3 mb-4">
+              <HotelDayPicker label="From" value={from} onChange={setFrom} />
+              <HotelDayPicker label="To" value={to} onChange={setTo} />
+              <PendingButton
+                type="button"
+                variant="outline"
+                pending={loadingPerf}
+                onClick={() => void loadPerf()}
+              >
+                <BarChart3 className="h-4 w-4" />
+                Refresh KPIs
+              </PendingButton>
+            </div>
+            {loadingPerf && !perf ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Calculating…
+              </div>
+            ) : perf ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {(
+                    [
+                      ["Occupancy", `${perf.occupancyPercent}%`],
+                      ["ADR", formatEtb(perf.adrETB)],
+                      ["RevPAR", formatEtb(perf.revparETB)],
+                      ["Room revenue", formatEtb(perf.roomRevenueETB)],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3"
+                    >
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {label}
+                      </p>
+                      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {perf.roomNightsSold} room-nights sold ·{" "}
+                  {perf.availableRoomNights} available · {perf.staysInHouse}{" "}
+                  in-house · {perf.staysCheckedOut} checked out in range
+                </p>
+                {perf.byRoomType.length > 0 ? (
+                  <div className="overflow-x-auto rounded-xl border border-border/70">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2 font-medium">Room type</th>
+                          <th className="px-3 py-2 font-medium text-right">
+                            Nights
+                          </th>
+                          <th className="px-3 py-2 font-medium text-right">
+                            Revenue
+                          </th>
+                          <th className="px-3 py-2 font-medium text-right">
+                            ADR
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {perf.byRoomType.map((r) => (
+                          <tr key={r.roomType}>
+                            <td className="px-3 py-2">{r.roomType}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {r.roomNightsSold}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {formatEtb(r.roomRevenueETB)}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {formatEtb(r.adrETB)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {perf.bySource.length > 0 ? (
+                  <div className="overflow-x-auto rounded-xl border border-border/70">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2 font-medium">Source</th>
+                          <th className="px-3 py-2 font-medium text-right">
+                            Stays
+                          </th>
+                          <th className="px-3 py-2 font-medium text-right">
+                            Room revenue
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {perf.bySource.map((r) => (
+                          <tr key={r.source}>
+                            <td className="px-3 py-2 capitalize">
+                              {r.source.replace(/_/g, " ")}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {r.stays}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {formatEtb(r.roomRevenueETB)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No performance data for this range.
+              </p>
             )}
           </HotelFormSection>
 

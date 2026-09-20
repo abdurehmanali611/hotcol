@@ -43,6 +43,7 @@ import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
+import { LodgingNotificationCenter } from "@/components/hotel/LodgingNotificationCenter";
 import {
   completeLodgingCmAssignmentApi,
   fetchLodgingActionLogs,
@@ -190,6 +191,14 @@ export function CMLeaderDashboard() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+            <LodgingNotificationCenter
+              input={{
+                dirtyCount: stats?.vacantDirty,
+                maintenanceCount: stats?.onMaintenance,
+                inspectedCount: stats?.inspected,
+                openCmCount: stats?.openCmAssignments,
+              }}
+            />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>

@@ -45,6 +45,8 @@ function roomStatusBadgeClass(status: string): string {
       return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
     case "vacant_dirty":
       return "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-400";
+    case "inspected":
+      return "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-400";
     case "occupied":
       return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400";
     case "on_maintenance":
@@ -71,10 +73,11 @@ type PeopleLayout = "shared" | "per-room";
 type RoomAssignDraft = {
   names: string[];
   notes: string;
+  expectedEndAt: string;
 };
 
 function emptyDraft(): RoomAssignDraft {
-  return { names: [""], notes: "" };
+  return { names: [""], notes: "", expectedEndAt: "" };
 }
 
 function PeopleFields({
@@ -306,6 +309,9 @@ export function LodgingCmQueuePanel({
           workKind,
           assigneeNames: names,
           notes: draft.notes.trim(),
+          statusExpectedEndAt: draft.expectedEndAt
+            ? new Date(draft.expectedEndAt).toISOString()
+            : null,
           quiet: true,
         });
         ok += 1;
@@ -411,10 +417,12 @@ export function LodgingCmQueuePanel({
                 {queue.map((room) => {
                   const status = room.status as LodgingRoomStatus;
                   const onMaintenance = status === "on_maintenance";
+                  const isInspected = status === "inspected";
+                  const isDirty = status === "vacant_dirty";
                   const cleaningOpen = openCleaningByRoom.get(room.id) ?? [];
                   const maintOpen = openMaintByRoom.get(room.id) ?? [];
                   const canMarkClean =
-                    onMaintenance || cleaningOpen.length > 0;
+                    isInspected || onMaintenance || cleaningOpen.length > 0;
                   const checked = selectedRoomIds.includes(room.id);
                   return (
                     <li
@@ -451,6 +459,14 @@ export function LodgingCmQueuePanel({
                               {LODGING_ROOM_STATUS_LABELS[status] ??
                                 room.status}
                             </Badge>
+                            {room.statusExpectedEndAt ? (
+                              <span className="text-xs text-muted-foreground">
+                                Ready by{" "}
+                                {new Date(
+                                  room.statusExpectedEndAt,
+                                ).toLocaleString()}
+                              </span>
+                            ) : null}
                             {(onMaintenance ? maintOpen : cleaningOpen)
                               .length > 0 ? (
                               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -461,24 +477,50 @@ export function LodgingCmQueuePanel({
                               </span>
                             ) : (
                               <span className="text-xs text-muted-foreground">
-                                {onMaintenance
-                                  ? "No open maintenance assignees"
-                                  : "No cleaners assigned yet"}
+                                {isInspected
+                                  ? "Inspected — mark vacant clean when ready"
+                                  : onMaintenance
+                                    ? "No open maintenance assignees"
+                                    : "No cleaners assigned yet"}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2 pl-7 lg:pl-0">
+                        {isDirty ? (
+                          <PendingButton
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            pending={pending === `inspect-${room.id}`}
+                            onClick={async () => {
+                              setPending(`inspect-${room.id}`);
+                              try {
+                                await updateLodgingRoomStatusApi(
+                                  room.id,
+                                  "inspected",
+                                );
+                                await onRefresh();
+                              } catch (e) {
+                                notifyApiFailure(e, "Could not mark inspected");
+                              } finally {
+                                setPending(null);
+                              }
+                            }}
+                          >
+                            Mark inspected
+                          </PendingButton>
+                        ) : null}
                         <PendingButton
                           type="button"
                           size="sm"
                           pending={pending === `clean-${room.id}`}
-                          disabled={!canMarkClean}
+                          disabled={!canMarkClean && !isInspected}
                           title={
-                            canMarkClean
+                            isInspected || canMarkClean
                               ? undefined
-                              : "Assign cleaners before marking vacant clean"
+                              : "Assign cleaners or inspect before vacant clean"
                           }
                           onClick={async () => {
                             setPending(`clean-${room.id}`);
@@ -497,24 +539,28 @@ export function LodgingCmQueuePanel({
                         >
                           {onMaintenance
                             ? "Release → vacant clean"
-                            : "Mark vacant clean"}
+                            : isInspected
+                              ? "Open → vacant clean"
+                              : "Mark vacant clean"}
                         </PendingButton>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            openAssignForRooms(
-                              [room],
-                              onMaintenance ? "maintenance" : "cleaning",
-                            )
-                          }
-                        >
-                          {onMaintenance
-                            ? "Assign maintenance"
-                            : "Assign cleaners"}
-                        </Button>
-                        {!onMaintenance ? (
+                        {!isInspected ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              openAssignForRooms(
+                                [room],
+                                onMaintenance ? "maintenance" : "cleaning",
+                              )
+                            }
+                          >
+                            {onMaintenance
+                              ? "Assign maintenance"
+                              : "Assign cleaners"}
+                          </Button>
+                        ) : null}
+                        {isDirty ? (
                           <Button
                             type="button"
                             size="sm"
@@ -660,6 +706,27 @@ export function LodgingCmQueuePanel({
                     placeholder="Optional note for every room"
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="shared-expected-end">
+                    Expected ready (for reservation holds)
+                  </Label>
+                  <Input
+                    id="shared-expected-end"
+                    type="datetime-local"
+                    className="h-10"
+                    value={sharedDraft.expectedEndAt}
+                    onChange={(e) =>
+                      setSharedDraft((d) => ({
+                        ...d,
+                        expectedEndAt: e.target.value,
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Dirty / maintenance rooms with an end before a booking&apos;s
+                    arrival can be held for that reservation.
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
@@ -742,6 +809,22 @@ export function LodgingCmQueuePanel({
                             updatePerRoom(room.id, { notes: e.target.value })
                           }
                           placeholder="Optional for this room"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`expected-end-${room.id}`}>
+                          Expected ready
+                        </Label>
+                        <Input
+                          id={`expected-end-${room.id}`}
+                          type="datetime-local"
+                          className="h-10"
+                          value={draft.expectedEndAt}
+                          onChange={(e) =>
+                            updatePerRoom(room.id, {
+                              expectedEndAt: e.target.value,
+                            })
+                          }
                         />
                       </div>
                     </div>

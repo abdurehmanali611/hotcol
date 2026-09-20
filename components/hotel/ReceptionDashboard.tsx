@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { RECEPTION_NAV_ITEMS, type ReceptionNavId } from "@/constants";
 import { ReceptionCheckInForm } from "@/components/hotel/ReceptionCheckInForm";
+import { LodgingReservationsPanel } from "@/components/hotel/LodgingReservationsPanel";
 import {
   ReceptionServicesSidebarGroup,
   isReceptionServiceNestedTab,
@@ -57,12 +58,18 @@ import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
+import { LodgingNotificationCenter } from "@/components/hotel/LodgingNotificationCenter";
+import { ReceptionRoomTransferDialog } from "@/components/hotel/ReceptionRoomTransferDialog";
 import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepartureReceipt";
 import {
   ReceptionCheckoutPaymentDialog,
 } from "@/components/hotel/ReceptionCheckoutPaymentDialog";
 import {
+  ArrowRightLeft,
+  BadgePercent,
+  Ban,
   BedDouble,
+  CalendarRange,
   FileText,
   History,
   LayoutDashboard,
@@ -114,9 +121,11 @@ import {
   fetchLodgingRooms,
   fetchLodgingServiceItems,
   issueLodgingGuestOtpApi,
+  requestLodgingDiscountApi,
   splitLodgingBillLineApi,
   transferLodgingBillLinesApi,
   updateLodgingStayApi,
+  voidLodgingBillLineApi,
   type LodgingActionLog,
   type LodgingBillLine,
   type LodgingCmAssignment,
@@ -132,6 +141,7 @@ type ReceptionSectionId = ReceptionNavId | ReceptionServiceNestedTabId;
 const navIconMap: Record<(typeof RECEPTION_NAV_ITEMS)[number]["icon"], LucideIcon> = {
   LayoutDashboard,
   UserPlus,
+  CalendarRange,
   BedDouble,
   Sparkles,
   FileText,
@@ -202,10 +212,17 @@ export function ReceptionDashboard() {
   const [splitQtyToMove, setSplitQtyToMove] = useState("1");
   const [splitToStayId, setSplitToStayId] = useState<string>("");
   const [checkoutPaymentOpen, setCheckoutPaymentOpen] = useState(false);
+  const [roomTransferOpen, setRoomTransferOpen] = useState(false);
+  const [voidLineId, setVoidLineId] = useState<number | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
+  const [staySearch, setStaySearch] = useState("");
   const [printStay, setPrintStay] = useState<LodgingStay | null>(null);
   const [printPayment, setPrintPayment] = useState<{
     cashETB: number;
     bankETB: number;
+    telebirrETB?: number;
   } | null>(null);
   const departurePrintRef = useRef<HTMLDivElement>(null);
   const handleDeparturePrint = useReactToPrint({
@@ -271,10 +288,60 @@ export function ReceptionDashboard() {
     [rooms],
   );
 
+  const lodgingAlertInput = useMemo(() => {
+    const now = Date.now();
+    let overstay = 0;
+    let blockers = 0;
+    for (const s of stays) {
+      if (s.status !== "checked_in") continue;
+      const expected = s.expectedDepartureAt || s.departureAt;
+      if (expected && new Date(expected).getTime() < now) overstay += 1;
+      const lines = s.bill?.lines ?? [];
+      if (
+        incompleteFoodDrinkLines(s.id, lines, liveCafeOrders).length > 0 ||
+        incompleteLaundryLines(lines).length > 0
+      ) {
+        blockers += 1;
+      }
+    }
+    return {
+      dirtyCount: stats?.vacantDirty ?? 0,
+      maintenanceCount: stats?.onMaintenance ?? 0,
+      inspectedCount: stats?.inspected ?? 0,
+      openCmCount: stats?.openCmAssignments ?? 0,
+      overstayCount: overstay,
+      checkoutBlockerCount: blockers,
+      reservationsDueToday: stats?.openReservations ?? 0,
+    };
+  }, [stays, stats, liveCafeOrders]);
+
   const selectedStay = useMemo(
     () => stays.find((s) => s.id === selectedStayId) ?? null,
     [stays, selectedStayId],
   );
+
+  const filteredStays = useMemo(() => {
+    const q = staySearch.trim().toLowerCase();
+    if (!q) return stays;
+    return stays.filter((s) => {
+      const g = s.guest;
+      const hay = [
+        g?.firstName,
+        g?.lastName,
+        g?.phone,
+        g?.phoneSecondary,
+        g?.nationalId,
+        g?.passportNumber,
+        g?.email,
+        s.voucherCode,
+        ...(s.rooms || []).map((r) => r.room?.roomNumber),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [stays, staySearch]);
 
   const otherActiveStays = useMemo(
     () => stays.filter((s) => s.id !== selectedStayId),
@@ -546,6 +613,7 @@ export function ReceptionDashboard() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+            <LodgingNotificationCenter input={lodgingAlertInput} />
             <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
@@ -612,7 +680,19 @@ export function ReceptionDashboard() {
               {activeSection === "check-in" && (
                 <ReceptionCheckInForm
                   vacantCleanRooms={vacantCleanRooms}
+                  propertyName={displayName}
+                  logoUrl={logoUrl}
                   onCompleted={async () => {
+                    setActiveSection("active-stays");
+                    await load(true);
+                  }}
+                />
+              )}
+
+              {activeSection === "reservations" && (
+                <LodgingReservationsPanel
+                  vacantCleanRooms={vacantCleanRooms}
+                  onCheckedIn={async () => {
                     setActiveSection("active-stays");
                     await load(true);
                   }}
@@ -625,17 +705,26 @@ export function ReceptionDashboard() {
                     <CardHeader>
                       <CardTitle className="text-lg">Active stays</CardTitle>
                       <CardDescription>
-                        Select a stay to view the bill and manage charges.
+                        Search by guest name, phone, Fayda, passport, room, or
+                        voucher — then select a stay.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      {stays.length === 0 ? (
+                    <CardContent className="space-y-3">
+                      <Input
+                        value={staySearch}
+                        onChange={(e) => setStaySearch(e.target.value)}
+                        placeholder="Search name, phone, Fayda, room, voucher…"
+                        className="h-10"
+                      />
+                      {filteredStays.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          No active stays.
+                          {stays.length === 0
+                            ? "No active stays."
+                            : "No stays match this search."}
                         </p>
                       ) : (
                         <ul className="divide-y rounded-xl border border-border/70">
-                          {stays.map((s) => (
+                          {filteredStays.map((s) => (
                             <li key={s.id}>
                               <button
                                 type="button"
@@ -669,14 +758,28 @@ export function ReceptionDashboard() {
                   {selectedStay ? (
                     <div className="space-y-4">
                       <Card className="border-border/80 shadow-md bg-card/95">
-                        <CardHeader>
-                          <CardTitle className="text-lg">
-                            {guestName(selectedStay.guest)}
-                          </CardTitle>
-                          <CardDescription>
-                            Voucher {selectedStay.voucherCode} ·{" "}
-                            {formatMoney(selectedStayActiveTotal)}
-                          </CardDescription>
+                        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <CardTitle className="text-lg">
+                              {guestName(selectedStay.guest)}
+                            </CardTitle>
+                            <CardDescription>
+                              Voucher {selectedStay.voucherCode} ·{" "}
+                              {formatMoney(selectedStayActiveTotal)}
+                            </CardDescription>
+                          </div>
+                          {selectedStay.status === "checked_in" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => setRoomTransferOpen(true)}
+                            >
+                              <ArrowRightLeft className="h-4 w-4" />
+                              Transfer room
+                            </Button>
+                          ) : null}
                         </CardHeader>
                         <CardContent className="space-y-5">
                           {selectedStay.status === "checked_in" ? (
@@ -851,6 +954,9 @@ export function ReceptionDashboard() {
                                             <th className="px-3 py-2 font-medium text-right">
                                               Amount
                                             </th>
+                                            <th className="px-3 py-2 font-medium text-right">
+                                              <span className="sr-only">Actions</span>
+                                            </th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y">
@@ -858,6 +964,12 @@ export function ReceptionDashboard() {
                                             const isService =
                                               String(line.kind || "").toLowerCase() !==
                                               "room";
+                                            const isDiscount =
+                                              String(line.kind || "").toLowerCase() ===
+                                              "discount";
+                                            const approval = String(
+                                              line.approvalStatus || "",
+                                            ).toLowerCase();
                                             const isFnB =
                                               String(line.kind || "").toLowerCase() ===
                                               "food_drink";
@@ -887,7 +999,7 @@ export function ReceptionDashboard() {
                                             return (
                                             <tr key={line.id}>
                                               <td className="px-3 py-2 align-top">
-                                                {isService ? (
+                                                {isService && !isDiscount ? (
                                                   <Checkbox
                                                     aria-label={`Select ${line.description} for transfer`}
                                                     checked={selectedLineIds.includes(
@@ -944,6 +1056,12 @@ export function ReceptionDashboard() {
                                                   {!isService
                                                     ? " · not transferable here"
                                                     : ""}
+                                                  {isDiscount && approval === "pending"
+                                                    ? " · awaiting manager approval"
+                                                    : ""}
+                                                  {isDiscount && approval === "approved"
+                                                    ? " · approved"
+                                                    : ""}
                                                   {isFnB
                                                     ? isCafeOrderCancelled(
                                                         cafeOrder?.status,
@@ -963,7 +1081,35 @@ export function ReceptionDashboard() {
                                                 </p>
                                               </td>
                                               <td className="px-3 py-2 text-right tabular-nums align-top">
-                                                {formatMoney(line.amountETB)}
+                                                {isDiscount && approval === "pending"
+                                                  ? formatMoney(
+                                                      -Math.abs(
+                                                        Number(
+                                                          line.unitPriceETB || 0,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : formatMoney(line.amountETB)}
+                                              </td>
+                                              <td className="px-3 py-2 text-right align-top">
+                                                {selectedStay.status ===
+                                                  "checked_in" &&
+                                                !line.voided &&
+                                                !isDiscount ? (
+                                                  <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-8 text-destructive hover:text-destructive"
+                                                    onClick={() => {
+                                                      setVoidLineId(line.id);
+                                                      setVoidReason("");
+                                                    }}
+                                                  >
+                                                    <Ban className="h-3.5 w-3.5" />
+                                                    Void
+                                                  </Button>
+                                                ) : null}
                                               </td>
                                             </tr>
                                             );
@@ -976,6 +1122,138 @@ export function ReceptionDashboard() {
                               </div>
                             )}
                           </div>
+
+                          {selectedStay.status === "checked_in" ? (
+                            <div className="space-y-3 rounded-xl border border-border/70 p-4">
+                              <div>
+                                <p className="text-sm font-medium flex items-center gap-1.5">
+                                  <BadgePercent className="h-4 w-4 text-primary" />
+                                  Request discount
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Needs Manager approval before it reduces the
+                                  folio total.
+                                </p>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="disc-amt">Amount (ETB)</Label>
+                                  <Input
+                                    id="disc-amt"
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className="tabular-nums"
+                                    value={discountAmount}
+                                    onChange={(e) =>
+                                      setDiscountAmount(e.target.value)
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="disc-reason">Reason</Label>
+                                  <Input
+                                    id="disc-reason"
+                                    value={discountReason}
+                                    onChange={(e) =>
+                                      setDiscountReason(e.target.value)
+                                    }
+                                    placeholder="Why this discount?"
+                                  />
+                                </div>
+                              </div>
+                              <PendingButton
+                                type="button"
+                                pending={pending === "discount"}
+                                onClick={async () => {
+                                  const amt = Number(discountAmount);
+                                  if (!Number.isFinite(amt) || amt <= 0) {
+                                    toast.error("Enter a valid discount amount");
+                                    return;
+                                  }
+                                  if (!discountReason.trim()) {
+                                    toast.error("Enter a discount reason");
+                                    return;
+                                  }
+                                  setPending("discount");
+                                  try {
+                                    await requestLodgingDiscountApi({
+                                      stayId: selectedStay.id,
+                                      amountETB: amt,
+                                      reason: discountReason.trim(),
+                                    });
+                                    setDiscountAmount("");
+                                    setDiscountReason("");
+                                    await load(true);
+                                  } catch (e) {
+                                    notifyApiFailure(e, "Discount request failed");
+                                  } finally {
+                                    setPending(null);
+                                  }
+                                }}
+                              >
+                                Send for approval
+                              </PendingButton>
+                            </div>
+                          ) : null}
+
+                          {voidLineId != null ? (
+                            <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                              <p className="text-sm font-medium">Void charge</p>
+                              <p className="text-xs text-muted-foreground">
+                                Voided lines stay on the audit trail and no longer
+                                count toward the folio.
+                              </p>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="void-reason">Reason</Label>
+                                <Input
+                                  id="void-reason"
+                                  value={voidReason}
+                                  onChange={(e) => setVoidReason(e.target.value)}
+                                  placeholder="Required void reason"
+                                />
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <PendingButton
+                                  type="button"
+                                  variant="destructive"
+                                  pending={pending === "void"}
+                                  onClick={async () => {
+                                    if (!voidReason.trim()) {
+                                      toast.error("Void reason is required");
+                                      return;
+                                    }
+                                    setPending("void");
+                                    try {
+                                      await voidLodgingBillLineApi(
+                                        voidLineId,
+                                        voidReason.trim(),
+                                      );
+                                      setVoidLineId(null);
+                                      setVoidReason("");
+                                      await load(true);
+                                    } catch (e) {
+                                      notifyApiFailure(e, "Could not void line");
+                                    } finally {
+                                      setPending(null);
+                                    }
+                                  }}
+                                >
+                                  Confirm void
+                                </PendingButton>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setVoidLineId(null);
+                                    setVoidReason("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
 
                           <div className="space-y-3 rounded-xl border border-border/70 p-4">
                             <div>
@@ -1377,6 +1655,18 @@ export function ReceptionDashboard() {
         </div>
         </div>
 
+        {selectedStay ? (
+          <ReceptionRoomTransferDialog
+            open={roomTransferOpen}
+            onOpenChange={setRoomTransferOpen}
+            stay={selectedStay}
+            vacantCleanRooms={vacantCleanRooms}
+            onDone={async () => {
+              await load(true);
+            }}
+          />
+        ) : null}
+
         {selectedStayForCheckout ? (
           <ReceptionCheckoutPaymentDialog
             open={checkoutPaymentOpen}
@@ -1447,10 +1737,17 @@ export function ReceptionDashboard() {
                 const updated = await checkoutLodgingStayApi(
                   selectedStay!.id,
                   at.toISOString(),
+                  {
+                    cashETB: payment.cashETB,
+                    bankETB: payment.bankETB,
+                    telebirrETB: payment.telebirrETB ?? 0,
+                    nights: payment.nights,
+                  },
                 );
                 setPrintPayment({
                   cashETB: payment.cashETB,
                   bankETB: payment.bankETB,
+                  telebirrETB: payment.telebirrETB ?? 0,
                 });
                 setPrintStay(updated);
                 setCheckoutPaymentOpen(false);

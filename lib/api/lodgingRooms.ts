@@ -19,6 +19,7 @@ export type LodgingRoom = {
   pricePerNightETB: number;
   status: string;
   maintenanceUntil: string | null;
+  statusExpectedEndAt?: string | null;
   notes: string;
   createdAt: string;
   updatedAt: string;
@@ -51,16 +52,31 @@ export type LodgingBillLine = {
   quantity: number;
   unitPriceETB: number;
   amountETB: number;
+  taxPercent?: number;
+  taxETB?: number;
   roomNumber: string;
   fulfillmentStatus?: string;
   fulfilledAt?: string | null;
   fulfilledBy?: string;
+  voided?: boolean;
+  voidedAt?: string | null;
+  voidedBy?: string;
+  voidReason?: string;
+  approvalStatus?: string;
+  approvedBy?: string;
+  approvedAt?: string | null;
+  approvalNote?: string;
+  createdAt?: string;
+  createdBy?: string;
 };
 
 export type LodgingBill = {
   id: number;
   status: string;
   totalETB: number;
+  cashETB?: number;
+  bankETB?: number;
+  telebirrETB?: number;
   receiptNumber: string;
   lines: LodgingBillLine[];
 };
@@ -80,15 +96,21 @@ export type LodgingStayRoom = {
 
 export type LodgingStay = {
   id: number;
+  HotelName?: string;
   voucherCode: string;
   guestId: number;
+  reservationId?: number | null;
   status: string;
   arrivalAt: string;
   departureAt: string;
+  expectedNights?: number;
+  expectedDepartureAt?: string | null;
   nights: number;
   adults: number;
   children: number;
   preferredRoomType: string;
+  ratePlanId?: number | null;
+  ratePlanName?: string;
   notes: string;
   /** Guest room portal OTP (6 digits). Null after checkout. */
   guestOtp?: string | null;
@@ -96,6 +118,75 @@ export type LodgingStay = {
   guest: LodgingGuest | null;
   rooms: LodgingStayRoom[];
   bill: LodgingBill | null;
+};
+
+export type LodgingReservationRoom = {
+  id: number;
+  reservationId: number;
+  roomId: number | null;
+  roomType: string;
+  room?: LodgingRoom | null;
+};
+
+export type LodgingReservation = {
+  id: number;
+  HotelName?: string;
+  reservationCode: string;
+  guestId: number | null;
+  status: string;
+  source: string;
+  arrivalAt: string;
+  departureAt: string;
+  nights: number;
+  adults: number;
+  children: number;
+  preferredRoomType: string;
+  depositETB: number;
+  notes: string;
+  guest?: LodgingGuest | null;
+  rooms: LodgingReservationRoom[];
+};
+
+export type LodgingTaxConfig = {
+  id: number;
+  kind: string;
+  taxPercent: number;
+};
+
+export type LodgingBusinessDay = {
+  id: number;
+  businessDate: string;
+  status: string;
+  closedAt: string | null;
+  closedBy: string;
+  summaryJson: string;
+};
+
+export type LodgingGuestComplaint = {
+  id: number;
+  stayId: number;
+  guestId?: number | null;
+  category: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  guestName?: string;
+  voucherCode?: string;
+  roomNumbers?: string;
+};
+
+export type LodgingGuestRating = {
+  id: number;
+  stayId: number;
+  guestId?: number | null;
+  overall: number;
+  cleanliness: number | null;
+  service: number | null;
+  comment: string;
+  createdAt: string;
+  guestName?: string;
+  voucherCode?: string;
+  roomNumbers?: string;
 };
 
 export type LodgingServiceItem = {
@@ -135,8 +226,18 @@ export type LodgingDashboardStats = {
   vacantDirty: number;
   occupied: number;
   onMaintenance: number;
+  reserved: number;
+  inspected: number;
+  outOfOrder: number;
+  outOfService: number;
+  blocked: number;
   activeStays: number;
   openCmAssignments: number;
+  todayCheckIns: number;
+  todayCheckOuts: number;
+  openReservations: number;
+  occupancyPercent: number;
+  outstandingBalanceETB: number;
 };
 
 export type CreateLodgingRoomInput = {
@@ -196,6 +297,7 @@ export type CreateLodgingStayInput = {
   notes?: string;
   roomIds: number[];
   status?: string;
+  reservationId?: number;
 };
 
 export type UpdateLodgingStayInput = {
@@ -203,6 +305,8 @@ export type UpdateLodgingStayInput = {
   arrivalAt?: string;
   departureAt?: string;
   nights?: number;
+  expectedNights?: number;
+  expectedDepartureAt?: string | null;
   adults?: number;
   children?: number;
   preferredRoomType?: string;
@@ -243,6 +347,7 @@ export type CreateLodgingCmAssignmentsInput = {
   workKind: string;
   assigneeNames: string[];
   notes?: string;
+  statusExpectedEndAt?: string | null;
   /** Skip success toast (batch callers toast once). */
   quiet?: boolean;
 };
@@ -258,6 +363,7 @@ const ROOM_FIELDS = `
   pricePerNightETB
   status
   maintenanceUntil
+  statusExpectedEndAt
   notes
   createdAt
   updatedAt
@@ -283,15 +389,21 @@ const GUEST_FIELDS = `
 
 const STAY_FIELDS = `
   id
+  HotelName
   voucherCode
   guestId
+  reservationId
   status
   arrivalAt
   departureAt
+  expectedNights
+  expectedDepartureAt
   nights
   adults
   children
   preferredRoomType
+  ratePlanId
+  ratePlanName
   notes
   guestOtp
   guestOtpIssuedAt
@@ -312,6 +424,9 @@ const STAY_FIELDS = `
     id
     status
     totalETB
+    cashETB
+    bankETB
+    telebirrETB
     receiptNumber
     lines {
       id
@@ -320,11 +435,45 @@ const STAY_FIELDS = `
       quantity
       unitPriceETB
       amountETB
+      taxPercent
+      taxETB
       roomNumber
       fulfillmentStatus
       fulfilledAt
       fulfilledBy
+      voided
+      voidedAt
+      voidedBy
+      voidReason
+      approvalStatus
+      approvedBy
+      approvedAt
+      approvalNote
     }
+  }
+`;
+
+const RESERVATION_FIELDS = `
+  id
+  reservationCode
+  guestId
+  status
+  source
+  arrivalAt
+  departureAt
+  nights
+  adults
+  children
+  preferredRoomType
+  depositETB
+  notes
+  guest { ${GUEST_FIELDS} }
+  rooms {
+    id
+    reservationId
+    roomId
+    roomType
+    room { ${ROOM_FIELDS} }
   }
 `;
 
@@ -543,8 +692,18 @@ export async function fetchLodgingDashboardStats(): Promise<LodgingDashboardStat
           vacantDirty
           occupied
           onMaintenance
+          reserved
+          inspected
+          outOfOrder
+          outOfService
+          blocked
           activeStays
           openCmAssignments
+          todayCheckIns
+          todayCheckOuts
+          openReservations
+          occupancyPercent
+          outstandingBalanceETB
         }
       }
     `;
@@ -555,8 +714,18 @@ export async function fetchLodgingDashboardStats(): Promise<LodgingDashboardStat
       vacantDirty: 0,
       occupied: 0,
       onMaintenance: 0,
+      reserved: 0,
+      inspected: 0,
+      outOfOrder: 0,
+      outOfService: 0,
+      blocked: 0,
       activeStays: 0,
       openCmAssignments: 0,
+      todayCheckIns: 0,
+      todayCheckOuts: 0,
+      openReservations: 0,
+      occupancyPercent: 0,
+      outstandingBalanceETB: 0,
     }) as LodgingDashboardStats;
   });
 }
@@ -793,6 +962,7 @@ export async function createLodgingStayApi(
       $roomIds: [Int!]!
       $notes: String
       $status: String
+      $reservationId: Int
     ) {
       createLodgingStay(
         guestId: $guestId
@@ -805,6 +975,7 @@ export async function createLodgingStayApi(
         roomIds: $roomIds
         notes: $notes
         status: $status
+        reservationId: $reservationId
       ) { ${STAY_FIELDS} }
     }
   `;
@@ -827,11 +998,13 @@ export async function createLodgingStayApi(
       preferredRoomType: input.preferredRoomType ?? null,
       roomIds: input.roomIds,
       notes: input.notes ?? null,
-      status: input.status ?? null,
+      status: input.status ?? "checked_in",
+      reservationId: input.reservationId ?? null,
     },
   });
   gqlError(response, "Could not check in guest");
   invalidateLodgingCaches(["stays", "rooms", "stats", "logs", "guests"]);
+  toast.success("Guest checked in");
   return response.data.data.createLodgingStay as LodgingStay;
 }
 
@@ -1067,15 +1240,42 @@ export async function splitLodgingBillLineApi(
 export async function checkoutLodgingStayApi(
   stayId: number,
   departureAt: string,
+  payment?: {
+    nights?: number;
+    cashETB?: number;
+    bankETB?: number;
+    telebirrETB?: number;
+  },
 ): Promise<LodgingStay> {
   const mutation = `
-    mutation CheckoutLodgingStay($stayId: Int!, $departureAt: DateTime!) {
-      checkoutLodgingStay(stayId: $stayId, departureAt: $departureAt) { ${STAY_FIELDS} }
+    mutation CheckoutLodgingStay(
+      $stayId: Int!
+      $departureAt: DateTime!
+      $nights: Int
+      $cashETB: Float
+      $bankETB: Float
+      $telebirrETB: Float
+    ) {
+      checkoutLodgingStay(
+        stayId: $stayId
+        departureAt: $departureAt
+        nights: $nights
+        cashETB: $cashETB
+        bankETB: $bankETB
+        telebirrETB: $telebirrETB
+      ) { ${STAY_FIELDS} }
     }
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { stayId, departureAt },
+    variables: {
+      stayId,
+      departureAt,
+      nights: payment?.nights ?? null,
+      cashETB: payment?.cashETB ?? null,
+      bankETB: payment?.bankETB ?? null,
+      telebirrETB: payment?.telebirrETB ?? null,
+    },
   });
   gqlError(response, "Could not check out");
   invalidateLodgingCaches(["stays", "rooms", "stats", "logs"]);
@@ -1141,18 +1341,21 @@ export async function updateLodgingRoomStatusApi(
   status: LodgingRoomStatus | string,
   maintenanceUntil?: string | null,
   notes?: string | null,
+  statusExpectedEndAt?: string | null,
 ): Promise<LodgingRoom> {
   const mutation = `
     mutation UpdateLodgingRoomStatus(
       $roomId: Int!
       $status: String!
       $maintenanceUntil: DateTime
+      $statusExpectedEndAt: DateTime
       $notes: String
     ) {
       updateLodgingRoomStatus(
         roomId: $roomId
         status: $status
         maintenanceUntil: $maintenanceUntil
+        statusExpectedEndAt: $statusExpectedEndAt
         notes: $notes
       ) { ${ROOM_FIELDS} }
     }
@@ -1163,6 +1366,7 @@ export async function updateLodgingRoomStatusApi(
       roomId,
       status,
       maintenanceUntil: maintenanceUntil ?? null,
+      statusExpectedEndAt: statusExpectedEndAt ?? maintenanceUntil ?? null,
       notes: notes ?? null,
     },
   });
@@ -1181,12 +1385,14 @@ export async function createLodgingCmAssignmentsApi(
       $workKind: String!
       $assigneeNames: [String!]!
       $notes: String
+      $statusExpectedEndAt: DateTime
     ) {
       createLodgingCmAssignments(
         roomId: $roomId
         workKind: $workKind
         assigneeNames: $assigneeNames
         notes: $notes
+        statusExpectedEndAt: $statusExpectedEndAt
       ) { ${CM_ASSIGNMENT_FIELDS} }
     }
   `;
@@ -1204,6 +1410,7 @@ export async function createLodgingCmAssignmentsApi(
       workKind: input.workKind,
       assigneeNames: names,
       notes: input.notes ?? null,
+      statusExpectedEndAt: input.statusExpectedEndAt ?? null,
     },
   });
   gqlError(response, "Could not create assignment");
@@ -1249,12 +1456,740 @@ export async function completeLodgingCmAssignmentApi(
   invalidateLodgingCaches(["cm", "rooms", "stats", "logs"]);
   const row = response.data.data
     .completeLodgingCmAssignment as LodgingCmAssignment;
-  const cleared =
-    String(row?.room?.status || "").toLowerCase() === "vacant_clean";
+  const cleared = String(row?.room?.status || "").toLowerCase();
   toast.success(
-    cleared
-      ? `Done — room ${row.room?.roomNumber ?? ""} is vacant clean`
-      : "Assignment completed",
+    cleared === "inspected"
+      ? `Done — room ${row.room?.roomNumber ?? ""} is inspected (ready for vacant clean)`
+      : cleared === "vacant_clean"
+        ? `Done — room ${row.room?.roomNumber ?? ""} is vacant clean`
+        : cleared === "vacant_dirty"
+          ? `Done — room ${row.room?.roomNumber ?? ""} is vacant dirty`
+          : "Assignment completed",
   );
   return row;
+}
+
+/* ── Reservations, transfer, tax, night audit, search ─────────────────── */
+
+export async function fetchLodgingSearch(query: string): Promise<LodgingStay[]> {
+  const q = String(query || "").trim();
+  if (!q) return [];
+  const gql = `
+    query LodgingSearch($query: String!) {
+      lodgingSearch(query: $query) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: gql,
+    variables: { query: q },
+  });
+  gqlError(response, "Search failed");
+  return (response.data.data?.lodgingSearch ?? []) as LodgingStay[];
+}
+
+export async function fetchLodgingHoldableRooms(
+  arrivalAt: string,
+): Promise<LodgingRoom[]> {
+  const gql = `
+    query LodgingHoldableRooms($arrivalAt: DateTime!) {
+      lodgingHoldableRooms(arrivalAt: $arrivalAt) { ${ROOM_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: gql,
+    variables: { arrivalAt },
+  });
+  gqlError(response, "Failed to load holdable rooms");
+  return (response.data.data?.lodgingHoldableRooms ?? []) as LodgingRoom[];
+}
+
+export async function fetchLodgingReservations(opts?: {
+  status?: string;
+  from?: string;
+  to?: string;
+}): Promise<LodgingReservation[]> {
+  const gql = `
+    query LodgingReservations($status: String, $from: DateTime, $to: DateTime) {
+      lodgingReservations(status: $status, from: $from, to: $to) { ${RESERVATION_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: gql,
+    variables: {
+      status: opts?.status ?? null,
+      from: opts?.from ?? null,
+      to: opts?.to ?? null,
+    },
+  });
+  gqlError(response, "Failed to load reservations");
+  return (response.data.data?.lodgingReservations ?? []) as LodgingReservation[];
+}
+
+export async function createLodgingReservationApi(input: {
+  guestId?: number;
+  guest?: UpsertLodgingGuestInput;
+  source: string;
+  status?: string;
+  arrivalAt: string;
+  nights: number;
+  adults?: number;
+  children?: number;
+  preferredRoomType?: string;
+  roomIds?: number[];
+  depositETB?: number;
+  notes?: string;
+}): Promise<LodgingReservation> {
+  const mutation = `
+    mutation CreateLodgingReservation(
+      $guestId: Int
+      $guestJson: JSON
+      $source: String!
+      $status: String
+      $arrivalAt: DateTime!
+      $nights: Int!
+      $adults: Int
+      $children: Int
+      $preferredRoomType: String
+      $roomIds: [Int!]
+      $depositETB: Float
+      $notes: String
+    ) {
+      createLodgingReservation(
+        guestId: $guestId
+        guestJson: $guestJson
+        source: $source
+        status: $status
+        arrivalAt: $arrivalAt
+        nights: $nights
+        adults: $adults
+        children: $children
+        preferredRoomType: $preferredRoomType
+        roomIds: $roomIds
+        depositETB: $depositETB
+        notes: $notes
+      ) { ${RESERVATION_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      guestId: input.guestId ?? null,
+      guestJson: input.guest ?? null,
+      source: input.source,
+      status: input.status ?? null,
+      arrivalAt: input.arrivalAt,
+      nights: input.nights,
+      adults: input.adults ?? null,
+      children: input.children ?? null,
+      preferredRoomType: input.preferredRoomType ?? null,
+      roomIds: input.roomIds ?? null,
+      depositETB: input.depositETB ?? null,
+      notes: input.notes ?? null,
+    },
+  });
+  gqlError(response, "Could not create reservation");
+  invalidateLodgingCaches(["rooms", "stats", "logs"]);
+  toast.success("Reservation saved");
+  return response.data.data.createLodgingReservation as LodgingReservation;
+}
+
+export async function cancelLodgingReservationApi(
+  id: number,
+  asNoShow = false,
+): Promise<LodgingReservation> {
+  const mutation = `
+    mutation CancelLodgingReservation($id: Int!, $asNoShow: Boolean) {
+      cancelLodgingReservation(id: $id, asNoShow: $asNoShow) { ${RESERVATION_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, asNoShow },
+  });
+  gqlError(response, "Could not cancel reservation");
+  invalidateLodgingCaches(["rooms", "stats", "logs"]);
+  toast.success(asNoShow ? "Marked no-show" : "Reservation cancelled");
+  return response.data.data.cancelLodgingReservation as LodgingReservation;
+}
+
+export async function checkInLodgingReservationApi(input: {
+  reservationId: number;
+  roomIds: number[];
+  arrivalAt?: string;
+  notes?: string;
+}): Promise<LodgingStay> {
+  const mutation = `
+    mutation CheckInLodgingReservation(
+      $reservationId: Int!
+      $roomIds: [Int!]!
+      $arrivalAt: DateTime
+      $notes: String
+    ) {
+      checkInLodgingReservation(
+        reservationId: $reservationId
+        roomIds: $roomIds
+        arrivalAt: $arrivalAt
+        notes: $notes
+      ) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      reservationId: input.reservationId,
+      roomIds: input.roomIds,
+      arrivalAt: input.arrivalAt ?? null,
+      notes: input.notes ?? null,
+    },
+  });
+  gqlError(response, "Could not check in from reservation");
+  invalidateLodgingCaches(["stays", "rooms", "stats", "logs"]);
+  toast.success("Checked in from reservation");
+  return response.data.data.checkInLodgingReservation as LodgingStay;
+}
+
+export async function transferLodgingStayRoomApi(input: {
+  stayId: number;
+  fromRoomId: number;
+  toRoomId: number;
+  reason?: string;
+  markOldOnMaintenance?: boolean;
+  maintenanceUntil?: string | null;
+}): Promise<LodgingStay> {
+  const mutation = `
+    mutation TransferLodgingStayRoom(
+      $stayId: Int!
+      $fromRoomId: Int!
+      $toRoomId: Int!
+      $reason: String
+      $markOldOnMaintenance: Boolean
+      $maintenanceUntil: DateTime
+    ) {
+      transferLodgingStayRoom(
+        stayId: $stayId
+        fromRoomId: $fromRoomId
+        toRoomId: $toRoomId
+        reason: $reason
+        markOldOnMaintenance: $markOldOnMaintenance
+        maintenanceUntil: $maintenanceUntil
+      ) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      stayId: input.stayId,
+      fromRoomId: input.fromRoomId,
+      toRoomId: input.toRoomId,
+      reason: input.reason ?? null,
+      markOldOnMaintenance: input.markOldOnMaintenance ?? false,
+      maintenanceUntil: input.maintenanceUntil ?? null,
+    },
+  });
+  gqlError(response, "Could not transfer room");
+  invalidateLodgingCaches(["stays", "rooms", "stats", "logs"]);
+  toast.success("Guest transferred");
+  return response.data.data.transferLodgingStayRoom as LodgingStay;
+}
+
+export async function voidLodgingBillLineApi(
+  lineId: number,
+  reason: string,
+): Promise<void> {
+  const mutation = `
+    mutation VoidLodgingBillLine($lineId: Int!, $reason: String!) {
+      voidLodgingBillLine(lineId: $lineId, reason: $reason) { id voided }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { lineId, reason },
+  });
+  gqlError(response, "Could not void line");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success("Charge voided");
+}
+
+export async function requestLodgingDiscountApi(input: {
+  stayId: number;
+  amountETB: number;
+  reason: string;
+}): Promise<LodgingBillLine> {
+  const mutation = `
+    mutation RequestLodgingDiscount(
+      $stayId: Int!
+      $amountETB: Float!
+      $reason: String!
+    ) {
+      requestLodgingDiscount(
+        stayId: $stayId
+        amountETB: $amountETB
+        reason: $reason
+      ) {
+        id
+        kind
+        amountETB
+        unitPriceETB
+        approvalStatus
+        description
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      stayId: input.stayId,
+      amountETB: input.amountETB,
+      reason: input.reason,
+    },
+  });
+  gqlError(response, "Could not request discount");
+  invalidateLodgingCaches(["stays", "logs"]);
+  const line = response.data.data.requestLodgingDiscount as LodgingBillLine;
+  toast.success(
+    String(line.approvalStatus || "").toLowerCase() === "approved"
+      ? "Discount applied"
+      : "Discount sent for manager approval",
+  );
+  return line;
+}
+
+export async function fetchPendingLodgingDiscounts(): Promise<
+  (LodgingBillLine & { billId?: number })[]
+> {
+  const query = `
+    query {
+      pendingLodgingDiscounts {
+        id
+        billId
+        kind
+        description
+        quantity
+        unitPriceETB
+        amountETB
+        roomNumber
+        approvalStatus
+        createdAt
+        createdBy
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  gqlError(response, "Failed to load pending discounts");
+  return (response.data.data?.pendingLodgingDiscounts ??
+    []) as LodgingBillLine[];
+}
+
+export async function resolveLodgingDiscountApi(input: {
+  lineId: number;
+  approve: boolean;
+  note?: string;
+}): Promise<void> {
+  const mutation = `
+    mutation ResolveLodgingDiscount(
+      $lineId: Int!
+      $approve: Boolean!
+      $note: String
+    ) {
+      resolveLodgingDiscount(
+        lineId: $lineId
+        approve: $approve
+        note: $note
+      ) {
+        id
+        approvalStatus
+        amountETB
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      lineId: input.lineId,
+      approve: input.approve,
+      note: input.note ?? null,
+    },
+  });
+  gqlError(response, "Could not resolve discount");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success(input.approve ? "Discount approved" : "Discount rejected");
+}
+
+export async function fetchLodgingTaxConfigs(): Promise<LodgingTaxConfig[]> {
+  const query = `query { lodgingTaxConfigs { id kind taxPercent } }`;
+  const response = await api.post(API_URL, { query });
+  gqlError(response, "Failed to load tax config");
+  return (response.data.data?.lodgingTaxConfigs ?? []) as LodgingTaxConfig[];
+}
+
+export async function upsertLodgingTaxConfigApi(
+  kind: string,
+  taxPercent: number,
+): Promise<LodgingTaxConfig> {
+  const mutation = `
+    mutation UpsertLodgingTaxConfig($kind: String!, $taxPercent: Float!) {
+      upsertLodgingTaxConfig(kind: $kind, taxPercent: $taxPercent) {
+        id kind taxPercent
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { kind, taxPercent },
+  });
+  gqlError(response, "Could not save tax config");
+  toast.success("Tax updated");
+  return response.data.data.upsertLodgingTaxConfig as LodgingTaxConfig;
+}
+
+export async function closeLodgingBusinessDayApi(
+  businessDate: string,
+): Promise<LodgingBusinessDay> {
+  const mutation = `
+    mutation CloseLodgingBusinessDay($businessDate: String!) {
+      closeLodgingBusinessDay(businessDate: $businessDate) {
+        id businessDate status closedAt closedBy summaryJson
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { businessDate },
+  });
+  gqlError(response, "Could not close business day");
+  invalidateLodgingCaches(["stats", "logs"]);
+  toast.success("Business day closed");
+  return response.data.data.closeLodgingBusinessDay as LodgingBusinessDay;
+}
+
+export async function fetchLodgingBusinessDay(
+  businessDate?: string,
+): Promise<LodgingBusinessDay | null> {
+  const query = `
+    query LodgingBusinessDay($businessDate: String) {
+      lodgingBusinessDay(businessDate: $businessDate) {
+        id businessDate status closedAt closedBy summaryJson
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { businessDate: businessDate ?? null },
+  });
+  gqlError(response, "Failed to load business day");
+  return (response.data.data?.lodgingBusinessDay ?? null) as LodgingBusinessDay | null;
+}
+
+export async function fetchLodgingGuestComplaints(
+  status?: string,
+): Promise<LodgingGuestComplaint[]> {
+  const query = `
+    query LodgingGuestComplaints($status: String) {
+      lodgingGuestComplaints(status: $status, limit: 100) {
+        id
+        stayId
+        guestId
+        category
+        message
+        status
+        createdAt
+        guestName
+        voucherCode
+        roomNumbers
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { status: status ?? null },
+  });
+  gqlError(response, "Failed to load complaints");
+  return (response.data.data?.lodgingGuestComplaints ??
+    []) as LodgingGuestComplaint[];
+}
+
+export async function updateLodgingGuestComplaintApi(
+  id: number,
+  status: string,
+): Promise<LodgingGuestComplaint> {
+  const mutation = `
+    mutation UpdateLodgingGuestComplaint($id: Int!, $status: String!) {
+      updateLodgingGuestComplaint(id: $id, status: $status) {
+        id
+        status
+        guestName
+        voucherCode
+        roomNumbers
+        category
+        message
+        createdAt
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id, status },
+  });
+  gqlError(response, "Could not update complaint");
+  invalidateLodgingCaches(["logs"]);
+  toast.success(
+    status === "resolved"
+      ? "Complaint resolved"
+      : status === "acknowledged"
+        ? "Complaint acknowledged"
+        : "Complaint updated",
+  );
+  return response.data.data
+    .updateLodgingGuestComplaint as LodgingGuestComplaint;
+}
+
+export async function fetchLodgingGuestRatings(): Promise<LodgingGuestRating[]> {
+  const query = `
+    query {
+      lodgingGuestRatings(limit: 100) {
+        id
+        stayId
+        guestId
+        overall
+        cleanliness
+        service
+        comment
+        createdAt
+        guestName
+        voucherCode
+        roomNumbers
+      }
+    }
+  `;
+  const response = await api.post(API_URL, { query });
+  gqlError(response, "Failed to load ratings");
+  return (response.data.data?.lodgingGuestRatings ??
+    []) as LodgingGuestRating[];
+}
+
+export type LodgingRatePlan = {
+  id: number;
+  name: string;
+  code: string;
+  kind: string;
+  roomType: string;
+  pricePerNightETB: number;
+  startDate: string;
+  endDate: string;
+  minNights: number;
+  priority: number;
+  isActive: boolean;
+  notes: string;
+};
+
+export type LodgingPerformanceReport = {
+  fromDate: string;
+  toDate: string;
+  roomNightsSold: number;
+  availableRoomNights: number;
+  occupancyPercent: number;
+  roomRevenueETB: number;
+  adrETB: number;
+  revparETB: number;
+  staysCheckedOut: number;
+  staysInHouse: number;
+  byRoomType: {
+    roomType: string;
+    roomNightsSold: number;
+    roomRevenueETB: number;
+    adrETB: number;
+  }[];
+  bySource: {
+    source: string;
+    stays: number;
+    roomRevenueETB: number;
+  }[];
+};
+
+const RATE_PLAN_FIELDS = `
+  id name code kind roomType pricePerNightETB
+  startDate endDate minNights priority isActive notes
+`;
+
+export async function fetchLodgingRatePlans(
+  activeOnly = false,
+): Promise<LodgingRatePlan[]> {
+  const query = `
+    query LodgingRatePlans($activeOnly: Boolean) {
+      lodgingRatePlans(activeOnly: $activeOnly) { ${RATE_PLAN_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { activeOnly },
+  });
+  gqlError(response, "Failed to load rate plans");
+  return (response.data.data?.lodgingRatePlans ?? []) as LodgingRatePlan[];
+}
+
+export async function createLodgingRatePlanApi(input: {
+  name: string;
+  code?: string;
+  kind: string;
+  roomType?: string;
+  pricePerNightETB: number;
+  startDate?: string;
+  endDate?: string;
+  minNights?: number;
+  priority?: number;
+  isActive?: boolean;
+  notes?: string;
+}): Promise<LodgingRatePlan> {
+  const mutation = `
+    mutation CreateLodgingRatePlan(
+      $name: String!
+      $code: String
+      $kind: String!
+      $roomType: String
+      $pricePerNightETB: Float!
+      $startDate: String
+      $endDate: String
+      $minNights: Int
+      $priority: Int
+      $isActive: Boolean
+      $notes: String
+    ) {
+      createLodgingRatePlan(
+        name: $name
+        code: $code
+        kind: $kind
+        roomType: $roomType
+        pricePerNightETB: $pricePerNightETB
+        startDate: $startDate
+        endDate: $endDate
+        minNights: $minNights
+        priority: $priority
+        isActive: $isActive
+        notes: $notes
+      ) { ${RATE_PLAN_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      name: input.name,
+      code: input.code ?? null,
+      kind: input.kind,
+      roomType: input.roomType ?? null,
+      pricePerNightETB: input.pricePerNightETB,
+      startDate: input.startDate ?? null,
+      endDate: input.endDate ?? null,
+      minNights: input.minNights ?? null,
+      priority: input.priority ?? null,
+      isActive: input.isActive ?? true,
+      notes: input.notes ?? null,
+    },
+  });
+  gqlError(response, "Could not create rate plan");
+  invalidateLodgingCaches(["logs"]);
+  toast.success("Rate plan created");
+  return response.data.data.createLodgingRatePlan as LodgingRatePlan;
+}
+
+export async function updateLodgingRatePlanApi(
+  input: Partial<LodgingRatePlan> & { id: number },
+): Promise<LodgingRatePlan> {
+  const mutation = `
+    mutation UpdateLodgingRatePlan(
+      $id: Int!
+      $name: String
+      $code: String
+      $kind: String
+      $roomType: String
+      $pricePerNightETB: Float
+      $startDate: String
+      $endDate: String
+      $minNights: Int
+      $priority: Int
+      $isActive: Boolean
+      $notes: String
+    ) {
+      updateLodgingRatePlan(
+        id: $id
+        name: $name
+        code: $code
+        kind: $kind
+        roomType: $roomType
+        pricePerNightETB: $pricePerNightETB
+        startDate: $startDate
+        endDate: $endDate
+        minNights: $minNights
+        priority: $priority
+        isActive: $isActive
+        notes: $notes
+      ) { ${RATE_PLAN_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      id: input.id,
+      name: input.name ?? null,
+      code: input.code ?? null,
+      kind: input.kind ?? null,
+      roomType: input.roomType ?? null,
+      pricePerNightETB: input.pricePerNightETB ?? null,
+      startDate: input.startDate ?? null,
+      endDate: input.endDate ?? null,
+      minNights: input.minNights ?? null,
+      priority: input.priority ?? null,
+      isActive: input.isActive ?? null,
+      notes: input.notes ?? null,
+    },
+  });
+  gqlError(response, "Could not update rate plan");
+  invalidateLodgingCaches(["logs"]);
+  toast.success("Rate plan updated");
+  return response.data.data.updateLodgingRatePlan as LodgingRatePlan;
+}
+
+export async function deleteLodgingRatePlanApi(id: number): Promise<void> {
+  const mutation = `
+    mutation DeleteLodgingRatePlan($id: Int!) {
+      deleteLodgingRatePlan(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  gqlError(response, "Could not delete rate plan");
+  invalidateLodgingCaches(["logs"]);
+  toast.success("Rate plan deleted");
+}
+
+export async function fetchLodgingPerformanceReport(
+  fromDate: string,
+  toDate: string,
+): Promise<LodgingPerformanceReport> {
+  const query = `
+    query LodgingPerformanceReport($fromDate: String!, $toDate: String!) {
+      lodgingPerformanceReport(fromDate: $fromDate, toDate: $toDate) {
+        fromDate
+        toDate
+        roomNightsSold
+        availableRoomNights
+        occupancyPercent
+        roomRevenueETB
+        adrETB
+        revparETB
+        staysCheckedOut
+        staysInHouse
+        byRoomType { roomType roomNightsSold roomRevenueETB adrETB }
+        bySource { source stays roomRevenueETB }
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { fromDate, toDate },
+  });
+  gqlError(response, "Failed to load performance report");
+  return response.data.data
+    .lodgingPerformanceReport as LodgingPerformanceReport;
 }

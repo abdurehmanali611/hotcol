@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useReactToPrint } from "react-to-print";
+import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
+import { LodgingRegistrationCard } from "@/components/hotel/LodgingRegistrationCard";
 import {
   Card,
   CardContent,
@@ -41,6 +44,7 @@ import {
   fetchLodgingGuests,
   type LodgingGuest,
   type LodgingRoom,
+  type LodgingStay,
 } from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
@@ -51,6 +55,7 @@ import {
   IdCard,
   MapPin,
   Plus,
+  Printer,
   Search,
   Trash2,
   UserPlus,
@@ -122,9 +127,15 @@ function guestLabel(g: { firstName: string; lastName: string }) {
 export function ReceptionCheckInForm({
   vacantCleanRooms,
   onCompleted,
+  propertyName,
+  logoUrl,
+  tinNumber,
 }: {
   vacantCleanRooms: LodgingRoom[];
   onCompleted: () => void | Promise<void>;
+  propertyName?: string;
+  logoUrl?: string | null;
+  tinNumber?: string | null;
 }) {
   const [guest, setGuest] = useState(emptyGuest);
   const [guestId, setGuestId] = useState<number | null>(null);
@@ -135,6 +146,7 @@ export function ReceptionCheckInForm({
   ]);
   const [arrivalDate, setArrivalDate] = useState(todayYmd);
   const [arrivalTime, setArrivalTime] = useState(nowHm);
+  const [expectedNights, setExpectedNights] = useState(1);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [stayNotes, setStayNotes] = useState("");
@@ -143,6 +155,15 @@ export function ReceptionCheckInForm({
   const [issuedOtp, setIssuedOtp] = useState<string | null>(null);
   const [otpGuestLabel, setOtpGuestLabel] = useState("");
   const [otpDialogOpen, setOtpDialogOpen] = useState(false);
+  const [registrationStay, setRegistrationStay] = useState<LodgingStay | null>(
+    null,
+  );
+  const registrationPrintRef = useRef<HTMLDivElement>(null);
+  const handleRegistrationPrint = useReactToPrint({
+    contentRef: registrationPrintRef,
+    documentTitle: "Guest_registration_card",
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
+  });
 
   const selectedRoomIds = useMemo(
     () =>
@@ -261,7 +282,7 @@ export function ReceptionCheckInForm({
           addressLine: "",
         },
         arrivalAt: arrival.toISOString(),
-        nights: 1,
+        nights: Math.max(1, expectedNights),
         adults: Math.max(1, adults),
         children: Math.max(0, children),
         preferredRoomType: roomAssignments[0]?.roomType || LODGING_ROOM_TYPES[0],
@@ -274,16 +295,19 @@ export function ReceptionCheckInForm({
       setGuestHits([]);
       setRoomAssignments([emptyAssign()]);
       setStayNotes("");
+      setExpectedNights(1);
       setAdults(1);
       setChildren(0);
       setSearchedEmpty(false);
       const otp = String(stay.guestOtp || "").trim();
+      setRegistrationStay(stay);
       if (otp) {
         setIssuedOtp(otp);
         setOtpGuestLabel(guestName);
         setOtpDialogOpen(true);
       } else {
         toast.success("Guest checked in");
+        window.setTimeout(() => handleRegistrationPrint(), 400);
       }
       await onCompleted();
     } catch (e) {
@@ -630,7 +654,7 @@ export function ReceptionCheckInForm({
           {/* Stay timing */}
           <HotelFormSection
             title="Stay window"
-            description="Arrival is filled automatically at check-in. Nights are calculated at checkout from arrival and departure dates. Departure is set automatically when you check out."
+            description="Arrival is captured at check-in. Enter expected nights — expected departure is calculated from today. Actual nights are finalized at checkout."
           >
             <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch">
               <div className="space-y-4">
@@ -668,14 +692,31 @@ export function ReceptionCheckInForm({
               <div className="flex h-full min-h-0 flex-col gap-4">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <Users className="h-3.5 w-3.5" />
-                  Nights & party
+                  Expected nights & party
                 </div>
                 <div className="grid grid-cols-2 gap-3 shrink-0">
                   <div className="space-y-1.5 col-span-2">
-                    <Label>Nights</Label>
-                    <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm text-muted-foreground">
-                      Auto — departure date minus arrival date at checkout
-                    </div>
+                    <Label htmlFor="ci-nights">Expected nights</Label>
+                    <Input
+                      id="ci-nights"
+                      type="number"
+                      min={1}
+                      className="h-10 tabular-nums"
+                      value={expectedNights}
+                      onChange={(e) =>
+                        setExpectedNights(
+                          Math.max(1, Math.floor(Number(e.target.value) || 1)),
+                        )
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Expected departure:{" "}
+                      {(() => {
+                        const d = new Date(`${arrivalDate}T12:00:00`);
+                        d.setDate(d.getDate() + Math.max(1, expectedNights));
+                        return todayYmd(d);
+                      })()}
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="ci-adults">Adults</Label>
@@ -917,18 +958,42 @@ export function ReceptionCheckInForm({
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => handleRegistrationPrint()}
+              disabled={!registrationStay}
+            >
+              <Printer className="h-4 w-4" />
+              Print registration card
+            </Button>
             <AlertDialogAction
               onClick={() => {
                 setOtpDialogOpen(false);
                 setIssuedOtp(null);
+                window.setTimeout(() => handleRegistrationPrint(), 300);
               }}
             >
-              Got it — told the guest
+              Got it — print & continue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <div className="hidden">
+        <div ref={registrationPrintRef}>
+          {registrationStay ? (
+            <LodgingRegistrationCard
+              stay={registrationStay}
+              propertyName={propertyName}
+              logoUrl={logoUrl}
+              tinNumber={tinNumber}
+            />
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

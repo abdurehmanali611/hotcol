@@ -129,16 +129,40 @@ export function isCancelledFoodDrinkBillLine(
 }
 
 export function billLinesExcludingCancelledFoodDrink<
-  T extends BillLineRef,
+  T extends BillLineRef & {
+    voided?: boolean;
+    approvalStatus?: string | null;
+  },
 >(stayId: number, lines: T[], cafeOrders: RoomServiceOrderRef[]): T[] {
-  if (cafeOrders.length === 0) return lines;
-  return lines.filter(
+  const active = lines.filter((l) => {
+    if (l.voided) return false;
+    const appr = String(l.approvalStatus || "").toLowerCase();
+    if (appr === "rejected") return false;
+    return true;
+  });
+  if (cafeOrders.length === 0) return active;
+  return active.filter(
     (l) => !isCancelledFoodDrinkBillLine(l, stayId, cafeOrders),
   );
 }
 
-export function billTotalFromLines(lines: { amountETB?: number }[]): number {
-  return lines.reduce((sum, l) => sum + Number(l.amountETB || 0), 0);
+export function billTotalFromLines(
+  lines: {
+    amountETB?: number;
+    voided?: boolean;
+    approvalStatus?: string | null;
+    fulfillmentStatus?: string | null;
+  }[],
+): number {
+  return lines.reduce((sum, l) => {
+    if (l.voided) return sum;
+    const appr = String(l.approvalStatus || "").toLowerCase();
+    if (appr === "pending" || appr === "rejected") return sum;
+    if (String(l.fulfillmentStatus || "").toLowerCase() === "cancelled") {
+      return sum;
+    }
+    return sum + Number(l.amountETB || 0);
+  }, 0);
 }
 
 export function isCafeOrderCompleted(status: string | null | undefined): boolean {

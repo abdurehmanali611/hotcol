@@ -15,12 +15,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Banknote, Building2, Printer, Receipt } from "lucide-react";
+import { Banknote, Building2, Printer, Receipt, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LodgingBillLine, LodgingStay } from "@/lib/api/lodgingRooms";
-import { stripCafeOrderMarker } from "@/lib/lodgingRoomService";
+import {
+  nightsFromArrivalDeparture,
+  stripCafeOrderMarker,
+} from "@/lib/lodgingRoomService";
+import { isLodgingCreditPaymentEnabled } from "@/lib/lodgingCreditHook";
 
-export type StayLinePaymentChannel = "cash" | "bank";
+export type StayLinePaymentChannel = "cash" | "bank" | "telebirr";
 
 export type StayCheckoutPaymentResult = {
   mode: "order" | "amount";
@@ -28,6 +32,9 @@ export type StayCheckoutPaymentResult = {
   lineChannels: Record<number, StayLinePaymentChannel>;
   cashETB: number;
   bankETB: number;
+  telebirrETB: number;
+  /** Optional override of billable nights at checkout. */
+  nights?: number;
 };
 
 function formatMoney(n: number) {
@@ -38,7 +45,10 @@ function formatMoney(n: number) {
 }
 
 function lineAmount(line: LodgingBillLine) {
-  return Number(line.amountETB) || 0;
+  const base = Number(line.amountETB) || 0;
+  const tax = Number(line.taxETB) || 0;
+  if (line.voided) return 0;
+  return base + tax;
 }
 
 function guestLabel(stay: LodgingStay) {
@@ -62,14 +72,19 @@ function summarizeChannels(
 ) {
   let cash = 0;
   let bank = 0;
+  let telebirr = 0;
   for (const line of lines) {
+    if (line.voided) continue;
     const ch = channels[line.id] ?? "cash";
-    if (ch === "bank") bank += lineAmount(line);
-    else cash += lineAmount(line);
+    const amt = lineAmount(line);
+    if (ch === "bank") bank += amt;
+    else if (ch === "telebirr") telebirr += amt;
+    else cash += amt;
   }
   return {
     cashETB: Math.round(cash * 100) / 100,
     bankETB: Math.round(bank * 100) / 100,
+    telebirrETB: Math.round(telebirr * 100) / 100,
   };
 }
 
@@ -85,20 +100,25 @@ function ChannelToggle({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-muted/30 p-1",
+        "grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-muted/30 p-1",
         size === "sm" && "rounded-lg",
       )}
     >
-      {(["cash", "bank"] as const).map((option) => {
+      {(
+        [
+          { option: "cash" as const, Icon: Banknote, label: "Cash" },
+          { option: "bank" as const, Icon: Building2, label: "Bank" },
+          { option: "telebirr" as const, Icon: Smartphone, label: "Telebirr" },
+        ] as const
+      ).map(({ option, Icon, label }) => {
         const active = value === option;
-        const Icon = option === "cash" ? Banknote : Building2;
         return (
           <button
             key={option}
             type="button"
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 rounded-lg capitalize transition-colors",
-              size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm",
+              "inline-flex items-center justify-center gap-1 rounded-lg capitalize transition-colors",
+              size === "sm" ? "px-1.5 py-1.5 text-[11px]" : "px-2 py-2 text-sm",
               active
                 ? "bg-background text-foreground shadow-sm font-medium ring-1 ring-border/80"
                 : "text-muted-foreground hover:text-foreground",
@@ -106,7 +126,7 @@ function ChannelToggle({
             onClick={() => onChange(option)}
           >
             <Icon className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
-            {option}
+            {label}
           </button>
         );
       })}
@@ -129,6 +149,14 @@ export function ReceptionCheckoutPaymentDialog({
 }) {
   const lines = useMemo(() => stay.bill?.lines ?? [], [stay.bill?.lines]);
   const total = Number(stay.bill?.totalETB ?? 0);
+  const defaultNights = useMemo(
+    () =>
+      nightsFromArrivalDeparture(new Date(stay.arrivalAt), new Date()) ||
+      stay.nights ||
+      stay.expectedNights ||
+      1,
+    [stay.arrivalAt, stay.nights, stay.expectedNights],
+  );
 
   const [mode, setMode] = useState<"order" | "amount">("order");
   const [lineChannels, setLineChannels] = useState<
@@ -137,6 +165,7 @@ export function ReceptionCheckoutPaymentDialog({
   const [primaryChannel, setPrimaryChannel] =
     useState<StayLinePaymentChannel>("cash");
   const [amountInput, setAmountInput] = useState("");
+  const [actualNights, setActualNights] = useState(String(defaultNights));
 
   useEffect(() => {
     if (!open) return;
@@ -148,7 +177,8 @@ export function ReceptionCheckoutPaymentDialog({
     setMode("order");
     setPrimaryChannel("cash");
     setAmountInput("");
-  }, [open, stay.id, lines]);
+    setActualNights(String(defaultNights));
+  }, [open, stay.id, lines, defaultNights]);
 
   const orderSummary = useMemo(
     () => summarizeChannels(lines, lineChannels),
@@ -160,16 +190,24 @@ export function ReceptionCheckoutPaymentDialog({
     const primary = Math.min(entered, total);
     const secondary = Math.max(0, Math.round((total - primary) * 100) / 100);
     if (primaryChannel === "cash") {
-      return { cashETB: primary, bankETB: secondary };
+      return { cashETB: primary, bankETB: secondary, telebirrETB: 0 };
     }
-    return { cashETB: secondary, bankETB: primary };
+    if (primaryChannel === "telebirr") {
+      return { cashETB: secondary, bankETB: 0, telebirrETB: primary };
+    }
+    return { cashETB: secondary, bankETB: primary, telebirrETB: 0 };
   }, [amountInput, primaryChannel, total]);
 
   const activeSummary = mode === "order" ? orderSummary : amountPlan;
   const amountOk =
     mode === "order" ||
     (Number(amountInput) >= 0 &&
-      Math.abs(activeSummary.cashETB + activeSummary.bankETB - total) < 0.02);
+      Math.abs(
+        activeSummary.cashETB +
+          activeSummary.bankETB +
+          activeSummary.telebirrETB -
+          total,
+      ) < 0.02);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -182,8 +220,11 @@ export function ReceptionCheckoutPaymentDialog({
                   Checkout payment
                 </DialogTitle>
                 <DialogDescription className="text-sm leading-relaxed">
-                  Settle cash and bank for this stay, then print the departure
-                  receipt. Room stays do not use corporate credit.
+                  Settle cash, bank, or Telebirr for this stay, then print the
+                  departure receipt.
+                  {isLodgingCreditPaymentEnabled()
+                    ? " Corporate credit is available when enabled for this property."
+                    : " Room stays do not use corporate credit yet."}
                 </DialogDescription>
               </div>
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-sm ring-1 ring-primary/20">
@@ -213,12 +254,31 @@ export function ReceptionCheckoutPaymentDialog({
               </p>
             </div>
             <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
-              No credit
+              {isLodgingCreditPaymentEnabled() ? "Credit ready" : "No credit"}
             </Badge>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+          <div className="space-y-1.5 rounded-xl border border-border/70 bg-muted/20 p-3.5">
+            <Label htmlFor="checkout-actual-nights">Actual nights stayed</Label>
+            <Input
+              id="checkout-actual-nights"
+              type="number"
+              min={1}
+              step={1}
+              className="h-10 tabular-nums"
+              value={actualNights}
+              onChange={(e) => setActualNights(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Defaults to calendar nights so far (expected was{" "}
+              {stay.expectedNights || stay.nights || "—"}). Override if the
+              guest stayed a different length — room charges recalculate on
+              confirm.
+            </p>
+          </div>
+
           <Tabs
             value={mode}
             onValueChange={(v) => setMode(v === "amount" ? "amount" : "order")}
@@ -313,13 +373,13 @@ export function ReceptionCheckoutPaymentDialog({
             </TabsContent>
           </Tabs>
 
-          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3.5">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/70 bg-muted/25 p-3.5">
             <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2.5">
               <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 <Banknote className="h-3.5 w-3.5" />
                 Cash
               </p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
+              <p className="mt-1 text-base font-semibold tabular-nums">
                 {formatMoney(activeSummary.cashETB)}
               </p>
             </div>
@@ -328,8 +388,17 @@ export function ReceptionCheckoutPaymentDialog({
                 <Building2 className="h-3.5 w-3.5" />
                 Bank
               </p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
+              <p className="mt-1 text-base font-semibold tabular-nums">
                 {formatMoney(activeSummary.bankETB)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <Smartphone className="h-3.5 w-3.5" />
+                Telebirr
+              </p>
+              <p className="mt-1 text-base font-semibold tabular-nums">
+                {formatMoney(activeSummary.telebirrETB)}
               </p>
             </div>
           </div>
@@ -356,6 +425,8 @@ export function ReceptionCheckoutPaymentDialog({
                 lineChannels,
                 cashETB: activeSummary.cashETB,
                 bankETB: activeSummary.bankETB,
+                telebirrETB: activeSummary.telebirrETB,
+                nights: Math.max(1, Math.floor(Number(actualNights) || defaultNights)),
               })
             }
           >

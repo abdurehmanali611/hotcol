@@ -82,6 +82,11 @@ import {
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import { LodgingNotificationCenter } from "@/components/hotel/LodgingNotificationCenter";
+import {
+  fetchLodgingDashboardStats,
+  type LodgingDashboardStats,
+} from "@/lib/api/lodgingRooms";
 import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
 import {
   SubscriptionAlertBanner,
@@ -113,6 +118,11 @@ import {
   UserMinus,
   Phone,
   CalendarDays,
+  CalendarCheck,
+  Percent,
+  BadgePercent,
+  MessageSquareWarning,
+  Tags,
   AlertTriangle,
   Ban,
   UtensilsCrossed,
@@ -120,6 +130,13 @@ import {
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
 import { LodgingRoomsPanel } from "@/components/hotel/LodgingRoomsPanel";
+import { LodgingDiscountApprovalsPanel } from "@/components/hotel/LodgingDiscountApprovalsPanel";
+import { LodgingGuestFeedbackPanel } from "@/components/hotel/LodgingGuestFeedbackPanel";
+import { LodgingRatePlansPanel } from "@/components/hotel/LodgingRatePlansPanel";
+import {
+  LodgingNightAuditPanel,
+  LodgingTaxConfigPanel,
+} from "@/components/hotel/LodgingTaxAndAuditPanels";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
 import { LodgingHotelContactPanel } from "@/components/hotel/LodgingHotelContactPanel";
 import {
@@ -221,6 +238,11 @@ const managerSidebarIconMap: Record<
   FileText,
   Phone,
   CalendarDays,
+  CalendarCheck,
+  Percent,
+  BadgePercent,
+  MessageSquareWarning,
+  Tags,
   AlertTriangle,
   Ban,
   UtensilsCrossed,
@@ -272,6 +294,11 @@ const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
   "lodging-rooms",
   "lodging-reports",
   "lodging-guest-call",
+  "lodging-tax",
+  "lodging-rate-plans",
+  "lodging-discounts",
+  "lodging-guest-feedback",
+  "lodging-night-audit",
   ...MANAGER_LODGING_NESTED_TAB_IDS,
 ]);
 
@@ -355,6 +382,8 @@ function ManagerContent() {
   const loadCoordinator = useLoadCoordinator();
   const [credentials, setCredentials] = useState<any[]>([]);
   const [items, setItems] = useState<ItemRegistration[]>([]);
+  const [lodgingStats, setLodgingStats] =
+    useState<LodgingDashboardStats | null>(null);
   const [statuses, setStatuses] = useState<any[]>([]);
   const [freshBazaarArchives, setFreshBazaarArchives] = useState<FreshBazaarRow[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -443,6 +472,19 @@ function ManagerContent() {
             hasCafeModule ? fetchTables() : Promise.resolve([]),
           ]);
           if (isStale()) return;
+          const hasRoomMgmt = tenantHasModule(
+            readTenantModulesFromStorage(),
+            "Room Management",
+          );
+          if (hasRoomMgmt) {
+            try {
+              setLodgingStats(await fetchLodgingDashboardStats());
+            } catch {
+              setLodgingStats(null);
+            }
+          } else {
+            setLodgingStats(null);
+          }
           setCredentials(creds);
           setItems(
             (regs as ItemRegistration[]).filter((r) =>
@@ -592,7 +634,16 @@ function ManagerContent() {
   );
 
   const lodgingSidebarItems = useMemo(() => {
-    const order = ["lodging-reports", "lodging-rooms", "lodging-guest-call"] as const;
+    const order = [
+      "lodging-reports",
+      "lodging-rooms",
+      "lodging-tax",
+      "lodging-rate-plans",
+      "lodging-discounts",
+      "lodging-guest-feedback",
+      "lodging-night-audit",
+      "lodging-guest-call",
+    ] as const;
     return order
       .map((id) => sidebarItems.find((item) => item.id === id))
       .filter((item): item is (typeof sidebarItems)[number] => Boolean(item));
@@ -719,6 +770,16 @@ function ManagerContent() {
         "Occupancy snapshot, stay history by date, past guests, and lodging action trail.",
       "lodging-rooms":
         "Create and maintain room numbers, types, nightly rates, and notes for this property.",
+      "lodging-tax":
+        "Configure lodging tax percent by folio line kind (room, F&B, laundry, other).",
+      "lodging-rate-plans":
+        "Rack, corporate, seasonal, weekend, promo, and long-stay rates applied at check-in.",
+      "lodging-discounts":
+        "Approve or reject folio discount requests from Reception.",
+      "lodging-guest-feedback":
+        "Review guest complaints and ratings submitted from HotCol Room.",
+      "lodging-night-audit":
+        "Manually close the lodging business day and review the night-audit snapshot.",
       "lodging-laundry-add":
         "Add laundry service lines guests can order to a room during their stay.",
       "lodging-laundry-items":
@@ -1644,6 +1705,41 @@ function ManagerContent() {
           </div>
         );
 
+      case "lodging-tax":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingTaxConfigPanel />
+          </div>
+        );
+
+      case "lodging-rate-plans":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingRatePlansPanel />
+          </div>
+        );
+
+      case "lodging-discounts":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingDiscountApprovalsPanel />
+          </div>
+        );
+
+      case "lodging-guest-feedback":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingGuestFeedbackPanel />
+          </div>
+        );
+
+      case "lodging-night-audit":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingNightAuditPanel />
+          </div>
+        );
+
       case "lodging-guest-call":
         return (
           <div className="p-4 md:p-6">
@@ -1896,6 +1992,16 @@ function ManagerContent() {
               purchaseRequests={purchases as PurchaseRequestRow[]}
               stockMovements={scopedStockReqs as StockOutRequestRow[]}
               hotelLodging
+            />
+            <LodgingNotificationCenter
+              input={{
+                dirtyCount: lodgingStats?.vacantDirty,
+                maintenanceCount: lodgingStats?.onMaintenance,
+                inspectedCount: lodgingStats?.inspected,
+                openCmCount: lodgingStats?.openCmAssignments,
+                reservationsDueToday: lodgingStats?.openReservations,
+                businessDayOpen: true,
+              }}
             />
             <RefreshIconButton
               busy={refreshing}

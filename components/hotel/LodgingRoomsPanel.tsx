@@ -24,17 +24,19 @@ import {
 import { Building2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
-  createLodgingRoomApi,
-  deleteLodgingRoomApi,
-  fetchLodgingRooms,
-  updateLodgingRoomApi,
-  type LodgingRoom,
-} from "@/lib/api/lodgingRooms";
-import {
+  LODGING_MANAGER_ONLY_STATUSES,
   LODGING_ROOM_STATUS_LABELS,
   LODGING_ROOM_TYPES,
   type LodgingRoomStatus,
 } from "@/constants/lodgingRooms";
+import {
+  createLodgingRoomApi,
+  deleteLodgingRoomApi,
+  fetchLodgingRooms,
+  updateLodgingRoomApi,
+  updateLodgingRoomStatusApi,
+  type LodgingRoom,
+} from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -49,9 +51,22 @@ function roomStatusBadgeClass(status: string): string {
       return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400";
     case "on_maintenance":
       return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400";
+    case "inspected":
+      return "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-400";
+    case "out_of_order":
+    case "out_of_service":
+    case "blocked":
+      return "border-slate-500/35 bg-slate-500/10 text-slate-700 dark:text-slate-300";
     default:
       return "border-border bg-muted text-muted-foreground";
   }
+}
+
+const HOLD_STATUSES = LODGING_MANAGER_ONLY_STATUSES;
+const RELEASE_TARGETS = ["vacant_dirty", "vacant_clean"] as const;
+
+function canManagerHold(status: string): boolean {
+  return !["occupied", "reserved"].includes(status);
 }
 
 type RoomLine = {
@@ -402,7 +417,8 @@ export function LodgingRoomsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg tracking-tight">Room directory</CardTitle>
           <CardDescription>
-            Status updates from reception check-in/out and CM cleaning.
+            Status updates from reception check-in/out and CM cleaning. Use hold
+            actions for out of order, out of service, or blocked (Manager only).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -473,7 +489,57 @@ export function LodgingRoomsPanel() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {canManagerHold(room.status) ? (
+                              <Select
+                                value=""
+                                onValueChange={(v) => {
+                                  if (!v) return;
+                                  void (async () => {
+                                    setPending(`status-${room.id}`);
+                                    try {
+                                      await updateLodgingRoomStatusApi(
+                                        room.id,
+                                        v as LodgingRoomStatus,
+                                      );
+                                      await load();
+                                    } catch (e) {
+                                      notifyApiFailure(
+                                        e,
+                                        "Could not update status",
+                                      );
+                                    } finally {
+                                      setPending(null);
+                                    }
+                                  })();
+                                }}
+                              >
+                                <SelectTrigger
+                                  className="h-8 w-[9.5rem] text-xs"
+                                  aria-label={`Hold status for room ${room.roomNumber}`}
+                                  disabled={pending === `status-${room.id}`}
+                                >
+                                  <SelectValue placeholder="Hold / release" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {HOLD_STATUSES.map((s) => (
+                                    <SelectItem key={s} value={s}>
+                                      {LODGING_ROOM_STATUS_LABELS[s]}
+                                    </SelectItem>
+                                  ))}
+                                  {(HOLD_STATUSES as readonly string[]).includes(
+                                    room.status,
+                                  )
+                                    ? RELEASE_TARGETS.map((s) => (
+                                        <SelectItem key={s} value={s}>
+                                          Release →{" "}
+                                          {LODGING_ROOM_STATUS_LABELS[s]}
+                                        </SelectItem>
+                                      ))
+                                    : null}
+                                </SelectContent>
+                              </Select>
+                            ) : null}
                             <Button
                               type="button"
                               size="icon"
