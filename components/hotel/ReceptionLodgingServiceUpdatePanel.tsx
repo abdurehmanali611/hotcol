@@ -41,6 +41,7 @@ function stayCaption(stay: LodgingStay) {
 function laundryLinesForStay(stay: LodgingStay): LodgingBillLine[] {
   return (stay.bill?.lines ?? []).filter((l) => {
     if (l.kind !== "laundry") return false;
+    if (l.voided) return false;
     const st = String(l.fulfillmentStatus || "pending").toLowerCase();
     return st !== "cancelled";
   });

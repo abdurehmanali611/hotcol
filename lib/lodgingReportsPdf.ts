@@ -453,7 +453,17 @@ export async function downloadLodgingStayPaymentsPdf(input: {
       margin,
       y,
     );
-    y += 5;
+    y += 4;
+    const kpiLegend = [
+      "Occupancy — how full you were (sold ÷ available × 100)",
+      "ADR — how much you charged when sold (revenue ÷ sold nights)",
+      "RevPAR — how much each room earned overall (revenue ÷ available nights)",
+    ];
+    for (const line of kpiLegend) {
+      doc.text(line, margin, y);
+      y += 3.2;
+    }
+    y += 2;
   }
 
   y = drawSectionTitle(doc, "Payment summary", margin, y);

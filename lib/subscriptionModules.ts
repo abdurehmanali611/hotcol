@@ -320,6 +320,8 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "cc-profiles": "Financial Management",
   "lodging-rooms": "Room Management",
   "lodging-reports": "Room Management",
+  "lodging-police-report": "Room Management",
+  "lodging-compliment": "Room Management",
   "lodging-guest-call": "Room Management",
   "lodging-laundry-add": "Room Management",
   "lodging-laundry-items": "Room Management",

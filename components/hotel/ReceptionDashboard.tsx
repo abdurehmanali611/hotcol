@@ -61,6 +61,7 @@ import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { ReceptionRoomTransferDialog } from "@/components/hotel/ReceptionRoomTransferDialog";
 import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepartureReceipt";
+import { LodgingRegistrationCard } from "@/components/hotel/LodgingRegistrationCard";
 import {
   ReceptionCheckoutPaymentDialog,
 } from "@/components/hotel/ReceptionCheckoutPaymentDialog";
@@ -75,6 +76,7 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  Printer,
   RefreshCw,
   Shirt,
   Sparkles,
@@ -177,7 +179,16 @@ function groupBillLinesByRoom(lines: LodgingBillLine[]) {
 
 /** Split / transfer services only — exclude nightly room charge lines. */
 function serviceUsageLines(lines: LodgingBillLine[]) {
-  return lines.filter((l) => String(l.kind || "").toLowerCase() !== "room");
+  return lines.filter((l) => {
+    if (String(l.kind || "").toLowerCase() === "room") return false;
+    const appr = String(l.approvalStatus || "").toLowerCase();
+    // Pending/rejected discounts are not transferable usages.
+    if (appr === "pending" || appr === "rejected") return false;
+    if (String(l.fulfillmentStatus || "").toLowerCase() === "cancelled") {
+      return false;
+    }
+    return true;
+  });
 }
 
 export function ReceptionDashboard() {
@@ -225,6 +236,7 @@ export function ReceptionDashboard() {
     telebirrETB?: number;
   } | null>(null);
   const departurePrintRef = useRef<HTMLDivElement>(null);
+  const registrationPrintRef = useRef<HTMLDivElement>(null);
   const handleDeparturePrint = useReactToPrint({
     contentRef: departurePrintRef,
     documentTitle: "Departure_receipt",
@@ -234,6 +246,11 @@ export function ReceptionDashboard() {
       setPrintPayment(null);
     },
   });
+  const handleRegistrationPrint = useReactToPrint({
+    contentRef: registrationPrintRef,
+    documentTitle: "Guest_registration_card",
+    pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
+  });
 
   useEffect(() => {
     if (!printStay) return;
@@ -242,6 +259,24 @@ export function ReceptionDashboard() {
     }, 200);
     return () => window.clearTimeout(t);
   }, [printStay, handleDeparturePrint]);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const { body } = document;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+    };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.height = "100%";
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.height = prev.bodyHeight;
+    };
+  }, []);
 
   useEffect(() => {
     if (!receptionCmPortalEnabled && activeSection === "cm-portal") {
@@ -525,9 +560,9 @@ export function ReceptionDashboard() {
   }
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-muted/40 text-foreground">
-        <div className="reception-screen flex min-h-screen w-full">
+    <SidebarProvider className="h-svh max-h-svh min-h-0 overflow-hidden">
+      <div className="flex h-full min-h-0 w-full overflow-hidden bg-muted/40 text-foreground">
+        <div className="reception-screen flex h-full min-h-0 w-full overflow-hidden">
         <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
@@ -607,7 +642,8 @@ export function ReceptionDashboard() {
           </SidebarFooter>
         </Sidebar>
 
-        <div className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0 md:p-2 md:pl-0">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
           <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
@@ -639,7 +675,7 @@ export function ReceptionDashboard() {
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-            <div className="mx-auto max-w-6xl space-y-6 pb-10">
+            <div className="mx-auto max-w-6xl space-y-6 pb-6">
               <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -721,7 +757,7 @@ export function ReceptionDashboard() {
               )}
 
               {activeSection === "active-stays" && (
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
                   <Card className="border-border/80 shadow-md bg-card/95 h-fit">
                     <CardHeader>
                       <CardTitle className="text-lg">Active stays</CardTitle>
@@ -779,7 +815,7 @@ export function ReceptionDashboard() {
                   {selectedStay ? (
                     <div className="space-y-4">
                       <Card className="border-border/80 shadow-md bg-card/95">
-                        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+                        <CardHeader className="space-y-4">
                           <div>
                             <CardTitle className="text-lg">
                               {guestName(selectedStay.guest)}
@@ -790,16 +826,28 @@ export function ReceptionDashboard() {
                             </CardDescription>
                           </div>
                           {selectedStay.status === "checked_in" ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5"
-                              onClick={() => setRoomTransferOpen(true)}
-                            >
-                              <ArrowRightLeft className="h-4 w-4" />
-                              Transfer room
-                            </Button>
+                            <div className="flex w-full items-center justify-between gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                onClick={() => handleRegistrationPrint()}
+                              >
+                                <Printer className="h-4 w-4" />
+                                Print registration card
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                onClick={() => setRoomTransferOpen(true)}
+                              >
+                                <ArrowRightLeft className="h-4 w-4" />
+                                Transfer room
+                              </Button>
+                            </div>
                           ) : null}
                         </CardHeader>
                         <CardContent className="space-y-5">
@@ -942,10 +990,7 @@ export function ReceptionDashboard() {
                               <div className="space-y-3">
                                 {groupBillLinesByRoom(selectedStayActiveLines).map(
                                   ([room, roomLines]) => {
-                                  const roomTotal = roomLines.reduce(
-                                    (sum, l) => sum + Number(l.amountETB || 0),
-                                    0,
-                                  );
+                                  const roomTotal = billTotalFromLines(roomLines);
                                   return (
                                     <div
                                       key={room}
@@ -1004,12 +1049,6 @@ export function ReceptionDashboard() {
                                               laundryStatus === "completed";
                                             const laundryCancelled =
                                               laundryStatus === "cancelled";
-                                            const fnBComplete =
-                                              isFoodDrinkLineKitchenComplete(
-                                                line,
-                                                selectedStay.id,
-                                                liveCafeOrders,
-                                              );
                                             const cafeOrder = isFnB
                                               ? resolveCafeOrderForFoodDrinkLine(
                                                   line,
@@ -1017,6 +1056,20 @@ export function ReceptionDashboard() {
                                                   liveCafeOrders,
                                                 )
                                               : null;
+                                            const fnBCancelled =
+                                              isFnB &&
+                                              (laundryStatus === "cancelled" ||
+                                                isCafeOrderCancelled(
+                                                  cafeOrder?.status,
+                                                ));
+                                            const lineCancelled =
+                                              laundryCancelled || fnBCancelled;
+                                            const fnBComplete =
+                                              isFoodDrinkLineKitchenComplete(
+                                                line,
+                                                selectedStay.id,
+                                                liveCafeOrders,
+                                              );
                                             return (
                                             <tr key={line.id}>
                                               <td className="px-3 py-2 align-top">
@@ -1027,12 +1080,18 @@ export function ReceptionDashboard() {
                                                       line.id,
                                                     )}
                                                     disabled={
+                                                      lineCancelled ||
                                                       (isFnB && !fnBComplete) ||
                                                       (isLaundry &&
-                                                        !laundryComplete &&
-                                                        !laundryCancelled)
+                                                        !laundryComplete)
                                                     }
                                                     onCheckedChange={() => {
+                                                      if (lineCancelled) {
+                                                        toast.message(
+                                                          "Cancelled usages cannot be transferred",
+                                                        );
+                                                        return;
+                                                      }
                                                       if (isFnB && !fnBComplete) {
                                                         toast.message(
                                                           "Wait until food & drink is Completed before transferring",
@@ -1041,8 +1100,7 @@ export function ReceptionDashboard() {
                                                       }
                                                       if (
                                                         isLaundry &&
-                                                        !laundryComplete &&
-                                                        !laundryCancelled
+                                                        !laundryComplete
                                                       ) {
                                                         toast.message(
                                                           "Wait until laundry is Completed before transferring",
@@ -1066,7 +1124,14 @@ export function ReceptionDashboard() {
                                                 )}
                                               </td>
                                               <td className="px-3 py-2">
-                                                <p className="font-medium leading-snug">
+                                                <p
+                                                  className={cn(
+                                                    "font-medium leading-snug",
+                                                    isDiscount &&
+                                                      approval === "rejected" &&
+                                                      "text-muted-foreground line-through decoration-rose-500/50",
+                                                  )}
+                                                >
                                                   {stripCafeOrderMarker(
                                                     line.description,
                                                   )}
@@ -1079,16 +1144,6 @@ export function ReceptionDashboard() {
                                                     : ""}
                                                   {isDiscount && approval === "pending"
                                                     ? " · awaiting manager approval"
-                                                    : ""}
-                                                  {isDiscount && approval === "approved"
-                                                    ? " · approved"
-                                                    : ""}
-                                                  {isDiscount && approval === "rejected"
-                                                    ? ` · rejected${
-                                                        line.approvalNote
-                                                          ? ` — ${line.approvalNote}`
-                                                          : ""
-                                                      }`
                                                     : ""}
                                                   {isFnB
                                                     ? isCafeOrderCancelled(
@@ -1107,17 +1162,58 @@ export function ReceptionDashboard() {
                                                         : " · Pending — mark completed in Laundry update"
                                                     : ""}
                                                 </p>
+                                                {isDiscount && approval === "approved" ? (
+                                                  <div className="mt-1.5 space-y-0.5">
+                                                    <span className="inline-flex w-fit items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                                                      Approved
+                                                      {line.approvedBy
+                                                        ? ` by ${line.approvedBy}`
+                                                        : ""}
+                                                    </span>
+                                                    {line.approvalNote?.trim() ? (
+                                                      <p className="text-xs leading-snug text-emerald-800/90 dark:text-emerald-300/90">
+                                                        Reason: {line.approvalNote.trim()}
+                                                      </p>
+                                                    ) : null}
+                                                  </div>
+                                                ) : null}
+                                                {isDiscount && approval === "rejected" ? (
+                                                  <div className="mt-1.5 space-y-0.5">
+                                                    <span className="inline-flex w-fit items-center rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-800 dark:text-rose-300">
+                                                      Rejected
+                                                      {line.approvedBy
+                                                        ? ` by ${line.approvedBy}`
+                                                        : ""}
+                                                    </span>
+                                                    {line.approvalNote?.trim() ? (
+                                                      <p className="text-xs leading-snug text-rose-800/90 dark:text-rose-300/90">
+                                                        Reason: {line.approvalNote.trim()}
+                                                      </p>
+                                                    ) : null}
+                                                  </div>
+                                                ) : null}
                                               </td>
                                               <td className="px-3 py-2 text-right tabular-nums align-top">
-                                                {isDiscount && approval === "pending"
-                                                  ? formatMoney(
+                                                {isDiscount &&
+                                                (approval === "pending" ||
+                                                  approval === "rejected") ? (
+                                                  <span
+                                                    className={cn(
+                                                      approval === "rejected" &&
+                                                        "text-muted-foreground line-through decoration-rose-500/50",
+                                                    )}
+                                                  >
+                                                    {formatMoney(
                                                       -Math.abs(
                                                         Number(
                                                           line.unitPriceETB || 0,
                                                         ),
                                                       ),
-                                                    )
-                                                  : formatMoney(line.amountETB)}
+                                                    )}
+                                                  </span>
+                                                ) : (
+                                                  formatMoney(line.amountETB)
+                                                )}
                                               </td>
                                               <td className="px-3 py-2 text-right align-top">
                                                 {/* Line voids are Manager-only — Reception cannot void */}
@@ -1731,6 +1827,22 @@ export function ReceptionDashboard() {
             </div>
           </div>
         ) : null}
+
+        {selectedStay ? (
+          <div
+            aria-hidden
+            className="pointer-events-none fixed left-2500 top-0 h-0 w-0 overflow-hidden opacity-0 print:pointer-events-auto print:static print:left-auto print:top-auto print:h-auto print:w-auto print:overflow-visible print:opacity-100"
+          >
+            <div ref={registrationPrintRef}>
+              <LodgingRegistrationCard
+                stay={selectedStay}
+                propertyName={displayName}
+                logoUrl={logoUrl}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
       </div>
       <Toaster position="top-right" richColors />
     </SidebarProvider>

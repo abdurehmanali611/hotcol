@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { APEX_SOLUTION, HOTCOL_SYSTEM } from "@/constants/branding";
 import type { LodgingStay } from "@/lib/api/lodgingRooms";
 import { cn } from "@/lib/utils";
@@ -77,6 +76,7 @@ export function LodgingRegistrationCard({
     stay.rooms?.[0]?.room?.pricePerNightETB != null
       ? `ETB ${Number(stay.rooms[0].room.pricePerNightETB).toLocaleString()}/night`
       : "—";
+  const printedAt = formatWhen(new Date().toISOString());
 
   return (
     <div className="lodging-registration-card mx-auto max-w-[210mm] bg-white font-sans text-zinc-900 print:text-black">
@@ -116,20 +116,26 @@ export function LodgingRegistrationCard({
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
-            <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5">
-              <Image
+            <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={HOTCOL_SYSTEM.logoPath}
                 alt={HOTCOL_SYSTEM.name}
-                width={28}
-                height={28}
-                className="rounded-md object-cover"
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-lg object-cover"
               />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-                {HOTCOL_SYSTEM.name}
-              </span>
+              <div className="leading-tight">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+                  System
+                </p>
+                <p className="text-sm font-semibold text-zinc-800">
+                  {HOTCOL_SYSTEM.name}
+                </p>
+              </div>
             </div>
-            <p className="text-right text-xs font-semibold text-zinc-800">
-              {formatWhen(new Date().toISOString())}
+            <p className="text-right text-xs font-semibold tabular-nums text-zinc-800">
+              {printedAt}
             </p>
           </div>
         </div>
@@ -174,28 +180,75 @@ export function LodgingRegistrationCard({
           </div>
         </section>
 
-        <section className="space-y-2">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-            Guest signature
+        <section className="space-y-3">
+          <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-700">
+            Signatures
           </h3>
-          <div className="h-16 rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                Guest
+              </p>
+              <div className="relative h-20 rounded-xl border-2 border-dashed border-zinc-500 bg-zinc-50 print:border-zinc-700">
+                <div className="absolute inset-x-5 bottom-5 border-b border-zinc-400 print:border-zinc-600" />
+                <p className="absolute bottom-1.5 left-5 text-[9px] font-medium uppercase tracking-wider text-zinc-400">
+                  Guest signature
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                Hotel representative
+              </p>
+              <div className="relative h-20 rounded-xl border-2 border-dashed border-zinc-500 bg-zinc-50 print:border-zinc-700">
+                <div className="absolute inset-x-5 bottom-5 border-b border-zinc-400 print:border-zinc-600" />
+                <p className="absolute bottom-1.5 left-5 text-[9px] font-medium uppercase tracking-wider text-zinc-400">
+                  Staff signature
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-6 py-4 sm:px-8 print:px-6">
-        <div className="flex items-center gap-2">
-          <Image
-            src={APEX_SOLUTION.logoPath}
-            alt={APEX_SOLUTION.name}
-            width={72}
-            height={24}
-            className="h-6 w-auto object-contain"
-          />
-          <span className="text-[10px] text-zinc-500">{APEX_SOLUTION.name}</span>
+      <div className="border-t border-zinc-200 bg-zinc-950 px-6 py-4 text-white sm:px-8 print:px-6 print:py-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={APEX_SOLUTION.logoPath}
+              alt={APEX_SOLUTION.name}
+              width={140}
+              height={48}
+              className="h-9 w-auto max-w-[140px] shrink-0 object-contain print:h-8"
+            />
+            <div className="min-w-0 leading-tight">
+              <p className="text-sm font-semibold">{APEX_SOLUTION.name}</p>
+              <p className="text-xs text-zinc-300">
+                Hospitality software · inventory, lodging &amp; reporting
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-right text-xs leading-snug text-zinc-300">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={HOTCOL_SYSTEM.logoPath}
+              alt={HOTCOL_SYSTEM.name}
+              width={28}
+              height={28}
+              className="h-7 w-7 shrink-0 rounded object-cover"
+            />
+            <div>
+              <p>
+                Powered by{" "}
+                <span className="font-medium text-zinc-100">
+                  {HOTCOL_SYSTEM.name}
+                </span>
+              </p>
+              <p className="mt-0.5 tabular-nums">{printedAt}</p>
+            </div>
+          </div>
         </div>
-        <p className="text-[10px] text-zinc-500">
-          Powered by {HOTCOL_SYSTEM.name}
-        </p>
       </div>
     </div>
   );

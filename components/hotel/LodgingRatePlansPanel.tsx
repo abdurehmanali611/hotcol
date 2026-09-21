@@ -23,6 +23,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   LODGING_RATE_PLAN_KINDS,
   LODGING_RATE_PLAN_KIND_LABELS,
   LODGING_ROOM_TYPES,
@@ -90,6 +100,9 @@ export function LodgingRatePlansPanel() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LodgingRatePlan | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,6 +142,21 @@ export function LodgingRatePlansPanel() {
   const cancelEdit = () => {
     setEditingId(null);
     setDraft(emptyDraft());
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setPending(`del-${deleteTarget.id}`);
+    try {
+      await deleteLodgingRatePlanApi(deleteTarget.id);
+      if (editingId === deleteTarget.id) cancelEdit();
+      setDeleteTarget(null);
+      await load();
+    } catch (e) {
+      notifyApiFailure(e, "Delete failed");
+    } finally {
+      setPending(null);
+    }
   };
 
   const save = async () => {
@@ -540,29 +568,17 @@ export function LodgingRatePlansPanel() {
                         <Pencil className="h-4 w-4" />
                         Edit
                       </Button>
-                      <PendingButton
+                      <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         className="ml-auto h-9 gap-1.5 text-destructive hover:text-destructive"
-                        pending={pending === `del-${p.id}`}
-                        onClick={async () => {
-                          setPending(`del-${p.id}`);
-                          try {
-                            await deleteLodgingRatePlanApi(p.id);
-                            if (editingId === p.id) cancelEdit();
-                            toast.success("Rate plan deleted");
-                            await load();
-                          } catch (e) {
-                            notifyApiFailure(e, "Delete failed");
-                          } finally {
-                            setPending(null);
-                          }
-                        }}
+                        disabled={Boolean(pending)}
+                        onClick={() => setDeleteTarget(p)}
                       >
                         <Trash2 className="h-4 w-4" />
                         Delete
-                      </PendingButton>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -571,6 +587,63 @@ export function LodgingRatePlansPanel() {
           )}
         </div>
       </div>
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open && !pending?.startsWith("del-")) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-md gap-0 overflow-hidden p-0 sm:max-w-md">
+          <div className="h-1 bg-linear-to-r from-rose-500 via-amber-500/70 to-transparent" />
+          <AlertDialogHeader className="space-y-3 px-6 pt-6 text-left">
+            <AlertDialogTitle className="flex items-center gap-2 text-xl tracking-tight">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/25 dark:text-rose-300">
+                <Trash2 className="size-4" />
+              </span>
+              Delete rate plan?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-pretty leading-relaxed">
+              This permanently removes{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget?.name || "this rate plan"}
+              </span>
+              {deleteTarget?.code ? (
+                <>
+                  {" "}
+                  (
+                  <span className="font-mono text-foreground">
+                    {deleteTarget.code}
+                  </span>
+                  )
+                </>
+              ) : null}
+              . Existing stays that already used this plan keep their frozen
+              rate.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:gap-2">
+            <AlertDialogCancel
+              disabled={Boolean(pending?.startsWith("del-"))}
+              className="h-10 rounded-xl"
+            >
+              Keep plan
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(pending?.startsWith("del-"))}
+              className={cn(
+                "h-10 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90",
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelete();
+              }}
+            >
+              {pending?.startsWith("del-") ? "Deleting…" : "Delete plan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -108,7 +108,6 @@ import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyReve
 import { RecipeUsageStatusPanel } from "@/components/inventory/RecipeUsageStatusPanel";
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
-import { ManagerWaiterPaymentApprovalCard } from "@/components/cafe/ManagerWaiterPaymentApprovalCard";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 

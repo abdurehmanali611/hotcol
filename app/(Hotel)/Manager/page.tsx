@@ -120,11 +120,12 @@ import {
   CalendarCheck,
   Percent,
   BadgePercent,
-  MessageSquareWarning,
   Tags,
   AlertTriangle,
   Ban,
   UtensilsCrossed,
+  Shield,
+  Gift,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -140,6 +141,8 @@ import {
   LodgingTaxConfigPanel,
 } from "@/components/hotel/LodgingTaxAndAuditPanels";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
+import { LodgingPoliceReportPanel } from "@/components/hotel/LodgingPoliceReportPanel";
+import { LodgingComplimentPanel } from "@/components/hotel/LodgingComplimentPanel";
 import { LodgingHotelContactPanel } from "@/components/hotel/LodgingHotelContactPanel";
 import {
   LodgingLaundryAddPanel,
@@ -244,11 +247,12 @@ const managerSidebarIconMap: Record<
   CalendarCheck,
   Percent,
   BadgePercent,
-  MessageSquareWarning,
   Tags,
   AlertTriangle,
   Ban,
   UtensilsCrossed,
+  Shield,
+  Gift,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -296,6 +300,8 @@ const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> 
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
   "lodging-rooms",
   "lodging-reports",
+  "lodging-police-report",
+  "lodging-compliment",
   "lodging-guest-call",
   "lodging-tax",
   "lodging-rate-plans",
@@ -643,6 +649,8 @@ function ManagerContent() {
   const lodgingSidebarItems = useMemo(() => {
     const order = [
       "lodging-reports",
+      "lodging-police-report",
+      "lodging-compliment",
       "lodging-rooms",
       "lodging-tax",
       "lodging-rate-plans",
@@ -777,6 +785,10 @@ function ManagerContent() {
         "Register departments used when HR schedules shifts.",
       "lodging-reports":
         "Occupancy snapshot, stay history by date, past guests, and lodging action trail.",
+      "lodging-police-report":
+        "Generate a confidential guest identity report for police and security, then export a branded PDF.",
+      "lodging-compliment":
+        "Assign complimentary staff rooms (especially for the manager) that are held and not for sale.",
       "lodging-rooms":
         "Create and maintain room numbers, types, nightly rates, and notes for this property.",
       "lodging-tax":
@@ -1734,7 +1746,7 @@ function ManagerContent() {
 
       case "lodging-discounts":
         return (
-          <div className="space-y-6 p-4 md:p-6">
+          <div className="space-y-8 p-4 md:p-6">
             <LodgingDiscountApprovalsPanel refreshKey={inventoryRefreshKey} />
           </div>
         );
@@ -1785,6 +1797,20 @@ function ManagerContent() {
         return (
           <div className="p-4 md:p-6">
             <LodgingReportsPanel />
+          </div>
+        );
+
+      case "lodging-police-report":
+        return (
+          <div className="space-y-8 p-4 md:p-6">
+            <LodgingPoliceReportPanel refreshKey={inventoryRefreshKey} />
+          </div>
+        );
+
+      case "lodging-compliment":
+        return (
+          <div className="space-y-8 p-4 md:p-6">
+            <LodgingComplimentPanel refreshKey={inventoryRefreshKey} />
           </div>
         );
 

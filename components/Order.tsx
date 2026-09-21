@@ -51,6 +51,8 @@ interface OrderProps {
   }) => Promise<void>;
   /** Hide type select + category tabs (e.g. laundry ordering). */
   hideTypeFilters?: boolean;
+  /** Hide waiter selector (e.g. laundry room charges). */
+  hideWaiter?: boolean;
   /**
    * Dual Cafe+Inventory: menu item ids blocked because recipe ingredients
    * are missing from kitchen/bar station on-hand.
@@ -73,6 +75,7 @@ export default function OrderComponent({
   roomOptions,
   onRoomBatchSubmit,
   hideTypeFilters = false,
+  hideWaiter = false,
   recipeStockBlockedIds,
   recipeMaxServingsById,
 }: OrderProps) {
@@ -194,7 +197,9 @@ export default function OrderComponent({
               </h2>
               <p className="text-sm text-muted-foreground">
                 {roomOptions != null
-                  ? "Tap a card for a quick order, or batch-select — pick room and waiter in the dialog."
+                  ? hideWaiter
+                    ? "Tap a card for a quick order, or batch-select — pick a room in the dialog."
+                    : "Tap a card for a quick order, or batch-select — pick room and waiter in the dialog."
                   : "Tap a card for a quick order, or select items for a batch order."}
               </p>
             </div>
@@ -526,6 +531,7 @@ export default function OrderComponent({
         roomOptions={roomOptions}
         onRoomBatchSubmit={onRoomBatchSubmit}
         analogPrint={analogPrint}
+        hideWaiter={hideWaiter}
       />
     </div>
   );

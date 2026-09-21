@@ -47,6 +47,10 @@ const roomBatchOrderSchema = z.object({
   singleTableNo: z.coerce.number().int().positive("Please select a room"),
 });
 
+const roomBatchOrderSchemaNoWaiter = roomBatchOrderSchema.extend({
+  singleWaiterName: z.string().optional(),
+});
+
 interface BatchOrderModalProps {
   items: (Item & { orderAmount: number })[];
   isOpen: boolean;
@@ -63,6 +67,8 @@ interface BatchOrderModalProps {
     items: (Item & { orderAmount: number })[];
   }) => Promise<void>;
   analogPrint?: boolean;
+  /** Hide waiter selector (e.g. laundry room charges). */
+  hideWaiter?: boolean;
 }
 
 export default function BatchOrderModal({
@@ -75,6 +81,7 @@ export default function BatchOrderModal({
   roomOptions,
   onRoomBatchSubmit,
   analogPrint = false,
+  hideWaiter = false,
 }: BatchOrderModalProps) {
   const roomMode = roomOptions != null;
   const [loading, setLoading] = useState(false);
@@ -83,13 +90,16 @@ export default function BatchOrderModal({
   const [selectedItems, setSelectedItems] = useState(initialItems);
   const wasOpenRef = useRef(false);
 
+  const formSchema = useMemo(() => {
+    if (!roomMode) return batchOrderSchema;
+    return hideWaiter ? roomBatchOrderSchemaNoWaiter : roomBatchOrderSchema;
+  }, [roomMode, hideWaiter]);
+
   const form = useForm<z.infer<typeof batchOrderSchema>>({
     // Room mode uses stay ids (any positive int); café mode keeps 0–999 table refine.
-    resolver: zodResolver(
-      roomMode ? roomBatchOrderSchema : batchOrderSchema,
-    ) as never,
+    resolver: zodResolver(formSchema) as never,
     defaultValues: {
-      singleWaiterName: "",
+      singleWaiterName: hideWaiter ? "Reception" : "",
       singleTableNo: CAFE_TABLE_UNSELECTED,
       HotelName: hotelName,
       items: [],
@@ -116,7 +126,7 @@ export default function BatchOrderModal({
     }));
 
     form.reset({
-      singleWaiterName: "",
+      singleWaiterName: hideWaiter ? "Reception" : "",
       singleTableNo: CAFE_TABLE_UNSELECTED,
       HotelName: hotelName,
       items: formItems,
@@ -124,14 +134,18 @@ export default function BatchOrderModal({
     });
     form.clearErrors();
 
-    fetchWaiters()
-      .then((res) =>
-        res.filter((w) =>
-          rowHotelMatchesTenantScope(w.HotelName, hotelName),
-        ),
-      )
-      .then(setWaiters)
-      .catch(() => toast.error("Failed to load waiters"));
+    if (!hideWaiter) {
+      fetchWaiters()
+        .then((res) =>
+          res.filter((w) =>
+            rowHotelMatchesTenantScope(w.HotelName, hotelName),
+          ),
+        )
+        .then(setWaiters)
+        .catch(() => toast.error("Failed to load waiters"));
+    } else {
+      setWaiters([]);
+    }
     if (!roomMode) {
       fetchTables()
         .then((res) =>
@@ -142,7 +156,7 @@ export default function BatchOrderModal({
         .then(setTables)
         .catch(() => toast.error("Failed to load tables"));
     }
-  }, [isOpen, hotelName, form, initialItems, roomMode]);
+  }, [isOpen, hotelName, form, initialItems, roomMode, hideWaiter]);
 
   const updateQuantity = (id: number, delta: number) => {
     setSelectedItems((prev) => {
@@ -212,7 +226,10 @@ export default function BatchOrderModal({
         toast.error("Please select a room");
         return;
       }
-      if (!values.singleWaiterName || values.singleWaiterName === "") {
+      const waiterName = hideWaiter
+        ? "Reception"
+        : String(values.singleWaiterName ?? "").trim();
+      if (!hideWaiter && !waiterName) {
         toast.error("Please select a waiter");
         return;
       }
@@ -220,7 +237,7 @@ export default function BatchOrderModal({
       try {
         await onRoomBatchSubmit?.({
           stayId,
-          waiterName: values.singleWaiterName,
+          waiterName,
           items: selectedItems,
         });
         onSubmitSuccess();
@@ -308,7 +325,7 @@ export default function BatchOrderModal({
             className="space-y-6"
           >
             {/* 1. Header Info */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className={hideWaiter ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
               <CustomFormField
                 control={form.control}
                 name="singleTableNo"
@@ -316,18 +333,20 @@ export default function BatchOrderModal({
                 label={roomMode ? "Room" : "Table Number"}
                 placeholder={roomMode ? "Select Room" : "Select Table"}
                 isNumeric={true}
-                inputClassName="h-fit p-2 w-56"
+                inputClassName="h-fit w-full p-2"
                 listdisplay={anchorOptions}
               />
-              <CustomFormField
-                control={form.control}
-                name="singleWaiterName"
-                fieldType={formFieldTypes.SELECT}
-                label="Assigned Waiter"
-                placeholder="Select Waiter"
-                inputClassName="h-fit p-2 w-56"
-                listdisplay={waiters.map((w) => ({ id: w.id, name: w.name }))}
-              />
+              {!hideWaiter ? (
+                <CustomFormField
+                  control={form.control}
+                  name="singleWaiterName"
+                  fieldType={formFieldTypes.SELECT}
+                  label="Assigned Waiter"
+                  placeholder="Select Waiter"
+                  inputClassName="h-fit w-full p-2"
+                  listdisplay={waiters.map((w) => ({ id: w.id, name: w.name }))}
+                />
+              ) : null}
             </div>
 
             <Separator />

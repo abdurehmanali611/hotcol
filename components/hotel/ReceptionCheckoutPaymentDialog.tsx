@@ -205,7 +205,11 @@ export function ReceptionCheckoutPaymentDialog({
   onConfirm: (result: StayCheckoutPaymentResult) => void | Promise<void>;
 }) {
   const lines = useMemo(() => stay.bill?.lines ?? [], [stay.bill?.lines]);
-  const total = Number(stay.bill?.totalETB ?? 0);
+  /** Always sum line amount + lodging tax (matches pay-by-order). */
+  const total = useMemo(
+    () => round2(lines.reduce((s, l) => s + lineAmount(l), 0)),
+    [lines],
+  );
   const depositApplied = useMemo(() => {
     return lines
       .filter(

@@ -186,6 +186,8 @@ export const MANAGER_SIDEBAR_ITEMS = [
     icon: "Receipt",
   },
   { id: "lodging-reports", label: "Reports", icon: "FileText" },
+  { id: "lodging-police-report", label: "Police report", icon: "Shield" },
+  { id: "lodging-compliment", label: "Complimentary", icon: "Gift" },
   { id: "lodging-rooms", label: "Rooms", icon: "Building2" },
   { id: "lodging-tax", label: "Lodging tax", icon: "Percent" },
   { id: "lodging-rate-plans", label: "Rate plans", icon: "Tags" },

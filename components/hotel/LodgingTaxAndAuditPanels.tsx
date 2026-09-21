@@ -188,7 +188,17 @@ export function LodgingNightAuditPanel() {
               onClick={async () => {
                 setPending(true);
                 try {
-                  const row = await closeLodgingBusinessDayApi(businessDate);
+                  const fromAt = new Date(
+                    `${businessDate}T00:00:00`,
+                  ).toISOString();
+                  const toAt = new Date(
+                    `${businessDate}T23:59:59.999`,
+                  ).toISOString();
+                  const row = await closeLodgingBusinessDayApi({
+                    businessDate,
+                    fromAt,
+                    toAt,
+                  });
                   setDay(row);
                   toast.success("Business day closed");
                 } catch (e) {

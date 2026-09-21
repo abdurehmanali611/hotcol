@@ -158,7 +158,7 @@ function EmbeddedRecipeLineRow({
   onChange,
   onRemove,
   lineTotal,
-  suggestionListId,
+  suggestionListId: _suggestionListId,
 }: {
   index: number;
   line: RecipeLine;
@@ -271,7 +271,7 @@ function RecipeLineRow({
   onRemove,
   lineTotal,
   embedded,
-  suggestionListId,
+  suggestionListId: _suggestionListId,
 }: {
   index: number;
   line: RecipeLine;

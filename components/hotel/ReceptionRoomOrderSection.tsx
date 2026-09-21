@@ -190,6 +190,7 @@ export function ReceptionRoomOrderSection({
         openOrders={[]}
         roomOptions={roomOptions}
         hideTypeFilters={mode === "laundry"}
+        hideWaiter={mode === "laundry"}
         onItemSelect={setSelectedItem}
         onGoToPayment={() =>
           toast.message("Checkout and settlement are under Active stays")
@@ -200,7 +201,7 @@ export function ReceptionRoomOrderSection({
         onRoomBatchSubmit={async ({ stayId, waiterName, items: batch }) => {
           await chargeStay(
             stayId,
-            waiterName,
+            mode === "laundry" ? "" : waiterName,
             batch.map((item) => ({
               item,
               qty: item.orderAmount,
@@ -220,6 +221,7 @@ export function ReceptionRoomOrderSection({
           onClose={() => setSelectedItem(null)}
           hotelName={hotelName}
           roomOptions={roomOptions}
+          hideWaiter={mode === "laundry"}
           maxServings={
             mode === "food_drink"
               ? recipeMaxServingsById.get(selectedItem.id)
@@ -227,12 +229,16 @@ export function ReceptionRoomOrderSection({
           }
           onSubmit={async (data: OrderCreationData) => {
             try {
-              await chargeStay(Number(data.tableNo), data.waiterName, [
-                {
-                  item: selectedItem,
-                  qty: data.orderAmount,
-                },
-              ]);
+              await chargeStay(
+                Number(data.tableNo),
+                mode === "laundry" ? "" : data.waiterName,
+                [
+                  {
+                    item: selectedItem,
+                    qty: data.orderAmount,
+                  },
+                ],
+              );
               toast.success(
                 mode === "laundry"
                   ? "Laundry charged to room stay"

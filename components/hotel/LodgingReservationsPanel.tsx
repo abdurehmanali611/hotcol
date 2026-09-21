@@ -40,6 +40,7 @@ import {
   createLodgingReservationApi,
   fetchLodgingHoldableRooms,
   fetchLodgingReservations,
+  fetchLodgingRoomDateFit,
   type LodgingReservation,
   type LodgingRoom,
 } from "@/lib/api/lodgingRooms";
@@ -83,7 +84,7 @@ function assignableRoomsForReservation(
 
 export function LodgingReservationsPanel({
   vacantCleanRooms,
-  onCheckedIn,
+  onCheckedIn: _onCheckedIn,
   onStartCheckIn,
 }: {
   vacantCleanRooms: LodgingRoom[];
@@ -153,10 +154,39 @@ export function LodgingReservationsPanel({
 
   useEffect(() => {
     const arrival = new Date(`${arrivalDate}T14:00:00`);
-    void fetchLodgingHoldableRooms(arrival.toISOString())
+    const n = Math.max(1, Math.floor(Number(nights) || 1));
+    void fetchLodgingHoldableRooms(arrival.toISOString(), n)
       .then(setHoldable)
       .catch(() => setHoldable([]));
-  }, [arrivalDate]);
+  }, [arrivalDate, nights]);
+
+  useEffect(() => {
+    if (!holdRoomIds.length) return;
+    const arrival = new Date(`${arrivalDate}T14:00:00`);
+    const n = Math.max(1, Math.floor(Number(nights) || 1));
+    let cancelled = false;
+    void (async () => {
+      for (const id of holdRoomIds) {
+        try {
+          const fit = await fetchLodgingRoomDateFit({
+            roomId: id,
+            arrivalAt: arrival.toISOString(),
+            nights: n,
+          });
+          if (cancelled) return;
+          if (!fit.ok) {
+            toast.error(fit.message || "Selected room does not fit these nights");
+            return;
+          }
+        } catch {
+          /* ignore — submit will still validate */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [arrivalDate, nights, holdRoomIds]);
 
   const holdableForType = useMemo(
     () =>
@@ -165,7 +195,9 @@ export function LodgingReservationsPanel({
           !preferredRoomType ||
           r.roomType === preferredRoomType ||
           r.status === "vacant_clean" ||
-          r.status === "inspected",
+          r.status === "inspected" ||
+          r.status === "reserved" ||
+          r.status === "occupied",
       ),
     [holdable, preferredRoomType],
   );
@@ -187,6 +219,19 @@ export function LodgingReservationsPanel({
     setPending("create");
     try {
       const arrival = new Date(`${arrivalDate}T14:00:00`);
+      const nightsN = Math.max(1, nights);
+      for (const id of holdRoomIds) {
+        const fit = await fetchLodgingRoomDateFit({
+          roomId: id,
+          arrivalAt: arrival.toISOString(),
+          nights: nightsN,
+        });
+        if (!fit.ok) {
+          toast.error(fit.message || "Selected room does not fit these nights");
+          setPending(null);
+          return;
+        }
+      }
       await createLodgingReservationApi({
         guest: {
           firstName: guestFirst.trim(),
@@ -196,7 +241,7 @@ export function LodgingReservationsPanel({
         source,
         status,
         arrivalAt: arrival.toISOString(),
-        nights: Math.max(1, nights),
+        nights: nightsN,
         preferredRoomType,
         roomIds: holdRoomIds.length ? holdRoomIds : undefined,
         depositETB: deposit,
@@ -305,6 +350,10 @@ export function LodgingReservationsPanel({
                 value={nights}
                 onChange={(e) => setNights(Number(e.target.value) || 1)}
               />
+              <p className="text-[11px] text-muted-foreground text-pretty">
+                Same room can share dates with other bookings only with a one-day
+                cleaning gap between stays.
+              </p>
             </div>
             <div className="space-y-1.5 min-w-0">
               <Label>Source</Label>
@@ -467,7 +516,8 @@ export function LodgingReservationsPanel({
           <div className="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border border-border/50 bg-background p-1.5">
             {holdableForType.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                No holdable rooms for this arrival.
+                No rooms fit this arrival and nights (one-day cleaning gap
+                required vs other stays/reservations).
               </p>
             ) : (
               holdableForType.map((r) => {
@@ -509,6 +559,13 @@ export function LodgingReservationsPanel({
               })
             )}
           </div>
+          {holdRoomIds.some((id) => !holdable.some((r) => r.id === id)) ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400 text-pretty">
+              One or more selected rooms no longer fit these nights — reduce
+              nights or clear the hold. A one-day cleaning gap is required
+              between bookings.
+            </p>
+          ) : null}
           {holdRoomIds.length > 0 ? (
             <p className="text-xs text-muted-foreground tabular-nums">
               {holdRoomIds.length} room

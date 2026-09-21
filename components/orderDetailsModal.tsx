@@ -58,6 +58,8 @@ interface OrderDetailsModalProps {
   onSubmit: (data: OrderCreationData) => Promise<unknown>;
   /** When set, "Table" becomes "Room" and these options replace café tables (value = stay id). */
   roomOptions?: { id: number; name: string; realValue: number }[];
+  /** Hide waiter selector (e.g. laundry room charges — no café waiter). */
+  hideWaiter?: boolean;
   /** Station on-hand max servings for this recipe (Infinity / omit = no cap). */
   maxServings?: number;
 }
@@ -70,6 +72,7 @@ export default function OrderDetailsModal({
   openOrders = [],
   onSubmit,
   roomOptions,
+  hideWaiter = false,
   maxServings,
 }: OrderDetailsModalProps) {
   const roomMode = roomOptions != null;
@@ -79,11 +82,23 @@ export default function OrderDetailsModal({
     tables: [] as Table[],
   });
 
+  const schema = useMemo(() => {
+    if (!roomMode) return tableOrderSchema;
+    if (hideWaiter) {
+      return z.object({
+        tableNo: z.number().int().positive("Please select a room"),
+        waiterName: z.string().optional(),
+        orderAmount: z.number().min(1, "Order amount must be at least 1"),
+      });
+    }
+    return roomOrderSchema;
+  }, [roomMode, hideWaiter]);
+
   const form = useForm<z.infer<typeof tableOrderSchema>>({
-    resolver: zodResolver(roomMode ? roomOrderSchema : tableOrderSchema) as never,
+    resolver: zodResolver(schema) as never,
     defaultValues: {
       tableNo: CAFE_TABLE_UNSELECTED,
-      waiterName: "",
+      waiterName: hideWaiter ? "Reception" : "",
       orderAmount: 1,
     },
   });
@@ -92,7 +107,9 @@ export default function OrderDetailsModal({
     if (isOpen && item) {
       (async () => {
         const [w, t] = await Promise.all([
-          fetchWaiters(),
+          hideWaiter
+            ? Promise.resolve([] as Waiter[])
+            : fetchWaiters(),
           roomMode ? Promise.resolve([] as Table[]) : fetchTables(),
         ]);
         setData({
@@ -105,12 +122,12 @@ export default function OrderDetailsModal({
         });
         form.reset({
           tableNo: CAFE_TABLE_UNSELECTED,
-          waiterName: "",
+          waiterName: hideWaiter ? "Reception" : "",
           orderAmount: 1,
         });
       })();
     }
-  }, [isOpen, roomMode]);
+  }, [isOpen, roomMode, hideWaiter]);
 
   const occupiedTables = useMemo(
     () => occupiedTableNumbersFromOrders(openOrders, hotelName),
@@ -148,7 +165,9 @@ export default function OrderDetailsModal({
         type: item.type,
         orderAmount: qty,
         tableNo: values.tableNo,
-        waiterName: values.waiterName,
+        waiterName: hideWaiter
+          ? "Reception"
+          : values.waiterName,
         HotelName: hotelName,
       };
 
@@ -197,14 +216,16 @@ export default function OrderDetailsModal({
                   listdisplay={anchorOptions}
                   isNumeric={true}
                 />
-                <CustomFormField
-                  control={form.control}
-                  name="waiterName"
-                  fieldType={formFieldTypes.SELECT}
-                  label="Waiter"
-                  placeholder="Select"
-                  listdisplay={data.waiters}
-                />
+                {!hideWaiter ? (
+                  <CustomFormField
+                    control={form.control}
+                    name="waiterName"
+                    fieldType={formFieldTypes.SELECT}
+                    label="Waiter"
+                    placeholder="Select"
+                    listdisplay={data.waiters}
+                  />
+                ) : null}
               </div>
               <CustomFormField
                 control={form.control}
@@ -212,7 +233,7 @@ export default function OrderDetailsModal({
                 fieldType={formFieldTypes.INPUT}
                 type="number"
                 label="Quantity"
-                inputClassName="h-fit p-2 w-75"
+                inputClassName="h-fit w-full p-2"
               />
               {maxServings != null && Number.isFinite(maxServings) ? (
                 <p className="text-xs text-muted-foreground">

@@ -11,7 +11,6 @@ import fs from "fs";
 import { fileURLToPath, pathToFileURL } from "url";
 import { jsPDF } from "jspdf";
 import {
-  BY_CORE,
   BY_IDENTITY,
   BY_PHRASE,
   englishOnlyCrystal,
@@ -1224,7 +1223,7 @@ function buildReviewFlags(clusters) {
 
   const byAR = new Map();
   for (const c of clusters) {
-    const [am, rom, en] = c.crystalName.split("|");
+    const [am, rom, _en] = c.crystalName.split("|");
     const key = `${am || ""}|${rom || ""}`;
     if (!byAR.has(key)) byAR.set(key, []);
     byAR.get(key).push(c);
@@ -1247,7 +1246,7 @@ function buildReviewFlags(clusters) {
   }
 
   for (const c of clusters) {
-    const [am, rom, en] = c.crystalName.split("|");
+    const [_am, rom, en] = c.crystalName.split("|");
     if (!rom || !en) continue;
     const romCore = rom.toLowerCase().replace(/[^a-z]/g, "");
     const enCore = en.toLowerCase().replace(/[^a-z]/g, "");

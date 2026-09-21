@@ -132,12 +132,16 @@ export function billLinesExcludingCancelledFoodDrink<
   T extends BillLineRef & {
     voided?: boolean;
     approvalStatus?: string | null;
+    fulfillmentStatus?: string | null;
   },
 >(stayId: number, lines: T[], cafeOrders: RoomServiceOrderRef[]): T[] {
+  // Keep rejected discounts visible on the folio (with approval note); totals ignore them.
+  // Cancelled F&B / laundry must not appear on Active stays or be transferable.
   const active = lines.filter((l) => {
     if (l.voided) return false;
-    const appr = String(l.approvalStatus || "").toLowerCase();
-    if (appr === "rejected") return false;
+    if (String(l.fulfillmentStatus || "").toLowerCase() === "cancelled") {
+      return false;
+    }
     return true;
   });
   if (cafeOrders.length === 0) return active;
@@ -149,6 +153,7 @@ export function billLinesExcludingCancelledFoodDrink<
 export function billTotalFromLines(
   lines: {
     amountETB?: number;
+    taxETB?: number;
     voided?: boolean;
     approvalStatus?: string | null;
     fulfillmentStatus?: string | null;
@@ -161,7 +166,9 @@ export function billTotalFromLines(
     if (String(l.fulfillmentStatus || "").toLowerCase() === "cancelled") {
       return sum;
     }
-    return sum + Number(l.amountETB || 0);
+    return (
+      sum + Number(l.amountETB || 0) + Number(l.taxETB || 0)
+    );
   }, 0);
 }
 
@@ -228,12 +235,13 @@ export function isFoodDrinkLineKitchenComplete(
   return isCafeOrderCompleted(order.status);
 }
 
-export function incompleteFoodDrinkLines<T extends BillLineRef>(
+export function incompleteFoodDrinkLines<T extends BillLineRef & { voided?: boolean }>(
   stayId: number,
   lines: T[],
   cafeOrders: RoomServiceOrderRef[],
 ): T[] {
   return lines.filter((l) => {
+    if (l.voided) return false;
     if (String(l.kind || "").toLowerCase() !== "food_drink") return false;
     if (isCancelledFoodDrinkBillLine(l, stayId, cafeOrders)) return false;
     const order = resolveCafeOrderForFoodDrinkLine(l, stayId, cafeOrders);
@@ -243,8 +251,11 @@ export function incompleteFoodDrinkLines<T extends BillLineRef>(
 }
 
 /** Laundry must be completed or cancelled before checkout (matches backend gate). */
-export function incompleteLaundryLines<T extends BillLineRef>(lines: T[]): T[] {
+export function incompleteLaundryLines<
+  T extends BillLineRef & { voided?: boolean; fulfillmentStatus?: string | null },
+>(lines: T[]): T[] {
   return lines.filter((l) => {
+    if (l.voided) return false;
     if (String(l.kind || "").toLowerCase() !== "laundry") return false;
     const st = String(l.fulfillmentStatus || "pending").toLowerCase();
     return st !== "completed" && st !== "cancelled";

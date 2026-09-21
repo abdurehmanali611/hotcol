@@ -6,7 +6,6 @@ import {
   compareCafeTableNos,
   decodeCafeTableSplit,
   encodeCafeTableSplit,
-  formatCafeTableSeatTabLabel,
   formatCafeTableSplitLabel,
   isCafeTableSplitCode,
   CAFE_TABLE_SPLIT_MAX_INDEX,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { api, API_URL } from "./client";
 
 export type CrystalNameRow = {

@@ -43,6 +43,8 @@ import { LODGING_ROOM_TYPES } from "@/constants/lodgingRooms";
 import {
   createLodgingStayApi,
   fetchLodgingGuests,
+  fetchLodgingHoldableRooms,
+  fetchLodgingRoomDateFit,
   type LodgingGuest,
   type LodgingReservation,
   type LodgingRoom,
@@ -127,7 +129,7 @@ function guestLabel(g: { firstName: string; lastName: string }) {
 }
 
 export function ReceptionCheckInForm({
-  vacantCleanRooms,
+  vacantCleanRooms: _vacantCleanRooms,
   onCompleted,
   propertyName,
   logoUrl,
@@ -166,6 +168,7 @@ export function ReceptionCheckInForm({
   const [registrationStay, setRegistrationStay] = useState<LodgingStay | null>(
     null,
   );
+  const [dateFitRooms, setDateFitRooms] = useState<LodgingRoom[]>([]);
   const registrationPrintRef = useRef<HTMLDivElement>(null);
   const handleRegistrationPrint = useReactToPrint({
     contentRef: registrationPrintRef,
@@ -220,23 +223,42 @@ export function ReceptionCheckInForm({
     }
   }, [reservation]);
 
+  useEffect(() => {
+    const arrival = new Date(`${arrivalDate}T${arrivalTime || "14:00"}`);
+    if (Number.isNaN(arrival.getTime())) {
+      setDateFitRooms([]);
+      return;
+    }
+    const n = Math.max(1, Math.floor(Number(expectedNights) || 1));
+    let cancelled = false;
+    void fetchLodgingHoldableRooms(
+      arrival.toISOString(),
+      n,
+      reservation?.id ?? null,
+    )
+      .then((rooms) => {
+        if (!cancelled) setDateFitRooms(rooms);
+      })
+      .catch(() => {
+        if (!cancelled) setDateFitRooms([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [arrivalDate, arrivalTime, expectedNights, reservation?.id]);
+
   const assignableRooms = useMemo(() => {
     const byId = new Map<number, LodgingRoom>();
-    for (const room of vacantCleanRooms) {
+    for (const room of dateFitRooms) {
+      if (String(room.status || "") === "occupied") continue;
       byId.set(room.id, room);
     }
-    if (reservation) {
-      for (const rr of reservation.rooms || []) {
-        const room = rr.room;
-        if (!room?.id) continue;
-        const st = String(room.status || "");
-        if (st === "vacant_clean" || st === "reserved") {
-          byId.set(room.id, room);
-        }
-      }
-    }
-    return [...byId.values()];
-  }, [vacantCleanRooms, reservation]);
+    return [...byId.values()].sort((a, b) =>
+      String(a.roomNumber).localeCompare(String(b.roomNumber), undefined, {
+        numeric: true,
+      }),
+    );
+  }, [dateFitRooms]);
 
   const selectedRoomIds = useMemo(
     () =>
@@ -245,6 +267,42 @@ export function ReceptionCheckInForm({
         .filter((id) => Number.isFinite(id) && id > 0),
     [roomAssignments],
   );
+
+  useEffect(() => {
+    if (!selectedRoomIds.length) return;
+    const arrival = new Date(`${arrivalDate}T${arrivalTime || "14:00"}`);
+    if (Number.isNaN(arrival.getTime())) return;
+    const n = Math.max(1, Math.floor(Number(expectedNights) || 1));
+    let cancelled = false;
+    void (async () => {
+      for (const id of selectedRoomIds) {
+        try {
+          const fit = await fetchLodgingRoomDateFit({
+            roomId: id,
+            arrivalAt: arrival.toISOString(),
+            nights: n,
+            excludeReservationId: reservation?.id ?? null,
+          });
+          if (cancelled) return;
+          if (!fit.ok) {
+            toast.error(fit.message || "Selected room does not fit these nights");
+            return;
+          }
+        } catch {
+          /* submit validates */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedRoomIds,
+    arrivalDate,
+    arrivalTime,
+    expectedNights,
+    reservation?.id,
+  ]);
 
   const assignedRoomsMeta = useMemo(() => {
     return selectedRoomIds
@@ -340,6 +398,20 @@ export function ReceptionCheckInForm({
     }
     setPending("check-in");
     try {
+      const nightsN = Math.max(1, expectedNights);
+      for (const id of selectedRoomIds) {
+        const fit = await fetchLodgingRoomDateFit({
+          roomId: id,
+          arrivalAt: arrival.toISOString(),
+          nights: nightsN,
+          excludeReservationId: reservation?.id ?? null,
+        });
+        if (!fit.ok) {
+          toast.error(fit.message || "Selected room does not fit these nights");
+          setPending(null);
+          return;
+        }
+      }
       const guestName = guestLabel(guest);
       const stay = await createLodgingStayApi({
         guestId: guestId ?? undefined,
@@ -359,7 +431,7 @@ export function ReceptionCheckInForm({
           addressLine: "",
         },
         arrivalAt: arrival.toISOString(),
-        nights: Math.max(1, expectedNights),
+        nights: nightsN,
         adults: Math.max(1, adults),
         children: Math.max(0, children),
         preferredRoomType: roomAssignments[0]?.roomType || LODGING_ROOM_TYPES[0],
@@ -800,6 +872,8 @@ export function ReceptionCheckInForm({
                         d.setDate(d.getDate() + Math.max(1, expectedNights));
                         return todayYmd(d);
                       })()}
+                      . Leave a one-day cleaning gap before any later reservation
+                      on the same room.
                     </p>
                   </div>
                   <div className="space-y-1.5">
@@ -897,16 +971,17 @@ export function ReceptionCheckInForm({
               assignableRooms.length === 0
                 ? "No vacant clean inventory right now."
                 : reservation
-                  ? `${assignableRooms.length} room${assignableRooms.length === 1 ? "" : "s"} available (vacant clean + this booking’s holds).`
-                  : `${assignableRooms.length} vacant clean room${assignableRooms.length === 1 ? "" : "s"} ready. Add a line per room.`
+                  ? `${assignableRooms.length} room${assignableRooms.length === 1 ? "" : "s"} available for these nights (incl. future holds with a cleaning gap).`
+                  : `${assignableRooms.length} room${assignableRooms.length === 1 ? "" : "s"} fit these nights.`
             }
           >
             {assignableRooms.length === 0 ? (
               <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-5 py-8 text-center">
                 <BedDouble className="mx-auto h-8 w-8 text-amber-600/70" />
                 <p className="mt-3 text-sm text-muted-foreground">
-                  No vacant clean rooms available. Ask CM to finish dirty rooms
-                  first.
+                  No rooms fit this arrival and nights. Reduce nights to leave a
+                  one-day cleaning gap before later reservations, or ask CM to
+                  finish dirty rooms.
                 </p>
               </div>
             ) : (

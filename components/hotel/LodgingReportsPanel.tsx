@@ -523,21 +523,51 @@ export function LodgingReportsPanel({
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {(
                     [
-                      ["Occupancy", `${perf.occupancyPercent}%`],
-                      ["ADR", formatEtb(perf.adrETB)],
-                      ["RevPAR", formatEtb(perf.revparETB)],
-                      ["Room revenue", formatEtb(perf.roomRevenueETB)],
+                      {
+                        label: "Occupancy",
+                        value: `${perf.occupancyPercent}%`,
+                        meaning: "How full you were",
+                        formula:
+                          "Room nights sold ÷ available room nights × 100",
+                      },
+                      {
+                        label: "ADR",
+                        value: formatEtb(perf.adrETB),
+                        meaning: "How much you charged when sold",
+                        formula: "Room revenue ÷ room nights sold",
+                      },
+                      {
+                        label: "RevPAR",
+                        value: formatEtb(perf.revparETB),
+                        meaning: "How much each room earned overall",
+                        formula: "Room revenue ÷ available room nights",
+                      },
+                      {
+                        label: "Room revenue",
+                        value: formatEtb(perf.roomRevenueETB),
+                        meaning: "Total room sales in this range",
+                        formula: "Sum of room folio charges (ex-void)",
+                      },
                     ] as const
-                  ).map(([label, value]) => (
+                  ).map((kpi) => (
                     <div
-                      key={label}
-                      className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3.5"
+                      key={kpi.label}
+                      className="flex flex-col rounded-xl border border-border/70 bg-muted/20 px-4 py-3.5"
                     >
                       <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                        {label}
+                        {kpi.label}
                       </p>
                       <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
-                        {value}
+                        {kpi.value}
+                      </p>
+                      <p className="mt-2 text-sm leading-snug text-foreground/85">
+                        {kpi.meaning}
+                      </p>
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        <span className="font-medium text-muted-foreground/90">
+                          Formula:{" "}
+                        </span>
+                        {kpi.formula}
                       </p>
                     </div>
                   ))}

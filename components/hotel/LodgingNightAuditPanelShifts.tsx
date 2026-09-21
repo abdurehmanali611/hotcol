@@ -149,7 +149,11 @@ export function LodgingNightAuditPanel({
     }
     setPending(true);
     try {
-      const row = await closeLodgingBusinessDayApi({ fromAt, toAt });
+      const row = await closeLodgingBusinessDayApi({
+        businessDate: fromDate,
+        fromAt,
+        toAt,
+      });
       setClosedDay(row);
       await loadHistory();
     } catch (e) {

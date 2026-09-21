@@ -649,6 +649,21 @@ export async function fetchLodgingStaysByDate(
   return (response.data.data?.lodgingStaysByDate ?? []) as LodgingStay[];
 }
 
+/** Manager police/security guest report — stays overlapping [from, to]. */
+export async function fetchLodgingPoliceGuestReport(
+  from: string,
+  to: string,
+): Promise<LodgingStay[]> {
+  const query = `
+    query LodgingPoliceGuestReport($from: DateTime!, $to: DateTime!) {
+      lodgingPoliceGuestReport(from: $from, to: $to) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, { query, variables: { from, to } });
+  gqlError(response, "Failed to load police guest report");
+  return (response.data.data?.lodgingPoliceGuestReport ?? []) as LodgingStay[];
+}
+
 export async function fetchLodgingServiceItems(
   kind?: LodgingServiceKind | string,
 ): Promise<LodgingServiceItem[]> {
@@ -1414,6 +1429,88 @@ export async function updateLodgingRoomStatusApi(
   return response.data.data.updateLodgingRoomStatus as LodgingRoom;
 }
 
+export async function assignLodgingComplimentRoomApi(input: {
+  roomId: number;
+  assigneeName: string;
+  note?: string;
+}): Promise<LodgingRoom> {
+  const mutation = `
+    mutation AssignLodgingComplimentRoom(
+      $roomId: Int!
+      $assigneeName: String!
+      $note: String
+    ) {
+      assignLodgingComplimentRoom(
+        roomId: $roomId
+        assigneeName: $assigneeName
+        note: $note
+      ) { ${ROOM_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      roomId: input.roomId,
+      assigneeName: input.assigneeName,
+      note: input.note ?? null,
+    },
+  });
+  gqlError(response, "Could not assign complimentary room");
+  invalidateLodgingCaches(["rooms", "stats", "logs"]);
+  toast.success("Complimentary room assigned");
+  return response.data.data.assignLodgingComplimentRoom as LodgingRoom;
+}
+
+export async function updateLodgingComplimentRoomApi(input: {
+  roomId: number;
+  assigneeName: string;
+  note?: string;
+}): Promise<LodgingRoom> {
+  const mutation = `
+    mutation UpdateLodgingComplimentRoom(
+      $roomId: Int!
+      $assigneeName: String!
+      $note: String
+    ) {
+      updateLodgingComplimentRoom(
+        roomId: $roomId
+        assigneeName: $assigneeName
+        note: $note
+      ) { ${ROOM_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      roomId: input.roomId,
+      assigneeName: input.assigneeName,
+      note: input.note ?? null,
+    },
+  });
+  gqlError(response, "Could not update complimentary room");
+  invalidateLodgingCaches(["rooms", "stats", "logs"]);
+  toast.success("Complimentary room updated");
+  return response.data.data.updateLodgingComplimentRoom as LodgingRoom;
+}
+
+export async function releaseLodgingComplimentRoomApi(
+  roomId: number,
+): Promise<LodgingRoom> {
+  const mutation = `
+    mutation ReleaseLodgingComplimentRoom($roomId: Int!) {
+      releaseLodgingComplimentRoom(roomId: $roomId) { ${ROOM_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { roomId },
+  });
+  gqlError(response, "Could not release complimentary room");
+  invalidateLodgingCaches(["rooms", "stats", "logs"]);
+  toast.success("Complimentary hold removed");
+  return response.data.data.releaseLodgingComplimentRoom as LodgingRoom;
+}
+
 export async function createLodgingCmAssignmentsApi(
   input: CreateLodgingCmAssignmentsInput,
 ): Promise<LodgingCmAssignment[]> {
@@ -1623,18 +1720,80 @@ export async function fetchLodgingSearch(query: string): Promise<LodgingStay[]> 
 
 export async function fetchLodgingHoldableRooms(
   arrivalAt: string,
+  nights = 1,
+  excludeReservationId?: number | null,
 ): Promise<LodgingRoom[]> {
   const gql = `
-    query LodgingHoldableRooms($arrivalAt: DateTime!) {
-      lodgingHoldableRooms(arrivalAt: $arrivalAt) { ${ROOM_FIELDS} }
+    query LodgingHoldableRooms(
+      $arrivalAt: DateTime!
+      $nights: Int
+      $excludeReservationId: Int
+    ) {
+      lodgingHoldableRooms(
+        arrivalAt: $arrivalAt
+        nights: $nights
+        excludeReservationId: $excludeReservationId
+      ) { ${ROOM_FIELDS} }
     }
   `;
   const response = await api.post(API_URL, {
     query: gql,
-    variables: { arrivalAt },
+    variables: {
+      arrivalAt,
+      nights: Math.max(1, Math.floor(Number(nights) || 1)),
+      excludeReservationId: excludeReservationId ?? null,
+    },
   });
   gqlError(response, "Failed to load holdable rooms");
   return (response.data.data?.lodgingHoldableRooms ?? []) as LodgingRoom[];
+}
+
+export type LodgingDateFit = {
+  ok: boolean;
+  message: string;
+  maxNights: number | null;
+};
+
+export async function fetchLodgingRoomDateFit(input: {
+  roomId: number;
+  arrivalAt: string;
+  nights: number;
+  excludeReservationId?: number | null;
+}): Promise<LodgingDateFit> {
+  const gql = `
+    query LodgingRoomDateFit(
+      $roomId: Int!
+      $arrivalAt: DateTime!
+      $nights: Int!
+      $excludeReservationId: Int
+    ) {
+      lodgingRoomDateFit(
+        roomId: $roomId
+        arrivalAt: $arrivalAt
+        nights: $nights
+        excludeReservationId: $excludeReservationId
+      ) {
+        ok
+        message
+        maxNights
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: gql,
+    variables: {
+      roomId: input.roomId,
+      arrivalAt: input.arrivalAt,
+      nights: Math.max(1, Math.floor(Number(input.nights) || 1)),
+      excludeReservationId: input.excludeReservationId ?? null,
+    },
+  });
+  gqlError(response, "Could not check room dates");
+  return (response.data.data?.lodgingRoomDateFit ?? {
+    ok: false,
+    message: "Could not check room dates",
+    maxNights: 0,
+  }) as LodgingDateFit;
 }
 
 export async function fetchLodgingReservations(opts?: {

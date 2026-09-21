@@ -779,11 +779,15 @@ export function CafeCashierOrderUpdatePanel({
                 {embeddedDisplay}
               </p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Waiter:{" "}
-                <span className="font-medium text-foreground">
-                  {embeddedWaiter}
-                </span>
-                {" · "}
+                {!useLodgingHandlers ? (
+                  <>
+                    Waiter:{" "}
+                    <span className="font-medium text-foreground">
+                      {embeddedWaiter}
+                    </span>
+                    {" · "}
+                  </>
+                ) : null}
                 {allReady
                   ? "All ready"
                   : `${embeddedPending.length} pending`}
@@ -983,27 +987,31 @@ export function CafeCashierOrderUpdatePanel({
                               : `Station can cover up to ${selectedOrderMaxServings} total for this recipe.`}
                           </p>
                         ) : null}
-                        <CustomFormField
-                          control={form.control}
-                          name="waiterName"
-                          fieldType={formFieldTypes.SELECT}
-                          label="Waiter"
-                          placeholder="Select waiter"
-                          listdisplay={waiterOptions}
-                          formItemClassName="w-full"
-                          inputClassName="h-fit w-full text-base"
-                        />
-                        <CustomFormField
-                          control={form.control}
-                          name="tableNo"
-                          fieldType={formFieldTypes.SELECT}
-                          label="Table"
-                          placeholder="Select table"
-                          listdisplay={tableOptions}
-                          isNumeric
-                          formItemClassName="w-full"
-                          inputClassName="h-fit w-full text-base"
-                        />
+                        {!useLodgingHandlers ? (
+                          <>
+                            <CustomFormField
+                              control={form.control}
+                              name="waiterName"
+                              fieldType={formFieldTypes.SELECT}
+                              label="Waiter"
+                              placeholder="Select waiter"
+                              listdisplay={waiterOptions}
+                              formItemClassName="w-full"
+                              inputClassName="h-fit w-full text-base"
+                            />
+                            <CustomFormField
+                              control={form.control}
+                              name="tableNo"
+                              fieldType={formFieldTypes.SELECT}
+                              label="Table"
+                              placeholder="Select table"
+                              listdisplay={tableOptions}
+                              isNumeric
+                              formItemClassName="w-full"
+                              inputClassName="h-fit w-full text-base"
+                            />
+                          </>
+                        ) : null}
                         <Button
                           type="submit"
                           className="h-11 w-full text-base"
@@ -1320,10 +1328,12 @@ export function CafeCashierOrderUpdatePanel({
                                     <p className="text-sm font-bold tabular-nums">
                                       {familyTotal.toFixed(2)} ETB
                                     </p>
-                                    <p className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                                      <User className="h-3 w-3" />
-                                      {waiterName}
-                                    </p>
+                                    {!useLodgingHandlers ? (
+                                      <p className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                                        <User className="h-3 w-3" />
+                                        {waiterName}
+                                      </p>
+                                    ) : null}
                                   </div>
                                   <Badge variant="secondary" className="tabular-nums">
                                     {familyPendingCount}
@@ -1359,9 +1369,15 @@ export function CafeCashierOrderUpdatePanel({
                           ) : null}
                           <CardContent className="space-y-2 border-t bg-muted/10 px-3 pb-3 pt-2">
                             <div className="flex items-center justify-between rounded-lg bg-background/80 px-3 py-2 text-sm sm:hidden">
-                              <span className="text-muted-foreground">
-                                {waiterName}
-                              </span>
+                              {!useLodgingHandlers ? (
+                                <span className="text-muted-foreground">
+                                  {waiterName}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  Total
+                                </span>
+                              )}
                               <span className="font-semibold tabular-nums">
                                 {tableTotal.toFixed(2)} ETB
                               </span>
@@ -1641,8 +1657,10 @@ export function CafeCashierOrderUpdatePanel({
                                 {resolveTableDisplay(
                                   normalizeOrderTableNo(selectedOrder),
                                   selectedOrder.serviceCaption,
-                                )}{" "}
-                                · {selectedOrder.waiterName}
+                                )}
+                                {!useLodgingHandlers
+                                  ? ` · ${selectedOrder.waiterName}`
+                                  : ""}
                               </p>
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 <StatusBadge
@@ -1813,10 +1831,12 @@ export function CafeCashierOrderUpdatePanel({
                               selectedOrder?.serviceCaption,
                             )}
                           </p>
-                          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <User className="h-3.5 w-3.5" />
-                            {addContext.waiterName}
-                          </p>
+                          {!useLodgingHandlers ? (
+                            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <User className="h-3.5 w-3.5" />
+                              {addContext.waiterName}
+                            </p>
+                          ) : null}
                           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                             New menu picks are sent as separate pending tickets
                             to kitchen or bar on this{" "}
