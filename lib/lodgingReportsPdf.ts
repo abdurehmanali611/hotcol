@@ -19,6 +19,14 @@ export type StayPaymentBreakdown = {
   totalETB: number;
 };
 
+const FOOTER_H = 12;
+const TOP_BAR_H = 3;
+
+/** Helvetica-safe separator — avoid Unicode arrows/dashes that jsPDF garbles. */
+function rangeLabel(from: string, to: string) {
+  return from === to ? from : `${from} to ${to}`;
+}
+
 function money(n: number) {
   return Number(n || 0).toLocaleString(undefined, {
     minimumFractionDigits: 0,
@@ -50,6 +58,16 @@ function shortDate(value: string | Date | null | undefined) {
     month: "short",
     day: "numeric",
   });
+}
+
+function imageFormat(dataUrl: string): "PNG" | "JPEG" {
+  if (
+    dataUrl.startsWith("data:image/jpeg") ||
+    dataUrl.startsWith("data:image/jpg")
+  ) {
+    return "JPEG";
+  }
+  return "PNG";
 }
 
 async function imageToDataUrl(src: string): Promise<string | null> {
@@ -89,6 +107,10 @@ function readClientOrgBrand(): LodgingReportOrgBrand {
   return { companyName, tinNumber, logoUrl: logoUrl || null };
 }
 
+function contentBottom(pageH: number, margin: number) {
+  return pageH - margin - FOOTER_H;
+}
+
 function ensureSpace(
   doc: jsPDF,
   y: number,
@@ -97,18 +119,21 @@ function ensureSpace(
   margin: number,
   onNewPage: () => void,
 ) {
-  if (y + need <= pageH - margin - 12) return y;
+  if (y + need <= contentBottom(pageH, margin)) return y;
   doc.addPage();
   onNewPage();
-  return margin + 8;
+  return margin + 6;
 }
 
 function drawSectionTitle(doc: jsPDF, title: string, x: number, y: number) {
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
   doc.text(title, x, y);
-  return y + 5;
+  doc.setDrawColor(16, 185, 129);
+  doc.setLineWidth(0.6);
+  doc.line(x, y + 1.6, x + 14, y + 1.6);
+  return y + 6;
 }
 
 function drawKpiStrip(
@@ -117,25 +142,35 @@ function drawKpiStrip(
   y: number,
   width: number,
   items: { label: string; value: string }[],
+  opts?: { emphasizeLast?: boolean },
 ) {
-  const gap = 3;
+  const gap = 2.5;
   const cardW = (width - gap * (items.length - 1)) / items.length;
-  const cardH = 16;
+  const cardH = 15;
   items.forEach((item, i) => {
     const cx = x + i * (cardW + gap);
-    doc.setFillColor(i === items.length - 1 ? 236 : 248, i === items.length - 1 ? 253 : 250, i === items.length - 1 ? 245 : 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(cx, y, cardW, cardH, 1.5, 1.5, "FD");
+    const emphasize = Boolean(opts?.emphasizeLast && i === items.length - 1);
+    if (emphasize) {
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(167, 243, 208);
+    } else {
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(226, 232, 240);
+    }
+    doc.setLineWidth(0.3);
+    doc.roundedRect(cx, y, cardW, cardH, 1.2, 1.2, "FD");
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
+    doc.setFontSize(5.8);
     doc.setTextColor(100, 116, 139);
-    doc.text(item.label.toUpperCase(), cx + 3, y + 5);
+    doc.text(item.label.toUpperCase(), cx + 2.5, y + 4.5);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
-    doc.text(item.value, cx + 3, y + 12);
+    doc.setFontSize(item.value.length > 14 ? 8 : 9.5);
+    doc.setTextColor(emphasize ? 6 : 15, emphasize ? 95 : 23, emphasize ? 70 : 42);
+    doc.text(item.value, cx + 2.5, y + 11.2, {
+      maxWidth: cardW - 5,
+    });
   });
-  return y + cardH + 4;
+  return y + cardH + 3.5;
 }
 
 function drawTable(
@@ -148,36 +183,32 @@ function drawTable(
   colWeights: number[],
   opts?: {
     alignRight?: boolean[];
-    headerRgb?: [number, number, number];
     boldLastRow?: boolean;
   },
 ) {
-  const rowH = 7;
+  const rowH = 6.6;
   const totalW = colWeights.reduce((a, b) => a + b, 0);
   const colWs = colWeights.map((w) => (w / totalW) * width);
   const alignRight = opts?.alignRight ?? headers.map(() => false);
-  const [hr, hg, hb] = opts?.headerRgb ?? [15, 23, 42];
   let cursorY = y;
 
-  doc.setFillColor(hr, hg, hb);
+  doc.setFillColor(30, 41, 59);
   doc.rect(x, cursorY, width, rowH, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.2);
   doc.setTextColor(255, 255, 255);
   let cx = x;
   headers.forEach((h, i) => {
-    const pad = 1.4;
+    const pad = 1.6;
     if (alignRight[i]) {
-      doc.text(h, cx + colWs[i] - pad, cursorY + 4.7, { align: "right" });
+      doc.text(h, cx + colWs[i] - pad, cursorY + 4.4, { align: "right" });
     } else {
-      doc.text(h, cx + pad, cursorY + 4.7);
+      doc.text(h, cx + pad, cursorY + 4.4);
     }
     cx += colWs[i];
   });
   cursorY += rowH;
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
   rows.forEach((row, rowIndex) => {
     const isLast = opts?.boldLastRow && rowIndex === rows.length - 1;
     if (isLast) {
@@ -189,35 +220,36 @@ function drawTable(
       doc.rect(x, cursorY, width, rowH, "F");
       doc.setFont("helvetica", "normal");
     } else {
+      doc.setFillColor(255, 255, 255);
+      doc.rect(x, cursorY, width, rowH, "F");
       doc.setFont("helvetica", "normal");
     }
+    doc.setFontSize(6.8);
     doc.setTextColor(30, 41, 59);
     cx = x;
     row.forEach((cell, i) => {
-      const pad = 1.4;
+      const pad = 1.6;
       const text = String(cell ?? "");
       if (alignRight[i]) {
-        doc.text(text, cx + colWs[i] - pad, cursorY + 4.7, {
+        doc.text(text, cx + colWs[i] - pad, cursorY + 4.4, {
           align: "right",
-          maxWidth: colWs[i] - 2,
         });
       } else {
-        doc.text(text, cx + pad, cursorY + 4.7, {
-          maxWidth: colWs[i] - 2,
-        });
+        const clipped =
+          text.length > 28 ? `${text.slice(0, 26)}...` : text;
+        doc.text(clipped, cx + pad, cursorY + 4.4);
       }
       cx += colWs[i];
     });
     doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.15);
+    doc.setLineWidth(0.12);
     doc.line(x, cursorY + rowH, x + width, cursorY + rowH);
     cursorY += rowH;
   });
 
   doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.35);
+  doc.setLineWidth(0.3);
   doc.rect(x, y, width, cursorY - y);
-  doc.setTextColor(0, 0, 0);
   return cursorY;
 }
 
@@ -228,18 +260,63 @@ function drawPageChrome(
   margin: number,
   companyName: string,
   pageLabel: string,
+  logos?: { hotcol: string | null; apex: string | null },
 ) {
   doc.setFillColor(16, 185, 129);
-  doc.rect(0, 0, pageW, 2.8, "F");
+  doc.rect(0, 0, pageW, TOP_BAR_H, "F");
+
+  const footerTop = pageH - FOOTER_H;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(margin, footerTop, pageW - margin, footerTop);
+
+  const baseline = pageH - 4.0;
+  const hotcolSize = 5.2;
+  // Apex mark is 320×80 — keep ~4:1 so it isn’t squashed narrow
+  const apexH = 5.2;
+  const apexW = 20.8;
+  const gap = 2.2;
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(6.2);
   doc.setTextColor(100, 116, 139);
-  doc.text(
-    `${companyName} · ${HOTCOL_SYSTEM.name} lodging report`,
-    margin,
-    pageH - 6,
-  );
-  doc.text(pageLabel, pageW - margin, pageH - 6, { align: "right" });
+  doc.text(companyName, margin, baseline);
+
+  const brandText = `${HOTCOL_SYSTEM.name}  |  Powered by ${APEX_SOLUTION.name}`;
+  const brandW = doc.getTextWidth(brandText);
+  const clusterW = hotcolSize + gap + brandW + gap + apexW;
+  const clusterX = (pageW - clusterW) / 2;
+  const logoY = baseline - 3.9;
+
+  tryAddImage(doc, logos?.hotcol ?? null, clusterX, logoY, hotcolSize, hotcolSize);
+  doc.setTextColor(100, 116, 139);
+  doc.text(brandText, clusterX + hotcolSize + gap, baseline);
+
+  const apexX = clusterX + hotcolSize + gap + brandW + gap;
+  // Dark chip — logo asset is built for dark backgrounds
+  doc.setFillColor(15, 23, 42);
+  doc.roundedRect(apexX - 1.2, logoY - 1.0, apexW + 2.4, apexH + 2.0, 0.8, 0.8, "F");
+  tryAddImage(doc, logos?.apex ?? null, apexX, logoY, apexW, apexH);
+
+  doc.setTextColor(100, 116, 139);
+  doc.text(pageLabel, pageW - margin, baseline, { align: "right" });
+}
+
+function tryAddImage(
+  doc: jsPDF,
+  dataUrl: string | null,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  if (!dataUrl) return false;
+  try {
+    doc.addImage(dataUrl, imageFormat(dataUrl), x, y, w, h, undefined, "FAST");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -255,8 +332,7 @@ export async function downloadLodgingStayPaymentsPdf(input: {
   brand?: LodgingReportOrgBrand;
 }) {
   const org = input.brand ?? readClientOrgBrand();
-  const companyName =
-    (org.companyName || "Hotel").trim() || "Hotel";
+  const companyName = (org.companyName || "Hotel").trim() || "Hotel";
   const tin = (org.tinNumber || "").trim();
 
   const [companyLogoData, apexLogoData, hotcolLogoData] = await Promise.all([
@@ -268,96 +344,95 @@ export async function downloadLodgingStayPaymentsPdf(input: {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = 12;
+  const margin = 11;
   const contentW = pageW - margin * 2;
 
   const paintChrome = () => {
-    const pageNo = doc.getNumberOfPages();
     drawPageChrome(
       doc,
       pageW,
       pageH,
       margin,
       companyName,
-      `Page ${pageNo}`,
+      `Page ${doc.getNumberOfPages()}`,
+      { hotcol: hotcolLogoData, apex: apexLogoData },
     );
   };
 
   paintChrome();
-  let y = 10;
+  let y = TOP_BAR_H + 6;
 
-  // Header
-  const logoSize = 14;
-  if (companyLogoData) {
-    try {
-      doc.addImage(
-        companyLogoData,
-        "PNG",
-        margin,
-        y,
-        logoSize,
-        logoSize,
-        undefined,
-        "FAST",
-      );
-    } catch {
-      /* monogram fallback below */
-    }
-  }
-  if (!companyLogoData) {
+  // —— Header ——
+  const logoSize = 13;
+  const placedLogo = tryAddImage(
+    doc,
+    companyLogoData,
+    margin,
+    y,
+    logoSize,
+    logoSize,
+  );
+  if (!placedLogo) {
     doc.setFillColor(236, 253, 245);
     doc.setDrawColor(167, 243, 208);
     doc.roundedRect(margin, y, logoSize, logoSize, 2, 2, "FD");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(6, 95, 70);
-    doc.text(companyName.slice(0, 2).toUpperCase(), margin + logoSize / 2, y + 9, {
-      align: "center",
-    });
+    doc.text(
+      companyName.slice(0, 2).toUpperCase(),
+      margin + logoSize / 2,
+      y + 8.2,
+      { align: "center" },
+    );
   }
 
-  const textLeft = margin + logoSize + 4;
+  const textLeft = margin + logoSize + 3.5;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(4, 120, 87);
-  doc.text("LODGING REPORT", textLeft, y + 3.5);
+  doc.text("LODGING REPORT", textLeft, y + 3.2);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
-  doc.text(companyName, textLeft, y + 10);
+  const nameLines = doc.splitTextToSize(companyName, contentW * 0.42);
+  doc.text(nameLines, textLeft, y + 8.5);
 
+  let leftMetaY = y + 8.5 + nameLines.length * 4.5;
   if (tin) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`TIN ${tin}`, textLeft, y + 15);
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`TIN ${tin}`, textLeft, leftMetaY);
+    leftMetaY += 4;
   }
 
   const rightX = pageW - margin;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text("Stay payments", rightX, y + 5, { align: "right" });
+  const dates = rangeLabel(input.from, input.to);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`${input.from}  →  ${input.to}`, rightX, y + 11, {
-    align: "right",
-  });
-  doc.setFontSize(7.5);
+  doc.setFontSize(6.5);
+  doc.setTextColor(4, 120, 87);
+  doc.text("STAY PAYMENTS", rightX, y + 3.2, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(dates, rightX, y + 9, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 116, 139);
   doc.text(
-    `Generated ${new Date().toLocaleString()} · Checked-out stays only`,
+    `Generated ${new Date().toLocaleString()}  |  Checked-out stays only`,
     rightX,
-    y + 16,
+    y + 14,
     { align: "right" },
   );
 
-  y += 22;
+  y = Math.max(leftMetaY, y + 16) + 2;
   doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.4);
+  doc.setLineWidth(0.35);
   doc.line(margin, y, pageW - margin, y);
-  y += 6;
+  y += 5;
 
   if (input.perf) {
     y = drawSectionTitle(doc, "Performance KPIs", margin, y);
@@ -371,32 +446,39 @@ export async function downloadLodgingStayPaymentsPdf(input: {
       },
     ]);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setTextColor(100, 116, 139);
     doc.text(
       `${input.perf.roomNightsSold} room-nights sold · ${input.perf.availableRoomNights} available · ${input.perf.staysCheckedOut} checked out · ${input.perf.staysInHouse} in-house`,
       margin,
       y,
     );
-    y += 6;
+    y += 5;
   }
 
   y = drawSectionTitle(doc, "Payment summary", margin, y);
-  y = drawKpiStrip(doc, margin, y, contentW, [
-    { label: "Room nights", value: `ETB ${money(input.totals.roomETB)}` },
-    { label: "Laundry", value: `ETB ${money(input.totals.laundryETB)}` },
-    {
-      label: "Food & drink",
-      value: `ETB ${money(input.totals.foodDrinkETB)}`,
-    },
-    { label: "Other", value: `ETB ${money(input.totals.otherETB)}` },
-    {
-      label: `Stay total (${input.stays.length})`,
-      value: `ETB ${money(input.totals.totalETB)}`,
-    },
-  ]);
+  y = drawKpiStrip(
+    doc,
+    margin,
+    y,
+    contentW,
+    [
+      { label: "Room nights", value: `ETB ${money(input.totals.roomETB)}` },
+      { label: "Laundry", value: `ETB ${money(input.totals.laundryETB)}` },
+      {
+        label: "Food & drink",
+        value: `ETB ${money(input.totals.foodDrinkETB)}`,
+      },
+      { label: "Other", value: `ETB ${money(input.totals.otherETB)}` },
+      {
+        label: `Stay total (${input.stays.length})`,
+        value: `ETB ${money(input.totals.totalETB)}`,
+      },
+    ],
+    { emphasizeLast: true },
+  );
 
-  y = ensureSpace(doc, y, 40, pageH, margin, paintChrome);
+  y = ensureSpace(doc, y, 28, pageH, margin, paintChrome);
   y = drawSectionTitle(doc, "Checked-out stays", margin, y);
 
   const stayRows = input.stays.map((s) => {
@@ -425,7 +507,6 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     money(input.totals.totalETB),
   ]);
 
-  // Paginate table if needed
   const headers = [
     "Voucher",
     "Guest",
@@ -437,25 +518,29 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     "F&B",
     "Total",
   ];
-  const weights = [1.3, 2.2, 1.1, 1.2, 1.2, 1.1, 1.1, 1.1, 1.2];
-  const alignRight = [false, false, false, false, false, true, true, true, true];
-  const headerH = 7;
-  const rowH = 7;
-  const maxRowsFirst = Math.max(
-    1,
-    Math.floor((pageH - margin - 12 - y - headerH) / rowH),
-  );
+  const weights = [1.35, 2.1, 1.0, 1.15, 1.15, 1.05, 1.05, 1.0, 1.15];
+  const alignRight = [
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+  ];
+  const headerH = 6.6;
+  const rowH = 6.6;
 
   let offset = 0;
   while (offset < stayRows.length) {
     const remaining = stayRows.length - offset;
-    const take =
-      offset === 0
-        ? Math.min(remaining, maxRowsFirst)
-        : Math.min(
-            remaining,
-            Math.max(1, Math.floor((pageH - margin * 2 - 20 - headerH) / rowH)),
-          );
+    const avail = contentBottom(pageH, margin) - y - headerH;
+    const take = Math.max(
+      1,
+      Math.min(remaining, Math.floor(avail / rowH)),
+    );
     const chunk = stayRows.slice(offset, offset + take);
     const isLastChunk = offset + take >= stayRows.length;
     y = drawTable(doc, margin, y, contentW, headers, chunk, weights, {
@@ -466,79 +551,101 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     if (offset < stayRows.length) {
       doc.addPage();
       paintChrome();
-      y = margin + 8;
+      y = TOP_BAR_H + 6;
       y = drawSectionTitle(doc, "Checked-out stays (continued)", margin, y);
     }
   }
 
-  if (input.perf?.byRoomType?.length) {
-    y = ensureSpace(doc, y + 6, 35, pageH, margin, paintChrome);
-    y += 4;
-    y = drawSectionTitle(doc, "By room type", margin, y);
-    y = drawTable(
-      doc,
-      margin,
-      y,
-      contentW * 0.55,
-      ["Room type", "Nights", "Revenue", "ADR"],
-      input.perf.byRoomType.map((r) => [
-        r.roomType,
-        String(r.roomNightsSold),
-        money(r.roomRevenueETB),
-        money(r.adrETB),
-      ]),
-      [2, 1, 1.3, 1.2],
-      { alignRight: [false, true, true, true] },
-    );
-  }
+  // Side-by-side breakdowns — avoid orphan nearly-empty pages
+  const hasRoomType = Boolean(input.perf?.byRoomType?.length);
+  const hasSource = Boolean(input.perf?.bySource?.length);
+  if (hasRoomType || hasSource) {
+    const gap = 4;
+    const halfW = (contentW - gap) / 2;
+    const roomTypeRows = hasRoomType
+      ? (input.perf!.byRoomType.length + 1) * rowH + 12
+      : 0;
+    const sourceRows = hasSource
+      ? (input.perf!.bySource.length + 1) * rowH + 12
+      : 0;
+    const need = Math.max(roomTypeRows, sourceRows, 24);
+    y = ensureSpace(doc, y + 4, need, pageH, margin, paintChrome);
 
-  if (input.perf?.bySource?.length) {
-    y = ensureSpace(doc, y + 6, 30, pageH, margin, paintChrome);
-    y += 4;
-    y = drawSectionTitle(doc, "By source", margin, y);
-    y = drawTable(
-      doc,
-      margin,
-      y,
-      contentW * 0.45,
-      ["Source", "Stays", "Room revenue"],
-      input.perf.bySource.map((r) => [
-        r.source.replace(/_/g, " "),
-        String(r.stays),
-        money(r.roomRevenueETB),
-      ]),
-      [2, 1, 1.4],
-      { alignRight: [false, true, true] },
-    );
-  }
+    if (hasRoomType && hasSource) {
+      const yStart = y;
+      let yLeft = drawSectionTitle(doc, "By room type", margin, yStart);
+      yLeft = drawTable(
+        doc,
+        margin,
+        yLeft,
+        halfW,
+        ["Room type", "Nights", "Revenue", "ADR"],
+        input.perf!.byRoomType.map((r) => [
+          r.roomType,
+          String(r.roomNightsSold),
+          money(r.roomRevenueETB),
+          money(r.adrETB),
+        ]),
+        [2.2, 1, 1.4, 1.2],
+        { alignRight: [false, true, true, true] },
+      );
 
-  // Brand footer logos on last page
-  const logoY = pageH - 18;
-  const brandX = pageW / 2;
-  if (hotcolLogoData) {
-    try {
-      doc.addImage(hotcolLogoData, "JPEG", brandX - 28, logoY, 8, 8, undefined, "FAST");
-    } catch {
-      /* ignore */
+      let yRight = drawSectionTitle(
+        doc,
+        "By source",
+        margin + halfW + gap,
+        yStart,
+      );
+      yRight = drawTable(
+        doc,
+        margin + halfW + gap,
+        yRight,
+        halfW,
+        ["Source", "Stays", "Room revenue"],
+        input.perf!.bySource.map((r) => [
+          r.source.replace(/_/g, " "),
+          String(r.stays),
+          money(r.roomRevenueETB),
+        ]),
+        [2.2, 1, 1.6],
+        { alignRight: [false, true, true] },
+      );
+      y = Math.max(yLeft, yRight);
+    } else if (hasRoomType) {
+      y = drawSectionTitle(doc, "By room type", margin, y);
+      y = drawTable(
+        doc,
+        margin,
+        y,
+        Math.min(contentW * 0.62, contentW),
+        ["Room type", "Nights", "Revenue", "ADR"],
+        input.perf!.byRoomType.map((r) => [
+          r.roomType,
+          String(r.roomNightsSold),
+          money(r.roomRevenueETB),
+          money(r.adrETB),
+        ]),
+        [2.2, 1, 1.4, 1.2],
+        { alignRight: [false, true, true, true] },
+      );
+    } else if (hasSource) {
+      y = drawSectionTitle(doc, "By source", margin, y);
+      y = drawTable(
+        doc,
+        margin,
+        y,
+        Math.min(contentW * 0.55, contentW),
+        ["Source", "Stays", "Room revenue"],
+        input.perf!.bySource.map((r) => [
+          r.source.replace(/_/g, " "),
+          String(r.stays),
+          money(r.roomRevenueETB),
+        ]),
+        [2.2, 1, 1.6],
+        { alignRight: [false, true, true] },
+      );
     }
   }
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    `${HOTCOL_SYSTEM.name} · Powered by ${APEX_SOLUTION.name}`,
-    brandX,
-    logoY + 5.5,
-    { align: "center" },
-  );
-  if (apexLogoData) {
-    try {
-      doc.addImage(apexLogoData, "PNG", brandX + 20, logoY, 8, 8, undefined, "FAST");
-    } catch {
-      /* ignore */
-    }
-  }
 
-  const fileName = `lodging-report_${input.from}_to_${input.to}.pdf`;
-  doc.save(fileName);
+  doc.save(`lodging-report_${input.from}_to_${input.to}.pdf`);
 }

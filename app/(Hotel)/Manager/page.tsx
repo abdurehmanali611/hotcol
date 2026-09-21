@@ -130,10 +130,13 @@ import {
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
 import { LodgingRoomsPanel } from "@/components/hotel/LodgingRoomsPanel";
 import { LodgingDiscountApprovalsPanel } from "@/components/hotel/LodgingDiscountApprovalsPanel";
+import { LodgingManagerVoidsPanel } from "@/components/hotel/LodgingManagerVoidsPanel";
 import { LodgingGuestFeedbackPanel } from "@/components/hotel/LodgingGuestFeedbackPanel";
 import { LodgingRatePlansPanel } from "@/components/hotel/LodgingRatePlansPanel";
 import {
   LodgingNightAuditPanel,
+} from "@/components/hotel/LodgingNightAuditPanelShifts";
+import {
   LodgingTaxConfigPanel,
 } from "@/components/hotel/LodgingTaxAndAuditPanels";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
@@ -296,6 +299,7 @@ const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
   "lodging-tax",
   "lodging-rate-plans",
   "lodging-discounts",
+  "lodging-voids",
   "lodging-night-audit",
   ...MANAGER_LODGING_NESTED_TAB_IDS,
 ]);
@@ -642,6 +646,7 @@ function ManagerContent() {
       "lodging-tax",
       "lodging-rate-plans",
       "lodging-discounts",
+      "lodging-voids",
       "lodging-night-audit",
       "lodging-guest-call",
     ] as const;
@@ -779,6 +784,8 @@ function ManagerContent() {
         "Rack, corporate, seasonal, weekend, promo, and long-stay rates applied at check-in.",
       "lodging-discounts":
         "Approve or reject folio discount requests from Reception.",
+      "lodging-voids":
+        "Void whole bills, room charges, or individual folio lines (Manager only).",
       "lodging-guest-complaints":
         "Review and resolve guest complaints submitted from HotCol Room.",
       "lodging-guest-ratings":
@@ -1728,6 +1735,13 @@ function ManagerContent() {
         return (
           <div className="space-y-6 p-4 md:p-6">
             <LodgingDiscountApprovalsPanel refreshKey={inventoryRefreshKey} />
+          </div>
+        );
+
+      case "lodging-voids":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingManagerVoidsPanel refreshKey={inventoryRefreshKey} />
           </div>
         );
 

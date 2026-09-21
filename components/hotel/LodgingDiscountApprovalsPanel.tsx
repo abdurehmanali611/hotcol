@@ -19,7 +19,6 @@ import {
 } from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
 import { BadgePercent } from "lucide-react";
-import { toast } from "sonner";
 
 function formatMoney(n: number) {
   return `ETB ${Number(n || 0).toLocaleString(undefined, {
@@ -151,12 +150,7 @@ export function LodgingDiscountApprovalsPanel({
                     type="button"
                     variant="outline"
                     pending={pending === `no-${line.id}`}
-                    onClick={() => {
-                      if (!notes[line.id]?.trim()) {
-                        toast.message("Add a short reject note if useful");
-                      }
-                      void resolve(line.id, false);
-                    }}
+                    onClick={() => void resolve(line.id, false)}
                   >
                     Reject
                   </PendingButton>

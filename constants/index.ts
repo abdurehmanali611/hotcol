@@ -190,6 +190,7 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "lodging-tax", label: "Lodging tax", icon: "Percent" },
   { id: "lodging-rate-plans", label: "Rate plans", icon: "Tags" },
   { id: "lodging-discounts", label: "Discount approvals", icon: "BadgePercent" },
+  { id: "lodging-voids", label: "Folio voids", icon: "Ban" },
   { id: "lodging-night-audit", label: "Night audit", icon: "CalendarCheck" },
   { id: "lodging-guest-call", label: "Guest call", icon: "Phone" },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },

@@ -93,6 +93,16 @@ export function LodgingStayDepartureReceipt({
               <p className="mt-1 text-base tabular-nums text-zinc-600">
                 {stay.guest?.phone || "—"}
               </p>
+              {stay.isCompany && (stay.companyName || stay.companyTin) ? (
+                <div className="mt-3 border-t border-zinc-200 pt-2 text-sm text-zinc-700">
+                  <p className="font-medium">{stay.companyName || "Company"}</p>
+                  {stay.companyTin ? (
+                    <p className="tabular-nums text-zinc-600">
+                      TIN {stay.companyTin}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="rounded-xl border border-zinc-200 bg-zinc-50/80 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">

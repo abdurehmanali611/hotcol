@@ -67,7 +67,6 @@ import {
 import {
   ArrowRightLeft,
   BadgePercent,
-  Ban,
   BedDouble,
   CalendarRange,
   FileText,
@@ -125,7 +124,6 @@ import {
   splitLodgingBillLineApi,
   transferLodgingBillLinesApi,
   updateLodgingStayApi,
-  voidLodgingBillLineApi,
   type LodgingActionLog,
   type LodgingBillLine,
   type LodgingCmAssignment,
@@ -213,10 +211,10 @@ export function ReceptionDashboard() {
   const [splitToStayId, setSplitToStayId] = useState<string>("");
   const [checkoutPaymentOpen, setCheckoutPaymentOpen] = useState(false);
   const [roomTransferOpen, setRoomTransferOpen] = useState(false);
-  const [voidLineId, setVoidLineId] = useState<number | null>(null);
-  const [voidReason, setVoidReason] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  const [checkInReservation, setCheckInReservation] =
+    useState<import("@/lib/api/lodgingRooms").LodgingReservation | null>(null);
   const [staySearch, setStaySearch] = useState("");
   const [printStay, setPrintStay] = useState<LodgingStay | null>(null);
   const [printPayment, setPrintPayment] = useState<{
@@ -685,7 +683,9 @@ export function ReceptionDashboard() {
                   vacantCleanRooms={vacantCleanRooms}
                   propertyName={displayName}
                   logoUrl={logoUrl}
+                  reservation={checkInReservation}
                   onCompleted={async () => {
+                    setCheckInReservation(null);
                     setActiveSection("active-stays");
                     await load(true);
                   }}
@@ -695,6 +695,10 @@ export function ReceptionDashboard() {
               {activeSection === "reservations" && (
                 <LodgingReservationsPanel
                   vacantCleanRooms={vacantCleanRooms}
+                  onStartCheckIn={(reservation) => {
+                    setCheckInReservation(reservation);
+                    setActiveSection("check-in");
+                  }}
                   onCheckedIn={async () => {
                     setActiveSection("active-stays");
                     await load(true);
@@ -1065,6 +1069,13 @@ export function ReceptionDashboard() {
                                                   {isDiscount && approval === "approved"
                                                     ? " · approved"
                                                     : ""}
+                                                  {isDiscount && approval === "rejected"
+                                                    ? ` · rejected${
+                                                        line.approvalNote
+                                                          ? ` — ${line.approvalNote}`
+                                                          : ""
+                                                      }`
+                                                    : ""}
                                                   {isFnB
                                                     ? isCafeOrderCancelled(
                                                         cafeOrder?.status,
@@ -1095,24 +1106,7 @@ export function ReceptionDashboard() {
                                                   : formatMoney(line.amountETB)}
                                               </td>
                                               <td className="px-3 py-2 text-right align-top">
-                                                {selectedStay.status ===
-                                                  "checked_in" &&
-                                                !line.voided &&
-                                                !isDiscount ? (
-                                                  <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 text-destructive hover:text-destructive"
-                                                    onClick={() => {
-                                                      setVoidLineId(line.id);
-                                                      setVoidReason("");
-                                                    }}
-                                                  >
-                                                    <Ban className="h-3.5 w-3.5" />
-                                                    Void
-                                                  </Button>
-                                                ) : null}
+                                                {/* Line voids are Manager-only — Reception cannot void */}
                                               </td>
                                             </tr>
                                             );
@@ -1197,64 +1191,6 @@ export function ReceptionDashboard() {
                               >
                                 Send for approval
                               </PendingButton>
-                            </div>
-                          ) : null}
-
-                          {voidLineId != null ? (
-                            <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                              <p className="text-sm font-medium">Void charge</p>
-                              <p className="text-xs text-muted-foreground">
-                                Voided lines stay on the audit trail and no longer
-                                count toward the folio.
-                              </p>
-                              <div className="space-y-1.5">
-                                <Label htmlFor="void-reason">Reason</Label>
-                                <Input
-                                  id="void-reason"
-                                  value={voidReason}
-                                  onChange={(e) => setVoidReason(e.target.value)}
-                                  placeholder="Required void reason"
-                                />
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <PendingButton
-                                  type="button"
-                                  variant="destructive"
-                                  pending={pending === "void"}
-                                  onClick={async () => {
-                                    if (!voidReason.trim()) {
-                                      toast.error("Void reason is required");
-                                      return;
-                                    }
-                                    setPending("void");
-                                    try {
-                                      await voidLodgingBillLineApi(
-                                        voidLineId,
-                                        voidReason.trim(),
-                                      );
-                                      setVoidLineId(null);
-                                      setVoidReason("");
-                                      await load(true);
-                                    } catch (e) {
-                                      notifyApiFailure(e, "Could not void line");
-                                    } finally {
-                                      setPending(null);
-                                    }
-                                  }}
-                                >
-                                  Confirm void
-                                </PendingButton>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setVoidLineId(null);
-                                    setVoidReason("");
-                                  }}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
                             </div>
                           ) : null}
 

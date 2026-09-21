@@ -102,6 +102,7 @@ export type LodgingStay = {
   reservationId?: number | null;
   status: string;
   arrivalAt: string;
+  reservedArrivalAt?: string | null;
   departureAt: string;
   expectedNights?: number;
   expectedDepartureAt?: string | null;
@@ -111,6 +112,9 @@ export type LodgingStay = {
   preferredRoomType: string;
   ratePlanId?: number | null;
   ratePlanName?: string;
+  isCompany?: boolean;
+  companyName?: string;
+  companyTin?: string;
   notes: string;
   /** Guest room portal OTP (6 digits). Null after checkout. */
   guestOtp?: string | null;
@@ -142,6 +146,10 @@ export type LodgingReservation = {
   children: number;
   preferredRoomType: string;
   depositETB: number;
+  depositPaymentMethod?: string;
+  isCompany?: boolean;
+  companyName?: string;
+  companyTin?: string;
   notes: string;
   guest?: LodgingGuest | null;
   rooms: LodgingReservationRoom[];
@@ -156,6 +164,9 @@ export type LodgingTaxConfig = {
 export type LodgingBusinessDay = {
   id: number;
   businessDate: string;
+  label?: string;
+  fromAt?: string;
+  toAt?: string;
   status: string;
   closedAt: string | null;
   closedBy: string;
@@ -166,9 +177,12 @@ export type LodgingGuestComplaint = {
   id: number;
   stayId: number;
   guestId?: number | null;
+  roomId?: number | null;
+  roomNumber?: string;
   category: string;
   message: string;
   status: string;
+  isCritical?: boolean;
   createdAt: string;
   guestName?: string;
   voucherCode?: string;
@@ -298,6 +312,9 @@ export type CreateLodgingStayInput = {
   roomIds: number[];
   status?: string;
   reservationId?: number;
+  isCompany?: boolean;
+  companyName?: string;
+  companyTin?: string;
 };
 
 export type UpdateLodgingStayInput = {
@@ -395,6 +412,7 @@ const STAY_FIELDS = `
   reservationId
   status
   arrivalAt
+  reservedArrivalAt
   departureAt
   expectedNights
   expectedDepartureAt
@@ -404,6 +422,9 @@ const STAY_FIELDS = `
   preferredRoomType
   ratePlanId
   ratePlanName
+  isCompany
+  companyName
+  companyTin
   notes
   guestOtp
   guestOtpIssuedAt
@@ -466,6 +487,10 @@ const RESERVATION_FIELDS = `
   children
   preferredRoomType
   depositETB
+  depositPaymentMethod
+  isCompany
+  companyName
+  companyTin
   notes
   guest { ${GUEST_FIELDS} }
   rooms {
@@ -963,6 +988,9 @@ export async function createLodgingStayApi(
       $notes: String
       $status: String
       $reservationId: Int
+      $isCompany: Boolean
+      $companyName: String
+      $companyTin: String
     ) {
       createLodgingStay(
         guestId: $guestId
@@ -976,6 +1004,9 @@ export async function createLodgingStayApi(
         notes: $notes
         status: $status
         reservationId: $reservationId
+        isCompany: $isCompany
+        companyName: $companyName
+        companyTin: $companyTin
       ) { ${STAY_FIELDS} }
     }
   `;
@@ -1000,6 +1031,9 @@ export async function createLodgingStayApi(
       notes: input.notes ?? null,
       status: input.status ?? "checked_in",
       reservationId: input.reservationId ?? null,
+      isCompany: input.isCompany ?? null,
+      companyName: input.companyName ?? null,
+      companyTin: input.companyTin ?? null,
     },
   });
   gqlError(response, "Could not check in guest");
@@ -1537,6 +1571,10 @@ export async function createLodgingReservationApi(input: {
   preferredRoomType?: string;
   roomIds?: number[];
   depositETB?: number;
+  depositPaymentMethod?: string;
+  isCompany?: boolean;
+  companyName?: string;
+  companyTin?: string;
   notes?: string;
 }): Promise<LodgingReservation> {
   const mutation = `
@@ -1552,6 +1590,10 @@ export async function createLodgingReservationApi(input: {
       $preferredRoomType: String
       $roomIds: [Int!]
       $depositETB: Float
+      $depositPaymentMethod: String
+      $isCompany: Boolean
+      $companyName: String
+      $companyTin: String
       $notes: String
     ) {
       createLodgingReservation(
@@ -1566,6 +1608,10 @@ export async function createLodgingReservationApi(input: {
         preferredRoomType: $preferredRoomType
         roomIds: $roomIds
         depositETB: $depositETB
+        depositPaymentMethod: $depositPaymentMethod
+        isCompany: $isCompany
+        companyName: $companyName
+        companyTin: $companyTin
         notes: $notes
       ) { ${RESERVATION_FIELDS} }
     }
@@ -1584,6 +1630,10 @@ export async function createLodgingReservationApi(input: {
       preferredRoomType: input.preferredRoomType ?? null,
       roomIds: input.roomIds ?? null,
       depositETB: input.depositETB ?? null,
+      depositPaymentMethod: input.depositPaymentMethod ?? null,
+      isCompany: input.isCompany ?? null,
+      companyName: input.companyName ?? null,
+      companyTin: input.companyTin ?? null,
       notes: input.notes ?? null,
     },
   });
@@ -1842,24 +1892,152 @@ export async function upsertLodgingTaxConfigApi(
   return response.data.data.upsertLodgingTaxConfig as LodgingTaxConfig;
 }
 
-export async function closeLodgingBusinessDayApi(
-  businessDate: string,
-): Promise<LodgingBusinessDay> {
+export async function closeLodgingBusinessDayApi(input: {
+  businessDate?: string;
+  fromAt: string;
+  toAt: string;
+  label?: string;
+  id?: number;
+}): Promise<LodgingBusinessDay> {
   const mutation = `
-    mutation CloseLodgingBusinessDay($businessDate: String!) {
-      closeLodgingBusinessDay(businessDate: $businessDate) {
-        id businessDate status closedAt closedBy summaryJson
+    mutation CloseLodgingBusinessDay(
+      $businessDate: String
+      $fromAt: DateTime!
+      $toAt: DateTime!
+      $label: String
+      $id: Int
+    ) {
+      closeLodgingBusinessDay(
+        businessDate: $businessDate
+        fromAt: $fromAt
+        toAt: $toAt
+        label: $label
+        id: $id
+      ) {
+        id businessDate label fromAt toAt status closedAt closedBy summaryJson
       }
     }
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { businessDate },
+    variables: {
+      businessDate: input.businessDate ?? null,
+      fromAt: input.fromAt,
+      toAt: input.toAt,
+      label: input.label ?? null,
+      id: input.id ?? null,
+    },
   });
   gqlError(response, "Could not close business day");
   invalidateLodgingCaches(["stats", "logs"]);
-  toast.success("Business day closed");
+  toast.success("Business day / shift closed");
   return response.data.data.closeLodgingBusinessDay as LodgingBusinessDay;
+}
+
+export async function fetchLodgingBusinessDays(
+  limit = 30,
+): Promise<LodgingBusinessDay[]> {
+  const query = `
+    query LodgingBusinessDays($limit: Int) {
+      lodgingBusinessDays(limit: $limit) {
+        id businessDate label fromAt toAt status closedAt closedBy summaryJson
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { limit },
+  });
+  gqlError(response, "Failed to load business days");
+  return (response.data.data?.lodgingBusinessDays ??
+    []) as LodgingBusinessDay[];
+}
+
+export async function voidLodgingBillApi(
+  billId: number,
+  reason: string,
+): Promise<LodgingBill> {
+  const mutation = `
+    mutation VoidLodgingBill($billId: Int!, $reason: String!) {
+      voidLodgingBill(billId: $billId, reason: $reason) {
+        id status totalETB
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { billId, reason },
+  });
+  gqlError(response, "Could not void bill");
+  invalidateLodgingCaches(["stays", "stats", "logs"]);
+  toast.success("Bill voided");
+  return response.data.data.voidLodgingBill as LodgingBill;
+}
+
+export async function voidLodgingRoomChargesApi(
+  stayId: number,
+  roomNumber: string,
+  reason: string,
+): Promise<LodgingStay> {
+  const mutation = `
+    mutation VoidLodgingRoomCharges(
+      $stayId: Int!
+      $roomNumber: String!
+      $reason: String!
+    ) {
+      voidLodgingRoomCharges(
+        stayId: $stayId
+        roomNumber: $roomNumber
+        reason: $reason
+      ) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { stayId, roomNumber, reason },
+  });
+  gqlError(response, "Could not void room charges");
+  invalidateLodgingCaches(["stays", "stats", "logs"]);
+  toast.success("Room charges voided");
+  return response.data.data.voidLodgingRoomCharges as LodgingStay;
+}
+
+export async function openLodgingBusinessDayApi(input: {
+  fromAt: string;
+  toAt: string;
+  label?: string;
+  businessDate?: string;
+}): Promise<LodgingBusinessDay> {
+  const mutation = `
+    mutation OpenLodgingBusinessDay(
+      $fromAt: DateTime!
+      $toAt: DateTime!
+      $label: String
+      $businessDate: String
+    ) {
+      openLodgingBusinessDay(
+        fromAt: $fromAt
+        toAt: $toAt
+        label: $label
+        businessDate: $businessDate
+      ) {
+        id businessDate label fromAt toAt status closedAt closedBy summaryJson
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      fromAt: input.fromAt,
+      toAt: input.toAt,
+      label: input.label ?? null,
+      businessDate: input.businessDate ?? null,
+    },
+  });
+  gqlError(response, "Could not open business day");
+  invalidateLodgingCaches(["stats", "logs"]);
+  toast.success("Business day / shift opened");
+  return response.data.data.openLodgingBusinessDay as LodgingBusinessDay;
 }
 
 export async function fetchLodgingBusinessDay(
@@ -1868,7 +2046,7 @@ export async function fetchLodgingBusinessDay(
   const query = `
     query LodgingBusinessDay($businessDate: String) {
       lodgingBusinessDay(businessDate: $businessDate) {
-        id businessDate status closedAt closedBy summaryJson
+        id businessDate label fromAt toAt status closedAt closedBy summaryJson
       }
     }
   `;
@@ -1889,9 +2067,12 @@ export async function fetchLodgingGuestComplaints(
         id
         stayId
         guestId
+        roomId
+        roomNumber
         category
         message
         status
+        isCritical
         createdAt
         guestName
         voucherCode

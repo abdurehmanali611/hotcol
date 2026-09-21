@@ -36,7 +36,6 @@ import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout
 import { PhoneInput } from "@/components/phone-input";
 import {
   cancelLodgingReservationApi,
-  checkInLodgingReservationApi,
   createLodgingReservationApi,
   fetchLodgingHoldableRooms,
   fetchLodgingReservations,
@@ -60,9 +59,12 @@ function toggleId(list: number[], id: number): number[] {
 export function LodgingReservationsPanel({
   vacantCleanRooms,
   onCheckedIn,
+  onStartCheckIn,
 }: {
   vacantCleanRooms: LodgingRoom[];
   onCheckedIn?: () => void | Promise<void>;
+  /** Open Reception check-in form with this reservation prefilled. */
+  onStartCheckIn?: (reservation: LodgingReservation) => void;
 }) {
   const [rows, setRows] = useState<LodgingReservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +80,12 @@ export function LodgingReservationsPanel({
   );
   const [holdRoomIds, setHoldRoomIds] = useState<number[]>([]);
   const [depositETB, setDepositETB] = useState("0");
+  const [depositPaymentMethod, setDepositPaymentMethod] = useState<
+    "" | "cash" | "bank" | "telebirr"
+  >("");
+  const [isCompany, setIsCompany] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [companyTin, setCompanyTin] = useState("");
   const [notes, setNotes] = useState("");
   const [guestFirst, setGuestFirst] = useState("");
   const [guestLast, setGuestLast] = useState("");
@@ -142,6 +150,15 @@ export function LodgingReservationsPanel({
       toast.error("Guest name and phone are required");
       return;
     }
+    const deposit = Math.max(0, Number(depositETB) || 0);
+    if (deposit > 0 && !depositPaymentMethod) {
+      toast.error("Select deposit payment method");
+      return;
+    }
+    if (isCompany && (!companyName.trim() || !companyTin.trim())) {
+      toast.error("Company name and TIN are required");
+      return;
+    }
     setPending("create");
     try {
       const arrival = new Date(`${arrivalDate}T14:00:00`);
@@ -157,7 +174,11 @@ export function LodgingReservationsPanel({
         nights: Math.max(1, nights),
         preferredRoomType,
         roomIds: holdRoomIds.length ? holdRoomIds : undefined,
-        depositETB: Math.max(0, Number(depositETB) || 0),
+        depositETB: deposit,
+        depositPaymentMethod: deposit > 0 ? depositPaymentMethod : "",
+        isCompany,
+        companyName: isCompany ? companyName.trim() : "",
+        companyTin: isCompany ? companyTin.trim() : "",
         notes: notes.trim(),
       });
       setShowForm(false);
@@ -165,6 +186,11 @@ export function LodgingReservationsPanel({
       setGuestLast("");
       setGuestPhone("");
       setNotes("");
+      setDepositETB("0");
+      setDepositPaymentMethod("");
+      setIsCompany(false);
+      setCompanyName("");
+      setCompanyTin("");
       setHoldRoomIds([]);
       await load();
     } catch (e) {
@@ -322,6 +348,62 @@ export function LodgingReservationsPanel({
                 value={depositETB}
                 onChange={(e) => setDepositETB(e.target.value)}
               />
+            </div>
+            {Number(depositETB) > 0 ? (
+              <div className="space-y-1.5 min-w-0">
+                <Label>Deposit payment method</Label>
+                <Select
+                  value={depositPaymentMethod || "__none__"}
+                  onValueChange={(v) =>
+                    setDepositPaymentMethod(
+                      v === "__none__"
+                        ? ""
+                        : (v as "cash" | "bank" | "telebirr"),
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-10 w-full bg-background">
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select method</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank">Bank</SelectItem>
+                    <SelectItem value="telebirr">Telebirr</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            <div className="space-y-3 sm:col-span-2 rounded-xl border border-border/70 bg-muted/10 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <Checkbox
+                  checked={isCompany}
+                  onCheckedChange={(v) => setIsCompany(v === true)}
+                />
+                Booking by a company
+              </label>
+              {isCompany ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="res-co-name">Company name</Label>
+                    <Input
+                      id="res-co-name"
+                      className="h-10 bg-background"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="res-co-tin">Company TIN</Label>
+                    <Input
+                      id="res-co-tin"
+                      className="h-10 bg-background"
+                      value={companyTin}
+                      onChange={(e) => setCompanyTin(e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="space-y-1.5 min-w-0 sm:col-span-2">
               <Label htmlFor="res-notes">Notes</Label>
@@ -591,32 +673,24 @@ export function LodgingReservationsPanel({
                         <XCircle className="h-4 w-4" />
                         Cancel
                       </Button>
-                      <PendingButton
+                      <Button
                         type="button"
                         size="sm"
                         className="ml-auto h-9 gap-1.5"
-                        pending={pending === `ci-${r.id}`}
-                        disabled={selected.length === 0}
-                        onClick={async () => {
-                          setPending(`ci-${r.id}`);
-                          try {
-                            await checkInLodgingReservationApi({
-                              reservationId: r.id,
-                              roomIds: selected,
-                            });
-                            await load();
-                            await onCheckedIn?.();
-                          } catch (e) {
-                            notifyApiFailure(e, "Check-in failed");
-                          } finally {
-                            setPending(null);
+                        disabled={Boolean(pending)}
+                        onClick={() => {
+                          if (onStartCheckIn) {
+                            onStartCheckIn(r);
+                            return;
                           }
+                          toast.message(
+                            "Open Check-in from Reception to continue this reservation",
+                          );
                         }}
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         Check in
-                        {selected.length > 1 ? ` (${selected.length})` : ""}
-                      </PendingButton>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

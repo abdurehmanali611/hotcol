@@ -94,6 +94,11 @@ model lodging_reservation {
   children          Int       @default(0)
   preferredRoomType String    @default("")
   depositETB        Float     @default(0)
+  /// cash | bank | telebirr | "" — method used for the reservation deposit
+  depositPaymentMethod String  @default("")
+  isCompany         Boolean   @default(false)
+  companyName       String    @default("")
+  companyTin        String    @default("")
   notes             String    @db.Text
   createdBy         String    @default("")
   updatedBy         String    @default("")
@@ -136,6 +141,8 @@ model lodging_stay {
   /// reserved | checked_in | checked_out | cancelled
   status              String    @default("checked_in")
   arrivalAt           DateTime
+  /// Snapshot of reservation.arrivalAt at check-in (reporting when it differs from actual arrival).
+  reservedArrivalAt   DateTime?
   /// Expected departure at check-in; updated to actual at checkout.
   departureAt         DateTime
   /// Expected nights entered at check-in.
@@ -149,6 +156,9 @@ model lodging_stay {
   /// Frozen rate plan used for room night pricing (empty = room rack rate).
   ratePlanId          Int?
   ratePlanName        String    @default("")
+  isCompany           Boolean   @default(false)
+  companyName         String    @default("")
+  companyTin          String    @default("")
   notes               String    @db.Text
   checkedInBy         String    @default("")
   checkedOutBy        String    @default("")
@@ -323,12 +333,16 @@ model lodging_tax_config {
   @@index([HotelName])
 }
 
-/// Manual business-day close (night audit).
+/// Manual business-day / shift close (night audit). Multiple overlapping shifts allowed.
 model lodging_business_day {
   id           Int       @id @default(autoincrement())
   HotelName    String
-  /// YYYY-MM-DD
+  /// YYYY-MM-DD label day (shift may span midnight)
   businessDate String
+  /// Optional shift label e.g. "Morning", "Shift 1"
+  label        String    @default("")
+  fromAt       DateTime
+  toAt         DateTime
   /// open | closed
   status       String    @default("open")
   closedAt     DateTime?
@@ -337,9 +351,10 @@ model lodging_business_day {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@unique([HotelName, businessDate])
   @@index([HotelName])
   @@index([HotelName, status])
+  @@index([HotelName, businessDate])
+  @@index([HotelName, fromAt])
 }
 
 /// Sellable rate plans (rack, corporate, seasonal, weekend, promo, long-stay…).
@@ -378,6 +393,8 @@ model lodging_guest_complaint {
   HotelName  String
   stayId     Int
   guestId    Int?
+  roomId     Int?
+  roomNumber String   @default("")
   category   String   @default("general")
   message    String   @db.Text
   /// open | acknowledged | resolved
@@ -391,6 +408,8 @@ model lodging_guest_complaint {
   @@index([HotelName])
   @@index([HotelName, status])
   @@index([stayId])
+  @@index([guestId])
+  @@index([roomNumber])
 }
 
 /// Guest stay rating from HotCol Room portal (one per stay).
@@ -412,7 +431,6 @@ model lodging_guest_rating {
   @@index([HotelName])
   @@index([stayId])
 }
-
 """
 
 PATHS = [

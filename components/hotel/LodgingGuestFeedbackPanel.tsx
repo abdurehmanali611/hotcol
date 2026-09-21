@@ -226,12 +226,19 @@ export function LodgingGuestFeedbackPanel({
                       {new Date(c.createdAt).toLocaleString()}
                     </p>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn("capitalize", statusBadge(c.status))}
-                  >
-                    {c.status}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {c.isCritical ? (
+                      <Badge className="bg-rose-600 text-white hover:bg-rose-600">
+                        Critical
+                      </Badge>
+                    ) : null}
+                    <Badge
+                      variant="outline"
+                      className={cn("capitalize", statusBadge(c.status))}
+                    >
+                      {c.status}
+                    </Badge>
+                  </div>
                 </div>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">
                   {c.message}

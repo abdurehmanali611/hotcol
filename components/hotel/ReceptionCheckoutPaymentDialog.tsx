@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Banknote, Building2, Printer, Receipt, Smartphone } from "lucide-react";
@@ -42,6 +43,10 @@ function formatMoney(n: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function round2(n: number) {
+  return Math.round((Number(n) || 0) * 100) / 100;
 }
 
 function lineAmount(line: LodgingBillLine) {
@@ -82,10 +87,20 @@ function summarizeChannels(
     else cash += amt;
   }
   return {
-    cashETB: Math.round(cash * 100) / 100,
-    bankETB: Math.round(bank * 100) / 100,
-    telebirrETB: Math.round(telebirr * 100) / 100,
+    cashETB: round2(cash),
+    bankETB: round2(bank),
+    telebirrETB: round2(telebirr),
   };
+}
+
+function fullPaidSummary(
+  total: number,
+  channel: StayLinePaymentChannel,
+): { cashETB: number; bankETB: number; telebirrETB: number } {
+  const t = round2(Math.max(0, total));
+  if (channel === "bank") return { cashETB: 0, bankETB: t, telebirrETB: 0 };
+  if (channel === "telebirr") return { cashETB: 0, bankETB: 0, telebirrETB: t };
+  return { cashETB: t, bankETB: 0, telebirrETB: 0 };
 }
 
 function ChannelToggle({
@@ -134,6 +149,48 @@ function ChannelToggle({
   );
 }
 
+function FullyPaidRow({
+  checked,
+  channel,
+  onCheckedChange,
+  onChannelChange,
+  id,
+}: {
+  checked: boolean;
+  channel: StayLinePaymentChannel;
+  onCheckedChange: (v: boolean) => void;
+  onChannelChange: (v: StayLinePaymentChannel) => void;
+  id: string;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/70 bg-muted/15 p-3.5">
+      <label
+        htmlFor={id}
+        className="flex cursor-pointer items-start gap-3 text-sm"
+      >
+        <Checkbox
+          id={id}
+          checked={checked}
+          onCheckedChange={(v) => onCheckedChange(v === true)}
+          className="mt-0.5"
+        />
+        <span className="min-w-0">
+          <span className="font-medium">Fully paid by one method</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground leading-relaxed">
+            Put the entire stay total on a single payment channel.
+          </span>
+        </span>
+      </label>
+      {checked ? (
+        <div className="space-y-2 pl-7">
+          <Label className="text-xs text-muted-foreground">Payment method</Label>
+          <ChannelToggle value={channel} onChange={onChannelChange} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ReceptionCheckoutPaymentDialog({
   open,
   onOpenChange,
@@ -149,6 +206,19 @@ export function ReceptionCheckoutPaymentDialog({
 }) {
   const lines = useMemo(() => stay.bill?.lines ?? [], [stay.bill?.lines]);
   const total = Number(stay.bill?.totalETB ?? 0);
+  const depositApplied = useMemo(() => {
+    return lines
+      .filter(
+        (l) =>
+          !l.voided &&
+          String(l.description || "")
+            .toLowerCase()
+            .includes("deposit"),
+      )
+      .reduce((s, l) => s + Math.abs(Number(l.amountETB) || 0), 0);
+  }, [lines]);
+  const folioGross = round2(total + depositApplied);
+  const remainingDue = round2(total);
   const defaultNights = useMemo(
     () =>
       nightsFromArrivalDeparture(new Date(stay.arrivalAt), new Date()) ||
@@ -162,9 +232,12 @@ export function ReceptionCheckoutPaymentDialog({
   const [lineChannels, setLineChannels] = useState<
     Record<number, StayLinePaymentChannel>
   >({});
-  const [primaryChannel, setPrimaryChannel] =
+  const [fullyPaid, setFullyPaid] = useState(false);
+  const [fullPayChannel, setFullPayChannel] =
     useState<StayLinePaymentChannel>("cash");
-  const [amountInput, setAmountInput] = useState("");
+  const [cashInput, setCashInput] = useState("");
+  const [bankInput, setBankInput] = useState("");
+  const [telebirrInput, setTelebirrInput] = useState("");
   const [actualNights, setActualNights] = useState(String(defaultNights));
 
   useEffect(() => {
@@ -175,39 +248,52 @@ export function ReceptionCheckoutPaymentDialog({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional dialog reset on open/stay
     setLineChannels(init);
     setMode("order");
-    setPrimaryChannel("cash");
-    setAmountInput("");
+    setFullyPaid(false);
+    setFullPayChannel("cash");
+    setCashInput("");
+    setBankInput("");
+    setTelebirrInput("");
     setActualNights(String(defaultNights));
   }, [open, stay.id, lines, defaultNights]);
 
-  const orderSummary = useMemo(
-    () => summarizeChannels(lines, lineChannels),
-    [lines, lineChannels],
-  );
+  const applyFullPayToLines = (channel: StayLinePaymentChannel) => {
+    const next: Record<number, StayLinePaymentChannel> = {};
+    for (const line of lines) next[line.id] = channel;
+    setLineChannels(next);
+  };
+
+  const orderSummary = useMemo(() => {
+    if (fullyPaid) return fullPaidSummary(total, fullPayChannel);
+    return summarizeChannels(lines, lineChannels);
+  }, [fullyPaid, fullPayChannel, total, lines, lineChannels]);
 
   const amountPlan = useMemo(() => {
-    const entered = Math.max(0, Number(amountInput) || 0);
-    const primary = Math.min(entered, total);
-    const secondary = Math.max(0, Math.round((total - primary) * 100) / 100);
-    if (primaryChannel === "cash") {
-      return { cashETB: primary, bankETB: secondary, telebirrETB: 0 };
-    }
-    if (primaryChannel === "telebirr") {
-      return { cashETB: secondary, bankETB: 0, telebirrETB: primary };
-    }
-    return { cashETB: secondary, bankETB: primary, telebirrETB: 0 };
-  }, [amountInput, primaryChannel, total]);
+    if (fullyPaid) return fullPaidSummary(total, fullPayChannel);
+    return {
+      cashETB: round2(Math.max(0, Number(cashInput) || 0)),
+      bankETB: round2(Math.max(0, Number(bankInput) || 0)),
+      telebirrETB: round2(Math.max(0, Number(telebirrInput) || 0)),
+    };
+  }, [
+    fullyPaid,
+    fullPayChannel,
+    total,
+    cashInput,
+    bankInput,
+    telebirrInput,
+  ]);
 
   const activeSummary = mode === "order" ? orderSummary : amountPlan;
+  const splitTotal = round2(
+    activeSummary.cashETB +
+      activeSummary.bankETB +
+      activeSummary.telebirrETB,
+  );
   const amountOk =
     mode === "order" ||
-    (Number(amountInput) >= 0 &&
-      Math.abs(
-        activeSummary.cashETB +
-          activeSummary.bankETB +
-          activeSummary.telebirrETB -
-          total,
-      ) < 0.02);
+    fullyPaid ||
+    Math.abs(splitTotal - round2(total)) < 0.02;
+  const remainder = round2(round2(total) - splitTotal);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,18 +330,32 @@ export function ReceptionCheckoutPaymentDialog({
             </div>
           </DialogHeader>
 
-          <div className="mt-4 flex items-end justify-between gap-3 rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 shadow-sm backdrop-blur-sm">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Stay total
-              </p>
-              <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
-                {formatMoney(total)}
-              </p>
+          <div className="mt-4 space-y-2 rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 shadow-sm backdrop-blur-sm">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Remaining due
+                </p>
+                <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
+                  {formatMoney(remainingDue)}
+                </p>
+              </div>
+              {depositApplied > 0 ? (
+                <div className="text-right text-xs text-muted-foreground">
+                  <p>Folio {formatMoney(folioGross)}</p>
+                  <p>− Deposits {formatMoney(depositApplied)}</p>
+                </div>
+              ) : (
+                <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
+                  {isLodgingCreditPaymentEnabled()
+                    ? "Credit ready"
+                    : "No credit"}
+                </Badge>
+              )}
             </div>
-            <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
-              {isLodgingCreditPaymentEnabled() ? "Credit ready" : "No credit"}
-            </Badge>
+            <p className="text-xs text-muted-foreground">
+              Collect only the remaining balance (folio total after deposits).
+            </p>
           </div>
         </div>
 
@@ -281,7 +381,10 @@ export function ReceptionCheckoutPaymentDialog({
 
           <Tabs
             value={mode}
-            onValueChange={(v) => setMode(v === "amount" ? "amount" : "order")}
+            onValueChange={(v) => {
+              setMode(v === "amount" ? "amount" : "order");
+              setFullyPaid(false);
+            }}
           >
             <TabsList className="grid h-11 w-full grid-cols-2 rounded-xl bg-muted/50 p-1">
               <TabsTrigger value="order" className="rounded-lg text-sm">
@@ -293,83 +396,180 @@ export function ReceptionCheckoutPaymentDialog({
             </TabsList>
 
             <TabsContent value="order" className="mt-4 space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Choose cash or bank for each bill line (e.g. room on cash,
-                laundry on bank).
-              </p>
-              {lines.length === 0 ? (
-                <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-                  No bill lines on this stay.
-                </div>
+              <FullyPaidRow
+                id="checkout-fully-paid-order"
+                checked={fullyPaid}
+                channel={fullPayChannel}
+                onCheckedChange={(v) => {
+                  setFullyPaid(v);
+                  if (v) applyFullPayToLines(fullPayChannel);
+                }}
+                onChannelChange={(ch) => {
+                  setFullPayChannel(ch);
+                  applyFullPayToLines(ch);
+                }}
+              />
+
+              {!fullyPaid ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Choose cash, bank, or Telebirr for each bill line.
+                  </p>
+                  {lines.length === 0 ? (
+                    <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                      No bill lines on this stay.
+                    </div>
+                  ) : (
+                    <ul className="space-y-2.5">
+                      {lines.map((line) => {
+                        const ch = lineChannels[line.id] ?? "cash";
+                        return (
+                          <li
+                            key={line.id}
+                            className="rounded-2xl border border-border/70 bg-card/90 px-3.5 py-3 shadow-sm"
+                          >
+                            <div className="mb-2.5 flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium leading-snug">
+                                  {stripCafeOrderMarker(line.description)}
+                                </p>
+                                <p className="mt-0.5 text-xs capitalize text-muted-foreground">
+                                  {line.kind.replace(/_/g, " ")}
+                                  {line.roomNumber
+                                    ? ` · Rm ${line.roomNumber}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <p className="shrink-0 text-sm font-semibold tabular-nums">
+                                {formatMoney(lineAmount(line))}
+                              </p>
+                            </div>
+                            <ChannelToggle
+                              size="sm"
+                              value={ch}
+                              onChange={(option) =>
+                                setLineChannels((prev) => ({
+                                  ...prev,
+                                  [line.id]: option,
+                                }))
+                              }
+                            />
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </>
               ) : (
-                <ul className="space-y-2.5">
-                  {lines.map((line) => {
-                    const ch = lineChannels[line.id] ?? "cash";
-                    return (
-                      <li
-                        key={line.id}
-                        className="rounded-2xl border border-border/70 bg-card/90 px-3.5 py-3 shadow-sm"
-                      >
-                        <div className="mb-2.5 flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium leading-snug">
-                              {stripCafeOrderMarker(line.description)}
-                            </p>
-                            <p className="mt-0.5 text-xs capitalize text-muted-foreground">
-                              {line.kind.replace(/_/g, " ")}
-                              {line.roomNumber
-                                ? ` · Rm ${line.roomNumber}`
-                                : ""}
-                            </p>
-                          </div>
-                          <p className="shrink-0 text-sm font-semibold tabular-nums">
-                            {formatMoney(lineAmount(line))}
-                          </p>
-                        </div>
-                        <ChannelToggle
-                          size="sm"
-                          value={ch}
-                          onChange={(option) =>
-                            setLineChannels((prev) => ({
-                              ...prev,
-                              [line.id]: option,
-                            }))
-                          }
-                        />
-                      </li>
-                    );
-                  })}
-                </ul>
+                <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                  All lines will settle on{" "}
+                  <span className="font-medium capitalize text-foreground">
+                    {fullPayChannel}
+                  </span>{" "}
+                  · {formatMoney(total)}
+                </p>
               )}
             </TabsContent>
 
             <TabsContent value="amount" className="mt-4 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Enter how much settles on the primary channel; the remainder goes
-                to the other channel automatically.
-              </p>
-              <div className="space-y-2">
-                <Label>Primary channel</Label>
-                <ChannelToggle
-                  value={primaryChannel}
-                  onChange={setPrimaryChannel}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="stay-primary-amount">
-                  Amount on {primaryChannel} (ETB)
-                </Label>
-                <Input
-                  id="stay-primary-amount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="h-11 rounded-xl tabular-nums text-base"
-                  placeholder={`0 – ${total}`}
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
-                />
-              </div>
+              <FullyPaidRow
+                id="checkout-fully-paid-amount"
+                checked={fullyPaid}
+                channel={fullPayChannel}
+                onCheckedChange={setFullyPaid}
+                onChannelChange={setFullPayChannel}
+              />
+
+              {!fullyPaid ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Split the stay across cash, bank, and Telebirr. Amounts must
+                    add up to the stay total.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="stay-cash-amount"
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        <Banknote className="h-3.5 w-3.5" />
+                        Cash
+                      </Label>
+                      <Input
+                        id="stay-cash-amount"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="h-11 rounded-xl tabular-nums text-base"
+                        placeholder="0"
+                        value={cashInput}
+                        onChange={(e) => setCashInput(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="stay-bank-amount"
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        <Building2 className="h-3.5 w-3.5" />
+                        Bank
+                      </Label>
+                      <Input
+                        id="stay-bank-amount"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="h-11 rounded-xl tabular-nums text-base"
+                        placeholder="0"
+                        value={bankInput}
+                        onChange={(e) => setBankInput(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="stay-telebirr-amount"
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        <Smartphone className="h-3.5 w-3.5" />
+                        Telebirr
+                      </Label>
+                      <Input
+                        id="stay-telebirr-amount"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="h-11 rounded-xl tabular-nums text-base"
+                        placeholder="0"
+                        value={telebirrInput}
+                        onChange={(e) => setTelebirrInput(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p
+                    className={cn(
+                      "text-xs tabular-nums",
+                      Math.abs(remainder) < 0.02
+                        ? "text-muted-foreground"
+                        : "text-amber-700 dark:text-amber-300",
+                    )}
+                  >
+                    Entered {formatMoney(splitTotal)}
+                    {Math.abs(remainder) < 0.02
+                      ? " · matches stay total"
+                      : remainder > 0
+                        ? ` · remaining ${formatMoney(remainder)}`
+                        : ` · over by ${formatMoney(Math.abs(remainder))}`}
+                  </p>
+                </>
+              ) : (
+                <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                  Full stay on{" "}
+                  <span className="font-medium capitalize text-foreground">
+                    {fullPayChannel}
+                  </span>{" "}
+                  · {formatMoney(total)}
+                </p>
+              )}
             </TabsContent>
           </Tabs>
 
@@ -419,16 +619,25 @@ export function ReceptionCheckoutPaymentDialog({
             className="h-11 gap-2 rounded-xl px-5"
             pending={Boolean(pending)}
             disabled={!amountOk || total < 0}
-            onClick={() =>
+            onClick={() => {
+              const channels =
+                mode === "order" && fullyPaid
+                  ? Object.fromEntries(
+                      lines.map((l) => [l.id, fullPayChannel] as const),
+                    )
+                  : lineChannels;
               void onConfirm({
                 mode,
-                lineChannels,
+                lineChannels: channels,
                 cashETB: activeSummary.cashETB,
                 bankETB: activeSummary.bankETB,
                 telebirrETB: activeSummary.telebirrETB,
-                nights: Math.max(1, Math.floor(Number(actualNights) || defaultNights)),
-              })
-            }
+                nights: Math.max(
+                  1,
+                  Math.floor(Number(actualNights) || defaultNights),
+                ),
+              });
+            }}
           >
             <Printer className="h-4 w-4" />
             Confirm & print receipt

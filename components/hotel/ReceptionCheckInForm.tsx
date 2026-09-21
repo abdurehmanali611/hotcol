@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
 import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome";
 import { LodgingRegistrationCard } from "@/components/hotel/LodgingRegistrationCard";
@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +44,7 @@ import {
   createLodgingStayApi,
   fetchLodgingGuests,
   type LodgingGuest,
+  type LodgingReservation,
   type LodgingRoom,
   type LodgingStay,
 } from "@/lib/api/lodgingRooms";
@@ -130,12 +132,15 @@ export function ReceptionCheckInForm({
   propertyName,
   logoUrl,
   tinNumber,
+  reservation = null,
 }: {
   vacantCleanRooms: LodgingRoom[];
   onCompleted: () => void | Promise<void>;
   propertyName?: string;
   logoUrl?: string | null;
   tinNumber?: string | null;
+  /** Prefill from a reservation — Check-in opens here instead of one-click API. */
+  reservation?: LodgingReservation | null;
 }) {
   const [guest, setGuest] = useState(emptyGuest);
   const [guestId, setGuestId] = useState<number | null>(null);
@@ -150,6 +155,9 @@ export function ReceptionCheckInForm({
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [stayNotes, setStayNotes] = useState("");
+  const [isCompany, setIsCompany] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [companyTin, setCompanyTin] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [searchedEmpty, setSearchedEmpty] = useState(false);
   const [issuedOtp, setIssuedOtp] = useState<string | null>(null);
@@ -164,6 +172,53 @@ export function ReceptionCheckInForm({
     documentTitle: "Guest_registration_card",
     pageStyle: SUPPRESS_BROWSER_PRINT_CHROME,
   });
+
+  useEffect(() => {
+    if (!reservation) return;
+    const g = reservation.guest;
+    if (g) {
+      setGuestId(g.id);
+      setGuest({
+        firstName: g.firstName || "",
+        lastName: g.lastName || "",
+        sex: g.sex || "Male",
+        phone: g.phone || "",
+        phoneSecondary: g.phoneSecondary || "",
+        email: g.email || "",
+        isEthiopian: g.isEthiopian ?? true,
+        nationalId: g.nationalId || "",
+        passportNumber: g.passportNumber || "",
+        country: g.country || "Ethiopia",
+        stateRegion:
+          g.stateRegion || statesForCountry(g.country || "Ethiopia")[0] || "",
+      });
+    }
+    setExpectedNights(Math.max(1, reservation.nights || 1));
+    setAdults(Math.max(1, reservation.adults || 1));
+    setChildren(Math.max(0, reservation.children || 0));
+    setStayNotes(reservation.notes || "");
+    setIsCompany(Boolean(reservation.isCompany));
+    setCompanyName(reservation.companyName || "");
+    setCompanyTin(reservation.companyTin || "");
+    const held = (reservation.rooms || []).filter((rr) => rr.roomId);
+    if (held.length > 0) {
+      setRoomAssignments(
+        held.map((rr) => ({
+          key: assignKey(),
+          roomType: rr.roomType || rr.room?.roomType || LODGING_ROOM_TYPES[0],
+          roomId: String(rr.roomId),
+        })),
+      );
+    } else if (reservation.preferredRoomType) {
+      setRoomAssignments([
+        {
+          key: assignKey(),
+          roomType: reservation.preferredRoomType,
+          roomId: "",
+        },
+      ]);
+    }
+  }, [reservation]);
 
   const selectedRoomIds = useMemo(
     () =>
@@ -251,6 +306,10 @@ export function ReceptionCheckInForm({
       toast.error("Each room can only be assigned once");
       return;
     }
+    if (isCompany && (!companyName.trim() || !companyTin.trim())) {
+      toast.error("Company name and TIN are required");
+      return;
+    }
     const now = new Date();
     const liveArrivalDate = todayYmd(now);
     const liveArrivalTime = nowHm(now);
@@ -288,6 +347,10 @@ export function ReceptionCheckInForm({
         preferredRoomType: roomAssignments[0]?.roomType || LODGING_ROOM_TYPES[0],
         notes: stayNotes.trim(),
         roomIds: selectedRoomIds,
+        reservationId: reservation?.id,
+        isCompany,
+        companyName: isCompany ? companyName.trim() : "",
+        companyTin: isCompany ? companyTin.trim() : "",
       });
       setGuest(emptyGuest());
       setGuestId(null);
@@ -298,6 +361,9 @@ export function ReceptionCheckInForm({
       setExpectedNights(1);
       setAdults(1);
       setChildren(0);
+      setIsCompany(false);
+      setCompanyName("");
+      setCompanyTin("");
       setSearchedEmpty(false);
       const otp = String(stay.guestOtp || "").trim();
       setRegistrationStay(stay);
@@ -756,6 +822,51 @@ export function ReceptionCheckInForm({
                     className="min-h-0 h-full flex-1 resize-y field-sizing-fixed"
                     placeholder="Special requests, early arrival, company booking…"
                   />
+                </div>
+                <div className="space-y-3 rounded-xl border border-border/70 bg-muted/10 p-3 sm:col-span-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <Checkbox
+                      checked={isCompany}
+                      onCheckedChange={(v) => setIsCompany(v === true)}
+                    />
+                    Check-in by a company
+                  </label>
+                  {reservation ? (
+                    <p className="text-xs text-muted-foreground">
+                      From reservation {reservation.reservationCode}
+                      {reservation.depositETB > 0
+                        ? ` · deposit ETB ${reservation.depositETB}${
+                            reservation.depositPaymentMethod
+                              ? ` (${reservation.depositPaymentMethod})`
+                              : ""
+                          }`
+                        : ""}
+                      . Actual check-in time is now; reserved arrival is kept for
+                      reporting when different.
+                    </p>
+                  ) : null}
+                  {isCompany ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="ci-co-name">Company name</Label>
+                        <Input
+                          id="ci-co-name"
+                          className="h-10"
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="ci-co-tin">Company TIN</Label>
+                        <Input
+                          id="ci-co-tin"
+                          className="h-10"
+                          value={companyTin}
+                          onChange={(e) => setCompanyTin(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
