@@ -811,9 +811,8 @@ export async function DeleteItemStatus(id: number) {
 }
 
 export async function fetchStationIngredientStocks() {
-  try {
-    return await dedupeHotelListRead("stationIngredientStocks:list", async () => {
-      const query = `
+  return await dedupeHotelListRead("stationIngredientStocks:list", async () => {
+    const query = `
       query {
         stationIngredientStocks {
           id
@@ -828,19 +827,15 @@ export async function fetchStationIngredientStocks() {
         }
       }
       `;
-      const response = await api.post(API_URL, { query });
-      if (response.data.errors) {
-        throw new Error(
-          response.data.errors[0]?.message ||
-            "Failed to fetch station ingredient stock",
-        );
-      }
-      return response.data.data.stationIngredientStocks || [];
-    });
-  } catch (error: any) {
-    toast.error("Failed to fetch station ingredient stock");
-    throw error;
-  }
+    const response = await api.post(API_URL, { query });
+    if (response.data.errors) {
+      throw new Error(
+        response.data.errors[0]?.message ||
+          "Failed to fetch station ingredient stock",
+      );
+    }
+    return response.data.data.stationIngredientStocks || [];
+  });
 }
 
 export async function fetchRecipeStockConsumptions(range?: {

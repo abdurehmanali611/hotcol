@@ -80,6 +80,7 @@ import {
   MousePointerClick,
   Plus,
   Search,
+  Shirt,
   Trash2,
   User,
   Utensils,
@@ -135,7 +136,29 @@ function formatOrderTime(createdAt: Date | string): string {
   });
 }
 
-function StationBadge({ order }: { order: Order }) {
+function StationBadge({
+  order,
+  lodgingLaundry = false,
+}: {
+  order: Order;
+  lodgingLaundry?: boolean;
+}) {
+  if (
+    lodgingLaundry ||
+    String(order.type || "")
+      .trim()
+      .toLowerCase() === "laundry"
+  ) {
+    return (
+      <Badge
+        variant="outline"
+        className="h-5 gap-1 px-1.5 text-[10px] font-medium border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-200"
+      >
+        <Shirt className="h-3 w-3" />
+        Laundry
+      </Badge>
+    );
+  }
   const station = orderStationLabel(order);
   const isBar = station === "Bar";
   return (
@@ -222,7 +245,11 @@ export function CafeCashierOrderUpdatePanel({
       ),
     [items, hotelName],
   );
-  const { stocks, enforce, maxServingsById } = useRecipeStockBlockedIds(menuItems);
+  const { stocks, enforce, maxServingsById } = useRecipeStockBlockedIds(
+    menuItems,
+    // Laundry bill lines have no kitchen/bar recipes — skip station stock.
+    { enabled: !useLodgingHandlers },
+  );
 
   useEffect(() => {
     if (analogAddOnly) setSideTab("add");
@@ -824,7 +851,10 @@ export function CafeCashierOrderUpdatePanel({
                               <StatusBadge
                                 status={String(order.status || "Pending")}
                               />
-                              <StationBadge order={order} />
+                              <StationBadge
+                                order={order}
+                                lodgingLaundry={useLodgingHandlers}
+                              />
                             </div>
                           </div>
                         </button>
@@ -1440,7 +1470,10 @@ export function CafeCashierOrderUpdatePanel({
                                       </p>
                                       <div className="mt-2 flex flex-wrap gap-1.5">
                                         <StatusBadge status={status} />
-                                        <StationBadge order={order} />
+                                        <StationBadge
+                                          order={order}
+                                          lodgingLaundry={useLodgingHandlers}
+                                        />
                                       </div>
                                     </div>
                                   </button>
@@ -1617,9 +1650,10 @@ export function CafeCashierOrderUpdatePanel({
                                     selectedOrder.status || "Pending"
                                   }
                                 />
-                                {!useLodgingHandlers ? (
-                                  <StationBadge order={selectedOrder} />
-                                ) : null}
+                                <StationBadge
+                                  order={selectedOrder}
+                                  lodgingLaundry={useLodgingHandlers}
+                                />
                               </div>
                             </div>
                           </div>

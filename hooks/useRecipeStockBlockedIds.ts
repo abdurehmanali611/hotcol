@@ -40,7 +40,8 @@ export function useRecipeStockBlockedIds(
       const rows = await fetchStationIngredientStocks();
       setStocks(Array.isArray(rows) ? rows : []);
     } catch {
-      /* toast already emitted */
+      /* Soft check — missing stock API must not toast on reception/laundry/cashier. */
+      setStocks([]);
     }
   }, [enforce]);
 

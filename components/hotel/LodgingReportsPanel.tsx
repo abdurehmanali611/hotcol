@@ -14,6 +14,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3,
+  FileDown,
   FileSpreadsheet,
   FileText,
   Loader2,
@@ -37,7 +38,10 @@ import {
   type LodgingStay,
 } from "@/lib/api/lodgingRooms";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
+import { downloadLodgingStayPaymentsPdf } from "@/lib/lodgingReportsPdf";
 import { notifyApiFailure } from "@/lib/actions";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -156,6 +160,7 @@ export function LodgingReportsPanel({
   const [loadingGuests, setLoadingGuests] = useState(false);
   const [perf, setPerf] = useState<LodgingPerformanceReport | null>(null);
   const [loadingPerf, setLoadingPerf] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -398,21 +403,68 @@ export function LodgingReportsPanel({
     );
   }, [stays]);
 
+  const exportStaysPdf = async () => {
+    if (stays.length === 0) {
+      toast.error("Generate stay payments first");
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      await downloadLodgingStayPaymentsPdf({
+        from,
+        to,
+        stays,
+        breakdown: stayPaymentBreakdown,
+        totals: paymentTotals,
+        perf,
+      });
+      toast.success("PDF downloaded");
+    } catch (e) {
+      notifyApiFailure(e, "Could not export PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-7xl space-y-8">
       <Card className="overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
         <div className="h-1 bg-linear-to-r from-primary/60 via-sky-500/45 to-emerald-500/40" />
-        <CardHeader className="space-y-1 pb-2">
-          <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-            <FileText className="h-5 w-5 text-primary" />
-            Room management reports
-          </CardTitle>
-          <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-            Room nights and laundry payments for checked-out stays. Food &amp;
-            drink charged to rooms is summarized for visibility — primary café
-            payment reporting stays under Manager → Cafe &amp; Restaurant. In-house
-            guests do not appear in payment totals until checkout.
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
+              <FileText className="h-5 w-5 text-primary" />
+              Room management reports
+            </CardTitle>
+            <CardDescription className="max-w-3xl text-pretty leading-relaxed">
+              Room nights and laundry for checked-out stays. Food &amp; drink on
+              the folio is awareness only — café owns formal F&amp;B reporting.
+              In-house guests appear in payment totals only after checkout.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <PendingButton
+              type="button"
+              variant="outline"
+              className="h-9 gap-1.5"
+              pending={exportingPdf}
+              disabled={stays.length === 0}
+              onClick={() => void exportStaysPdf()}
+            >
+              <FileDown className="h-4 w-4" />
+              Export PDF
+            </PendingButton>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 gap-1.5"
+              disabled={stays.length === 0}
+              onClick={() => void exportStaysExcel()}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-8 pb-8">
           <HotelFormSection
@@ -430,22 +482,37 @@ export function LodgingReportsPanel({
           </HotelFormSection>
 
           <HotelFormSection
-            title="ADR · RevPAR · occupancy pack"
-            description="Period KPIs from room night revenue vs inventory. Change From/To below (same range as stay payments) — metrics refresh automatically."
+            title="Report period"
+            description="Shared date range for ADR / RevPAR and stay payment reports."
           >
-            <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div className="flex flex-wrap items-end gap-3">
               <HotelDayPicker label="From" value={from} onChange={setFrom} />
               <HotelDayPicker label="To" value={to} onChange={setTo} />
               <PendingButton
                 type="button"
                 variant="outline"
+                className="h-10 gap-1.5"
                 pending={loadingPerf}
                 onClick={() => void loadPerf()}
               >
                 <BarChart3 className="h-4 w-4" />
                 Refresh KPIs
               </PendingButton>
+              <PendingButton
+                type="button"
+                className="h-10"
+                pending={loadingStays}
+                onClick={() => void loadStays()}
+              >
+                Generate payments
+              </PendingButton>
             </div>
+          </HotelFormSection>
+
+          <HotelFormSection
+            title="ADR · RevPAR · occupancy"
+            description="Period KPIs from room-night revenue vs inventory for the selected range."
+          >
             {loadingPerf && !perf ? (
               <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -464,7 +531,7 @@ export function LodgingReportsPanel({
                   ).map(([label, value]) => (
                     <div
                       key={label}
-                      className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3"
+                      className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3.5"
                     >
                       <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                         {label}
@@ -480,74 +547,40 @@ export function LodgingReportsPanel({
                   {perf.availableRoomNights} available · {perf.staysInHouse}{" "}
                   in-house · {perf.staysCheckedOut} checked out in range
                 </p>
-                {perf.byRoomType.length > 0 ? (
-                  <div className="overflow-x-auto rounded-xl border border-border/70">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                          <th className="px-3 py-2 font-medium">Room type</th>
-                          <th className="px-3 py-2 font-medium text-right">
-                            Nights
-                          </th>
-                          <th className="px-3 py-2 font-medium text-right">
-                            Revenue
-                          </th>
-                          <th className="px-3 py-2 font-medium text-right">
-                            ADR
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {perf.byRoomType.map((r) => (
-                          <tr key={r.roomType}>
-                            <td className="px-3 py-2">{r.roomType}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {r.roomNightsSold}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {formatEtb(r.roomRevenueETB)}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {formatEtb(r.adrETB)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-                {perf.bySource.length > 0 ? (
-                  <div className="overflow-x-auto rounded-xl border border-border/70">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                          <th className="px-3 py-2 font-medium">Source</th>
-                          <th className="px-3 py-2 font-medium text-right">
-                            Stays
-                          </th>
-                          <th className="px-3 py-2 font-medium text-right">
-                            Room revenue
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {perf.bySource.map((r) => (
-                          <tr key={r.source}>
-                            <td className="px-3 py-2 capitalize">
-                              {r.source.replace(/_/g, " ")}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {r.stays}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {formatEtb(r.roomRevenueETB)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
+                <div
+                  className={cn(
+                    "grid gap-4",
+                    perf.byRoomType.length > 0 && perf.bySource.length > 0
+                      ? "lg:grid-cols-2"
+                      : "",
+                  )}
+                >
+                  {perf.byRoomType.length > 0 ? (
+                    <ReportMiniTable
+                      title="By room type"
+                      headers={["Room type", "Nights", "Revenue", "ADR"]}
+                      alignRight={[false, true, true, true]}
+                      rows={perf.byRoomType.map((r) => [
+                        r.roomType,
+                        String(r.roomNightsSold),
+                        formatEtb(r.roomRevenueETB),
+                        formatEtb(r.adrETB),
+                      ])}
+                    />
+                  ) : null}
+                  {perf.bySource.length > 0 ? (
+                    <ReportMiniTable
+                      title="By source"
+                      headers={["Source", "Stays", "Room revenue"]}
+                      alignRight={[false, true, true]}
+                      rows={perf.bySource.map((r) => [
+                        r.source.replace(/_/g, " "),
+                        String(r.stays),
+                        formatEtb(r.roomRevenueETB),
+                      ])}
+                    />
+                  ) : null}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -557,175 +590,197 @@ export function LodgingReportsPanel({
           </HotelFormSection>
 
           <HotelFormSection
-            title="Stay payments by date"
-            description="Shows only checked-out guests in this date range (by checkout / departure date). Active stays have no payment figures here until checkout is done. Food & drink is awareness only — Café owns the formal F&B report."
+            title="Stay payments"
+            description="Checked-out guests only (by checkout / departure date). Generate for the period above, then export PDF or Excel."
           >
-            <div className="flex flex-wrap items-end gap-3">
-              <HotelDayPicker label="From" value={from} onChange={setFrom} />
-              <HotelDayPicker label="To" value={to} onChange={setTo} />
-              <PendingButton
-                type="button"
-                className="h-10"
-                pending={loadingStays}
-                onClick={() => void loadStays()}
-              >
-                Generate
-              </PendingButton>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10"
-                disabled={stays.length === 0}
-                onClick={() => void exportStaysExcel()}
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Export Excel
-              </Button>
-            </div>
-
             {stays.length === 0 ? (
-              <p className="pt-1 text-sm text-muted-foreground">
-                Choose checkout dates and generate. Only checked-out stays with
-                payment data appear.
+              <p className="text-sm text-muted-foreground">
+                Choose dates and click Generate payments. Only checked-out stays
+                with payment data appear.
               </p>
             ) : (
-              <div className="mt-2 space-y-3">
+              <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Room nights
-                    </p>
-                    <p className="mt-1 text-base font-semibold tabular-nums">
-                      {formatEtb(paymentTotals.roomETB)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Laundry
-                    </p>
-                    <p className="mt-1 text-base font-semibold tabular-nums">
-                      {formatEtb(paymentTotals.laundryETB)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Food & drink (on stay)
-                    </p>
-                    <p className="mt-1 text-base font-semibold tabular-nums">
-                      {formatEtb(paymentTotals.foodDrinkETB)}
-                    </p>
-                    <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
-                      Awareness only — café report is the source of truth
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Other
-                    </p>
-                    <p className="mt-1 text-base font-semibold tabular-nums">
-                      {formatEtb(paymentTotals.otherETB)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  {(
+                    [
+                      ["Room nights", paymentTotals.roomETB, false],
+                      ["Laundry", paymentTotals.laundryETB, false],
+                      ["Food & drink (on stay)", paymentTotals.foodDrinkETB, true],
+                      ["Other", paymentTotals.otherETB, false],
+                    ] as const
+                  ).map(([label, value, awareness]) => (
+                    <div
+                      key={label}
+                      className={cn(
+                        "rounded-xl border px-4 py-3",
+                        awareness
+                          ? "border-dashed border-amber-500/30 bg-amber-500/5"
+                          : "border-border/70 bg-muted/20",
+                      )}
+                    >
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {label}
+                      </p>
+                      <p className="mt-1 text-base font-semibold tabular-nums">
+                        {formatEtb(value)}
+                      </p>
+                      {awareness ? (
+                        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                          Awareness only — café report is source of truth
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                  <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                       Stay total
                     </p>
                     <p className="mt-1 text-lg font-semibold tabular-nums">
                       {formatEtb(paymentTotals.totalETB)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground tabular-nums">
                       {stays.length} stay{stays.length === 1 ? "" : "s"} · {from}{" "}
                       → {to}
                     </p>
                   </div>
                 </div>
-                <div className="overflow-x-auto rounded-xl border border-border/70">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/35 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                        <th className="px-3 py-2.5 font-medium">Voucher</th>
-                        <th className="px-3 py-2.5 font-medium">Guest</th>
-                        <th className="px-3 py-2.5 font-medium">Rooms</th>
-                        <th className="px-3 py-2.5 font-medium">Status</th>
-                        <th className="px-3 py-2.5 font-medium">Checked in</th>
-                        <th className="px-3 py-2.5 font-medium">Checked out</th>
-                        <th className="px-3 py-2.5 font-medium text-right">
-                          Room $
-                        </th>
-                        <th className="px-3 py-2.5 font-medium text-right">
-                          Laundry
-                        </th>
-                        <th className="px-3 py-2.5 font-medium text-right">
-                          F&amp;B
-                        </th>
-                        <th className="px-3 py-2.5 font-medium text-right">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {stays.map((s) => {
-                        const b = stayPaymentBreakdown(s);
-                        return (
-                          <tr key={s.id} className="hover:bg-muted/20">
-                            <td className="px-3 py-2.5 font-mono text-xs">
-                              {s.voucherCode}
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <p className="font-medium">
-                                {guestLabel(s.guest)}
-                              </p>
-                              {s.guest?.phone ? (
-                                <p className="text-xs text-muted-foreground">
-                                  {s.guest.phone}
+
+                <div className="overflow-hidden rounded-xl border border-border/70 shadow-sm">
+                  <div className="max-h-[28rem] overflow-auto">
+                    <table className="w-full min-w-[56rem] border-collapse text-sm">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="border-b border-border/70 bg-muted/90 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur supports-backdrop-filter:bg-muted/80">
+                          <th className="px-3 py-2.5 font-medium">Voucher</th>
+                          <th className="px-3 py-2.5 font-medium">Guest</th>
+                          <th className="px-3 py-2.5 font-medium">Rooms</th>
+                          <th className="px-3 py-2.5 font-medium">Status</th>
+                          <th className="px-3 py-2.5 font-medium">Checked in</th>
+                          <th className="px-3 py-2.5 font-medium">Checked out</th>
+                          <th className="px-3 py-2.5 font-medium text-right">
+                            Room
+                          </th>
+                          <th className="px-3 py-2.5 font-medium text-right">
+                            Laundry
+                          </th>
+                          <th className="px-3 py-2.5 font-medium text-right">
+                            F&amp;B
+                          </th>
+                          <th className="px-3 py-2.5 font-medium text-right">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/50">
+                        {stays.map((s, idx) => {
+                          const b = stayPaymentBreakdown(s);
+                          return (
+                            <tr
+                              key={s.id}
+                              className={cn(
+                                "transition-colors hover:bg-muted/30",
+                                idx % 2 === 1 && "bg-muted/10",
+                              )}
+                            >
+                              <td className="px-3 py-2.5 font-mono text-xs tabular-nums">
+                                {s.voucherCode}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <p className="font-medium leading-tight">
+                                  {guestLabel(s.guest)}
                                 </p>
-                              ) : null}
-                            </td>
-                            <td className="px-3 py-2.5 text-xs tabular-nums">
-                              {s.rooms
-                                ?.map((r) => r.room?.roomNumber)
-                                .filter(Boolean)
-                                .join(", ") || "—"}
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <Badge
-                                variant="outline"
-                                className="font-normal capitalize"
-                              >
-                                {s.status}
-                              </Badge>
-                            </td>
-                            <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                              {formatStayDateTime(s.arrivalAt)}
-                            </td>
-                            <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                              {formatStayDateTime(s.departureAt)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">
-                              {b.roomETB > 0
-                                ? Number(b.roomETB).toLocaleString()
-                                : "—"}
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">
-                              {b.laundryETB > 0
-                                ? Number(b.laundryETB).toLocaleString()
-                                : "—"}
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                              {b.foodDrinkETB > 0
-                                ? Number(b.foodDrinkETB).toLocaleString()
-                                : "—"}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-medium tabular-nums">
-                              {b.totalETB > 0
-                                ? Number(b.totalETB).toLocaleString()
-                                : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                                {s.guest?.phone ? (
+                                  <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                                    {s.guest.phone}
+                                  </p>
+                                ) : null}
+                              </td>
+                              <td className="px-3 py-2.5 text-xs tabular-nums">
+                                {s.rooms
+                                  ?.map((r) => r.room?.roomNumber)
+                                  .filter(Boolean)
+                                  .join(", ") || "—"}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <Badge
+                                  variant="secondary"
+                                  className="font-normal capitalize"
+                                >
+                                  {String(s.status).replace(/_/g, " ")}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2.5 text-xs tabular-nums text-muted-foreground">
+                                {formatStayDateTime(s.arrivalAt)}
+                              </td>
+                              <td className="px-3 py-2.5 text-xs tabular-nums text-muted-foreground">
+                                {formatStayDateTime(s.departureAt)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums">
+                                {b.roomETB > 0
+                                  ? Number(b.roomETB).toLocaleString()
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums">
+                                {b.laundryETB > 0
+                                  ? Number(b.laundryETB).toLocaleString()
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                                {b.foodDrinkETB > 0
+                                  ? Number(b.foodDrinkETB).toLocaleString()
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
+                                {b.totalETB > 0
+                                  ? Number(b.totalETB).toLocaleString()
+                                  : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                          <td className="px-3 py-2.5" colSpan={6}>
+                            Total ({stays.length} stay
+                            {stays.length === 1 ? "" : "s"})
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">
+                            {paymentTotals.roomETB.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">
+                            {paymentTotals.laundryETB.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                            {paymentTotals.foodDrinkETB.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-primary">
+                            {paymentTotals.totalETB.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <PendingButton
+                    type="button"
+                    className="h-9 gap-1.5"
+                    pending={exportingPdf}
+                    onClick={() => void exportStaysPdf()}
+                  >
+                    <FileDown className="h-4 w-4" />
+                    Export PDF
+                  </PendingButton>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 gap-1.5"
+                    onClick={() => void exportStaysExcel()}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
                 </div>
               </div>
             )}
@@ -733,7 +788,7 @@ export function LodgingReportsPanel({
 
           <HotelFormSection
             title="Past guests"
-            description="Guest registry with latest check-in and check-out dates — search by name, phone, email, national ID, or passport."
+            description="Guest registry with latest check-in and check-out — search by name, phone, email, national ID, or passport."
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -755,7 +810,7 @@ export function LodgingReportsPanel({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-9"
+                  className="h-9 gap-1.5"
                   disabled={guests.length === 0}
                   onClick={() => void exportGuestsExcel()}
                 >
@@ -765,7 +820,7 @@ export function LodgingReportsPanel({
               </div>
             </div>
 
-            <div className="mt-3">
+            <div className="mt-3 overflow-hidden rounded-xl border border-border/70">
               <DataTable
                 columns={guestColumns}
                 data={guests}
@@ -787,6 +842,69 @@ export function LodgingReportsPanel({
           description="Audit trail of room, stay, bill, and CM activity — including what changed."
         />
       ) : null}
+    </div>
+  );
+}
+
+function ReportMiniTable({
+  title,
+  headers,
+  rows,
+  alignRight = [],
+}: {
+  title: string;
+  headers: string[];
+  rows: string[][];
+  alignRight?: boolean[];
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/70">
+      <div className="border-b border-border/60 bg-muted/25 px-3 py-2">
+        <p className="text-xs font-medium tracking-tight text-foreground">
+          {title}
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/20 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              {headers.map((h, i) => (
+                <th
+                  key={h}
+                  className={cn(
+                    "px-3 py-2 font-medium",
+                    alignRight[i] && "text-right",
+                  )}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {rows.map((row, ri) => (
+              <tr
+                key={`${title}-${ri}`}
+                className={cn(ri % 2 === 1 && "bg-muted/10")}
+              >
+                {row.map((cell, ci) => (
+                  <td
+                    key={`${title}-${ri}-${ci}`}
+                    className={cn(
+                      "px-3 py-2",
+                      ci === 0 && title === "By source" && "capitalize",
+                      ci > 0 && "tabular-nums",
+                      alignRight[ci] && "text-right",
+                    )}
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
