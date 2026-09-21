@@ -58,7 +58,7 @@ import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
-import { LodgingNotificationCenter } from "@/components/hotel/LodgingNotificationCenter";
+import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { ReceptionRoomTransferDialog } from "@/components/hotel/ReceptionRoomTransferDialog";
 import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepartureReceipt";
 import {
@@ -613,7 +613,10 @@ export function ReceptionDashboard() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <LodgingNotificationCenter input={lodgingAlertInput} />
+            <InventoryNotificationCenter
+              audience="hotel-reception"
+              lodging={lodgingAlertInput}
+            />
             <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />

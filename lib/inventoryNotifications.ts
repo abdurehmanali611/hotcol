@@ -12,7 +12,9 @@ export type InventoryNotificationAudience =
   | "hotel-manager"
   | "hotel-cost-control"
   | "hotel-finance"
-  | "hotel-store";
+  | "hotel-store"
+  | "hotel-reception"
+  | "hotel-cm";
 
 export type InventoryAlertSeverity = "critical" | "warning" | "info";
 
@@ -833,6 +835,10 @@ export function audienceLabel(audience: InventoryNotificationAudience): string {
       return "Café store";
     case "hotel-manager":
       return "Hotel manager";
+    case "hotel-reception":
+      return "Reception";
+    case "hotel-cm":
+      return "Housekeeping";
     case "hotel-cost-control":
       return "Cost control";
     case "hotel-finance":

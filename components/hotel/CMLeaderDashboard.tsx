@@ -43,7 +43,7 @@ import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
-import { LodgingNotificationCenter } from "@/components/hotel/LodgingNotificationCenter";
+import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import {
   completeLodgingCmAssignmentApi,
   fetchLodgingActionLogs,
@@ -191,8 +191,9 @@ export function CMLeaderDashboard() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <LodgingNotificationCenter
-              input={{
+            <InventoryNotificationCenter
+              audience="hotel-cm"
+              lodging={{
                 dirtyCount: stats?.vacantDirty,
                 maintenanceCount: stats?.onMaintenance,
                 inspectedCount: stats?.inspected,

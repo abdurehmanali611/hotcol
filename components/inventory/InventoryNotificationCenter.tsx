@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  BedDouble,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -10,13 +11,13 @@ import {
   AlertTriangle,
   Package,
   ShieldAlert,
+  Sparkles,
   TrendingUp,
   Truck,
 } from "lucide-react";
 import {
   audienceLabel,
   buildInventoryNotifications,
-  filterNotificationsBySeverity,
   prepareNotificationsForDisplay,
   summarizeInventoryNotifications,
   type InventoryAlertSeverity,
@@ -24,6 +25,11 @@ import {
   type InventoryNotificationAudience,
   type InventoryNotificationInput,
 } from "@/lib/inventoryNotifications";
+import {
+  buildLodgingNotifications,
+  type LodgingNotification,
+  type LodgingNotificationInput,
+} from "@/lib/lodgingNotifications";
 import {
   inventoryNotificationSeenKey,
   readSeenNotificationIds,
@@ -100,91 +106,56 @@ function NotificationIcon({
   return <Package className={className} />;
 }
 
-function NotificationRow({
-  n,
-  seen,
-  onMarkSeen,
-}: {
-  n: InventoryNotification;
-  seen: boolean;
-  onMarkSeen: () => void;
-}) {
-  return (
-    <li
-      className={cn(
-        "rounded-lg border border-border/70 bg-card/80 px-3 py-2.5 space-y-1.5",
-        seen && "opacity-60",
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 min-w-0">
-          <NotificationIcon
-            n={n}
-            className={cn(
-              "h-4 w-4 shrink-0 mt-0.5",
-              n.severity === "critical" && "text-destructive",
-              n.severity === "warning" && "text-amber-600",
-              n.severity === "info" && "text-muted-foreground",
-            )}
-          />
-          <div className="min-w-0">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              {n.entityLabel}
-            </p>
-            <p className="text-sm font-medium leading-snug truncate">{n.itemName}</p>
-            <p className="text-xs text-muted-foreground">{n.title}</p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <SeverityBadge severity={n.severity} />
-          {seen ? (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Check className="h-3 w-3" />
-              Seen
-            </span>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={onMarkSeen}
-            >
-              Mark seen
-            </Button>
-          )}
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground leading-relaxed pl-6">{n.message}</p>
-      <div className="flex flex-wrap gap-2 pl-6 text-[10px] text-muted-foreground">
-        {n.amount != null && n.measuredBy ? (
-          <span className="tabular-nums">
-            {n.amount} {n.measuredBy}
-          </span>
-        ) : null}
-        {n.voucherDisplay ? <span>· {n.voucherDisplay}</span> : null}
-        {n.expireDate ? (
-          <span>
-            · Exp{" "}
-            {new Date(n.expireDate).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </span>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
 export type InventoryNotificationCenterProps = {
   audience: InventoryNotificationAudience;
   hotelLodging?: boolean;
   /** Hotel store: only workflow alerts for this user's submitted requests. */
   storeUserName?: string;
+  /** Room-module alerts shown in this same bell (not a second icon). */
+  lodging?: LodgingNotificationInput;
   className?: string;
 } & InventoryNotificationInput;
+
+type BellAlert = {
+  id: string;
+  severity: InventoryAlertSeverity;
+  entityLabel: string;
+  headline: string;
+  detail: string;
+  message: string;
+  inventory?: InventoryNotification;
+  lodging?: LodgingNotification;
+};
+
+const SEVERITY_RANK: Record<InventoryAlertSeverity, number> = {
+  critical: 0,
+  warning: 1,
+  info: 2,
+};
+
+function lodgingToBell(n: LodgingNotification): BellAlert {
+  return {
+    id: n.id,
+    severity: n.severity,
+    entityLabel: "Rooms",
+    headline: n.title,
+    detail: n.title,
+    message: n.body,
+    lodging: n,
+  };
+}
+
+function inventoryToBell(n: InventoryNotification): BellAlert {
+  return {
+    id: n.id,
+    severity: n.severity,
+    entityLabel: n.entityLabel,
+    headline: n.itemName,
+    detail: n.title,
+    message: n.message,
+    inventory: n,
+  };
+}
 
 function useInventoryAlerts(props: InventoryNotificationCenterProps) {
   const {
@@ -194,6 +165,7 @@ function useInventoryAlerts(props: InventoryNotificationCenterProps) {
     items = [],
     purchaseRequests = [],
     stockMovements = [],
+    lodging,
   } = props;
 
   return useMemo(() => {
@@ -202,9 +174,24 @@ function useInventoryAlerts(props: InventoryNotificationCenterProps) {
       audience,
       { hotelLodging, storeUserName },
     );
-    const notifications = prepareNotificationsForDisplay(raw);
-    const summary = summarizeInventoryNotifications(notifications);
-    return { notifications, summary };
+    const inventory = prepareNotificationsForDisplay(raw);
+    const roomAlerts = lodging ? buildLodgingNotifications(lodging) : [];
+    const alerts: BellAlert[] = [
+      ...inventory.map(inventoryToBell),
+      ...roomAlerts.map(lodgingToBell),
+    ].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+    const summary = summarizeInventoryNotifications(inventory);
+    const critical =
+      summary.critical + roomAlerts.filter((n) => n.severity === "critical").length;
+    const warning =
+      summary.warning + roomAlerts.filter((n) => n.severity === "warning").length;
+    const info =
+      summary.info + roomAlerts.filter((n) => n.severity === "info").length;
+    return {
+      alerts,
+      summary: { ...summary, critical, warning, info },
+      roomCount: roomAlerts.length,
+    };
   }, [
     items,
     purchaseRequests,
@@ -212,6 +199,7 @@ function useInventoryAlerts(props: InventoryNotificationCenterProps) {
     audience,
     hotelLodging,
     storeUserName,
+    lodging,
   ]);
 }
 
@@ -260,43 +248,172 @@ function useSeenNotifications(
 }
 
 function unseenCount(
-  notifications: InventoryNotification[],
+  alerts: BellAlert[],
   isSeen: (id: string) => boolean,
   severities: InventoryAlertSeverity[],
 ): number {
-  return notifications.filter(
+  return alerts.filter(
     (n) => severities.includes(n.severity) && !isSeen(n.id),
   ).length;
+}
+
+function AlertIcon({
+  alert,
+  className,
+}: {
+  alert: BellAlert;
+  className?: string;
+}) {
+  if (alert.lodging) {
+    if (
+      alert.lodging.kind === "overstay" ||
+      alert.lodging.kind === "checkout_blocker"
+    ) {
+      return <AlertTriangle className={className} />;
+    }
+    if (
+      alert.lodging.kind === "reservation_due" ||
+      alert.lodging.kind === "business_day_open"
+    ) {
+      return <CalendarClock className={className} />;
+    }
+    if (alert.lodging.kind === "inspected_ready") {
+      return <CheckCircle2 className={className} />;
+    }
+    if (alert.lodging.kind === "cm_backlog") {
+      return <Sparkles className={className} />;
+    }
+    return <BedDouble className={className} />;
+  }
+  if (alert.inventory) {
+    return <NotificationIcon n={alert.inventory} className={className} />;
+  }
+  return <Package className={className} />;
+}
+
+function AlertRow({
+  alert,
+  seen,
+  onMarkSeen,
+}: {
+  alert: BellAlert;
+  seen: boolean;
+  onMarkSeen: () => void;
+}) {
+  return (
+    <li
+      className={cn(
+        "rounded-lg border border-border/70 bg-card/80 px-3 py-2.5 space-y-1.5",
+        seen && "opacity-60",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 min-w-0">
+          <AlertIcon
+            alert={alert}
+            className={cn(
+              "h-4 w-4 shrink-0 mt-0.5",
+              alert.severity === "critical" && "text-destructive",
+              alert.severity === "warning" && "text-amber-600",
+              alert.severity === "info" && "text-muted-foreground",
+            )}
+          />
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {alert.entityLabel}
+            </p>
+            <p className="text-sm font-medium leading-snug truncate">
+              {alert.headline}
+            </p>
+            {alert.inventory ? (
+              <p className="text-xs text-muted-foreground">{alert.detail}</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <SeverityBadge severity={alert.severity} />
+          {seen ? (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Check className="h-3 w-3" />
+              Seen
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={onMarkSeen}
+            >
+              Mark seen
+            </Button>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+        {alert.message}
+      </p>
+      {alert.inventory ? (
+        <div className="flex flex-wrap gap-2 pl-6 text-[10px] text-muted-foreground">
+          {alert.inventory.amount != null && alert.inventory.measuredBy ? (
+            <span className="tabular-nums">
+              {alert.inventory.amount} {alert.inventory.measuredBy}
+            </span>
+          ) : null}
+          {alert.inventory.voucherDisplay ? (
+            <span>· {alert.inventory.voucherDisplay}</span>
+          ) : null}
+          {alert.inventory.expireDate ? (
+            <span>
+              · Exp{" "}
+              {new Date(alert.inventory.expireDate).toLocaleDateString(
+                undefined,
+                {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                },
+              )}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
+  );
 }
 
 export function InventoryNotificationCenter(
   props: InventoryNotificationCenterProps,
 ) {
-  const { audience, storeUserName, className } = props;
+  const { audience, storeUserName, className, lodging } = props;
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<InventoryAlertSeverity | "all">("all");
 
-  const { notifications, summary } = useInventoryAlerts(props);
+  const { alerts, summary, roomCount } = useInventoryAlerts(props);
   const { isSeen, markSeen, markAllSeen } = useSeenNotifications(
     audience,
     storeUserName,
   );
 
-  const visible = useMemo(
-    () => filterNotificationsBySeverity(notifications, filter),
-    [notifications, filter],
-  );
+  const visible = useMemo(() => {
+    if (filter === "all") return alerts;
+    return alerts.filter((n) => n.severity === filter);
+  }, [alerts, filter]);
 
-  const unseenCriticalWarning = unseenCount(notifications, isSeen, [
+  const unseenCriticalWarning = unseenCount(alerts, isSeen, [
     "critical",
     "warning",
   ]);
-  const unseenInfo = unseenCount(notifications, isSeen, ["info"]);
-  const hasUnseen = notifications.some((n) => !isSeen(n.id));
+  const unseenInfo = unseenCount(alerts, isSeen, ["info"]);
+  const hasUnseen = alerts.some((n) => !isSeen(n.id));
 
   const markAllVisible = useCallback(() => {
-    markAllSeen(notifications.map((n) => n.id));
-  }, [markAllSeen, notifications]);
+    markAllSeen(alerts.map((n) => n.id));
+  }, [markAllSeen, alerts]);
+
+  const subtitle = lodging
+    ? `${audienceLabel(audience)} · ${summary.workflowCount + summary.stockExpiryCount} inventory · ${roomCount} rooms`
+    : `${audienceLabel(audience)} · ${summary.workflowCount} workflow · ${summary.stockExpiryCount} stock/expiry`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -306,7 +423,7 @@ export function InventoryNotificationCenter(
           variant="outline"
           size="icon"
           className={cn("relative shrink-0", className)}
-          aria-label={`Inventory alerts, ${unseenCriticalWarning} need attention`}
+          aria-label={`Notifications, ${unseenCriticalWarning} need attention`}
         >
           <Bell className="h-4 w-4" />
           {unseenCriticalWarning > 0 ? (
@@ -325,11 +442,8 @@ export function InventoryNotificationCenter(
         <div className="border-b px-4 py-3 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="space-y-1 min-w-0">
-              <p className="text-sm font-semibold">Inventory alerts</p>
-              <p className="text-xs text-muted-foreground">
-                {audienceLabel(audience)} · {summary.workflowCount} workflow ·{" "}
-                {summary.stockExpiryCount} stock/expiry
-              </p>
+              <p className="text-sm font-semibold">Notifications</p>
+              <p className="text-xs text-muted-foreground">{subtitle}</p>
             </div>
             {hasUnseen ? (
               <Button
@@ -388,16 +502,15 @@ export function InventoryNotificationCenter(
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
               <p className="text-sm font-medium">All clear</p>
               <p className="text-xs text-muted-foreground">
-                No {filter === "all" ? "" : `${filter} `}inventory alerts for this
-                view.
+                No {filter === "all" ? "" : `${filter} `}alerts for this view.
               </p>
             </div>
           ) : (
             <ul className="space-y-2 p-4 pt-3">
               {visible.map((n) => (
-                <NotificationRow
+                <AlertRow
                   key={n.id}
-                  n={n}
+                  alert={n}
                   seen={isSeen(n.id)}
                   onMarkSeen={() => markSeen(n.id)}
                 />

@@ -82,7 +82,6 @@ import {
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
-import { LodgingNotificationCenter } from "@/components/hotel/LodgingNotificationCenter";
 import {
   fetchLodgingDashboardStats,
   type LodgingDashboardStats,
@@ -297,7 +296,6 @@ const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
   "lodging-tax",
   "lodging-rate-plans",
   "lodging-discounts",
-  "lodging-guest-feedback",
   "lodging-night-audit",
   ...MANAGER_LODGING_NESTED_TAB_IDS,
 ]);
@@ -566,6 +564,10 @@ function ManagerContent() {
       setActiveTab("hr-payroll-runs");
       return;
     }
+    if ((activeTab as string) === "lodging-guest-feedback") {
+      setActiveTab("lodging-guest-complaints");
+      return;
+    }
     const remapped =
       LEGACY_SERVICE_TAB_REMAP[
         activeTab as (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
@@ -640,7 +642,6 @@ function ManagerContent() {
       "lodging-tax",
       "lodging-rate-plans",
       "lodging-discounts",
-      "lodging-guest-feedback",
       "lodging-night-audit",
       "lodging-guest-call",
     ] as const;
@@ -727,6 +728,8 @@ function ManagerContent() {
     const nestedLabels: Record<string, string> = {
       "lodging-laundry-add": "Laundry · Add item",
       "lodging-laundry-items": "Laundry · Menu items",
+      "lodging-guest-complaints": "Guest feedback · Complaints",
+      "lodging-guest-ratings": "Guest feedback · Ratings",
       "hr-overview": "HR · Overview",
       "hr-leave": "HR · Leave types",
       "hr-attendance": "HR · Attendance",
@@ -776,8 +779,10 @@ function ManagerContent() {
         "Rack, corporate, seasonal, weekend, promo, and long-stay rates applied at check-in.",
       "lodging-discounts":
         "Approve or reject folio discount requests from Reception.",
-      "lodging-guest-feedback":
-        "Review guest complaints and ratings submitted from HotCol Room.",
+      "lodging-guest-complaints":
+        "Review and resolve guest complaints submitted from HotCol Room.",
+      "lodging-guest-ratings":
+        "Read guest ratings submitted from HotCol Room.",
       "lodging-night-audit":
         "Manually close the lodging business day and review the night-audit snapshot.",
       "lodging-laundry-add":
@@ -1722,14 +1727,27 @@ function ManagerContent() {
       case "lodging-discounts":
         return (
           <div className="space-y-6 p-4 md:p-6">
-            <LodgingDiscountApprovalsPanel />
+            <LodgingDiscountApprovalsPanel refreshKey={inventoryRefreshKey} />
           </div>
         );
 
-      case "lodging-guest-feedback":
+      case "lodging-guest-complaints":
         return (
           <div className="space-y-6 p-4 md:p-6">
-            <LodgingGuestFeedbackPanel />
+            <LodgingGuestFeedbackPanel
+              view="complaints"
+              refreshKey={inventoryRefreshKey}
+            />
+          </div>
+        );
+
+      case "lodging-guest-ratings":
+        return (
+          <div className="space-y-6 p-4 md:p-6">
+            <LodgingGuestFeedbackPanel
+              view="ratings"
+              refreshKey={inventoryRefreshKey}
+            />
           </div>
         );
 
@@ -1992,9 +2010,7 @@ function ManagerContent() {
               purchaseRequests={purchases as PurchaseRequestRow[]}
               stockMovements={scopedStockReqs as StockOutRequestRow[]}
               hotelLodging
-            />
-            <LodgingNotificationCenter
-              input={{
+              lodging={{
                 dirtyCount: lodgingStats?.vacantDirty,
                 maintenanceCount: lodgingStats?.onMaintenance,
                 inspectedCount: lodgingStats?.inspected,

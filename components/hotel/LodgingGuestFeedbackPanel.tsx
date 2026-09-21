@@ -4,14 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchLodgingGuestComplaints,
   fetchLodgingGuestRatings,
@@ -20,7 +16,7 @@ import {
   type LodgingGuestRating,
 } from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
-import { MessageSquareWarning, RefreshCw, Star } from "lucide-react";
+import { MessageSquareWarning, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function stars(n: number | null | undefined) {
@@ -39,7 +35,14 @@ function statusBadge(status: string) {
   return "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-300";
 }
 
-export function LodgingGuestFeedbackPanel() {
+export function LodgingGuestFeedbackPanel({
+  view,
+  refreshKey = 0,
+}: {
+  view: "complaints" | "ratings";
+  /** Bumped by Manager header refresh so this panel reloads with system refresh. */
+  refreshKey?: number;
+}) {
   const [complaints, setComplaints] = useState<LodgingGuestComplaint[]>([]);
   const [ratings, setRatings] = useState<LodgingGuestRating[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,192 +54,57 @@ export function LodgingGuestFeedbackPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, r] = await Promise.all([
-        fetchLodgingGuestComplaints(),
-        fetchLodgingGuestRatings(),
-      ]);
-      setComplaints(c);
-      setRatings(r);
+      if (view === "complaints") {
+        setComplaints(await fetchLodgingGuestComplaints());
+      } else {
+        setRatings(await fetchLodgingGuestRatings());
+      }
     } catch (e) {
-      notifyApiFailure(e, "Could not load guest feedback");
+      notifyApiFailure(
+        e,
+        view === "complaints"
+          ? "Could not load complaints"
+          : "Could not load ratings",
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [view]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const visible = complaints.filter((c) =>
     filter === "all" ? true : c.status.toLowerCase() === filter,
   );
 
-  return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-primary/20 shadow-lg">
-        <div className="h-1 bg-linear-to-r from-rose-500/50 via-primary/40 to-amber-500/40" />
-        <CardHeader className="flex flex-row items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <MessageSquareWarning className="h-5 w-5 text-primary" />
-              Guest complaints &amp; ratings
-            </CardTitle>
-            <CardDescription className="mt-1 max-w-2xl">
-              Feedback submitted from HotCol Room by in-house guests. Acknowledge
-              or resolve complaints; ratings are read-only.
-            </CardDescription>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => void load()}
-            aria-label="Refresh"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </CardHeader>
-      </Card>
+  if (view === "ratings") {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-1">
+          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+            <Star className="h-5 w-5 text-primary" />
+            Guest ratings
+          </h2>
+          <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
+            Read-only ratings submitted from HotCol Room by in-house guests.
+          </p>
+        </div>
 
-      <Tabs defaultValue="complaints">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="complaints">
-            Complaints ({complaints.length})
-          </TabsTrigger>
-          <TabsTrigger value="ratings">Ratings ({ratings.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="complaints" className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["all", "All"],
-                ["open", "Open"],
-                ["acknowledged", "Acknowledged"],
-                ["resolved", "Resolved"],
-              ] as const
-            ).map(([id, label]) => (
-              <Button
-                key={id}
-                type="button"
-                size="sm"
-                variant={filter === id ? "default" : "outline"}
-                onClick={() => setFilter(id)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-muted-foreground py-6">Loading…</p>
-          ) : visible.length === 0 ? (
-            <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-              No complaints in this filter.
-            </div>
-          ) : (
-            visible.map((c) => (
-              <Card key={c.id} className="border-border/70">
-                <CardContent className="space-y-3 pt-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">
-                        {c.guestName || "Guest"}
-                        {c.voucherCode ? (
-                          <span className="text-muted-foreground font-normal">
-                            {" "}
-                            · {c.voucherCode}
-                          </span>
-                        ) : null}
-                        {c.roomNumbers ? (
-                          <span className="text-muted-foreground font-normal">
-                            {" "}
-                            · Rm {c.roomNumbers}
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-                        {c.category.replace(/_/g, " ")} ·{" "}
-                        {new Date(c.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={cn("capitalize", statusBadge(c.status))}
-                    >
-                      {c.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {c.message}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {c.status.toLowerCase() === "open" ? (
-                      <PendingButton
-                        type="button"
-                        size="sm"
-                        pending={pending === `ack-${c.id}`}
-                        onClick={async () => {
-                          setPending(`ack-${c.id}`);
-                          try {
-                            await updateLodgingGuestComplaintApi(
-                              c.id,
-                              "acknowledged",
-                            );
-                            await load();
-                          } catch (e) {
-                            notifyApiFailure(e, "Update failed");
-                          } finally {
-                            setPending(null);
-                          }
-                        }}
-                      >
-                        Acknowledge
-                      </PendingButton>
-                    ) : null}
-                    {c.status.toLowerCase() !== "resolved" ? (
-                      <PendingButton
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        pending={pending === `res-${c.id}`}
-                        onClick={async () => {
-                          setPending(`res-${c.id}`);
-                          try {
-                            await updateLodgingGuestComplaintApi(
-                              c.id,
-                              "resolved",
-                            );
-                            await load();
-                          } catch (e) {
-                            notifyApiFailure(e, "Update failed");
-                          } finally {
-                            setPending(null);
-                          }
-                        }}
-                      >
-                        Mark resolved
-                      </PendingButton>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="ratings" className="mt-4 space-y-3">
-          {loading ? (
-            <p className="text-sm text-muted-foreground py-6">Loading…</p>
-          ) : ratings.length === 0 ? (
-            <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-6">Loading…</p>
+        ) : ratings.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-14 text-center text-sm text-muted-foreground">
               No guest ratings yet.
-            </div>
-          ) : (
-            ratings.map((r) => (
-              <Card key={r.id} className="border-border/70">
-                <CardContent className="space-y-2 pt-5">
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {ratings.map((r) => (
+              <Card key={r.id} className="border-border/70 shadow-sm">
+                <CardContent className="space-y-2 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-medium">
@@ -277,10 +145,153 @@ export function LodgingGuestFeedbackPanel() {
                   ) : null}
                 </CardContent>
               </Card>
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-1">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <MessageSquareWarning className="h-5 w-5 text-primary" />
+          Guest complaints
+        </h2>
+        <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
+          Feedback submitted from HotCol Room. Acknowledge or resolve open
+          complaints.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["all", "All"],
+            ["open", "Open"],
+            ["acknowledged", "Acknowledged"],
+            ["resolved", "Resolved"],
+          ] as const
+        ).map(([id, label]) => (
+          <Button
+            key={id}
+            type="button"
+            size="sm"
+            variant={filter === id ? "default" : "outline"}
+            onClick={() => setFilter(id)}
+          >
+            {label}
+            {id === "all" && !loading ? (
+              <span className="ml-1 tabular-nums opacity-70">
+                ({complaints.length})
+              </span>
+            ) : null}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground py-6">Loading…</p>
+      ) : visible.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-14 text-center text-sm text-muted-foreground">
+            No complaints in this filter.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {visible.map((c) => (
+            <Card key={c.id} className="border-border/70 shadow-sm">
+              <CardContent className="space-y-3 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {c.guestName || "Guest"}
+                      {c.voucherCode ? (
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          · {c.voucherCode}
+                        </span>
+                      ) : null}
+                      {c.roomNumbers ? (
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          · Rm {c.roomNumbers}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+                      {c.category.replace(/_/g, " ")} ·{" "}
+                      {new Date(c.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn("capitalize", statusBadge(c.status))}
+                  >
+                    {c.status}
+                  </Badge>
+                </div>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {c.message}
+                </p>
+                <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                  {c.status.toLowerCase() === "open" ? (
+                    <PendingButton
+                      type="button"
+                      size="sm"
+                      className="h-9"
+                      pending={pending === `ack-${c.id}`}
+                      onClick={async () => {
+                        setPending(`ack-${c.id}`);
+                        try {
+                          await updateLodgingGuestComplaintApi(
+                            c.id,
+                            "acknowledged",
+                          );
+                          await load();
+                        } catch (e) {
+                          notifyApiFailure(e, "Update failed");
+                        } finally {
+                          setPending(null);
+                        }
+                      }}
+                    >
+                      Acknowledge
+                    </PendingButton>
+                  ) : null}
+                  {c.status.toLowerCase() !== "resolved" ? (
+                    <PendingButton
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9"
+                      pending={pending === `res-${c.id}`}
+                      onClick={async () => {
+                        setPending(`res-${c.id}`);
+                        try {
+                          await updateLodgingGuestComplaintApi(
+                            c.id,
+                            "resolved",
+                          );
+                          await load();
+                        } catch (e) {
+                          notifyApiFailure(e, "Update failed");
+                        } finally {
+                          setPending(null);
+                        }
+                      }}
+                    >
+                      Mark resolved
+                    </PendingButton>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

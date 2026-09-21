@@ -23,7 +23,8 @@ import {
   type LodgingTaxConfig,
 } from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
-import { CalendarCheck, Percent, RefreshCw } from "lucide-react";
+import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import { CalendarCheck, Lock, Percent, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 function todayYmd() {
@@ -158,44 +159,49 @@ export function LodgingNightAuditPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1.5">
-            <Label>Business date</Label>
-            <Input
-              type="date"
-              value={businessDate}
-              onChange={(e) => setBusinessDate(e.target.value)}
-            />
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <HotelDayPicker
+            label="Business date"
+            id="night-audit-business-date"
+            value={businessDate}
+            onChange={setBusinessDate}
+            placeholder="Pick business date"
+            compact
+            className="w-full sm:w-auto"
+            buttonClassName="bg-background min-w-48"
+          />
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:pb-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 flex-1 gap-1.5 sm:flex-none"
+              onClick={() => void load()}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <PendingButton
+              type="button"
+              className="h-10 flex-1 gap-1.5 sm:min-w-44 sm:flex-none"
+              pending={pending}
+              disabled={day?.status === "closed"}
+              onClick={async () => {
+                setPending(true);
+                try {
+                  const row = await closeLodgingBusinessDayApi(businessDate);
+                  setDay(row);
+                  toast.success("Business day closed");
+                } catch (e) {
+                  notifyApiFailure(e, "Could not close day");
+                } finally {
+                  setPending(false);
+                }
+              }}
+            >
+              <Lock className="h-4 w-4" />
+              Close business day
+            </PendingButton>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => void load()}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </Button>
-          <PendingButton
-            type="button"
-            pending={pending}
-            disabled={day?.status === "closed"}
-            onClick={async () => {
-              setPending(true);
-              try {
-                const row = await closeLodgingBusinessDayApi(businessDate);
-                setDay(row);
-                toast.success("Business day closed");
-              } catch (e) {
-                notifyApiFailure(e, "Could not close day");
-              } finally {
-                setPending(false);
-              }
-            }}
-          >
-            Close business day
-          </PendingButton>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

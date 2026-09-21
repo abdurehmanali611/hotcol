@@ -190,17 +190,18 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "lodging-tax", label: "Lodging tax", icon: "Percent" },
   { id: "lodging-rate-plans", label: "Rate plans", icon: "Tags" },
   { id: "lodging-discounts", label: "Discount approvals", icon: "BadgePercent" },
-  { id: "lodging-guest-feedback", label: "Guest feedback", icon: "MessageSquareWarning" },
   { id: "lodging-night-audit", label: "Night audit", icon: "CalendarCheck" },
   { id: "lodging-guest-call", label: "Guest call", icon: "Phone" },
   { id: "grant-credential", label: "Grant credential", icon: "Key" },
   { id: "delete-credential", label: "Delete credential", icon: "UserMinus" },
 ] as const;
 
-/** Nested under Manager Rooms → Laundry (F&B lives under Cafe and Restaurant). */
+/** Nested under Manager Rooms → Laundry / Guest feedback. */
 export const MANAGER_LODGING_NESTED_TAB_IDS = [
   "lodging-laundry-add",
   "lodging-laundry-items",
+  "lodging-guest-complaints",
+  "lodging-guest-ratings",
 ] as const;
 
 export type ManagerSidebarItemId =

@@ -321,6 +321,8 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "lodging-guest-call": "Room Management",
   "lodging-laundry-add": "Room Management",
   "lodging-laundry-items": "Room Management",
+  "lodging-guest-complaints": "Room Management",
+  "lodging-guest-ratings": "Room Management",
   /** @deprecated legacy flat tab */
   "lodging-service-prices": "Room Management",
 };

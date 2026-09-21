@@ -12,14 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PendingButton } from "@/components/ui/pending-button";
-import { Button } from "@/components/ui/button";
 import {
   fetchPendingLodgingDiscounts,
   resolveLodgingDiscountApi,
   type LodgingBillLine,
 } from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
-import { BadgePercent, RefreshCw } from "lucide-react";
+import { BadgePercent } from "lucide-react";
 import { toast } from "sonner";
 
 function formatMoney(n: number) {
@@ -29,7 +28,12 @@ function formatMoney(n: number) {
   })}`;
 }
 
-export function LodgingDiscountApprovalsPanel() {
+export function LodgingDiscountApprovalsPanel({
+  refreshKey = 0,
+}: {
+  /** Bumped by Manager header refresh so this panel reloads with system refresh. */
+  refreshKey?: number;
+}) {
   const [rows, setRows] = useState<LodgingBillLine[]>([]);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [pending, setPending] = useState<string | null>(null);
@@ -48,7 +52,7 @@ export function LodgingDiscountApprovalsPanel() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const resolve = async (lineId: number, approve: boolean) => {
     setPending(`${approve ? "ok" : "no"}-${lineId}`);
@@ -74,27 +78,15 @@ export function LodgingDiscountApprovalsPanel() {
   return (
     <Card className="overflow-hidden border-primary/20 shadow-lg">
       <div className="h-1 bg-linear-to-r from-amber-500/55 via-primary/40 to-emerald-500/40" />
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <BadgePercent className="h-5 w-5 text-primary" />
-            Discount approvals
-          </CardTitle>
-          <CardDescription className="mt-1 max-w-2xl">
-            Reception can request folio discounts; they reduce the stay total
-            only after Manager approval. Manager-applied discounts skip this
-            queue.
-          </CardDescription>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => void load()}
-          aria-label="Refresh"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <BadgePercent className="h-5 w-5 text-primary" />
+          Discount approvals
+        </CardTitle>
+        <CardDescription className="mt-1 max-w-2xl">
+          Reception can request folio discounts; they reduce the stay total only
+          after Manager approval. Manager-applied discounts skip this queue.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
