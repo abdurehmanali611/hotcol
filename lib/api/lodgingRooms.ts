@@ -222,7 +222,11 @@ export type LodgingCmAssignment = {
   status: string;
   assignedBy: string;
   completedAt: string | null;
-  room: { roomNumber: string; status: string } | null;
+  room: {
+    roomNumber: string;
+    status: string;
+    statusExpectedEndAt?: string | null;
+  } | null;
 };
 
 export type LodgingActionLog = {
@@ -521,7 +525,7 @@ const CM_ASSIGNMENT_FIELDS = `
   status
   assignedBy
   completedAt
-  room { roomNumber status }
+  room { roomNumber status statusExpectedEndAt }
 `;
 
 const ACTION_LOG_FIELDS = `
@@ -1503,6 +1507,102 @@ export async function completeLodgingCmAssignmentApi(
   return row;
 }
 
+export async function updateLodgingCmAssignmentApi(input: {
+  id: number;
+  assigneeName?: string;
+  notes?: string;
+  /** ISO datetime or null to clear */
+  statusExpectedEndAt?: string | null;
+}): Promise<LodgingCmAssignment> {
+  const mutation = `
+    mutation UpdateLodgingCmAssignment(
+      $id: Int!
+      $assigneeName: String
+      $notes: String
+      $statusExpectedEndAt: DateTime
+    ) {
+      updateLodgingCmAssignment(
+        id: $id
+        assigneeName: $assigneeName
+        notes: $notes
+        statusExpectedEndAt: $statusExpectedEndAt
+      ) { ${CM_ASSIGNMENT_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      id: input.id,
+      assigneeName: input.assigneeName ?? null,
+      notes: input.notes ?? null,
+      statusExpectedEndAt:
+        input.statusExpectedEndAt === undefined
+          ? null
+          : input.statusExpectedEndAt,
+    },
+  });
+  gqlError(response, "Could not update assignment");
+  invalidateLodgingCaches(["cm", "rooms", "stats", "logs"]);
+  toast.success("Assignment updated");
+  return response.data.data.updateLodgingCmAssignment as LodgingCmAssignment;
+}
+
+/** Add/remove open assignees for a room's cleaning or maintenance job. */
+export async function syncLodgingCmOpenAssigneesApi(input: {
+  roomId: number;
+  workKind: "cleaning" | "maintenance" | string;
+  assigneeNames: string[];
+  notes?: string;
+  /** ISO datetime or null to clear */
+  statusExpectedEndAt?: string | null;
+}): Promise<LodgingCmAssignment[]> {
+  const names = [
+    ...new Set(
+      (input.assigneeNames || [])
+        .map((n) => String(n ?? "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (names.length === 0) {
+    throw new Error("At least one assignee is required");
+  }
+  const mutation = `
+    mutation SyncLodgingCmOpenAssignees(
+      $roomId: Int!
+      $workKind: String!
+      $assigneeNames: [String!]!
+      $notes: String
+      $statusExpectedEndAt: DateTime
+    ) {
+      syncLodgingCmOpenAssignees(
+        roomId: $roomId
+        workKind: $workKind
+        assigneeNames: $assigneeNames
+        notes: $notes
+        statusExpectedEndAt: $statusExpectedEndAt
+      ) { ${CM_ASSIGNMENT_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      roomId: input.roomId,
+      workKind: input.workKind,
+      assigneeNames: names,
+      notes: input.notes ?? null,
+      statusExpectedEndAt:
+        input.statusExpectedEndAt === undefined
+          ? null
+          : input.statusExpectedEndAt,
+    },
+  });
+  gqlError(response, "Could not update assignees");
+  invalidateLodgingCaches(["cm", "rooms", "stats", "logs"]);
+  toast.success("Assignees updated");
+  return (response.data.data.syncLodgingCmOpenAssignees ??
+    []) as LodgingCmAssignment[];
+}
+
 /* ── Reservations, transfer, tax, night audit, search ─────────────────── */
 
 export async function fetchLodgingSearch(query: string): Promise<LodgingStay[]> {
@@ -1930,7 +2030,7 @@ export async function closeLodgingBusinessDayApi(input: {
   });
   gqlError(response, "Could not close business day");
   invalidateLodgingCaches(["stats", "logs"]);
-  toast.success("Business day / shift closed");
+  toast.success("Business day closed");
   return response.data.data.closeLodgingBusinessDay as LodgingBusinessDay;
 }
 

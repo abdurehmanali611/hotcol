@@ -220,6 +220,24 @@ export function ReceptionCheckInForm({
     }
   }, [reservation]);
 
+  const assignableRooms = useMemo(() => {
+    const byId = new Map<number, LodgingRoom>();
+    for (const room of vacantCleanRooms) {
+      byId.set(room.id, room);
+    }
+    if (reservation) {
+      for (const rr of reservation.rooms || []) {
+        const room = rr.room;
+        if (!room?.id) continue;
+        const st = String(room.status || "");
+        if (st === "vacant_clean" || st === "reserved") {
+          byId.set(room.id, room);
+        }
+      }
+    }
+    return [...byId.values()];
+  }, [vacantCleanRooms, reservation]);
+
   const selectedRoomIds = useMemo(
     () =>
       roomAssignments
@@ -230,9 +248,9 @@ export function ReceptionCheckInForm({
 
   const assignedRoomsMeta = useMemo(() => {
     return selectedRoomIds
-      .map((id) => vacantCleanRooms.find((r) => r.id === id))
+      .map((id) => assignableRooms.find((r) => r.id === id))
       .filter(Boolean) as LodgingRoom[];
-  }, [selectedRoomIds, vacantCleanRooms]);
+  }, [selectedRoomIds, assignableRooms]);
 
   const nightlyRate = useMemo(
     () =>
@@ -403,13 +421,13 @@ export function ReceptionCheckInForm({
               variant="outline"
               className={cn(
                 "shrink-0 font-normal",
-                vacantCleanRooms.length > 0
+                assignableRooms.length > 0
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                   : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-400",
               )}
             >
               <BedDouble className="h-3.5 w-3.5 mr-1" />
-              {vacantCleanRooms.length} ready
+              {assignableRooms.length} ready
             </Badge>
           </div>
         </CardHeader>
@@ -876,12 +894,14 @@ export function ReceptionCheckInForm({
           <HotelFormSection
             title="Room assignment"
             description={
-              vacantCleanRooms.length === 0
+              assignableRooms.length === 0
                 ? "No vacant clean inventory right now."
-                : `${vacantCleanRooms.length} vacant clean room${vacantCleanRooms.length === 1 ? "" : "s"} ready. Add a line per room.`
+                : reservation
+                  ? `${assignableRooms.length} room${assignableRooms.length === 1 ? "" : "s"} available (vacant clean + this booking’s holds).`
+                  : `${assignableRooms.length} vacant clean room${assignableRooms.length === 1 ? "" : "s"} ready. Add a line per room.`
             }
           >
-            {vacantCleanRooms.length === 0 ? (
+            {assignableRooms.length === 0 ? (
               <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-5 py-8 text-center">
                 <BedDouble className="mx-auto h-8 w-8 text-amber-600/70" />
                 <p className="mt-3 text-sm text-muted-foreground">
@@ -892,7 +912,7 @@ export function ReceptionCheckInForm({
             ) : (
               <div className="min-w-0 space-y-3">
                 {roomAssignments.map((row, idx) => {
-                  const options = vacantCleanRooms.filter(
+                  const options = assignableRooms.filter(
                     (r) =>
                       r.roomType === row.roomType &&
                       (!row.roomId ||
@@ -957,7 +977,7 @@ export function ReceptionCheckInForm({
                           </Select>
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Vacant clean room</Label>
+                          <Label>Room</Label>
                           <Select
                             value={row.roomId || undefined}
                             onValueChange={(v) =>
@@ -980,6 +1000,7 @@ export function ReceptionCheckInForm({
                                 options.map((r) => (
                                   <SelectItem key={r.id} value={String(r.id)}>
                                     {r.roomNumber}
+                                    {r.status === "reserved" ? " · held" : ""}
                                     {r.floor ? ` · Fl. ${r.floor}` : ""} ·{" "}
                                     {formatMoney(r.pricePerNightETB)}/night
                                   </SelectItem>
@@ -1001,7 +1022,7 @@ export function ReceptionCheckInForm({
                   type="button"
                   variant="outline"
                   className="h-10"
-                  disabled={vacantCleanRooms.length === 0}
+                  disabled={assignableRooms.length === 0}
                   onClick={() =>
                     setRoomAssignments((prev) => [...prev, emptyAssign()])
                   }

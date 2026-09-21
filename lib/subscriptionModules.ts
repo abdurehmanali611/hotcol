@@ -71,6 +71,8 @@ export type TenantSubscription = SignupPricing & {
   cafeOrderMode?: CafeOrderMode;
   cafeOrderModeHistory?: CafeOrderModeHistoryEntry[];
   cashierCancelOrdersEnabled?: boolean;
+  /** Manager opt-in: Reception may use CM portal. */
+  receptionCmPortalEnabled?: boolean;
   waiterOrderingEnabled?: boolean;
   waiterPaymentApprovalEnabled?: boolean;
 };

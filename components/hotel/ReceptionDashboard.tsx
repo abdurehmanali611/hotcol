@@ -64,6 +64,7 @@ import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepar
 import {
   ReceptionCheckoutPaymentDialog,
 } from "@/components/hotel/ReceptionCheckoutPaymentDialog";
+import { useReceptionCmPortalEnabled } from "@/hooks/useReceptionCmPortalEnabled";
 import {
   ArrowRightLeft,
   BadgePercent,
@@ -184,6 +185,7 @@ export function ReceptionDashboard() {
   const searchParams = useSearchParams();
   const { tenantScope, displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const logoUrl = searchParams.get("logo") || "";
+  const receptionCmPortalEnabled = useReceptionCmPortalEnabled();
 
   const [activeSection, setActiveSection] =
     useState<ReceptionSectionId>("dashboard");
@@ -241,6 +243,12 @@ export function ReceptionDashboard() {
     return () => window.clearTimeout(t);
   }, [printStay, handleDeparturePrint]);
 
+  useEffect(() => {
+    if (!receptionCmPortalEnabled && activeSection === "cm-portal") {
+      setActiveSection("dashboard");
+    }
+  }, [receptionCmPortalEnabled, activeSection]);
+
   const load = useCallback(
     async (isRefresh = false) => {
       if (isRefresh) setRefreshing(true);
@@ -253,8 +261,12 @@ export function ReceptionDashboard() {
           fetchLodgingRooms().catch(() => []),
           fetchLodgingActiveStays().catch(() => []),
           fetchLodgingServiceItems().catch(() => []),
-          fetchLodgingCmQueue().catch(() => []),
-          fetchLodgingCmAssignments().catch(() => []),
+          receptionCmPortalEnabled
+            ? fetchLodgingCmQueue().catch(() => [])
+            : Promise.resolve([] as LodgingRoom[]),
+          receptionCmPortalEnabled
+            ? fetchLodgingCmAssignments().catch(() => [])
+            : Promise.resolve([] as LodgingCmAssignment[]),
           fetchItems().catch(() => [] as Item[]),
           fetchLiveCafeOrders().catch(() => [] as Order[]),
         ]);
@@ -274,7 +286,7 @@ export function ReceptionDashboard() {
         setRefreshing(false);
       }
     },
-    [],
+    [receptionCmPortalEnabled],
   );
 
   useEffect(() => {
@@ -549,18 +561,20 @@ export function ReceptionDashboard() {
                           setActiveSection(id as ReceptionSectionId)
                         }
                       />
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeSection === item.id}
-                          onClick={() => setActiveSection(item.id)}
-                          tooltip={item.label}
-                          size="lg"
-                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
-                        >
-                          <Icon className="opacity-80" />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      {receptionCmPortalEnabled ? (
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            isActive={activeSection === item.id}
+                            onClick={() => setActiveSection(item.id)}
+                            tooltip={item.label}
+                            size="lg"
+                            className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                          >
+                            <Icon className="opacity-80" />
+                            <span>{item.label}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ) : null}
                     </div>
                   );
                 }
@@ -1569,7 +1583,7 @@ export function ReceptionDashboard() {
                 />
               )}
 
-              {activeSection === "cm-portal" && (
+              {activeSection === "cm-portal" && receptionCmPortalEnabled && (
                 <LodgingCmQueuePanel
                   queue={cmQueue}
                   openAssignments={cmAssignments.filter((a) => a.status === "open")}

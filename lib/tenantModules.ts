@@ -31,6 +31,7 @@ const PAYMENT_REF_KEY = "tenant_payment_transaction_ref";
 const CAFE_ORDER_MODE_KEY = "tenant_cafe_order_mode";
 const CAFE_ORDER_MODE_HISTORY_KEY = "tenant_cafe_order_mode_history";
 const CASHIER_CANCEL_ORDERS_KEY = "tenant_cashier_cancel_orders";
+const RECEPTION_CM_PORTAL_KEY = "tenant_reception_cm_portal_enabled";
 const WAITER_ORDERING_KEY = "tenant_waiter_ordering_enabled";
 const WAITER_PAYMENT_APPROVAL_KEY = "tenant_waiter_payment_approval_enabled";
 
@@ -81,6 +82,10 @@ export function persistTenantSubscription(sub: TenantSubscription): void {
   localStorage.setItem(
     CASHIER_CANCEL_ORDERS_KEY,
     sub.cashierCancelOrdersEnabled ? "1" : "0",
+  );
+  localStorage.setItem(
+    RECEPTION_CM_PORTAL_KEY,
+    sub.receptionCmPortalEnabled ? "1" : "0",
   );
   localStorage.setItem(
     WAITER_ORDERING_KEY,
@@ -166,6 +171,11 @@ export function readCashierCancelOrdersEnabledFromStorage(): boolean {
   return localStorage.getItem(CASHIER_CANCEL_ORDERS_KEY) === "1";
 }
 
+export function readReceptionCmPortalEnabledFromStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(RECEPTION_CM_PORTAL_KEY) === "1";
+}
+
 export function readWaiterOrderingEnabledFromStorage(): boolean {
   if (typeof window === "undefined") return false;
   return localStorage.getItem(WAITER_ORDERING_KEY) === "1";
@@ -185,6 +195,7 @@ export function readTenantSubscriptionFromStorage(): TenantSubscription {
     cafeOrderMode: readCafeOrderModeFromStorage(),
     cafeOrderModeHistory: readCafeOrderModeHistoryFromStorage(),
     cashierCancelOrdersEnabled: readCashierCancelOrdersEnabledFromStorage(),
+    receptionCmPortalEnabled: readReceptionCmPortalEnabledFromStorage(),
     waiterOrderingEnabled: readWaiterOrderingEnabledFromStorage(),
     waiterPaymentApprovalEnabled:
       readWaiterPaymentApprovalEnabledFromStorage(),
@@ -215,6 +226,7 @@ export function clearTenantSubscriptionStorage(): void {
     CAFE_ORDER_MODE_KEY,
     CAFE_ORDER_MODE_HISTORY_KEY,
     CASHIER_CANCEL_ORDERS_KEY,
+    RECEPTION_CM_PORTAL_KEY,
     WAITER_ORDERING_KEY,
     WAITER_PAYMENT_APPROVAL_KEY,
   ]) {

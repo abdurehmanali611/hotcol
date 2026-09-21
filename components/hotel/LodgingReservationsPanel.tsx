@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   LODGING_RESERVATION_SOURCES,
   LODGING_RESERVATION_SOURCE_LABELS,
@@ -54,6 +55,30 @@ function todayYmd() {
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+}
+
+/** Vacant-clean stock plus this booking's own reserved holds. */
+function assignableRoomsForReservation(
+  vacantCleanRooms: LodgingRoom[],
+  reservation: LodgingReservation,
+): LodgingRoom[] {
+  const byId = new Map<number, LodgingRoom>();
+  for (const room of vacantCleanRooms) {
+    byId.set(room.id, room);
+  }
+  for (const rr of reservation.rooms || []) {
+    const room = rr.room;
+    if (!room?.id) continue;
+    const st = String(room.status || "");
+    if (st === "vacant_clean" || st === "reserved") {
+      byId.set(room.id, room);
+    }
+  }
+  return [...byId.values()].sort((a, b) =>
+    String(a.roomNumber).localeCompare(String(b.roomNumber), undefined, {
+      numeric: true,
+    }),
+  );
 }
 
 export function LodgingReservationsPanel({
@@ -350,28 +375,44 @@ export function LodgingReservationsPanel({
               />
             </div>
             {Number(depositETB) > 0 ? (
-              <div className="space-y-1.5 min-w-0">
+              <div className="space-y-2 min-w-0 sm:col-span-2">
                 <Label>Deposit payment method</Label>
-                <Select
-                  value={depositPaymentMethod || "__none__"}
+                <RadioGroup
+                  value={depositPaymentMethod}
                   onValueChange={(v) =>
                     setDepositPaymentMethod(
-                      v === "__none__"
-                        ? ""
-                        : (v as "cash" | "bank" | "telebirr"),
+                      v as "cash" | "bank" | "telebirr",
                     )
                   }
+                  className="grid gap-2 sm:grid-cols-3"
                 >
-                  <SelectTrigger className="h-10 w-full bg-background">
-                    <SelectValue placeholder="Select method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Select method</SelectItem>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="bank">Bank</SelectItem>
-                    <SelectItem value="telebirr">Telebirr</SelectItem>
-                  </SelectContent>
-                </Select>
+                  {(
+                    [
+                      { value: "cash", label: "Cash" },
+                      { value: "bank", label: "Bank" },
+                      { value: "telebirr", label: "Telebirr" },
+                    ] as const
+                  ).map((opt) => {
+                    const selected = depositPaymentMethod === opt.value;
+                    return (
+                      <Label
+                        key={opt.value}
+                        htmlFor={`res-deposit-${opt.value}`}
+                        className={
+                          selected
+                            ? "flex cursor-pointer items-center gap-2.5 rounded-xl border border-primary/50 bg-primary/5 px-3 py-2.5 shadow-sm"
+                            : "flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/80 bg-background px-3 py-2.5 hover:bg-muted/30"
+                        }
+                      >
+                        <RadioGroupItem
+                          id={`res-deposit-${opt.value}`}
+                          value={opt.value}
+                        />
+                        <span className="text-sm font-medium">{opt.label}</span>
+                      </Label>
+                    );
+                  })}
+                </RadioGroup>
               </div>
             ) : null}
             <div className="space-y-3 sm:col-span-2 rounded-xl border border-border/70 bg-muted/10 p-3">
@@ -555,6 +596,10 @@ export function LodgingReservationsPanel({
                 .filter(Boolean)
                 .join(", ");
               const selected = checkInRoomIds[r.id] || [];
+              const assignableRooms = assignableRoomsForReservation(
+                vacantCleanRooms,
+                r,
+              );
               return (
                 <Card
                   key={r.id}
@@ -594,16 +639,18 @@ export function LodgingReservationsPanel({
                     </div>
                     <div className="space-y-2 rounded-xl border border-border/70 bg-muted/15 p-3">
                       <Label className="text-xs">
-                        Check-in rooms (select one or more vacant clean)
+                        Check-in rooms (vacant clean, or this booking&apos;s
+                        reserved holds)
                       </Label>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {vacantCleanRooms.length === 0 ? (
+                        {assignableRooms.length === 0 ? (
                           <p className="text-sm text-muted-foreground col-span-full">
-                            No vacant clean rooms available.
+                            No vacant clean or held rooms available.
                           </p>
                         ) : (
-                          vacantCleanRooms.map((room) => {
+                          assignableRooms.map((room) => {
                             const checked = selected.includes(room.id);
+                            const isHold = room.status === "reserved";
                             return (
                               <label
                                 key={room.id}
@@ -623,6 +670,7 @@ export function LodgingReservationsPanel({
                                 />
                                 <span>
                                   {room.roomNumber} · {room.roomType}
+                                  {isHold ? " · held" : ""}
                                 </span>
                               </label>
                             );

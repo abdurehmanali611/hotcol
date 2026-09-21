@@ -27,6 +27,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Copy,
+  Pencil,
   Plus,
   Sparkles,
   Trash2,
@@ -37,6 +38,7 @@ import {
 import {
   completeLodgingCmAssignmentApi,
   createLodgingCmAssignmentsApi,
+  syncLodgingCmOpenAssigneesApi,
   updateLodgingRoomStatusApi,
   type LodgingCmAssignment,
   type LodgingRoom,
@@ -62,6 +64,27 @@ function ymdToExpectedReadyIso(value: string): string | null {
   const d = new Date(withTime);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
+}
+
+function isoToDayPickerValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${hh}:${mm}`;
+}
+
+function canEditOpenAssignment(a: LodgingCmAssignment): boolean {
+  if (String(a.status || "").toLowerCase() !== "open") return false;
+  const roomStatus = String(a.room?.status || "").toLowerCase();
+  const wk = String(a.workKind || "").toLowerCase();
+  if (wk === "cleaning") return roomStatus === "vacant_dirty";
+  if (wk === "maintenance") return roomStatus === "on_maintenance";
+  return false;
 }
 
 function roomStatusBadgeClass(status: string): string {
@@ -173,14 +196,66 @@ export function LodgingCmQueuePanel({
   const [pending, setPending] = useState<string | null>(null);
   const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
   const [assignRoomIds, setAssignRoomIds] = useState<number[]>([]);
-  const [futureRoomIds, setFutureRoomIds] = useState<number[]>([]);
-  const [futureExpectedEndAt, setFutureExpectedEndAt] = useState("");
   const [workKind, setWorkKind] = useState<AssignMode>("cleaning");
   const [peopleLayout, setPeopleLayout] = useState<PeopleLayout>("shared");
   const [sharedDraft, setSharedDraft] = useState<RoomAssignDraft>(emptyDraft);
   const [perRoomDrafts, setPerRoomDrafts] = useState<
     Record<number, RoomAssignDraft>
   >({});
+  const [editingAssignment, setEditingAssignment] =
+    useState<LodgingCmAssignment | null>(null);
+  const [editNames, setEditNames] = useState<string[]>([""]);
+  const [editNotes, setEditNotes] = useState("");
+  const [editExpectedEndAt, setEditExpectedEndAt] = useState("");
+
+  const openEditAssignment = (a: LodgingCmAssignment) => {
+    if (!canEditOpenAssignment(a)) return;
+    const siblings = openAssignments.filter(
+      (row) =>
+        row.roomId === a.roomId &&
+        row.workKind === a.workKind &&
+        String(row.status || "").toLowerCase() === "open",
+    );
+    const names = siblings
+      .map((row) => String(row.assigneeName || "").trim())
+      .filter(Boolean);
+    setEditingAssignment(a);
+    setEditNames(names.length > 0 ? names : [a.assigneeName || ""]);
+    setEditNotes(a.notes || siblings[0]?.notes || "");
+    setEditExpectedEndAt(isoToDayPickerValue(a.room?.statusExpectedEndAt));
+  };
+
+  const resetEditAssignment = () => {
+    setEditingAssignment(null);
+    setEditNames([""]);
+    setEditNotes("");
+    setEditExpectedEndAt("");
+  };
+
+  const saveEditAssignment = async () => {
+    if (!editingAssignment) return;
+    const names = parseAssigneeNames(editNames);
+    if (names.length === 0) {
+      toast.error("Add at least one assignee");
+      return;
+    }
+    setPending(`edit-${editingAssignment.roomId}-${editingAssignment.workKind}`);
+    try {
+      await syncLodgingCmOpenAssigneesApi({
+        roomId: editingAssignment.roomId,
+        workKind: editingAssignment.workKind,
+        assigneeNames: names,
+        notes: editNotes.trim(),
+        statusExpectedEndAt: ymdToExpectedReadyIso(editExpectedEndAt),
+      });
+      resetEditAssignment();
+      await onRefresh();
+    } catch (e) {
+      notifyApiFailure(e, "Could not update assignees");
+    } finally {
+      setPending(null);
+    }
+  };
 
   const openCleaningByRoom = useMemo(() => {
     const map = new Map<number, LodgingCmAssignment[]>();
@@ -210,20 +285,13 @@ export function LodgingCmQueuePanel({
   );
 
   const selectedDirty = selectedRooms.filter((r) => r.status === "vacant_dirty");
-  const selectedMaint = selectedRooms.filter(
-    (r) => r.status === "on_maintenance",
+  const selectedDirtyNeedingAssign = selectedDirty.filter(
+    (r) => (openCleaningByRoom.get(r.id) ?? []).length === 0,
   );
-  const selectionMixed =
-    selectedDirty.length > 0 && selectedMaint.length > 0;
 
   const assignRooms = useMemo(
     () => queue.filter((r) => assignRoomIds.includes(r.id)),
     [queue, assignRoomIds],
-  );
-
-  const futureRooms = useMemo(
-    () => queue.filter((r) => futureRoomIds.includes(r.id)),
-    [queue, futureRoomIds],
   );
 
   const canSave = useMemo(() => {
@@ -244,11 +312,6 @@ export function LodgingCmQueuePanel({
     setWorkKind("cleaning");
   };
 
-  const resetFuture = () => {
-    setFutureRoomIds([]);
-    setFutureExpectedEndAt("");
-  };
-
   const toggleRoom = (id: number, checked: boolean) => {
     setSelectedRoomIds((prev) =>
       checked ? [...prev, id] : prev.filter((x) => x !== id),
@@ -265,7 +328,6 @@ export function LodgingCmQueuePanel({
 
   const openAssignForRooms = (rooms: LodgingRoom[], mode: AssignMode) => {
     if (rooms.length === 0) return;
-    resetFuture();
     const ids = rooms.map((r) => r.id);
     setAssignRoomIds(ids);
     setWorkKind(mode);
@@ -274,54 +336,6 @@ export function LodgingCmQueuePanel({
     const drafts: Record<number, RoomAssignDraft> = {};
     for (const id of ids) drafts[id] = emptyDraft();
     setPerRoomDrafts(drafts);
-  };
-
-  const openFutureAssign = (rooms: LodgingRoom[]) => {
-    if (rooms.length === 0) return;
-    resetAssign();
-    setFutureRoomIds(rooms.map((r) => r.id));
-    setFutureExpectedEndAt("");
-  };
-
-  const saveFutureAssign = async () => {
-    if (futureRoomIds.length === 0 || !futureExpectedEndAt) return;
-    setPending("future");
-    let ok = 0;
-    try {
-      const iso = ymdToExpectedReadyIso(futureExpectedEndAt);
-      if (!iso) {
-        toast.error("Pick a valid ready date");
-        return;
-      }
-      for (const roomId of futureRoomIds) {
-        await updateLodgingRoomStatusApi(
-          roomId,
-          "vacant_dirty",
-          null,
-          null,
-          iso,
-        );
-        ok += 1;
-      }
-      toast.success(
-        ok === 1
-          ? "Future ready time saved — assign cleaners when the crew is available"
-          : `Future ready time saved for ${ok} rooms`,
-      );
-      setSelectedRoomIds((prev) =>
-        prev.filter((id) => !futureRoomIds.includes(id)),
-      );
-      resetFuture();
-      await onRefresh();
-    } catch (e) {
-      notifyApiFailure(
-        e,
-        ok > 0 ? `Saved ${ok} room(s), then failed` : "Could not schedule future assign",
-      );
-      if (ok > 0) await onRefresh();
-    } finally {
-      setPending(null);
-    }
   };
 
   const updatePerRoom = (
@@ -434,8 +448,7 @@ export function LodgingCmQueuePanel({
           </CardTitle>
           <CardDescription>
             Dirty rooms need cleaners assigned before they can open as vacant
-            clean. Use Future assigning when the crew is not available yet — set
-            a ready-by time, then assign cleaners when they are.
+            clean. Send rooms to maintenance when repair work is required.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -459,28 +472,21 @@ export function LodgingCmQueuePanel({
                     ? "Select rooms for batch assign"
                     : `${selectedRoomIds.length} room${selectedRoomIds.length === 1 ? "" : "s"} selected`}
                 </span>
-                {selectedDirty.length > 0 && !selectionMixed ? (
+                {selectedDirtyNeedingAssign.length > 0 ? (
                   <div className="ml-auto flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
                       size="sm"
                       className="h-9 gap-1.5 rounded-lg shadow-sm"
                       onClick={() =>
-                        openAssignForRooms(selectedDirty, "cleaning")
+                        openAssignForRooms(
+                          selectedDirtyNeedingAssign,
+                          "cleaning",
+                        )
                       }
                     >
                       <UserPlus className="h-4 w-4" />
-                      Mark inspected ({selectedDirty.length})
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-9 gap-1.5 rounded-lg"
-                      onClick={() => openFutureAssign(selectedDirty)}
-                    >
-                      <CalendarClock className="h-4 w-4" />
-                      Future assigning ({selectedDirty.length})
+                      Assign cleaners ({selectedDirtyNeedingAssign.length})
                     </Button>
                     <Button
                       type="button"
@@ -488,35 +494,16 @@ export function LodgingCmQueuePanel({
                       variant="outline"
                       className="h-9 gap-1.5 rounded-lg border-rose-500/30 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
                       onClick={() =>
-                        openAssignForRooms(selectedDirty, "maintenance")
+                        openAssignForRooms(
+                          selectedDirtyNeedingAssign,
+                          "maintenance",
+                        )
                       }
                     >
                       <Wrench className="h-4 w-4" />
-                      Enter maintenance ({selectedDirty.length})
+                      Enter maintenance ({selectedDirtyNeedingAssign.length})
                     </Button>
                   </div>
-                ) : null}
-                {selectedMaint.length > 0 && !selectionMixed ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className={cn(
-                      "h-9 gap-1.5 rounded-lg shadow-sm",
-                      selectedDirty.length > 0 ? "" : "ml-auto",
-                    )}
-                    onClick={() =>
-                      openAssignForRooms(selectedMaint, "maintenance")
-                    }
-                  >
-                    <Wrench className="h-4 w-4" />
-                    Assign maintenance ({selectedMaint.length})
-                  </Button>
-                ) : null}
-                {selectionMixed ? (
-                  <p className="w-full text-xs text-amber-700 dark:text-amber-400 sm:ml-2 sm:w-auto">
-                    Select only dirty rooms or only maintenance rooms for batch
-                    assign.
-                  </p>
                 ) : null}
               </div>
 
@@ -528,6 +515,7 @@ export function LodgingCmQueuePanel({
                   const isDirty = status === "vacant_dirty";
                   const cleaningOpen = openCleaningByRoom.get(room.id) ?? [];
                   const maintOpen = openMaintByRoom.get(room.id) ?? [];
+                  const hasOpenCleaning = cleaningOpen.length > 0;
                   /** Vacant clean only after inspect path (cleaners finished → inspected). */
                   const canOpenVacantClean = isInspected || onMaintenance;
                   const checked = selectedRoomIds.includes(room.id);
@@ -594,17 +582,15 @@ export function LodgingCmQueuePanel({
                                 {isInspected
                                   ? "Inspected — open as vacant clean when ready"
                                   : onMaintenance
-                                    ? "No open maintenance assignees"
-                                    : room.statusExpectedEndAt
-                                      ? "Future ready set — assign cleaners when the crew is available"
-                                      : "Assign cleaners now, or use Future assigning"}
+                                    ? "Maintenance in progress — complete open jobs, then release clean"
+                                    : "Assign cleaners, or enter maintenance"}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pl-7 lg:justify-end lg:pl-0">
-                        {isDirty ? (
+                        {isDirty && !hasOpenCleaning ? (
                           <>
                             <Button
                               type="button"
@@ -615,17 +601,7 @@ export function LodgingCmQueuePanel({
                               }
                             >
                               <UserPlus className="h-4 w-4" />
-                              Mark inspected
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-9 gap-1.5 rounded-lg"
-                              onClick={() => openFutureAssign([room])}
-                            >
-                              <CalendarClock className="h-4 w-4" />
-                              Future assigning
+                              Assign cleaners
                             </Button>
                             <Button
                               type="button"
@@ -641,18 +617,16 @@ export function LodgingCmQueuePanel({
                             </Button>
                           </>
                         ) : null}
-                        {onMaintenance ? (
+                        {isDirty && hasOpenCleaning ? (
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             className="h-9 gap-1.5 rounded-lg"
-                            onClick={() =>
-                              openAssignForRooms([room], "maintenance")
-                            }
+                            onClick={() => openEditAssignment(cleaningOpen[0]!)}
                           >
-                            <Wrench className="h-4 w-4" />
-                            Assign maintenance
+                            <Pencil className="h-4 w-4" />
+                            Edit people
                           </Button>
                         ) : null}
                         {canOpenVacantClean ? (
@@ -691,86 +665,6 @@ export function LodgingCmQueuePanel({
           )}
         </CardContent>
       </Card>
-
-      <Dialog
-        open={futureRoomIds.length > 0 && futureRooms.length > 0}
-        onOpenChange={(open) => {
-          if (!open) resetFuture();
-        }}
-      >
-        <DialogContent
-          showCloseButton
-          className="flex max-h-[min(92vh,720px)] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
-        >
-          <div className="h-1 shrink-0 bg-linear-to-r from-amber-500/70 via-sky-500/40 to-transparent" />
-          <DialogHeader className="shrink-0 space-y-2 border-b border-border/60 px-6 pb-4 pt-5 text-left">
-            <DialogTitle className="flex items-center gap-2 text-xl tracking-tight">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-800 ring-1 ring-amber-500/20 dark:text-amber-200">
-                <CalendarClock className="h-4 w-4" />
-              </span>
-              Future assigning
-            </DialogTitle>
-            <DialogDescription className="text-pretty leading-relaxed">
-              Schedule a ready-by time without assigning people yet. Rooms stay
-              vacant dirty until you mark inspected with cleaners.
-            </DialogDescription>
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {futureRooms.map((r) => (
-                <Badge
-                  key={r.id}
-                  variant="outline"
-                  className="font-mono tabular-nums"
-                >
-                  Rm {r.roomNumber}
-                </Badge>
-              ))}
-            </div>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
-            <div className="space-y-1.5">
-              <HotelDayPicker
-                id="future-expected-end"
-                label="Expected ready"
-                value={futureExpectedEndAt}
-                onChange={setFutureExpectedEndAt}
-                placeholder="Pick a ready date & time"
-                buttonClassName="bg-background"
-                withTime
-              />
-              <p className="text-xs text-muted-foreground">
-                Used for reservation holds when this time is before the
-                guest&apos;s expected check-in.
-              </p>
-            </div>
-          </div>
-          <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-6 py-4 sm:gap-2">
-            <p className="mr-auto hidden text-xs text-muted-foreground sm:block">
-              {futureExpectedEndAt
-                ? `Schedule ${futureRooms.length} room${futureRooms.length === 1 ? "" : "s"}`
-                : "Pick an expected ready time"}
-            </p>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-10"
-              disabled={pending === "future"}
-              onClick={resetFuture}
-            >
-              Cancel
-            </Button>
-            <PendingButton
-              type="button"
-              className="h-10 min-w-40 gap-1.5"
-              pending={pending === "future"}
-              disabled={!futureExpectedEndAt}
-              onClick={() => void saveFutureAssign()}
-            >
-              <CalendarClock className="h-4 w-4" />
-              Save future time
-            </PendingButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={assignRoomIds.length > 0 && assignRooms.length > 0}
@@ -1061,9 +955,10 @@ export function LodgingCmQueuePanel({
         <CardHeader className="pb-3">
           <CardTitle className="text-lg tracking-tight">Open assignments</CardTitle>
           <CardDescription>
-            Complete each person&apos;s job when finished. When the last cleaner
-            on a dirty room is completed, that room becomes inspected — then Open
-            as vacant clean unlocks.
+            Complete each person&apos;s job when finished. Edit open cleaning
+            (vacant dirty) or maintenance jobs to add or remove assignees, or
+            change the expected ready time. Last cleaner done → inspected; last
+            maintenance done → inspected.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1073,50 +968,184 @@ export function LodgingCmQueuePanel({
             </p>
           ) : (
             <ul className="divide-y overflow-hidden rounded-xl border border-border/70">
-              {openAssignments.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-medium">
-                      Room {a.room?.roomNumber ?? a.roomId}
-                      <span className="font-normal text-muted-foreground">
-                        {" "}
-                        · {a.workKind}
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.assigneeName}
-                      {a.notes ? ` · ${a.notes}` : ""}
-                    </p>
-                  </div>
-                  <PendingButton
-                    type="button"
-                    size="sm"
-                    className="h-9 gap-1.5 rounded-lg bg-emerald-600 shadow-sm hover:bg-emerald-700 sm:min-w-32"
-                    pending={pending === `done-${a.id}`}
-                    onClick={async () => {
-                      setPending(`done-${a.id}`);
-                      try {
-                        await completeLodgingCmAssignmentApi(a.id);
-                        await onRefresh();
-                      } catch (e) {
-                        notifyApiFailure(e, "Could not complete");
-                      } finally {
-                        setPending(null);
-                      }
-                    }}
+              {openAssignments.map((a) => {
+                const editable = canEditOpenAssignment(a);
+                const isFirstOfGroup =
+                  openAssignments.find(
+                    (row) =>
+                      row.roomId === a.roomId &&
+                      row.workKind === a.workKind &&
+                      String(row.status || "").toLowerCase() === "open",
+                  )?.id === a.id;
+                return (
+                  <li
+                    key={a.id}
+                    className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Complete
-                  </PendingButton>
-                </li>
-              ))}
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-medium">
+                        Room {a.room?.roomNumber ?? a.roomId}
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · {a.workKind}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.assigneeName}
+                        {a.notes ? ` · ${a.notes}` : ""}
+                      </p>
+                      {a.room?.statusExpectedEndAt ? (
+                        <p className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <CalendarClock className="h-3 w-3" />
+                          Ready{" "}
+                          {new Date(
+                            a.room.statusExpectedEndAt,
+                          ).toLocaleString(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {editable && isFirstOfGroup ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-9 gap-1.5 rounded-lg"
+                          onClick={() => openEditAssignment(a)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit people
+                        </Button>
+                      ) : null}
+                      <PendingButton
+                        type="button"
+                        size="sm"
+                        className="h-9 gap-1.5 rounded-lg bg-emerald-600 shadow-sm hover:bg-emerald-700 sm:min-w-32"
+                        pending={pending === `done-${a.id}`}
+                        onClick={async () => {
+                          setPending(`done-${a.id}`);
+                          try {
+                            await completeLodgingCmAssignmentApi(a.id);
+                            await onRefresh();
+                          } catch (e) {
+                            notifyApiFailure(e, "Could not complete");
+                          } finally {
+                            setPending(null);
+                          }
+                        }}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Complete
+                      </PendingButton>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={editingAssignment != null}
+        onOpenChange={(open) => {
+          if (!open) resetEditAssignment();
+        }}
+      >
+        <DialogContent
+          showCloseButton
+          className="flex max-h-[min(92vh,640px)] max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+        >
+          <div
+            className={cn(
+              "h-1 shrink-0",
+              editingAssignment?.workKind === "maintenance"
+                ? "bg-linear-to-r from-rose-500/70 via-amber-500/40 to-transparent"
+                : "bg-linear-to-r from-sky-500/70 via-emerald-500/40 to-transparent",
+            )}
+          />
+          <DialogHeader className="shrink-0 space-y-2 border-b border-border/60 px-6 pb-4 pt-5 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl tracking-tight">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                <Users className="h-4 w-4" />
+              </span>
+              Edit people
+            </DialogTitle>
+            <DialogDescription className="text-pretty leading-relaxed">
+              Add or remove assignees for room{" "}
+              {editingAssignment?.room?.roomNumber ??
+                editingAssignment?.roomId}
+              {" "}
+              ({editingAssignment?.workKind}). At least one person must remain.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+            <PeopleFields
+              idPrefix="edit-cm"
+              names={editNames}
+              onChangeName={(idx, value) =>
+                setEditNames((prev) =>
+                  prev.map((n, i) => (i === idx ? value : n)),
+                )
+              }
+              onAdd={() => setEditNames((prev) => [...prev, ""])}
+              onRemove={(idx) =>
+                setEditNames((prev) =>
+                  prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx),
+                )
+              }
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-cm-notes">Notes</Label>
+              <Input
+                id="edit-cm-notes"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Optional notes"
+                className="h-10"
+              />
+            </div>
+            <HotelDayPicker
+              id="edit-cm-expected-end"
+              label="Expected ready"
+              value={editExpectedEndAt}
+              onChange={setEditExpectedEndAt}
+              placeholder="Pick date & time (optional)"
+              buttonClassName="bg-background"
+              withTime
+            />
+          </div>
+          <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-6 py-4 sm:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-10"
+              disabled={pending?.startsWith("edit-")}
+              onClick={resetEditAssignment}
+            >
+              Cancel
+            </Button>
+            <PendingButton
+              type="button"
+              className="h-10 min-w-36 gap-1.5"
+              pending={
+                editingAssignment
+                  ? pending ===
+                    `edit-${editingAssignment.roomId}-${editingAssignment.workKind}`
+                  : false
+              }
+              disabled={parseAssigneeNames(editNames).length === 0}
+              onClick={() => void saveEditAssignment()}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Save people
+            </PendingButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -332,25 +332,25 @@ export function ReceptionCheckoutPaymentDialog({
 
           <div className="mt-4 space-y-2 rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 shadow-sm backdrop-blur-sm">
             <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   Remaining due
-                </p>
-                <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
+              </p>
+              <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
                   {formatMoney(remainingDue)}
-                </p>
-              </div>
+              </p>
+            </div>
               {depositApplied > 0 ? (
                 <div className="text-right text-xs text-muted-foreground">
                   <p>Folio {formatMoney(folioGross)}</p>
                   <p>− Deposits {formatMoney(depositApplied)}</p>
                 </div>
               ) : (
-                <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
+            <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
                   {isLodgingCreditPaymentEnabled()
                     ? "Credit ready"
                     : "No credit"}
-                </Badge>
+            </Badge>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -412,52 +412,52 @@ export function ReceptionCheckoutPaymentDialog({
 
               {!fullyPaid ? (
                 <>
-                  <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                     Choose cash, bank, or Telebirr for each bill line.
-                  </p>
-                  {lines.length === 0 ? (
-                    <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-                      No bill lines on this stay.
-                    </div>
-                  ) : (
-                    <ul className="space-y-2.5">
-                      {lines.map((line) => {
-                        const ch = lineChannels[line.id] ?? "cash";
-                        return (
-                          <li
-                            key={line.id}
-                            className="rounded-2xl border border-border/70 bg-card/90 px-3.5 py-3 shadow-sm"
-                          >
-                            <div className="mb-2.5 flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium leading-snug">
-                                  {stripCafeOrderMarker(line.description)}
-                                </p>
-                                <p className="mt-0.5 text-xs capitalize text-muted-foreground">
-                                  {line.kind.replace(/_/g, " ")}
-                                  {line.roomNumber
-                                    ? ` · Rm ${line.roomNumber}`
-                                    : ""}
-                                </p>
-                              </div>
-                              <p className="shrink-0 text-sm font-semibold tabular-nums">
-                                {formatMoney(lineAmount(line))}
-                              </p>
-                            </div>
-                            <ChannelToggle
-                              size="sm"
-                              value={ch}
-                              onChange={(option) =>
-                                setLineChannels((prev) => ({
-                                  ...prev,
-                                  [line.id]: option,
-                                }))
-                              }
-                            />
-                          </li>
-                        );
-                      })}
-                    </ul>
+              </p>
+              {lines.length === 0 ? (
+                <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                  No bill lines on this stay.
+                </div>
+              ) : (
+                <ul className="space-y-2.5">
+                  {lines.map((line) => {
+                    const ch = lineChannels[line.id] ?? "cash";
+                    return (
+                      <li
+                        key={line.id}
+                        className="rounded-2xl border border-border/70 bg-card/90 px-3.5 py-3 shadow-sm"
+                      >
+                        <div className="mb-2.5 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-snug">
+                              {stripCafeOrderMarker(line.description)}
+                            </p>
+                            <p className="mt-0.5 text-xs capitalize text-muted-foreground">
+                              {line.kind.replace(/_/g, " ")}
+                              {line.roomNumber
+                                ? ` · Rm ${line.roomNumber}`
+                                : ""}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-semibold tabular-nums">
+                            {formatMoney(lineAmount(line))}
+                          </p>
+                        </div>
+                        <ChannelToggle
+                          size="sm"
+                          value={ch}
+                          onChange={(option) =>
+                            setLineChannels((prev) => ({
+                              ...prev,
+                              [line.id]: option,
+                            }))
+                          }
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
                   )}
                 </>
               ) : (
@@ -482,7 +482,7 @@ export function ReceptionCheckoutPaymentDialog({
 
               {!fullyPaid ? (
                 <>
-                  <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                     Split the stay across cash, bank, and Telebirr. Amounts must
                     add up to the stay total.
                   </p>
@@ -523,27 +523,27 @@ export function ReceptionCheckoutPaymentDialog({
                         placeholder="0"
                         value={bankInput}
                         onChange={(e) => setBankInput(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
+                />
+              </div>
+              <div className="space-y-1.5">
                       <Label
                         htmlFor="stay-telebirr-amount"
                         className="inline-flex items-center gap-1.5"
                       >
                         <Smartphone className="h-3.5 w-3.5" />
                         Telebirr
-                      </Label>
-                      <Input
+                </Label>
+                <Input
                         id="stay-telebirr-amount"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        className="h-11 rounded-xl tabular-nums text-base"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="h-11 rounded-xl tabular-nums text-base"
                         placeholder="0"
                         value={telebirrInput}
                         onChange={(e) => setTelebirrInput(e.target.value)}
-                      />
-                    </div>
+                />
+              </div>
                   </div>
                   <p
                     className={cn(

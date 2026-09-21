@@ -203,6 +203,7 @@ import { CafeAdminDailyRevenueCards } from "@/components/cafe/CafeAdminDailyReve
 import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStationPrepQtyPanel";
 import { RecipeUsageStatusPanel } from "@/components/inventory/RecipeUsageStatusPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
+import { ManagerReceptionCmPortalPermissionCard } from "@/components/hotel/ManagerReceptionCmPortalPermissionCard";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
@@ -785,13 +786,13 @@ function ManagerContent() {
       "lodging-discounts":
         "Approve or reject folio discount requests from Reception.",
       "lodging-voids":
-        "Void whole bills, room charges, or individual folio lines (Manager only).",
+        "Allow Reception CM portal access, and void whole bills, room charges, or individual folio lines (Manager only).",
       "lodging-guest-complaints":
         "Review and resolve guest complaints submitted from HotCol Room.",
       "lodging-guest-ratings":
         "Read guest ratings submitted from HotCol Room.",
       "lodging-night-audit":
-        "Manually close the lodging business day and review the night-audit snapshot.",
+        "Close a from–to business day window and review the room report for that period.",
       "lodging-laundry-add":
         "Add laundry service lines guests can order to a room during their stay.",
       "lodging-laundry-items":
@@ -1740,7 +1741,8 @@ function ManagerContent() {
 
       case "lodging-voids":
         return (
-          <div className="space-y-6 p-4 md:p-6">
+          <div className="space-y-8 p-4 md:p-6">
+            <ManagerReceptionCmPortalPermissionCard />
             <LodgingManagerVoidsPanel refreshKey={inventoryRefreshKey} />
           </div>
         );
@@ -1768,7 +1770,7 @@ function ManagerContent() {
       case "lodging-night-audit":
         return (
           <div className="space-y-6 p-4 md:p-6">
-            <LodgingNightAuditPanel />
+            <LodgingNightAuditPanel refreshKey={inventoryRefreshKey} />
           </div>
         );
 

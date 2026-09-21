@@ -179,6 +179,7 @@ export async function LoginAction(
             cafeOrderMode
             cafeOrderModeHistory
             cashierCancelOrdersEnabled
+            receptionCmPortalEnabled
             waiterOrderingEnabled
             waiterPaymentApprovalEnabled
           }
@@ -253,6 +254,7 @@ export async function LoginAction(
           user.createdAt ?? null,
         ),
         cashierCancelOrdersEnabled: Boolean(user.cashierCancelOrdersEnabled),
+        receptionCmPortalEnabled: Boolean(user.receptionCmPortalEnabled),
         waiterOrderingEnabled: Boolean(user.waiterOrderingEnabled),
         waiterPaymentApprovalEnabled: Boolean(
           user.waiterPaymentApprovalEnabled,
@@ -677,6 +679,7 @@ export async function refreshTenantSubscription(): Promise<TenantSubscription> {
         cafeOrderMode
         cafeOrderModeHistory
         cashierCancelOrdersEnabled
+        receptionCmPortalEnabled
         waiterOrderingEnabled
         waiterPaymentApprovalEnabled
       }
@@ -708,6 +711,7 @@ export async function refreshTenantSubscription(): Promise<TenantSubscription> {
     cafeOrderMode?: unknown;
     cafeOrderModeHistory?: unknown;
     cashierCancelOrdersEnabled?: boolean;
+    receptionCmPortalEnabled?: boolean;
     waiterOrderingEnabled?: boolean;
     waiterPaymentApprovalEnabled?: boolean;
   };
@@ -738,6 +742,7 @@ export async function refreshTenantSubscription(): Promise<TenantSubscription> {
       toIsoOrNull(row.createdAt),
     ),
     cashierCancelOrdersEnabled: Boolean(row.cashierCancelOrdersEnabled),
+    receptionCmPortalEnabled: Boolean(row.receptionCmPortalEnabled),
     waiterOrderingEnabled: Boolean(row.waiterOrderingEnabled),
     waiterPaymentApprovalEnabled: Boolean(row.waiterPaymentApprovalEnabled),
   };
@@ -769,6 +774,7 @@ export async function setCashierCancelOrdersEnabled(
         cafeOrderMode
         cafeOrderModeHistory
         cashierCancelOrdersEnabled
+        receptionCmPortalEnabled
         waiterOrderingEnabled
         waiterPaymentApprovalEnabled
       }
@@ -804,6 +810,7 @@ export async function setCashierCancelOrdersEnabled(
     cafeOrderMode?: unknown;
     cafeOrderModeHistory?: unknown;
     cashierCancelOrdersEnabled?: boolean;
+    receptionCmPortalEnabled?: boolean;
     waiterOrderingEnabled?: boolean;
     waiterPaymentApprovalEnabled?: boolean;
   } | null;
@@ -834,6 +841,105 @@ export async function setCashierCancelOrdersEnabled(
       toIsoOrNull(row.createdAt),
     ),
     cashierCancelOrdersEnabled: Boolean(row.cashierCancelOrdersEnabled),
+    receptionCmPortalEnabled: Boolean(row.receptionCmPortalEnabled),
+    waiterOrderingEnabled: Boolean(row.waiterOrderingEnabled),
+    waiterPaymentApprovalEnabled: Boolean(row.waiterPaymentApprovalEnabled),
+  };
+  persistTenantSubscription(next);
+  return next;
+}
+
+export async function setReceptionCmPortalEnabled(
+  enabled: boolean,
+): Promise<TenantSubscription> {
+  const MUTATION = `
+    mutation SetReceptionCmPortalEnabled($enabled: Boolean!) {
+      setReceptionCmPortalEnabled(enabled: $enabled) {
+        modules
+        setupFeeETB
+        quarterlyFeeETB
+        setupFeeApproved
+        createdAt
+        billingStartedAt
+        billingHold
+        isIllustrationTenant
+        freeTrialEndsAt
+        subscriptionPaidUntil
+        subscriptionPaymentApproved
+        paidQuartersCount
+        paymentTransactionRef
+        awaitingSelfSignupSetup
+        cafeOrderMode
+        cafeOrderModeHistory
+        cashierCancelOrdersEnabled
+        receptionCmPortalEnabled
+        waiterOrderingEnabled
+        waiterPaymentApprovalEnabled
+      }
+    }
+  `;
+
+  const response = await api.post(API_URL, {
+    query: MUTATION,
+    variables: { enabled },
+  });
+  if (response.data.errors?.length) {
+    throw new Error(
+      response.data.errors[0]?.message ||
+        "Could not update Reception CM portal permission",
+    );
+  }
+
+  const row = response.data.data?.setReceptionCmPortalEnabled as {
+    modules?: unknown;
+    setupFeeETB?: number;
+    quarterlyFeeETB?: number;
+    setupFeeApproved?: boolean;
+    createdAt?: string | null;
+    billingStartedAt?: string | null;
+    billingHold?: boolean;
+    isIllustrationTenant?: boolean;
+    freeTrialEndsAt?: string | null;
+    subscriptionPaidUntil?: string | null;
+    subscriptionPaymentApproved?: boolean;
+    paidQuartersCount?: number;
+    paymentTransactionRef?: string | null;
+    awaitingSelfSignupSetup?: boolean;
+    cafeOrderMode?: unknown;
+    cafeOrderModeHistory?: unknown;
+    cashierCancelOrdersEnabled?: boolean;
+    receptionCmPortalEnabled?: boolean;
+    waiterOrderingEnabled?: boolean;
+    waiterPaymentApprovalEnabled?: boolean;
+  } | null;
+
+  if (!row) {
+    throw new Error("Could not update Reception CM portal permission");
+  }
+
+  const next: TenantSubscription = {
+    modules: parseModulesJson(row.modules),
+    setupFeeETB: Number(row.setupFeeETB) || 0,
+    quarterlyFeeETB: Number(row.quarterlyFeeETB) || 0,
+    setupFeeApproved: Boolean(row.setupFeeApproved),
+    createdAt: toIsoOrNull(row.createdAt),
+    billingStartedAt: toIsoOrNull(row.billingStartedAt),
+    billingHold: Boolean(row.billingHold),
+    isIllustrationTenant: Boolean(row.isIllustrationTenant),
+    freeTrialEndsAt: toIsoOrNull(row.freeTrialEndsAt),
+    subscriptionPaidUntil: toIsoOrNull(row.subscriptionPaidUntil),
+    subscriptionPaymentApproved: Boolean(row.subscriptionPaymentApproved),
+    paidQuartersCount: Number(row.paidQuartersCount) || 0,
+    awaitingSelfSignupSetup: Boolean(row.awaitingSelfSignupSetup),
+    paymentTransactionRef: row.paymentTransactionRef ?? null,
+    cafeOrderMode: parseCafeOrderMode(row.cafeOrderMode),
+    cafeOrderModeHistory: parseCafeOrderModeHistory(
+      row.cafeOrderModeHistory,
+      parseCafeOrderMode(row.cafeOrderMode),
+      toIsoOrNull(row.createdAt),
+    ),
+    cashierCancelOrdersEnabled: Boolean(row.cashierCancelOrdersEnabled),
+    receptionCmPortalEnabled: Boolean(row.receptionCmPortalEnabled),
     waiterOrderingEnabled: Boolean(row.waiterOrderingEnabled),
     waiterPaymentApprovalEnabled: Boolean(row.waiterPaymentApprovalEnabled),
   };
@@ -864,6 +970,7 @@ export async function setWaiterPaymentApprovalEnabled(
         cafeOrderMode
         cafeOrderModeHistory
         cashierCancelOrdersEnabled
+        receptionCmPortalEnabled
         waiterOrderingEnabled
         waiterPaymentApprovalEnabled
       }
@@ -899,6 +1006,7 @@ export async function setWaiterPaymentApprovalEnabled(
     cafeOrderMode?: unknown;
     cafeOrderModeHistory?: unknown;
     cashierCancelOrdersEnabled?: boolean;
+    receptionCmPortalEnabled?: boolean;
     waiterOrderingEnabled?: boolean;
     waiterPaymentApprovalEnabled?: boolean;
   } | null;
@@ -929,6 +1037,7 @@ export async function setWaiterPaymentApprovalEnabled(
       toIsoOrNull(row.createdAt),
     ),
     cashierCancelOrdersEnabled: Boolean(row.cashierCancelOrdersEnabled),
+    receptionCmPortalEnabled: Boolean(row.receptionCmPortalEnabled),
     waiterOrderingEnabled: Boolean(row.waiterOrderingEnabled),
     waiterPaymentApprovalEnabled: Boolean(row.waiterPaymentApprovalEnabled),
   };
