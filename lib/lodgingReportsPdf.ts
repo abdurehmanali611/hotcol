@@ -13,9 +13,17 @@ export type LodgingReportOrgBrand = {
 
 export type StayPaymentBreakdown = {
   roomETB: number;
+  roomTaxETB?: number;
   laundryETB: number;
+  laundryTaxETB?: number;
   foodDrinkETB: number;
+  foodDrinkTaxETB?: number;
   otherETB: number;
+  otherTaxETB?: number;
+  penaltyETB?: number;
+  penaltyTaxETB?: number;
+  taxesByName?: Record<string, number>;
+  taxETB?: number;
   totalETB: number;
 };
 
@@ -445,28 +453,74 @@ export async function downloadLodgingStayPaymentsPdf(input: {
         value: `ETB ${money(input.perf.roomRevenueETB)}`,
       },
     ]);
+    y = drawKpiStrip(doc, margin, y, contentW, [
+      {
+        label: "Complimentary nights",
+        value: String(input.perf.complimentaryRoomNights ?? 0),
+      },
+      {
+        label: "Complimentary cost",
+        value: `ETB ${money(input.perf.complimentaryCostETB ?? 0)}`,
+      },
+    ]);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(100, 116, 139);
     doc.text(
-      `${input.perf.roomNightsSold} room-nights sold · ${input.perf.availableRoomNights} available · ${input.perf.staysCheckedOut} checked out · ${input.perf.staysInHouse} in-house`,
+      `${input.perf.roomNightsSold} room-nights sold · ${input.perf.availableRoomNights} available (ex-complimentary) · ${input.perf.complimentaryRoomNights ?? 0} complimentary nights · ${input.perf.staysCheckedOut} checked out · ${input.perf.staysInHouse} in-house`,
       margin,
       y,
     );
     y += 4;
     const kpiLegend = [
-      "Occupancy — how full you were (sold ÷ available × 100)",
+      "Occupancy — how full sellable inventory was (sold ÷ available × 100)",
       "ADR — how much you charged when sold (revenue ÷ sold nights)",
-      "RevPAR — how much each room earned overall (revenue ÷ available nights)",
+      "RevPAR — how much each sellable room earned (revenue ÷ available nights)",
+      "Complimentary cost — company cost = complimentary nights × rack rate",
     ];
     for (const line of kpiLegend) {
       doc.text(line, margin, y);
       y += 3.2;
     }
     y += 2;
+
+    if ((input.perf.complimentaryRooms?.length ?? 0) > 0) {
+      y = ensureSpace(doc, y, 28, pageH, margin, paintChrome);
+      y = drawSectionTitle(
+        doc,
+        "Complimentary rooms (company cost)",
+        margin,
+        y,
+      );
+      y = drawTable(
+        doc,
+        margin,
+        y,
+        Math.min(contentW * 0.85, contentW),
+        ["Room", "Type", "Assignee", "Nights", "Rack / night", "Cost"],
+        input.perf.complimentaryRooms.map((r) => [
+          r.roomNumber,
+          r.roomType,
+          r.assignee,
+          String(r.nights),
+          money(r.rackRateETB),
+          money(r.costETB),
+        ]),
+        [1, 1.4, 1.8, 0.9, 1.3, 1.2],
+        { alignRight: [false, false, false, true, true, true] },
+      );
+      y += 2;
+    }
   }
 
   y = drawSectionTitle(doc, "Payment summary", margin, y);
+  const taxNames = Object.keys(input.totals.taxesByName || {}).sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const taxKpis = taxNames.map((name) => ({
+    label: name,
+    value: `ETB ${money(input.totals.taxesByName?.[name] || 0)}`,
+  }));
   y = drawKpiStrip(
     doc,
     margin,
@@ -479,7 +533,15 @@ export async function downloadLodgingStayPaymentsPdf(input: {
         label: "Food & drink",
         value: `ETB ${money(input.totals.foodDrinkETB)}`,
       },
-      { label: "Other", value: `ETB ${money(input.totals.otherETB)}` },
+      ...taxKpis,
+      ...(taxNames.length === 0
+        ? [
+            {
+              label: "Tax total",
+              value: `ETB ${money(input.totals.taxETB || 0)}`,
+            },
+          ]
+        : []),
       {
         label: `Stay total (${input.stays.length})`,
         value: `ETB ${money(input.totals.totalETB)}`,
@@ -502,6 +564,8 @@ export async function downloadLodgingStayPaymentsPdf(input: {
       money(b.roomETB),
       money(b.laundryETB),
       money(b.foodDrinkETB),
+      ...taxNames.map((name) => money(b.taxesByName?.[name] || 0)),
+      ...(taxNames.length === 0 ? [money(b.taxETB || 0)] : []),
       money(b.totalETB),
     ];
   });
@@ -514,6 +578,10 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     money(input.totals.roomETB),
     money(input.totals.laundryETB),
     money(input.totals.foodDrinkETB),
+    ...taxNames.map((name) =>
+      money(input.totals.taxesByName?.[name] || 0),
+    ),
+    ...(taxNames.length === 0 ? [money(input.totals.taxETB || 0)] : []),
     money(input.totals.totalETB),
   ]);
 
@@ -526,9 +594,23 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     "Room",
     "Laundry",
     "F&B",
+    ...taxNames,
+    ...(taxNames.length === 0 ? ["Tax"] : []),
     "Total",
   ];
-  const weights = [1.35, 2.1, 1.0, 1.15, 1.15, 1.05, 1.05, 1.0, 1.15];
+  const weights = [
+    1.2,
+    1.8,
+    0.9,
+    1.0,
+    1.0,
+    0.95,
+    0.9,
+    0.85,
+    ...taxNames.map(() => 0.9),
+    ...(taxNames.length === 0 ? [0.85] : []),
+    1.0,
+  ];
   const alignRight = [
     false,
     false,
@@ -538,6 +620,8 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     true,
     true,
     true,
+    ...taxNames.map(() => true),
+    ...(taxNames.length === 0 ? [true] : []),
     true,
   ];
   const headerH = 6.6;

@@ -97,11 +97,60 @@ function formatStayDateTime(value: string | Date | null | undefined) {
   return d.toLocaleString();
 }
 
+type TaxPart = { name: string; percent: number; amountETB: number };
+
+function parseLineTaxParts(line: {
+  taxETB?: number;
+  taxPercent?: number;
+  taxDetailJson?: string | null;
+}): TaxPart[] {
+  const raw = String(line.taxDetailJson || "").trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((p) => {
+            const row = p as Record<string, unknown>;
+            return {
+              name: String(row.name || "Tax").trim() || "Tax",
+              percent: Number(row.percent) || 0,
+              amountETB: Number(row.amountETB) || 0,
+            };
+          })
+          .filter((p) => p.amountETB > 0 || p.percent > 0);
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  const tax = Number(line.taxETB) || 0;
+  if (tax > 0) {
+    return [
+      {
+        name: "Tax",
+        percent: Number(line.taxPercent) || 0,
+        amountETB: tax,
+      },
+    ];
+  }
+  return [];
+}
+
 type StayPaymentBreakdown = {
   roomETB: number;
+  roomTaxETB: number;
   laundryETB: number;
+  laundryTaxETB: number;
   foodDrinkETB: number;
+  foodDrinkTaxETB: number;
   otherETB: number;
+  otherTaxETB: number;
+  penaltyETB: number;
+  penaltyTaxETB: number;
+  /** Named tax totals e.g. VAT, Withholding */
+  taxesByName: Record<string, number>;
+  taxETB: number;
   totalETB: number;
 };
 
@@ -110,21 +159,77 @@ function stayPaymentBreakdown(
 ): StayPaymentBreakdown {
   const lines = stay.bill?.lines ?? [];
   let roomETB = 0;
+  let roomTaxETB = 0;
   let laundryETB = 0;
+  let laundryTaxETB = 0;
   let foodDrinkETB = 0;
+  let foodDrinkTaxETB = 0;
   let otherETB = 0;
+  let otherTaxETB = 0;
+  let penaltyETB = 0;
+  let penaltyTaxETB = 0;
+  const taxesByName: Record<string, number> = {};
   for (const line of lines) {
+    if (line.voided) continue;
+    const appr = String(line.approvalStatus || "").toLowerCase();
+    if (appr === "pending" || appr === "rejected") continue;
     const amt = Number(line.amountETB) || 0;
+    const tax = Number(line.taxETB) || 0;
     const kind = String(line.kind || "").toLowerCase();
-    if (kind === "room") roomETB += amt;
-    else if (kind === "laundry") laundryETB += amt;
-    else if (kind === "food_drink") foodDrinkETB += amt;
-    else otherETB += amt;
+    for (const part of parseLineTaxParts(line)) {
+      taxesByName[part.name] =
+        (taxesByName[part.name] || 0) + part.amountETB;
+    }
+    if (kind === "room") {
+      roomETB += amt;
+      roomTaxETB += tax;
+    } else if (kind === "laundry") {
+      laundryETB += amt;
+      laundryTaxETB += tax;
+    } else if (kind === "food_drink") {
+      foodDrinkETB += amt;
+      foodDrinkTaxETB += tax;
+    } else if (kind === "penalty") {
+      penaltyETB += amt;
+      penaltyTaxETB += tax;
+    } else if (kind !== "discount") {
+      otherETB += amt;
+      otherTaxETB += tax;
+    }
   }
-  const fromLines = roomETB + laundryETB + foodDrinkETB + otherETB;
+  const namedTaxSum = Object.values(taxesByName).reduce((s, n) => s + n, 0);
+  const taxETB =
+    namedTaxSum > 0
+      ? namedTaxSum
+      : roomTaxETB +
+        laundryTaxETB +
+        foodDrinkTaxETB +
+        otherTaxETB +
+        penaltyTaxETB;
+  const fromLines =
+    roomETB +
+    laundryETB +
+    foodDrinkETB +
+    otherETB +
+    penaltyETB +
+    taxETB;
   const totalETB =
     fromLines > 0 ? fromLines : Number(stay.bill?.totalETB) || 0;
-  return { roomETB, laundryETB, foodDrinkETB, otherETB, totalETB };
+  return {
+    roomETB,
+    roomTaxETB,
+    laundryETB,
+    laundryTaxETB,
+    foodDrinkETB,
+    foodDrinkTaxETB,
+    otherETB,
+    otherTaxETB,
+    penaltyETB,
+    penaltyTaxETB,
+    taxesByName,
+    taxETB,
+    totalETB,
+  };
 }
 
 function formatEtb(n: number) {
@@ -313,8 +418,21 @@ export function LodgingReportsPanel({
 
   const exportStaysExcel = async () => {
     if (stays.length === 0) return;
+    const taxNameSet = new Set<string>();
+    for (const s of stays) {
+      for (const name of Object.keys(stayPaymentBreakdown(s).taxesByName)) {
+        taxNameSet.add(name);
+      }
+    }
+    const taxNames = Array.from(taxNameSet).sort((a, b) =>
+      a.localeCompare(b),
+    );
     const rows = stays.map((s) => {
       const b = stayPaymentBreakdown(s);
+      const taxCols: Record<string, number> = {};
+      for (const name of taxNames) {
+        taxCols[`${name} ETB`] = Number(b.taxesByName[name]) || 0;
+      }
       return {
         Voucher: s.voucherCode,
         Guest: guestLabel(s.guest),
@@ -330,6 +448,9 @@ export function LodgingReportsPanel({
         "Room nights ETB": b.roomETB,
         "Laundry ETB": b.laundryETB,
         "Food & drink ETB (on stay)": b.foodDrinkETB,
+        "Penalty ETB": b.penaltyETB,
+        ...taxCols,
+        "Tax total ETB": b.taxETB,
         "Other ETB": b.otherETB,
         "Bill total ETB": b.totalETB,
       };
@@ -339,12 +460,31 @@ export function LodgingReportsPanel({
         acc.room += Number(r["Room nights ETB"]) || 0;
         acc.laundry += Number(r["Laundry ETB"]) || 0;
         acc.food += Number(r["Food & drink ETB (on stay)"]) || 0;
+        acc.penalty += Number(r["Penalty ETB"]) || 0;
+        acc.tax += Number(r["Tax total ETB"]) || 0;
         acc.other += Number(r["Other ETB"]) || 0;
         acc.total += Number(r["Bill total ETB"]) || 0;
+        for (const name of taxNames) {
+          acc.byName[name] =
+            (acc.byName[name] || 0) + (Number(r[`${name} ETB`]) || 0);
+        }
         return acc;
       },
-      { room: 0, laundry: 0, food: 0, other: 0, total: 0 },
+      {
+        room: 0,
+        laundry: 0,
+        food: 0,
+        penalty: 0,
+        tax: 0,
+        other: 0,
+        total: 0,
+        byName: {} as Record<string, number>,
+      },
     );
+    const totalTaxCols: Record<string, number> = {};
+    for (const name of taxNames) {
+      totalTaxCols[`${name} ETB`] = totals.byName[name] || 0;
+    }
     rows.push({
       Voucher: "TOTAL",
       Guest: "",
@@ -356,6 +496,9 @@ export function LodgingReportsPanel({
       "Room nights ETB": totals.room,
       "Laundry ETB": totals.laundry,
       "Food & drink ETB (on stay)": totals.food,
+      "Penalty ETB": totals.penalty,
+      ...totalTaxCols,
+      "Tax total ETB": totals.tax,
       "Other ETB": totals.other,
       "Bill total ETB": totals.total,
     });
@@ -387,21 +530,37 @@ export function LodgingReportsPanel({
       (acc, s) => {
         const b = stayPaymentBreakdown(s);
         acc.roomETB += b.roomETB;
+        acc.roomTaxETB += b.roomTaxETB;
         acc.laundryETB += b.laundryETB;
         acc.foodDrinkETB += b.foodDrinkETB;
         acc.otherETB += b.otherETB;
+        acc.penaltyETB += b.penaltyETB;
+        acc.taxETB += b.taxETB;
         acc.totalETB += b.totalETB;
+        for (const [name, amt] of Object.entries(b.taxesByName)) {
+          acc.taxesByName[name] = (acc.taxesByName[name] || 0) + amt;
+        }
         return acc;
       },
       {
         roomETB: 0,
+        roomTaxETB: 0,
         laundryETB: 0,
         foodDrinkETB: 0,
         otherETB: 0,
+        penaltyETB: 0,
+        taxETB: 0,
         totalETB: 0,
+        taxesByName: {} as Record<string, number>,
       },
     );
   }, [stays]);
+
+  const taxNameColumns = useMemo(() => {
+    return Object.keys(paymentTotals.taxesByName).sort((a, b) =>
+      a.localeCompare(b),
+    );
+  }, [paymentTotals.taxesByName]);
 
   const exportStaysPdf = async () => {
     if (stays.length === 0) {
@@ -511,7 +670,7 @@ export function LodgingReportsPanel({
 
           <HotelFormSection
             title="ADR · RevPAR · occupancy"
-            description="Period KPIs from room-night revenue vs inventory for the selected range."
+            description="Sellable inventory KPIs for the selected range. Complimentary holds are excluded from available nights and listed as company cost below."
           >
             {loadingPerf && !perf ? (
               <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
@@ -526,57 +685,130 @@ export function LodgingReportsPanel({
                       {
                         label: "Occupancy",
                         value: `${perf.occupancyPercent}%`,
-                        meaning: "How full you were",
-                        formula:
-                          "Room nights sold ÷ available room nights × 100",
+                        hint: "Sold ÷ available",
                       },
                       {
                         label: "ADR",
                         value: formatEtb(perf.adrETB),
-                        meaning: "How much you charged when sold",
-                        formula: "Room revenue ÷ room nights sold",
+                        hint: "Revenue ÷ sold nights",
                       },
                       {
                         label: "RevPAR",
                         value: formatEtb(perf.revparETB),
-                        meaning: "How much each room earned overall",
-                        formula: "Room revenue ÷ available room nights",
+                        hint: "Revenue ÷ available",
                       },
                       {
                         label: "Room revenue",
                         value: formatEtb(perf.roomRevenueETB),
-                        meaning: "Total room sales in this range",
-                        formula: "Sum of room folio charges (ex-void)",
+                        hint: "Room folio charges",
                       },
                     ] as const
                   ).map((kpi) => (
                     <div
                       key={kpi.label}
-                      className="flex flex-col rounded-xl border border-border/70 bg-muted/20 px-4 py-3.5"
+                      className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3"
                     >
-                      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                         {kpi.label}
                       </p>
-                      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+                      <p className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight">
                         {kpi.value}
                       </p>
-                      <p className="mt-2 text-sm leading-snug text-foreground/85">
-                        {kpi.meaning}
-                      </p>
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                        <span className="font-medium text-muted-foreground/90">
-                          Formula:{" "}
-                        </span>
-                        {kpi.formula}
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {kpi.hint}
                       </p>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {perf.roomNightsSold} room-nights sold ·{" "}
-                  {perf.availableRoomNights} available · {perf.staysInHouse}{" "}
-                  in-house · {perf.staysCheckedOut} checked out in range
-                </p>
+
+                <div className="overflow-hidden rounded-xl border border-violet-500/25 bg-linear-to-br from-violet-500/[0.08] via-transparent to-amber-500/[0.06]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-500/15 px-4 py-2.5">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-violet-950/80 dark:text-violet-200/90">
+                      Complimentary · company cost
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Foregone rack revenue (nights × rack rate)
+                    </p>
+                  </div>
+                  <div className="grid gap-0 sm:grid-cols-2">
+                    <div className="px-4 py-3 sm:border-r sm:border-violet-500/15">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Nights held
+                      </p>
+                      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+                        {perf.complimentaryRoomNights ?? 0}
+                      </p>
+                    </div>
+                    <div className="px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Company cost
+                      </p>
+                      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+                        {formatEtb(perf.complimentaryCostETB ?? 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      {
+                        label: "Sold",
+                        value: `${perf.roomNightsSold} nights`,
+                      },
+                      {
+                        label: "Available",
+                        value: `${perf.availableRoomNights} nights`,
+                      },
+                      {
+                        label: "Complimentary",
+                        value: `${perf.complimentaryRoomNights ?? 0} ${(perf.complimentaryRoomNights ?? 0) === 1 ? "night" : "nights"}`,
+                      },
+                      {
+                        label: "In-house",
+                        value: String(perf.staysInHouse),
+                      },
+                      {
+                        label: "Checked out",
+                        value: String(perf.staysCheckedOut),
+                      },
+                    ] as const
+                  ).map((chip) => (
+                    <div
+                      key={chip.label}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/15 px-2.5 py-1 text-xs tabular-nums"
+                    >
+                      <span className="text-muted-foreground">{chip.label}</span>
+                      <span className="font-medium text-foreground">
+                        {chip.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {(perf.complimentaryRooms?.length ?? 0) > 0 ? (
+                  <ReportMiniTable
+                    title="Complimentary rooms (company cost)"
+                    headers={[
+                      "Room",
+                      "Type",
+                      "Assignee",
+                      "Nights",
+                      "Rack / night",
+                      "Cost",
+                    ]}
+                    alignRight={[false, false, false, true, true, true]}
+                    rows={(perf.complimentaryRooms || []).map((r) => [
+                      r.roomNumber,
+                      r.roomType,
+                      r.assignee,
+                      String(r.nights),
+                      formatEtb(r.rackRateETB),
+                      formatEtb(r.costETB),
+                    ])}
+                  />
+                ) : null}
                 <div
                   className={cn(
                     "grid gap-4",
@@ -630,13 +862,24 @@ export function LodgingReportsPanel({
               </p>
             ) : (
               <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {(
                     [
                       ["Room nights", paymentTotals.roomETB, false],
                       ["Laundry", paymentTotals.laundryETB, false],
                       ["Food & drink (on stay)", paymentTotals.foodDrinkETB, true],
-                      ["Other", paymentTotals.otherETB, false],
+                      ["Penalties", paymentTotals.penaltyETB, false],
+                      ...taxNameColumns.map(
+                        (name) =>
+                          [
+                            name,
+                            paymentTotals.taxesByName[name] || 0,
+                            false,
+                          ] as const,
+                      ),
+                      ...(taxNameColumns.length === 0 && paymentTotals.taxETB > 0
+                        ? ([["Tax total", paymentTotals.taxETB, false]] as const)
+                        : []),
                     ] as const
                   ).map(([label, value, awareness]) => (
                     <div
@@ -695,6 +938,19 @@ export function LodgingReportsPanel({
                           <th className="px-3 py-2.5 font-medium text-right">
                             F&amp;B
                           </th>
+                          {taxNameColumns.map((name) => (
+                            <th
+                              key={name}
+                              className="px-3 py-2.5 font-medium text-right"
+                            >
+                              {name}
+                            </th>
+                          ))}
+                          {taxNameColumns.length === 0 ? (
+                            <th className="px-3 py-2.5 font-medium text-right">
+                              Tax
+                            </th>
+                          ) : null}
                           <th className="px-3 py-2.5 font-medium text-right">
                             Total
                           </th>
@@ -759,6 +1015,24 @@ export function LodgingReportsPanel({
                                   ? Number(b.foodDrinkETB).toLocaleString()
                                   : "—"}
                               </td>
+                              {taxNameColumns.map((name) => {
+                                const v = Number(b.taxesByName[name]) || 0;
+                                return (
+                                  <td
+                                    key={name}
+                                    className="px-3 py-2.5 text-right tabular-nums"
+                                  >
+                                    {v > 0 ? v.toLocaleString() : "—"}
+                                  </td>
+                                );
+                              })}
+                              {taxNameColumns.length === 0 ? (
+                                <td className="px-3 py-2.5 text-right tabular-nums">
+                                  {b.taxETB > 0
+                                    ? Number(b.taxETB).toLocaleString()
+                                    : "—"}
+                                </td>
+                              ) : null}
                               <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
                                 {b.totalETB > 0
                                   ? Number(b.totalETB).toLocaleString()
@@ -783,6 +1057,21 @@ export function LodgingReportsPanel({
                           <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
                             {paymentTotals.foodDrinkETB.toLocaleString()}
                           </td>
+                          {taxNameColumns.map((name) => (
+                            <td
+                              key={name}
+                              className="px-3 py-2.5 text-right tabular-nums"
+                            >
+                              {(
+                                paymentTotals.taxesByName[name] || 0
+                              ).toLocaleString()}
+                            </td>
+                          ))}
+                          {taxNameColumns.length === 0 ? (
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {paymentTotals.taxETB.toLocaleString()}
+                            </td>
+                          ) : null}
                           <td className="px-3 py-2.5 text-right tabular-nums text-primary">
                             {paymentTotals.totalETB.toLocaleString()}
                           </td>

@@ -212,10 +212,15 @@ export function LodgingComplimentPanel({
               Complimentary rooms
             </h2>
             <p className="text-sm leading-relaxed text-muted-foreground text-pretty sm:text-[15px]">
-              Hold rooms for staff — especially the manager — that are{" "}
+              Hold rooms for anyone you choose — manager, staff, or partners who
+              drive sales — as{" "}
               <span className="font-medium text-foreground">not for sale</span>.
-              Assigned rooms are blocked from check-in and reservations until
-              you release them.
+              Holds are blocked from check-in and reservations, and show in
+              lodging reports as{" "}
+              <span className="font-medium text-foreground">
+                company cost
+              </span>{" "}
+              (nights × rack rate) until you release them.
             </p>
           </div>
 
@@ -264,7 +269,8 @@ export function LodgingComplimentPanel({
               Assign complimentary room
             </CardTitle>
             <CardDescription>
-              Choose a vacant inventory room and who it is held for.
+              Choose a vacant room and who it is held for. Cost appears in
+              Reports as foregone rack revenue.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pb-5">
@@ -297,7 +303,7 @@ export function LodgingComplimentPanel({
                 id="comp-assignee"
                 value={assignee}
                 onChange={(e) => setAssignee(e.target.value)}
-                placeholder="e.g. Manager, Housekeeping lead"
+                placeholder="Anyone — manager, staff, partner…"
                 className="h-11 rounded-xl"
               />
             </div>
@@ -308,7 +314,7 @@ export function LodgingComplimentPanel({
                 rows={2}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Why this room is held for staff"
+                placeholder="e.g. manager housing, sales partner, guest of honour"
                 className="resize-none rounded-xl"
               />
             </div>
@@ -441,7 +447,7 @@ export function LodgingComplimentPanel({
                 id="edit-comp-assignee"
                 value={editAssignee}
                 onChange={(e) => setEditAssignee(e.target.value)}
-                placeholder="e.g. Manager, Housekeeping lead"
+                placeholder="Anyone — manager, staff, partner…"
                 className="h-11 rounded-xl"
               />
             </div>
@@ -452,7 +458,7 @@ export function LodgingComplimentPanel({
                 rows={3}
                 value={editNote}
                 onChange={(e) => setEditNote(e.target.value)}
-                placeholder="Why this room is held for staff"
+                placeholder="e.g. manager housing, sales partner, guest of honour"
                 className="resize-none rounded-xl"
               />
             </div>

@@ -20,6 +20,9 @@ import { Banknote, Building2, Printer, Receipt, Smartphone } from "lucide-react"
 import { cn } from "@/lib/utils";
 import type { LodgingBillLine, LodgingStay } from "@/lib/api/lodgingRooms";
 import {
+  billLineGrossAmount,
+  billTaxesByName,
+  billTotalFromLines,
   nightsFromArrivalDeparture,
   stripCafeOrderMarker,
 } from "@/lib/lodgingRoomService";
@@ -50,10 +53,7 @@ function round2(n: number) {
 }
 
 function lineAmount(line: LodgingBillLine) {
-  const base = Number(line.amountETB) || 0;
-  const tax = Number(line.taxETB) || 0;
-  if (line.voided) return 0;
-  return base + tax;
+  return billLineGrossAmount(line);
 }
 
 function guestLabel(stay: LodgingStay) {
@@ -79,9 +79,9 @@ function summarizeChannels(
   let bank = 0;
   let telebirr = 0;
   for (const line of lines) {
-    if (line.voided) continue;
-    const ch = channels[line.id] ?? "cash";
     const amt = lineAmount(line);
+    if (amt === 0) continue;
+    const ch = channels[line.id] ?? "cash";
     if (ch === "bank") bank += amt;
     else if (ch === "telebirr") telebirr += amt;
     else cash += amt;
@@ -205,11 +205,19 @@ export function ReceptionCheckoutPaymentDialog({
   onConfirm: (result: StayCheckoutPaymentResult) => void | Promise<void>;
 }) {
   const lines = useMemo(() => stay.bill?.lines ?? [], [stay.bill?.lines]);
-  /** Always sum line amount + lodging tax (matches pay-by-order). */
-  const total = useMemo(
-    () => round2(lines.reduce((s, l) => s + lineAmount(l), 0)),
-    [lines],
+  /** Stay total including lodging tax (same rules as Active Stay total). */
+  const total = useMemo(() => round2(billTotalFromLines(lines)), [lines]);
+  const taxesByName = useMemo(() => billTaxesByName(lines), [lines]);
+  const taxNames = useMemo(
+    () => Object.keys(taxesByName).sort((a, b) => a.localeCompare(b)),
+    [taxesByName],
   );
+  const taxTotal = useMemo(
+    () =>
+      round2(Object.values(taxesByName).reduce((s, n) => s + n, 0)),
+    [taxesByName],
+  );
+  const subtotalExTax = round2(total - taxTotal);
   const depositApplied = useMemo(() => {
     return lines
       .filter(
@@ -219,7 +227,7 @@ export function ReceptionCheckoutPaymentDialog({
             .toLowerCase()
             .includes("deposit"),
       )
-      .reduce((s, l) => s + Math.abs(Number(l.amountETB) || 0), 0);
+      .reduce((s, l) => s + Math.abs(billLineGrossAmount(l)), 0);
   }, [lines]);
   const folioGross = round2(total + depositApplied);
   const remainingDue = round2(total);
@@ -336,30 +344,52 @@ export function ReceptionCheckoutPaymentDialog({
 
           <div className="mt-4 space-y-2 rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 shadow-sm backdrop-blur-sm">
             <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   Remaining due
-              </p>
-              <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
+                </p>
+                <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">
                   {formatMoney(remainingDue)}
-              </p>
-            </div>
+                </p>
+              </div>
               {depositApplied > 0 ? (
                 <div className="text-right text-xs text-muted-foreground">
                   <p>Folio {formatMoney(folioGross)}</p>
                   <p>− Deposits {formatMoney(depositApplied)}</p>
                 </div>
               ) : (
-            <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
+                <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 font-normal">
                   {isLodgingCreditPaymentEnabled()
                     ? "Credit ready"
                     : "No credit"}
-            </Badge>
+                </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Collect only the remaining balance (folio total after deposits).
-            </p>
+            {taxTotal > 0 ? (
+              <div className="space-y-1 border-t border-border/50 pt-2 text-xs text-muted-foreground">
+                <div className="flex justify-between gap-3 tabular-nums">
+                  <span>Subtotal (ex. tax)</span>
+                  <span>{formatMoney(subtotalExTax)}</span>
+                </div>
+                {taxNames.map((name) => (
+                  <div
+                    key={name}
+                    className="flex justify-between gap-3 tabular-nums"
+                  >
+                    <span>{name}</span>
+                    <span>{formatMoney(taxesByName[name] || 0)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-3 font-medium tabular-nums text-foreground">
+                  <span>Incl. tax</span>
+                  <span>{formatMoney(taxTotal)}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Collect the folio total (amounts include any lodging tax).
+              </p>
+            )}
           </div>
         </div>
 
@@ -425,7 +455,9 @@ export function ReceptionCheckoutPaymentDialog({
                 </div>
               ) : (
                 <ul className="space-y-2.5">
-                  {lines.map((line) => {
+                  {lines
+                    .filter((line) => lineAmount(line) !== 0)
+                    .map((line) => {
                     const ch = lineChannels[line.id] ?? "cash";
                     return (
                       <li
@@ -444,8 +476,14 @@ export function ReceptionCheckoutPaymentDialog({
                                 : ""}
                             </p>
                           </div>
-                          <p className="shrink-0 text-sm font-semibold tabular-nums">
+                          <p className="shrink-0 text-right text-sm font-semibold tabular-nums">
                             {formatMoney(lineAmount(line))}
+                            {Number(line.taxETB || 0) > 0 ? (
+                              <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                                incl. tax{" "}
+                                {formatMoney(Number(line.taxETB))}
+                              </span>
+                            ) : null}
                           </p>
                         </div>
                         <ChannelToggle

@@ -24,6 +24,14 @@ model lodging_room {
   floor              String    @default("")
   /// Nightly rate in ETB (Manager-set).
   pricePerNightETB   Float     @default(0)
+  /// King | Queen | Twin | … (display / inventory)
+  bedType            String    @default("")
+  /// Max adult guests the room is sold for.
+  capacity           Int       @default(2)
+  /// Free-text amenities (comma-separated or short list).
+  amenities          String    @default("") @db.VarChar(2048)
+  /// Optional room photo URL.
+  imageUrl           String    @default("") @db.VarChar(2048)
   /// vacant_dirty | occupied | vacant_clean | on_maintenance | reserved | inspected | out_of_order | out_of_service | blocked
   status             String    @default("vacant_clean")
   /// When status is on_maintenance — expected ready datetime (legacy; prefer statusExpectedEndAt).
@@ -234,6 +242,8 @@ model lodging_bill_line {
   amountETB         Float     @default(0)
   taxPercent        Float     @default(0)
   taxETB            Float     @default(0)
+  /// JSON array: [{ name, percent, amountETB }] — named tax split at posting time
+  taxDetailJson     String    @default("") @db.VarChar(4096)
   roomNumber        String    @default("")
   fulfillmentStatus String    @default("pending")
   fulfilledAt       DateTime?
@@ -319,18 +329,22 @@ model lodging_action_log {
   @@index([actorName])
 }
 
-/// Tax percent per bill line kind (room | food_drink | laundry | other).
+/// Named tax rows per folio kind (e.g. VAT 15% on room). Multiple names per kind allowed.
 model lodging_tax_config {
   id         Int      @id @default(autoincrement())
   HotelName  String
+  /// Display name e.g. VAT, City tax
+  name       String   @default("Tax")
+  /// room | food_drink | laundry | other | penalty
   kind       String
   taxPercent Float    @default(0)
   updatedBy  String   @default("")
   updatedAt  DateTime @updatedAt
   createdAt  DateTime @default(now())
 
-  @@unique([HotelName, kind])
+  @@unique([HotelName, kind, name])
   @@index([HotelName])
+  @@index([HotelName, kind])
 }
 
 /// Manual business-day / shift close (night audit). Multiple overlapping shifts allowed.

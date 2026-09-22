@@ -23,6 +23,8 @@ const AUTH_KEYS = [
   "hotel_display_name",
   "logo_url",
   "user_name",
+  "receptionist_name",
+  "receptionist_id",
   "business_type",
   "tenant_modules",
   "tenant_setup_fee_etb",

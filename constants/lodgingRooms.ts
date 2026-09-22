@@ -46,9 +46,25 @@ export const LODGING_ROOM_TYPES = [
   "Family",
   "Twin",
   "Single",
+  "Double",
+  "Triple",
+  "Presidential/VIP",
 ] as const;
 
 export type LodgingRoomType = (typeof LODGING_ROOM_TYPES)[number];
+
+export const LODGING_BED_TYPES = [
+  "King",
+  "Queen",
+  "Double",
+  "Twin",
+  "Single",
+  "Sofa bed",
+  "Bunk",
+  "Other",
+] as const;
+
+export type LodgingBedType = (typeof LODGING_BED_TYPES)[number];
 
 /** Bill line categories on a guest stay (tax config excludes discount). */
 export const LODGING_BILL_LINE_KINDS = [
@@ -56,12 +72,22 @@ export const LODGING_BILL_LINE_KINDS = [
   "food_drink",
   "laundry",
   "other",
+  "penalty",
 ] as const;
 
 /** Folio discount lines — Reception requests; Manager must approve. */
 export const LODGING_DISCOUNT_KIND = "discount" as const;
 
 export type LodgingBillLineKind = (typeof LODGING_BILL_LINE_KINDS)[number];
+
+export const LODGING_BILL_LINE_KIND_LABELS: Record<LodgingBillLineKind, string> =
+  {
+    room: "Room",
+    food_drink: "Food & drink",
+    laundry: "Laundry",
+    other: "Other",
+    penalty: "Penalty",
+  };
 
 export const LODGING_SERVICE_KINDS = ["food_drink", "laundry"] as const;
 

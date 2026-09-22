@@ -17,6 +17,10 @@ export type LodgingRoom = {
   roomType: string;
   floor: string;
   pricePerNightETB: number;
+  bedType?: string;
+  capacity?: number;
+  amenities?: string;
+  imageUrl?: string;
   status: string;
   maintenanceUntil: string | null;
   statusExpectedEndAt?: string | null;
@@ -54,6 +58,8 @@ export type LodgingBillLine = {
   amountETB: number;
   taxPercent?: number;
   taxETB?: number;
+  /** JSON: [{ name, percent, amountETB }] */
+  taxDetailJson?: string;
   roomNumber: string;
   fulfillmentStatus?: string;
   fulfilledAt?: string | null;
@@ -157,6 +163,7 @@ export type LodgingReservation = {
 
 export type LodgingTaxConfig = {
   id: number;
+  name: string;
   kind: string;
   taxPercent: number;
 };
@@ -170,7 +177,19 @@ export type LodgingBusinessDay = {
   status: string;
   closedAt: string | null;
   closedBy: string;
+  receptionistId?: number | null;
+  receptionistName?: string;
   summaryJson: string;
+};
+
+export type LodgingReceptionist = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 };
 
 export type LodgingGuestComplaint = {
@@ -263,6 +282,10 @@ export type CreateLodgingRoomInput = {
   roomType: string;
   floor?: string;
   pricePerNightETB: number;
+  bedType?: string;
+  capacity?: number;
+  amenities?: string;
+  imageUrl?: string;
   notes?: string;
   status?: string;
 };
@@ -273,6 +296,10 @@ export type UpdateLodgingRoomInput = {
   roomType?: string;
   floor?: string;
   pricePerNightETB?: number;
+  bedType?: string;
+  capacity?: number;
+  amenities?: string;
+  imageUrl?: string;
   notes?: string;
   status?: string;
   maintenanceUntil?: string | null;
@@ -382,6 +409,10 @@ const ROOM_FIELDS = `
   roomType
   floor
   pricePerNightETB
+  bedType
+  capacity
+  amenities
+  imageUrl
   status
   maintenanceUntil
   statusExpectedEndAt
@@ -462,6 +493,7 @@ const STAY_FIELDS = `
       amountETB
       taxPercent
       taxETB
+      taxDetailJson
       roomNumber
       fulfillmentStatus
       fulfilledAt
@@ -791,6 +823,10 @@ export async function createLodgingRoomApi(
       $roomType: String!
       $floor: String
       $pricePerNightETB: Float!
+      $bedType: String
+      $capacity: Int
+      $amenities: String
+      $imageUrl: String
       $notes: String
     ) {
       createLodgingRoom(
@@ -798,6 +834,10 @@ export async function createLodgingRoomApi(
         roomType: $roomType
         floor: $floor
         pricePerNightETB: $pricePerNightETB
+        bedType: $bedType
+        capacity: $capacity
+        amenities: $amenities
+        imageUrl: $imageUrl
         notes: $notes
       ) { ${ROOM_FIELDS} }
     }
@@ -809,6 +849,10 @@ export async function createLodgingRoomApi(
       roomType: input.roomType,
       floor: input.floor ?? null,
       pricePerNightETB: input.pricePerNightETB,
+      bedType: input.bedType ?? null,
+      capacity: input.capacity ?? null,
+      amenities: input.amenities ?? null,
+      imageUrl: input.imageUrl ?? null,
       notes: input.notes ?? null,
     },
   });
@@ -828,6 +872,10 @@ export async function updateLodgingRoomApi(
       $roomType: String
       $floor: String
       $pricePerNightETB: Float
+      $bedType: String
+      $capacity: Int
+      $amenities: String
+      $imageUrl: String
       $notes: String
       $status: String
       $maintenanceUntil: DateTime
@@ -838,6 +886,10 @@ export async function updateLodgingRoomApi(
         roomType: $roomType
         floor: $floor
         pricePerNightETB: $pricePerNightETB
+        bedType: $bedType
+        capacity: $capacity
+        amenities: $amenities
+        imageUrl: $imageUrl
         notes: $notes
         status: $status
         maintenanceUntil: $maintenanceUntil
@@ -852,6 +904,10 @@ export async function updateLodgingRoomApi(
       roomType: input.roomType ?? null,
       floor: input.floor ?? null,
       pricePerNightETB: input.pricePerNightETB ?? null,
+      bedType: input.bedType ?? null,
+      capacity: input.capacity ?? null,
+      amenities: input.amenities ?? null,
+      imageUrl: input.imageUrl ?? null,
       notes: input.notes ?? null,
       status: input.status ?? null,
       maintenanceUntil: input.maintenanceUntil ?? null,
@@ -2125,30 +2181,101 @@ export async function resolveLodgingDiscountApi(input: {
 }
 
 export async function fetchLodgingTaxConfigs(): Promise<LodgingTaxConfig[]> {
-  const query = `query { lodgingTaxConfigs { id kind taxPercent } }`;
+  const query = `query { lodgingTaxConfigs { id name kind taxPercent } }`;
   const response = await api.post(API_URL, { query });
   gqlError(response, "Failed to load tax config");
   return (response.data.data?.lodgingTaxConfigs ?? []) as LodgingTaxConfig[];
 }
 
-export async function upsertLodgingTaxConfigApi(
-  kind: string,
-  taxPercent: number,
-): Promise<LodgingTaxConfig> {
+export async function upsertLodgingTaxConfigApi(input: {
+  kind: string;
+  name: string;
+  taxPercent: number;
+  id?: number;
+  quiet?: boolean;
+}): Promise<LodgingTaxConfig> {
   const mutation = `
-    mutation UpsertLodgingTaxConfig($kind: String!, $taxPercent: Float!) {
-      upsertLodgingTaxConfig(kind: $kind, taxPercent: $taxPercent) {
-        id kind taxPercent
+    mutation UpsertLodgingTaxConfig(
+      $kind: String!
+      $name: String!
+      $taxPercent: Float!
+      $id: Int
+    ) {
+      upsertLodgingTaxConfig(
+        kind: $kind
+        name: $name
+        taxPercent: $taxPercent
+        id: $id
+      ) {
+        id name kind taxPercent
       }
     }
   `;
   const response = await api.post(API_URL, {
     query: mutation,
-    variables: { kind, taxPercent },
+    variables: {
+      kind: input.kind,
+      name: input.name,
+      taxPercent: input.taxPercent,
+      id: input.id ?? null,
+    },
   });
   gqlError(response, "Could not save tax config");
-  toast.success("Tax updated");
+  if (!input.quiet) toast.success("Tax saved");
   return response.data.data.upsertLodgingTaxConfig as LodgingTaxConfig;
+}
+
+export async function deleteLodgingTaxConfigApi(
+  id: number,
+  opts?: { quiet?: boolean },
+): Promise<void> {
+  const mutation = `
+    mutation DeleteLodgingTaxConfig($id: Int!) {
+      deleteLodgingTaxConfig(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  gqlError(response, "Could not delete tax config");
+  if (!opts?.quiet) toast.success("Tax removed");
+}
+
+export async function addLodgingPenaltyLinesApi(input: {
+  stayId: number;
+  lines: { name: string; amountETB: number }[];
+  note?: string;
+}): Promise<LodgingStay> {
+  const mutation = `
+    mutation AddLodgingPenaltyLines(
+      $stayId: Int!
+      $linesJson: String!
+      $note: String
+    ) {
+      addLodgingPenaltyLines(
+        stayId: $stayId
+        linesJson: $linesJson
+        note: $note
+      ) { ${STAY_FIELDS} }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      stayId: input.stayId,
+      linesJson: JSON.stringify(input.lines),
+      note: input.note ?? null,
+    },
+  });
+  gqlError(response, "Could not add penalty charges");
+  invalidateLodgingCaches(["stays", "logs"]);
+  toast.success(
+    input.lines.length === 1
+      ? "Penalty added to folio"
+      : `${input.lines.length} penalties added to folio`,
+  );
+  return response.data.data.addLodgingPenaltyLines as LodgingStay;
 }
 
 export async function closeLodgingBusinessDayApi(input: {
@@ -2157,6 +2284,7 @@ export async function closeLodgingBusinessDayApi(input: {
   toAt: string;
   label?: string;
   id?: number;
+  receptionistId: number;
 }): Promise<LodgingBusinessDay> {
   const mutation = `
     mutation CloseLodgingBusinessDay(
@@ -2165,6 +2293,7 @@ export async function closeLodgingBusinessDayApi(input: {
       $toAt: DateTime!
       $label: String
       $id: Int
+      $receptionistId: Int
     ) {
       closeLodgingBusinessDay(
         businessDate: $businessDate
@@ -2172,8 +2301,10 @@ export async function closeLodgingBusinessDayApi(input: {
         toAt: $toAt
         label: $label
         id: $id
+        receptionistId: $receptionistId
       ) {
-        id businessDate label fromAt toAt status closedAt closedBy summaryJson
+        id businessDate label fromAt toAt status closedAt closedBy
+        receptionistId receptionistName summaryJson
       }
     }
   `;
@@ -2185,6 +2316,7 @@ export async function closeLodgingBusinessDayApi(input: {
       toAt: input.toAt,
       label: input.label ?? null,
       id: input.id ?? null,
+      receptionistId: input.receptionistId,
     },
   });
   gqlError(response, "Could not close business day");
@@ -2199,7 +2331,8 @@ export async function fetchLodgingBusinessDays(
   const query = `
     query LodgingBusinessDays($limit: Int) {
       lodgingBusinessDays(limit: $limit) {
-        id businessDate label fromAt toAt status closedAt closedBy summaryJson
+        id businessDate label fromAt toAt status closedAt closedBy
+        receptionistId receptionistName summaryJson
       }
     }
   `;
@@ -2210,6 +2343,63 @@ export async function fetchLodgingBusinessDays(
   gqlError(response, "Failed to load business days");
   return (response.data.data?.lodgingBusinessDays ??
     []) as LodgingBusinessDay[];
+}
+
+export async function fetchLodgingReceptionists(
+  includeInactive = false,
+): Promise<LodgingReceptionist[]> {
+  const query = `
+    query LodgingReceptionists($includeInactive: Boolean) {
+      lodgingReceptionists(includeInactive: $includeInactive) {
+        id firstName lastName isActive createdAt updatedAt updatedBy
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: { includeInactive },
+  });
+  gqlError(response, "Failed to load receptionists");
+  return (response.data.data?.lodgingReceptionists ??
+    []) as LodgingReceptionist[];
+}
+
+export async function createLodgingReceptionistsApi(
+  lines: Array<{ firstName: string; lastName: string; password: string }>,
+): Promise<LodgingReceptionist[]> {
+  const mutation = `
+    mutation CreateLodgingReceptionists($linesJson: String!) {
+      createLodgingReceptionists(linesJson: $linesJson) {
+        id firstName lastName isActive
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { linesJson: JSON.stringify(lines) },
+  });
+  gqlError(response, "Could not save receptionists");
+  toast.success(
+    lines.length === 1
+      ? "Receptionist saved"
+      : `${lines.length} receptionists saved`,
+  );
+  return response.data.data.createLodgingReceptionists as LodgingReceptionist[];
+}
+
+export async function deleteLodgingReceptionistApi(id: number): Promise<boolean> {
+  const mutation = `
+    mutation DeleteLodgingReceptionist($id: Int!) {
+      deleteLodgingReceptionist(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  gqlError(response, "Could not delete receptionist");
+  toast.success("Receptionist removed");
+  return Boolean(response.data.data.deleteLodgingReceptionist);
 }
 
 export async function voidLodgingBillApi(
@@ -2433,6 +2623,16 @@ export type LodgingPerformanceReport = {
   revparETB: number;
   staysCheckedOut: number;
   staysInHouse: number;
+  complimentaryRoomNights: number;
+  complimentaryCostETB: number;
+  complimentaryRooms: {
+    roomNumber: string;
+    roomType: string;
+    assignee: string;
+    nights: number;
+    rackRateETB: number;
+    costETB: number;
+  }[];
   byRoomType: {
     roomType: string;
     roomNightsSold: number;
@@ -2620,6 +2820,11 @@ export async function fetchLodgingPerformanceReport(
         revparETB
         staysCheckedOut
         staysInHouse
+        complimentaryRoomNights
+        complimentaryCostETB
+        complimentaryRooms {
+          roomNumber roomType assignee nights rackRateETB costETB
+        }
         byRoomType { roomType roomNightsSold roomRevenueETB adrETB }
         bySource { source stays roomRevenueETB }
       }

@@ -172,6 +172,94 @@ export function billTotalFromLines(
   }, 0);
 }
 
+/** Per-line amount including lodging tax (skips voided / pending / cancelled). */
+export function billLineGrossAmount(line: {
+  amountETB?: number;
+  taxETB?: number;
+  voided?: boolean;
+  approvalStatus?: string | null;
+  fulfillmentStatus?: string | null;
+}): number {
+  if (line.voided) return 0;
+  const appr = String(line.approvalStatus || "").toLowerCase();
+  if (appr === "pending" || appr === "rejected") return 0;
+  if (String(line.fulfillmentStatus || "").toLowerCase() === "cancelled") {
+    return 0;
+  }
+  return Number(line.amountETB || 0) + Number(line.taxETB || 0);
+}
+
+export type NamedTaxPart = {
+  name: string;
+  percent: number;
+  amountETB: number;
+};
+
+export function parseBillLineTaxParts(line: {
+  taxETB?: number;
+  taxPercent?: number;
+  taxDetailJson?: string | null;
+}): NamedTaxPart[] {
+  const raw = String(line.taxDetailJson || "").trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((p) => {
+            const row = p as Record<string, unknown>;
+            return {
+              name: String(row.name || "Tax").trim() || "Tax",
+              percent: Number(row.percent) || 0,
+              amountETB: Number(row.amountETB) || 0,
+            };
+          })
+          .filter((p) => p.amountETB > 0 || p.percent > 0);
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  const tax = Number(line.taxETB) || 0;
+  if (tax > 0) {
+    return [
+      {
+        name: "Tax",
+        percent: Number(line.taxPercent) || 0,
+        amountETB: tax,
+      },
+    ];
+  }
+  return [];
+}
+
+/** Aggregate named taxes across bill lines (active lines only). */
+export function billTaxesByName(
+  lines: {
+    amountETB?: number;
+    taxETB?: number;
+    taxPercent?: number;
+    taxDetailJson?: string | null;
+    voided?: boolean;
+    approvalStatus?: string | null;
+    fulfillmentStatus?: string | null;
+  }[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const line of lines) {
+    if (line.voided) continue;
+    const appr = String(line.approvalStatus || "").toLowerCase();
+    if (appr === "pending" || appr === "rejected") continue;
+    if (String(line.fulfillmentStatus || "").toLowerCase() === "cancelled") {
+      continue;
+    }
+    for (const part of parseBillLineTaxParts(line)) {
+      out[part.name] = (out[part.name] || 0) + part.amountETB;
+    }
+  }
+  return out;
+}
+
 export function isCafeOrderCompleted(status: string | null | undefined): boolean {
   return String(status || "").trim().toLowerCase() === "completed";
 }

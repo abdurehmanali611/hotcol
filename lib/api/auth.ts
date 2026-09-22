@@ -154,6 +154,8 @@ export async function LoginAction(
           token
           accessMode
           paymentKind
+          receptionistId
+          receptionistName
           user {
             id
             UserName
@@ -196,7 +198,8 @@ export async function LoginAction(
       throw new Error(response.data.errors[0]?.message || "Login failed");
     }
 
-    const { token, user, accessMode, paymentKind } = response.data.data.Login;
+    const { token, user, accessMode, paymentKind, receptionistId, receptionistName } =
+      response.data.data.Login;
     const modules = parseModulesJson(user.modules);
     const cafeOrderMode = parseCafeOrderMode(user.cafeOrderMode);
 
@@ -226,6 +229,19 @@ export async function LoginAction(
       localStorage.setItem("hotel_display_name", user.HotelName);
       localStorage.setItem("logo_url", user.LogoUrl || "");
       localStorage.setItem("user_name", user.UserName);
+      if (receptionistName && String(receptionistName).trim()) {
+        localStorage.setItem(
+          "receptionist_name",
+          String(receptionistName).trim(),
+        );
+        localStorage.setItem(
+          "receptionist_id",
+          receptionistId != null ? String(receptionistId) : "",
+        );
+      } else {
+        localStorage.removeItem("receptionist_name");
+        localStorage.removeItem("receptionist_id");
+      }
       localStorage.setItem(
         "business_type",
         user.businessType != null && String(user.businessType).trim() !== ""
@@ -283,7 +299,11 @@ export async function LoginAction(
       return;
     }
 
-    toast.success(`Welcome back, ${user.UserName}!`);
+    const welcomeName =
+      receptionistName && String(receptionistName).trim()
+        ? String(receptionistName).trim()
+        : user.UserName;
+    toast.success(`Welcome back, ${welcomeName}!`);
 
     const queryParams = new URLSearchParams({
       hotel: tenantId,

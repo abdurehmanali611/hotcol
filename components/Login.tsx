@@ -67,7 +67,8 @@ const Login = () => {
           Welcome back
         </CardTitle>
         <CardDescription className={cn("text-[15px]", AUTH_SUBTITLE)}>
-          Sign in with your staff username and password to open your dashboard.
+          Sign in with your staff username and password. Reception staff use the
+          shared desk username with their personal receptionist password.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-8 pt-4 pb-5">

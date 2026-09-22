@@ -2,7 +2,13 @@
 
 import { APEX_SOLUTION, HOTCOL_SYSTEM } from "@/constants/branding";
 import type { LodgingBillLine, LodgingStay } from "@/lib/api/lodgingRooms";
-import { stripCafeOrderMarker } from "@/lib/lodgingRoomService";
+import {
+  billLineGrossAmount,
+  billTaxesByName,
+  billTotalFromLines,
+  parseBillLineTaxParts,
+  stripCafeOrderMarker,
+} from "@/lib/lodgingRoomService";
 import { cn } from "@/lib/utils";
 
 function guestName(stay: LodgingStay) {
@@ -30,6 +36,7 @@ function roomsLine(stay: LodgingStay) {
 export type StayPaymentSplit = {
   cashETB: number;
   bankETB: number;
+  telebirrETB?: number;
 };
 
 export function LodgingStayDepartureReceipt({
@@ -41,10 +48,18 @@ export function LodgingStayDepartureReceipt({
   payment?: StayPaymentSplit | null;
   className?: string;
 }) {
-  const lines: LodgingBillLine[] = stay.bill?.lines ?? [];
-  const total = Number(stay.bill?.totalETB ?? 0);
-  const cash = payment?.cashETB ?? total;
+  const allLines: LodgingBillLine[] = stay.bill?.lines ?? [];
+  const activeLines = allLines.filter((l) => billLineGrossAmount(l) !== 0);
+  const lineSum = billTotalFromLines(allLines);
+  const total =
+    lineSum > 0 ? lineSum : Number(stay.bill?.totalETB ?? 0);
+  const taxesByName = billTaxesByName(allLines);
+  const taxNames = Object.keys(taxesByName).sort((a, b) => a.localeCompare(b));
+  const taxTotal = taxNames.reduce((s, n) => s + (taxesByName[n] || 0), 0);
+  const subtotalExTax = total - taxTotal;
+  const cash = payment?.cashETB ?? 0;
   const bank = payment?.bankETB ?? 0;
+  const telebirr = payment?.telebirrETB ?? 0;
   const printedAt = new Date().toLocaleString();
 
   return (
@@ -153,7 +168,7 @@ export function LodgingStayDepartureReceipt({
                 </tr>
               </thead>
               <tbody>
-                {lines.length === 0 ? (
+                {activeLines.length === 0 ? (
                   <tr>
                     <td
                       colSpan={4}
@@ -163,31 +178,74 @@ export function LodgingStayDepartureReceipt({
                     </td>
                   </tr>
                 ) : (
-                  lines.map((line) => (
-                    <tr key={line.id} className="border-t border-zinc-100">
-                      <td className="px-4 py-3">
-                        <p className="font-medium leading-snug">
-                          {stripCafeOrderMarker(line.description)}
-                        </p>
-                        <p className="text-sm capitalize text-zinc-500">
-                          {line.kind.replace(/_/g, " ")}
-                          {line.roomNumber ? ` · Rm ${line.roomNumber}` : ""}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {line.quantity}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {Number(line.unitPriceETB).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        {Number(line.amountETB).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))
+                  activeLines.map((line) => {
+                    const gross = billLineGrossAmount(line);
+                    const taxParts = parseBillLineTaxParts(line);
+                    const tax = Number(line.taxETB) || 0;
+                    return (
+                      <tr key={line.id} className="border-t border-zinc-100">
+                        <td className="px-4 py-3">
+                          <p className="font-medium leading-snug">
+                            {stripCafeOrderMarker(line.description)}
+                          </p>
+                          <p className="text-sm capitalize text-zinc-500">
+                            {line.kind.replace(/_/g, " ")}
+                            {line.roomNumber ? ` · Rm ${line.roomNumber}` : ""}
+                          </p>
+                          {taxParts.length > 0 ? (
+                            <p className="mt-1 text-xs text-zinc-500 tabular-nums">
+                              {taxParts
+                                .map(
+                                  (p) =>
+                                    `${p.name}${
+                                      p.percent > 0 ? ` ${p.percent}%` : ""
+                                    }: ${Number(p.amountETB).toLocaleString()}`,
+                                )
+                                .join(" · ")}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {line.quantity}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {Number(line.unitPriceETB).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                          {gross.toLocaleString()}
+                          {tax > 0 ? (
+                            <span className="mt-0.5 block text-xs font-normal text-zinc-500">
+                              incl. tax {tax.toLocaleString()}
+                            </span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 px-5 py-4 text-base">
+            <div className="flex justify-between gap-3 tabular-nums">
+              <span className="text-zinc-600">Subtotal (ex. tax)</span>
+              <span className="font-medium">{formatMoney(subtotalExTax)}</span>
+            </div>
+            {taxNames.map((name) => (
+              <div
+                key={name}
+                className="flex justify-between gap-3 tabular-nums"
+              >
+                <span className="text-zinc-600">{name}</span>
+                <span className="font-medium">
+                  {formatMoney(taxesByName[name] || 0)}
+                </span>
+              </div>
+            ))}
+            {taxNames.length === 0 && taxTotal <= 0 ? (
+              <p className="text-sm text-zinc-500">No lodging tax on this folio.</p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
@@ -204,6 +262,14 @@ export function LodgingStayDepartureReceipt({
                   {formatMoney(bank)}
                 </span>
               </p>
+              {telebirr > 0 ? (
+                <p>
+                  Telebirr paid:{" "}
+                  <span className="font-semibold tabular-nums">
+                    {formatMoney(telebirr)}
+                  </span>
+                </p>
+              ) : null}
             </div>
             <div className="text-right">
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800/80">
@@ -212,6 +278,11 @@ export function LodgingStayDepartureReceipt({
               <p className="text-3xl font-bold tabular-nums text-emerald-950 print:text-4xl">
                 {formatMoney(total)}
               </p>
+              {taxTotal > 0 ? (
+                <p className="mt-1 text-xs text-emerald-900/70 tabular-nums">
+                  Includes tax {formatMoney(taxTotal)}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

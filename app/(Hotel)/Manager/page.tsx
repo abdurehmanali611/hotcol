@@ -784,11 +784,11 @@ function ManagerContent() {
       "hr-departments":
         "Register departments used when HR schedules shifts.",
       "lodging-reports":
-        "Occupancy snapshot, stay history by date, past guests, and lodging action trail.",
+        "Occupancy, ADR, RevPAR, complimentary company cost, stay history, past guests, and lodging action trail.",
       "lodging-police-report":
         "Generate a confidential guest identity report for police and security, then export a branded PDF.",
       "lodging-compliment":
-        "Assign complimentary staff rooms (especially for the manager) that are held and not for sale.",
+        "Assign complimentary rooms to anyone (manager, staff, partners) — held not for sale and counted as company cost in reports.",
       "lodging-rooms":
         "Create and maintain room numbers, types, nightly rates, and notes for this property.",
       "lodging-tax":
@@ -1724,11 +1724,7 @@ function ManagerContent() {
         );
 
       case "lodging-rooms":
-        return (
-          <div className="p-4 md:p-6">
-            <LodgingRoomsPanel />
-          </div>
-        );
+        return <LodgingRoomsPanel />;
 
       case "lodging-tax":
         return (

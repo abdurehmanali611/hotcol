@@ -22,11 +22,18 @@ export function RegistrationImageUploadField({
   onChange,
   itemLabel,
   hint,
+  title = "Product photo",
+  optional = true,
+  uploadFolder,
 }: {
   value: string;
   onChange: (url: string) => void;
   itemLabel?: string;
   hint?: string;
+  title?: string;
+  optional?: boolean;
+  /** Cloudinary folder override (e.g. lodging rooms). */
+  uploadFolder?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -53,7 +60,10 @@ export function RegistrationImageUploadField({
 
     setUploading(true);
     try {
-      const url = await uploadImageFileToCloudinary(file);
+      const url = await uploadImageFileToCloudinary(
+        file,
+        uploadFolder ? { folder: uploadFolder } : undefined,
+      );
       onChange(url);
       toast.success("Image uploaded");
     } catch (e) {
@@ -64,7 +74,7 @@ export function RegistrationImageUploadField({
   };
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-dashed border-border/80 bg-muted/15 p-4">
+    <div className="space-y-3 rounded-xl border border-dashed border-border/80 bg-background p-3.5 sm:p-4">
       <input
         ref={inputRef}
         type="file"
@@ -73,46 +83,67 @@ export function RegistrationImageUploadField({
         aria-hidden
         onChange={(e) => void onFileChange(e)}
       />
-      <div className="flex items-center gap-4 min-w-0">
-        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-background shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-muted/30 shadow-sm">
           {previewUrl && hasImage ? (
             <Image
               src={previewUrl}
-              alt={itemLabel || "Item"}
+              alt={itemLabel || title}
               fill
               className="object-cover"
               unoptimized
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground text-center px-1">
+            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
               No image
             </div>
           )}
         </div>
-        <div className="min-w-0 space-y-0.5">
-          <p className="text-sm font-medium">
-            Product photo{" "}
-            <span className="font-normal text-muted-foreground">(optional)</span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-sm font-medium leading-snug">
+            {title}{" "}
+            {optional ? (
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            ) : null}
           </p>
           {hint ? (
-            <p className="text-xs text-muted-foreground max-w-xs">{hint}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground text-pretty">
+              {hint}
+            </p>
           ) : null}
         </div>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        className="gap-2 shrink-0"
-        disabled={uploading}
-        onClick={openPicker}
-      >
-        {uploading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="h-4 w-4" />
-        )}
-        {uploading ? "Uploading…" : hasImage ? "Replace image" : "Browse image"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 gap-2"
+          disabled={uploading}
+          onClick={openPicker}
+        >
+          {uploading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          {uploading ? "Uploading…" : hasImage ? "Replace image" : "Browse image"}
+        </Button>
+        {hasImage ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 text-muted-foreground"
+            disabled={uploading}
+            onClick={() => onChange("")}
+          >
+            Remove
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

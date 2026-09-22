@@ -65,6 +65,7 @@ import { LodgingRegistrationCard } from "@/components/hotel/LodgingRegistrationC
 import {
   ReceptionCheckoutPaymentDialog,
 } from "@/components/hotel/ReceptionCheckoutPaymentDialog";
+import { LodgingPenaltyDialog } from "@/components/hotel/LodgingPenaltyDialog";
 import { useReceptionCmPortalEnabled } from "@/hooks/useReceptionCmPortalEnabled";
 import {
   ArrowRightLeft,
@@ -78,6 +79,7 @@ import {
   LogOut,
   Printer,
   RefreshCw,
+  Scale,
   Shirt,
   Sparkles,
   UserPlus,
@@ -197,6 +199,14 @@ export function ReceptionDashboard() {
   const { tenantScope, displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const logoUrl = searchParams.get("logo") || "";
   const receptionCmPortalEnabled = useReceptionCmPortalEnabled();
+  const [receptionistName, setReceptionistName] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setReceptionistName(
+      localStorage.getItem("receptionist_name")?.trim() || "",
+    );
+  }, []);
 
   const [activeSection, setActiveSection] =
     useState<ReceptionSectionId>("dashboard");
@@ -226,6 +236,7 @@ export function ReceptionDashboard() {
   const [roomTransferOpen, setRoomTransferOpen] = useState(false);
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  const [penaltyOpen, setPenaltyOpen] = useState(false);
   const [checkInReservation, setCheckInReservation] =
     useState<import("@/lib/api/lodgingRooms").LodgingReservation | null>(null);
   const [staySearch, setStaySearch] = useState("");
@@ -571,10 +582,10 @@ export function ReceptionDashboard() {
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
-                  Terminal
+                  Reception
                 </p>
                 <span className="block truncate font-semibold leading-tight">
-                  Reception
+                  {receptionistName || "Desk"}
                 </span>
               </div>
             </div>
@@ -650,6 +661,11 @@ export function ReceptionDashboard() {
               <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
                 {displayName || "Property"}
               </h1>
+              {receptionistName ? (
+                <p className="truncate text-sm font-medium tracking-tight">
+                  {receptionistName}
+                </p>
+              ) : null}
             </div>
             <Button
               variant="ghost"
@@ -669,7 +685,9 @@ export function ReceptionDashboard() {
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>
-                {(displayName || "P").slice(0, 2).toUpperCase()}
+                {(receptionistName || displayName || "P")
+                  .slice(0, 2)
+                  .toUpperCase()}
               </AvatarFallback>
             </Avatar>
           </header>
@@ -963,7 +981,7 @@ export function ReceptionDashboard() {
                             Save stay notes
                           </PendingButton>
 
-                          <div className="space-y-2">
+                            <div className="space-y-2">
                             <div className="flex flex-wrap items-end justify-between gap-2">
                               <div>
                                 <p className="text-sm font-medium">Guest usage</p>
@@ -981,6 +999,27 @@ export function ReceptionDashboard() {
                                 </p>
                               ) : null)}
                             </div>
+                            {selectedStay.status === "checked_in" ? (
+                              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-3.5 py-3 text-sm">
+                                <Checkbox
+                                  checked={penaltyOpen}
+                                  onCheckedChange={(v) =>
+                                    setPenaltyOpen(v === true)
+                                  }
+                                  className="mt-0.5"
+                                />
+                                <span className="min-w-0">
+                                  <span className="inline-flex items-center gap-1.5 font-medium">
+                                    <Scale className="size-3.5 text-amber-800 dark:text-amber-300" />
+                                    Penalty payment
+                                  </span>
+                                  <span className="mt-0.5 block text-xs text-muted-foreground leading-relaxed">
+                                    Post fault/damage charges to this folio in a
+                                    batch — no Manager approval required.
+                                  </span>
+                                </span>
+                              </label>
+                            ) : null}
 
                             {selectedStayActiveLines.length === 0 ? (
                               <div className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -1212,7 +1251,32 @@ export function ReceptionDashboard() {
                                                     )}
                                                   </span>
                                                 ) : (
-                                                  formatMoney(line.amountETB)
+                                                  <span className="inline-flex flex-col items-end gap-0.5">
+                                                    <span>
+                                                      {formatMoney(
+                                                        Number(
+                                                          line.amountETB || 0,
+                                                        ) +
+                                                          Number(
+                                                            line.taxETB || 0,
+                                                          ),
+                                                      )}
+                                                    </span>
+                                                    {Number(line.taxETB || 0) >
+                                                    0 ? (
+                                                      <span className="text-[11px] font-normal text-muted-foreground">
+                                                        incl. tax{" "}
+                                                        {formatMoney(
+                                                          Number(line.taxETB),
+                                                        )}
+                                                        {Number(
+                                                          line.taxPercent || 0,
+                                                        ) > 0
+                                                          ? ` (${Number(line.taxPercent)}%)`
+                                                          : ""}
+                                                      </span>
+                                                    ) : null}
+                                                  </span>
                                                 )}
                                               </td>
                                               <td className="px-3 py-2 text-right align-top">
@@ -1711,6 +1775,18 @@ export function ReceptionDashboard() {
             stay={selectedStay}
             vacantCleanRooms={vacantCleanRooms}
             onDone={async () => {
+              await load(true);
+            }}
+          />
+        ) : null}
+
+        {selectedStay ? (
+          <LodgingPenaltyDialog
+            open={penaltyOpen}
+            onOpenChange={setPenaltyOpen}
+            stayId={selectedStay.id}
+            guestLabel={guestName(selectedStay.guest)}
+            onSaved={async () => {
               await load(true);
             }}
           />
