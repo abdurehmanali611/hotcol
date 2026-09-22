@@ -427,7 +427,7 @@ export function LodgingReportsPanel({
     const taxNames = Array.from(taxNameSet).sort((a, b) =>
       a.localeCompare(b),
     );
-    const rows = stays.map((s) => {
+    const rows: Record<string, unknown>[] = stays.map((s) => {
       const b = stayPaymentBreakdown(s);
       const taxCols: Record<string, number> = {};
       for (const name of taxNames) {
@@ -455,7 +455,16 @@ export function LodgingReportsPanel({
         "Bill total ETB": b.totalETB,
       };
     });
-    const totals = rows.reduce(
+    const totals = rows.reduce<{
+      room: number;
+      laundry: number;
+      food: number;
+      penalty: number;
+      tax: number;
+      other: number;
+      total: number;
+      byName: Record<string, number>;
+    }>(
       (acc, r) => {
         acc.room += Number(r["Room nights ETB"]) || 0;
         acc.laundry += Number(r["Laundry ETB"]) || 0;

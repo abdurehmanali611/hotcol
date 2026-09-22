@@ -69,7 +69,7 @@ export interface DataTableProps<TData, TValue> {
   getSubRows?: (row: TData) => TData[] | undefined;
 }
 
-function DataTableInner<TData extends { id?: number }, TValue>(
+function DataTableInner<TData extends { id?: number | string }, TValue>(
   {
     columns,
     data,
@@ -422,7 +422,7 @@ function DataTableInner<TData extends { id?: number }, TValue>(
 }
 
 export const DataTable = React.forwardRef(DataTableInner) as <
-  TData extends { id?: number },
+  TData extends { id?: number | string },
   TValue,
 >(
   props: DataTableProps<TData, TValue> & {

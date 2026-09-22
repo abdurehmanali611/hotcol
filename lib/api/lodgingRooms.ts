@@ -2284,7 +2284,7 @@ export async function closeLodgingBusinessDayApi(input: {
   toAt: string;
   label?: string;
   id?: number;
-  receptionistId: number;
+  receptionistId?: number;
 }): Promise<LodgingBusinessDay> {
   const mutation = `
     mutation CloseLodgingBusinessDay(
@@ -2316,7 +2316,7 @@ export async function closeLodgingBusinessDayApi(input: {
       toAt: input.toAt,
       label: input.label ?? null,
       id: input.id ?? null,
-      receptionistId: input.receptionistId,
+      receptionistId: input.receptionistId ?? null,
     },
   });
   gqlError(response, "Could not close business day");

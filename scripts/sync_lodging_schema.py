@@ -234,7 +234,7 @@ model lodging_bill {
 model lodging_bill_line {
   id                Int       @id @default(autoincrement())
   billId            Int
-  /// room | food_drink | laundry | other | discount
+  /// room | food_drink | laundry | other | penalty | discount
   kind              String
   description       String
   quantity          Float     @default(1)
@@ -361,6 +361,9 @@ model lodging_business_day {
   status       String    @default("open")
   closedAt     DateTime?
   closedBy     String    @default("")
+  /// Receptionist this close/report is scoped to (optional for legacy rows).
+  receptionistId   Int?
+  receptionistName String @default("")
   summaryJson  String    @db.Text
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -369,6 +372,23 @@ model lodging_business_day {
   @@index([HotelName, status])
   @@index([HotelName, businessDate])
   @@index([HotelName, fromAt])
+  @@index([HotelName, receptionistId])
+}
+
+/// Named receptionists under the shared Reception desk login (password identifies who).
+model lodging_receptionist {
+  id           Int      @id @default(autoincrement())
+  HotelName    String
+  firstName    String
+  lastName     String
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  updatedBy    String   @default("")
+
+  @@index([HotelName])
+  @@index([HotelName, isActive])
 }
 
 /// Sellable rate plans (rack, corporate, seasonal, weekend, promo, long-stay…).
