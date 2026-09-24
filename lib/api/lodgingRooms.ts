@@ -192,6 +192,19 @@ export type LodgingReceptionist = {
   updatedBy?: string;
 };
 
+export type LodgingCmStaffRole = "cleaner" | "maintainer";
+
+export type LodgingCmStaff = {
+  id: number;
+  role: LodgingCmStaffRole | string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
 export type LodgingGuestComplaint = {
   id: number;
   stayId: number;
@@ -2400,6 +2413,108 @@ export async function deleteLodgingReceptionistApi(id: number): Promise<boolean>
   gqlError(response, "Could not delete receptionist");
   toast.success("Receptionist removed");
   return Boolean(response.data.data.deleteLodgingReceptionist);
+}
+
+export async function fetchLodgingCmStaff(
+  role?: LodgingCmStaffRole | null,
+  includeInactive = false,
+): Promise<LodgingCmStaff[]> {
+  const query = `
+    query LodgingCmStaff($role: String, $includeInactive: Boolean) {
+      lodgingCmStaff(role: $role, includeInactive: $includeInactive) {
+        id role firstName lastName isActive createdAt updatedAt updatedBy
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query,
+    variables: {
+      role: role || null,
+      includeInactive,
+    },
+  });
+  gqlError(response, "Failed to load CM staff");
+  return (response.data.data?.lodgingCmStaff ?? []) as LodgingCmStaff[];
+}
+
+export async function createLodgingCmStaffApi(
+  role: LodgingCmStaffRole,
+  lines: Array<{ firstName: string; lastName: string }>,
+): Promise<LodgingCmStaff[]> {
+  const mutation = `
+    mutation CreateLodgingCmStaff($role: String!, $linesJson: String!) {
+      createLodgingCmStaff(role: $role, linesJson: $linesJson) {
+        id role firstName lastName isActive
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { role, linesJson: JSON.stringify(lines) },
+  });
+  gqlError(
+    response,
+    role === "cleaner"
+      ? "Could not save cleaners"
+      : "Could not save maintainers",
+  );
+  const label = role === "cleaner" ? "cleaner" : "maintainer";
+  toast.success(
+    lines.length === 1
+      ? `${label[0]!.toUpperCase()}${label.slice(1)} saved`
+      : `${lines.length} ${label}s saved`,
+  );
+  return response.data.data.createLodgingCmStaff as LodgingCmStaff[];
+}
+
+export async function updateLodgingCmStaffApi(
+  id: number,
+  input: { firstName?: string; lastName?: string; isActive?: boolean },
+): Promise<LodgingCmStaff> {
+  const mutation = `
+    mutation UpdateLodgingCmStaff(
+      $id: Int!
+      $firstName: String
+      $lastName: String
+      $isActive: Boolean
+    ) {
+      updateLodgingCmStaff(
+        id: $id
+        firstName: $firstName
+        lastName: $lastName
+        isActive: $isActive
+      ) {
+        id role firstName lastName isActive
+      }
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: {
+      id,
+      firstName: input.firstName ?? null,
+      lastName: input.lastName ?? null,
+      isActive: input.isActive ?? null,
+    },
+  });
+  gqlError(response, "Could not update staff member");
+  toast.success("Staff updated");
+  return response.data.data.updateLodgingCmStaff as LodgingCmStaff;
+}
+
+export async function deleteLodgingCmStaffApi(id: number): Promise<boolean> {
+  const mutation = `
+    mutation DeleteLodgingCmStaff($id: Int!) {
+      deleteLodgingCmStaff(id: $id)
+    }
+  `;
+  const response = await api.post(API_URL, {
+    query: mutation,
+    variables: { id },
+  });
+  gqlError(response, "Could not delete staff member");
+  toast.success("Removed from roster");
+  return Boolean(response.data.data.deleteLodgingCmStaff);
 }
 
 export async function voidLodgingBillApi(

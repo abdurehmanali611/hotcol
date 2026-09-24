@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -16,6 +16,19 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -25,7 +38,9 @@ import {
 } from "@/components/ui/dialog";
 import {
   CalendarClock,
+  Check,
   CheckCircle2,
+  ChevronsUpDown,
   Copy,
   Pencil,
   Plus,
@@ -38,9 +53,11 @@ import {
 import {
   completeLodgingCmAssignmentApi,
   createLodgingCmAssignmentsApi,
+  fetchLodgingCmStaff,
   syncLodgingCmOpenAssigneesApi,
   updateLodgingRoomStatusApi,
   type LodgingCmAssignment,
+  type LodgingCmStaff,
   type LodgingRoom,
 } from "@/lib/api/lodgingRooms";
 import {
@@ -128,55 +145,226 @@ function emptyDraft(): RoomAssignDraft {
   return { names: [""], notes: "", expectedEndAt: "" };
 }
 
+function staffFullName(row: Pick<LodgingCmStaff, "firstName" | "lastName">) {
+  return `${row.firstName} ${row.lastName}`.trim();
+}
+
+/** Searchable assignee combobox — same pattern as hotel store item registration. */
+function CmStaffCombobox({
+  value,
+  onPick,
+  roster,
+  roleLabel,
+  usedElsewhere,
+  id,
+}: {
+  value: string;
+  onPick: (fullName: string) => void;
+  roster: LodgingCmStaff[];
+  roleLabel: string;
+  usedElsewhere: Set<string>;
+  id?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+
+  const options = useMemo(() => {
+    const current = value.trim().toLowerCase();
+    return roster.filter((row) => {
+      const label = staffFullName(row);
+      const key = label.toLowerCase();
+      return key === current || !usedElsewhere.has(key);
+    });
+  }, [roster, usedElsewhere, value]);
+
+  const filtered = useMemo(() => {
+    if (!query) return options;
+    return options.filter((row) => {
+      const label = staffFullName(row).toLowerCase();
+      return (
+        label.includes(query) ||
+        row.firstName.toLowerCase().includes(query) ||
+        row.lastName.toLowerCase().includes(query)
+      );
+    });
+  }, [options, query]);
+
+  const singular = roleLabel.endsWith("s")
+    ? roleLabel.slice(0, -1).toLowerCase()
+    : roleLabel.toLowerCase();
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setSearch(value);
+        else setSearch("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-11 w-full justify-between rounded-xl border-border/80 bg-background px-3 font-normal shadow-sm"
+        >
+          <span
+            className={cn(
+              "min-w-0 truncate text-left",
+              value.trim() ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {value.trim() || `Select ${singular}…`}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={`Search ${roleLabel.toLowerCase()}…`}
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {filtered.length === 0 ? (
+              <CommandEmpty>
+                No match — try another name, or register them in Manager → Folio
+                voids.
+              </CommandEmpty>
+            ) : (
+              <CommandGroup heading={roleLabel}>
+                {filtered.map((row) => {
+                  const label = staffFullName(row);
+                  const selected =
+                    value.trim().toLowerCase() === label.toLowerCase();
+                  return (
+                    <CommandItem
+                      key={row.id}
+                      value={`${row.id}-${label}`}
+                      onSelect={() => {
+                        onPick(label);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4 shrink-0",
+                          selected ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{label}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Assignee rows: searchable Select from the Manager cleaner/maintainer roster. */
 function PeopleFields({
   names,
   onChangeName,
   onAdd,
   onRemove,
   idPrefix,
+  roster,
+  roleLabel,
 }: {
   names: string[];
   onChangeName: (idx: number, value: string) => void;
   onAdd: () => void;
   onRemove: (idx: number) => void;
   idPrefix: string;
+  roster: LodgingCmStaff[];
+  roleLabel: string;
 }) {
+  const selectedLower = useMemo(
+    () =>
+      new Set(
+        parseAssigneeNames(names)
+          .map((n) => n.toLowerCase())
+          .filter(Boolean),
+      ),
+    [names],
+  );
+
+  const rows = names.length > 0 ? names : [""];
+
+  if (roster.length === 0) {
+    return (
+      <div className="space-y-2">
+        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {roleLabel}
+        </Label>
+        <p className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-3.5 py-3 text-sm text-muted-foreground">
+          No {roleLabel.toLowerCase()} registered yet. Add them in Manager →
+          Folio voids (Cleaners / Maintainers), then return here to assign.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        People
+        Assign {roleLabel.toLowerCase()}
       </Label>
-      {names.map((name, idx) => (
-        <div key={`${idPrefix}-${idx}`} className="flex gap-2">
-          <Input
-            id={`${idPrefix}-person-${idx}`}
-            className="h-10"
-            placeholder={`Name ${idx + 1}`}
-            value={name}
-            onChange={(e) => onChangeName(idx, e.target.value)}
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-10 shrink-0 text-muted-foreground hover:text-destructive"
-            disabled={names.length <= 1}
-            onClick={() => onRemove(idx)}
-            aria-label="Remove person"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ))}
+      {rows.map((name, idx) => {
+        const usedElsewhere = new Set(
+          rows
+            .map((n, i) => (i === idx ? "" : n.trim().toLowerCase()))
+            .filter(Boolean),
+        );
+        return (
+          <div key={`${idPrefix}-${idx}`} className="flex gap-2">
+            <div className="min-w-0 flex-1">
+              <CmStaffCombobox
+                id={`${idPrefix}-person-${idx}`}
+                value={name}
+                roster={roster}
+                roleLabel={roleLabel}
+                usedElsewhere={usedElsewhere}
+                onPick={(fullName) => onChangeName(idx, fullName)}
+              />
+            </div>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-11 shrink-0 text-muted-foreground hover:text-destructive"
+              disabled={rows.length <= 1}
+              onClick={() => onRemove(idx)}
+              aria-label="Remove assignee"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      })}
       <Button
         type="button"
         variant="outline"
         size="sm"
         className="h-9 gap-1.5 rounded-lg"
+        disabled={selectedLower.size >= roster.length}
         onClick={onAdd}
       >
         <Plus className="h-4 w-4" />
-        Add person
+        Add another
       </Button>
     </div>
   );
@@ -207,9 +395,44 @@ export function LodgingCmQueuePanel({
   const [editNames, setEditNames] = useState<string[]>([""]);
   const [editNotes, setEditNotes] = useState("");
   const [editExpectedEndAt, setEditExpectedEndAt] = useState("");
+  const [cleanerRoster, setCleanerRoster] = useState<LodgingCmStaff[]>([]);
+  const [maintainerRoster, setMaintainerRoster] = useState<LodgingCmStaff[]>(
+    [],
+  );
+
+  const reloadRoster = useCallback(async () => {
+    try {
+      const [cleaners, maintainers] = await Promise.all([
+        fetchLodgingCmStaff("cleaner").catch(() => [] as LodgingCmStaff[]),
+        fetchLodgingCmStaff("maintainer").catch(() => [] as LodgingCmStaff[]),
+      ]);
+      setCleanerRoster(cleaners.filter((r) => r.isActive !== false));
+      setMaintainerRoster(maintainers.filter((r) => r.isActive !== false));
+    } catch {
+      /* keep last known roster */
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadRoster();
+  }, [reloadRoster, openAssignments.length, queue.length]);
+
+  const activeRoster =
+    workKind === "maintenance" ? maintainerRoster : cleanerRoster;
+  const roleLabel =
+    workKind === "maintenance" ? "Maintainers" : "Cleaners";
+  const editRoster =
+    String(editingAssignment?.workKind || "").toLowerCase() === "maintenance"
+      ? maintainerRoster
+      : cleanerRoster;
+  const editRoleLabel =
+    String(editingAssignment?.workKind || "").toLowerCase() === "maintenance"
+      ? "Maintainers"
+      : "Cleaners";
 
   const openEditAssignment = (a: LodgingCmAssignment) => {
     if (!canEditOpenAssignment(a)) return;
+    void reloadRoster();
     const siblings = openAssignments.filter(
       (row) =>
         row.roomId === a.roomId &&
@@ -296,13 +519,20 @@ export function LodgingCmQueuePanel({
 
   const canSave = useMemo(() => {
     if (assignRoomIds.length === 0) return false;
+    if (activeRoster.length === 0) return false;
     if (peopleLayout === "shared") {
       return parseAssigneeNames(sharedDraft.names).length > 0;
     }
     return assignRoomIds.every(
       (id) => parseAssigneeNames(perRoomDrafts[id]?.names ?? []).length > 0,
     );
-  }, [assignRoomIds, peopleLayout, sharedDraft.names, perRoomDrafts]);
+  }, [
+    assignRoomIds,
+    peopleLayout,
+    sharedDraft.names,
+    perRoomDrafts,
+    activeRoster.length,
+  ]);
 
   const resetAssign = () => {
     setAssignRoomIds([]);
@@ -336,6 +566,7 @@ export function LodgingCmQueuePanel({
     const drafts: Record<number, RoomAssignDraft> = {};
     for (const id of ids) drafts[id] = emptyDraft();
     setPerRoomDrafts(drafts);
+    void reloadRoster();
   };
 
   const updatePerRoom = (
@@ -700,8 +931,8 @@ export function LodgingCmQueuePanel({
             </DialogTitle>
             <DialogDescription className="text-pretty leading-relaxed">
               {isMaintForm
-                ? "Assign staff per room or share one team across all selected rooms. Dirty rooms move to maintenance on save."
-                : "Enter cleaners for each room. When the last cleaner completes, the room becomes inspected — then Open as vacant clean unlocks."}
+                ? "Search and select maintainers from the Manager roster for each room (or share one team across all selected rooms)."
+                : "Search and select cleaners from the Manager roster. When the last cleaner completes, the room becomes inspected — then Open as vacant clean unlocks."}
             </DialogDescription>
             <div className="flex flex-wrap gap-1.5">
               {assignRooms.map((r) => (
@@ -762,6 +993,8 @@ export function LodgingCmQueuePanel({
                 <PeopleFields
                   idPrefix="shared"
                   names={sharedDraft.names}
+                  roster={activeRoster}
+                  roleLabel={roleLabel}
                   onChangeName={(idx, value) =>
                     setSharedDraft((d) => ({
                       ...d,
@@ -777,7 +1010,10 @@ export function LodgingCmQueuePanel({
                   onRemove={(idx) =>
                     setSharedDraft((d) => ({
                       ...d,
-                      names: d.names.filter((_, i) => i !== idx),
+                      names:
+                        d.names.length <= 1
+                          ? [""]
+                          : d.names.filter((_, i) => i !== idx),
                     }))
                   }
                 />
@@ -865,6 +1101,8 @@ export function LodgingCmQueuePanel({
                       <PeopleFields
                         idPrefix={`room-${room.id}`}
                         names={draft.names}
+                        roster={activeRoster}
+                        roleLabel={roleLabel}
                         onChangeName={(idx, value) =>
                           updatePerRoom(room.id, (d) => ({
                             ...d,
@@ -882,7 +1120,10 @@ export function LodgingCmQueuePanel({
                         onRemove={(idx) =>
                           updatePerRoom(room.id, (d) => ({
                             ...d,
-                            names: d.names.filter((_, i) => i !== idx),
+                            names:
+                              d.names.length <= 1
+                                ? [""]
+                                : d.names.filter((_, i) => i !== idx),
                           }))
                         }
                       />
@@ -1086,6 +1327,8 @@ export function LodgingCmQueuePanel({
             <PeopleFields
               idPrefix="edit-cm"
               names={editNames}
+              roster={editRoster}
+              roleLabel={editRoleLabel}
               onChangeName={(idx, value) =>
                 setEditNames((prev) =>
                   prev.map((n, i) => (i === idx ? value : n)),
@@ -1094,7 +1337,7 @@ export function LodgingCmQueuePanel({
               onAdd={() => setEditNames((prev) => [...prev, ""])}
               onRemove={(idx) =>
                 setEditNames((prev) =>
-                  prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx),
+                  prev.length <= 1 ? [""] : prev.filter((_, i) => i !== idx),
                 )
               }
             />

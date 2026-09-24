@@ -207,6 +207,7 @@ import { CafeAdminStationPrepQtyPanel } from "@/components/cafe/CafeAdminStation
 import { RecipeUsageStatusPanel } from "@/components/inventory/RecipeUsageStatusPanel";
 import { ManagerCashierCancelPermissionCard } from "@/components/cafe/ManagerCashierCancelPermissionCard";
 import { ManagerReceptionCmPortalPermissionCard } from "@/components/hotel/ManagerReceptionCmPortalPermissionCard";
+import { LodgingCmStaffRegistryPanel } from "@/components/hotel/LodgingCmStaffRegistryPanel";
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
@@ -798,7 +799,7 @@ function ManagerContent() {
       "lodging-discounts":
         "Approve or reject folio discount requests from Reception.",
       "lodging-voids":
-        "Allow Reception CM portal access, and void whole bills, room charges, or individual folio lines (Manager only).",
+        "Register cleaners and maintainers, allow Reception CM portal access, and void folio charges (Manager only).",
       "lodging-guest-complaints":
         "Review and resolve guest complaints submitted from HotCol Room.",
       "lodging-guest-ratings":
@@ -1750,6 +1751,7 @@ function ManagerContent() {
       case "lodging-voids":
         return (
           <div className="space-y-8 p-4 md:p-6">
+            <LodgingCmStaffRegistryPanel refreshKey={inventoryRefreshKey} />
             <ManagerReceptionCmPortalPermissionCard />
             <LodgingManagerVoidsPanel refreshKey={inventoryRefreshKey} />
           </div>
