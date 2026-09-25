@@ -35,59 +35,61 @@ Separately use **Part 0b** (Finance by subscription) and **Part 0c** (employee c
 
 | ID  | Feature                                           | Phase | App      | Proposed | Your decision | Notes                                                                                 |
 | --- | ------------------------------------------------- | ----- | -------- | -------- | ------------- | ------------------------------------------------------------------------------------- |
-| F01 | Create / update employee (non-salary)             | A     | user     | NO       |               |                                                                                       |
-| F02 | Hire complete → issue portal OTP                  | A     | user     | NO       |               | HR sees OTP until first login                                                         |
-| F03 | Employee first login + force change OTP           | A     | emp      | N/A      |               | System gate                                                                           |
-| F04 | OTP reset request                                 | A     | user     | YES      |               | **Spec-locked:** HR requests → Manager approves                                       |
-| F05 | OTP reset reject                                  | A     | user     | N/A      |               | Manager action                                                                        |
-| F06 | Terminate employee                                | A/B   | user     | NO       | YESYES        | Soft terminate; set YES if you want Manager gate                                      |
-| F07 | HR sends notification to employee(s)              | A     | user     | NO       |               | Direct notify employees                                                               |
-| F08 | Leave request (HR files for employee)             | A     | user     | NO       |               | Creates pending leave                                                                 |
-| F09 | Leave approve / reject (Manager)                  | A     | user     | YES      |               | Manager path; may also be done by **Supervisor** (F47) without this                   |
-| F10 | Employee self leave request                       | A     | emp      | NO       |               | Creates pending; F09 and/or F47                                                       |
-| F11 | Manual clock in/out by HR                         | A     | user     | NO       |               | Default when biometrics off                                                           |
-| F12 | Attendance correction by HR                       | A     | user     | NO       | YES           | Propose YES if you want audit gate                                                    |
-| F13 | Create / delete shift                             | A     | user     | NO       |               | **Manager** owns shifts (not HR)                                                      |
-| F14 | Leave types / departments / incident types config | A     | user     | NO       |               | Manager/Admin config today                                                            |
-| F15 | Record incident                                   | A     | user     | NO       |               |                                                                                       |
-| F16 | Document metadata create/delete                   | A     | user     | NO       |               |                                                                                       |
-| F17 | Open payroll period / generate payslips           | A     | user     | NO       | YES           | HR operational run; Finance may review when HR+Fin (Part 0b)                          |
-| F18 | Mark payslips paid                                | A     | user     | NO       |               | HR marks; Finance may participate when HR+Fin                                         |
-| F19 | Approve payroll payment (final)                   | A     | user     | YES      |               | Manager and/or Finance when HR+Fin — lock in Part 0b                                  |
-| F20 | Payroll line rules / wage windows config          | A     | user     | NO       |               | Manager config; Finance may view/edit tax rules when HR+Fin (B)                       |
-| F21 | Apex: solo HR Manager toggle                      | A     | apex     | N/A      |               | Apex only                                                                             |
-| F22 | Apex: HR biometrics toggle                        | A     | apex     | N/A      |               | Apex only                                                                             |
-| F23 | Biometric device enroll / sync                    | A     | user     | NO       |               | Only when F22 on                                                                      |
-| F24 | Employee edit own profile (photo)                 | A     | emp      | NO       |               | Allowlisted fields                                                                    |
-| F25 | Employee view own payslip                         | A     | emp      | N/A      |               | Read-only                                                                             |
-| F26 | Excel employee import                             | B     | user     | NO       |               | imported by Apex-only as apex import inventory items for inventory module subscribers |
-| F27 | Extend profile (gender, education, TIN…)          | B     | user     | NO       |               |                                                                                       |
-| F28 | Salary change (baseSalaryETB)                     | B     | user     | YES      |               | Manager approve + salary history; Finance notify when HR+Fin                          |
-| F29 | Statutory tax/pension rule publish                | B     | user     | YES      |               | Finance primary when HR+Fin; else Manager                                             |
-| F30 | Salary advance request                            | B     | user/emp | YES      |               |                                                                                       |
-| F31 | Loan create                                       | B     | user     | YES      |               |                                                                                       |
-| F32 | Bonus / incentive payout                          | B     | user     | YES      |               |                                                                                       |
-| F33 | Shift template / publish roster                   | B     | user     | NO       |               | Manager; propose YES for “publish” only                                               |
-| F34 | Overtime request                                  | B     | user/emp | YES      |               | Supervisor may approve if granted (extend F47)                                        |
-| F35 | Document vault upload + expiry                    | B     | user     | NO       |               |                                                                                       |
-| F36 | Onboarding checklist complete                     | B     | user     | NO       |               |                                                                                       |
-| F37 | Exit clearance complete                           | B     | user     | YES      |               | Multi-dept sensitive                                                                  |
-| F38 | Promotion / transfer                              | B     | user     | YES      |               |                                                                                       |
-| F39 | Formal disciplinary action                        | B     | user     | YES      |               |                                                                                       |
-| F40 | Vacancy / hire from ATS                           | B     | user     | YES      |               | Offer stage                                                                           |
-| F41 | Performance review finalize                       | B     | user     | YES      |               |                                                                                       |
-| F42 | Training assign                                   | B     | user     | NO       | YES           |                                                                                       |
-| F43 | Staff meal / housing / transport assign           | B     | user     | NO       | YES           |                                                                                       |
-| F44 | Asset issue / return                              | B     | user     | NO       |               | Exit clearance may YES via F37                                                        |
-| F45 | Export payroll bank file                          | B     | user     | YES      |               | **Finance** when HR+Fin; else Manager                                                 |
-| F46 | Post payroll to Finance module                    | B     | user     | YES      |               | Finance when HR+Fin                                                                   |
-| F47 | Grant / revoke employee capabilities (supervisor) | A     | user     | NO       |               | HR/Manager configures; see Part 0c                                                    |
-| F48 | Supervisor approve/reject leave (scoped)          | A     | emp      | N/A      |               | Capability path; not Manager bell unless escalation                                   |
-| F49 | Finance HR payroll queue actions                  | A     | user     | N/A      |               | Module-gated; see Part 0b                                                             |
+| F01 | Create / update employee (non-salary) | A | user | NO | NO |  |
+| F02 | Hire complete → issue portal OTP | A | user | NO | NO | HR sees OTP until first login |
+| F03 | Employee first login + force change OTP | A | emp | N/A | N/A | System gate |
+| F04 | OTP reset request | A | user | YES | YES | **Spec-locked:** HR requests → Manager approves |
+| F05 | OTP reset reject | A | user | N/A | N/A | Manager action |
+| F06 | Terminate employee | A/B | user | NO | YES | Manager must approve terminate (locked) |
+| F07 | HR sends notification to employee(s) | A | user | NO | NO | Direct notify employees |
+| F08 | Leave request (HR files for employee) | A | user | NO | NO | Creates pending leave |
+| F09 | Leave approve / reject (Manager) | A | user | YES | YES | Manager path; Supervisor F48 recommends then Manager countersigns |
+| F10 | Employee self leave request | A | emp | NO | NO | Creates pending; F09 and/or F47 |
+| F11 | Manual clock in/out by HR | A | user | NO | NO | Default when biometrics off |
+| F12 | Attendance correction by HR | A | user | NO | YES | Manager must approve attendance correction (locked) |
+| F13 | Create / delete shift | A | user | NO | NO | **Manager** owns shifts (not HR) |
+| F14 | Leave types / departments / incident types config | A | user | NO | NO | Manager/Admin config today |
+| F15 | Record incident | A | user | NO | NO |  |
+| F16 | Document metadata create/delete | A | user | NO | NO |  |
+| F17 | Open payroll period / generate payslips | A | user | NO | YES | Manager must approve open/generate payroll (locked) |
+| F18 | Mark payslips paid | A | user | NO | NO | Actors: HR + Finance when HR+Fin (Part 0b); not a Manager-bell item |
+| F19 | Approve payroll payment (final) | A | user | YES | YES | When HR+Fin: Finance participates then Manager final approve; else Manager only |
+| F20 | Payroll line rules / wage windows config | A | user | NO | NO | Manager config; Finance may view/edit tax rules when HR+Fin (B) |
+| F21 | Apex: solo HR Manager toggle | A | apex | N/A | N/A | Apex only |
+| F22 | Apex: HR biometrics toggle | A | apex | N/A | N/A | Apex only |
+| F23 | Biometric device enroll / sync | A | user | NO | NO | Only when F22 on |
+| F24 | Employee edit own profile (photo) | A | emp | NO | NO | Allowlisted fields |
+| F25 | Employee view own payslip | A | emp | N/A | N/A | Read-only |
+| F26 | Excel employee import | B | user | NO | NO | Imported by Apex-only (same pattern as inventory item import) |
+| F27 | Extend profile (gender, education, TIN…) | B | user | NO | NO |  |
+| F28 | Salary change (baseSalaryETB) | B | user | YES | YES | Manager approve + salary history; Finance notify when HR+Fin |
+| F29 | Statutory tax/pension rule publish | B | user | YES | YES | Finance primary when HR+Fin; else Manager |
+| F30 | Salary advance request | B | user/emp | YES | YES |  |
+| F31 | Loan create | B | user | YES | YES |  |
+| F32 | Bonus / incentive payout | B | user | YES | YES |  |
+| F33 | Shift template / publish roster | B | user | NO | NO | Manager; propose YES for “publish” only |
+| F34 | Overtime request | B | user/emp | YES | YES | Supervisor may approve if granted (extend F47) |
+| F35 | Document vault upload + expiry | B | user | NO | NO |  |
+| F36 | Onboarding checklist complete | B | user | NO | NO |  |
+| F37 | Exit clearance complete | B | user | YES | YES | Multi-dept sensitive |
+| F38 | Promotion / transfer | B | user | YES | YES |  |
+| F39 | Formal disciplinary action | B | user | YES | YES |  |
+| F40 | Vacancy / hire from ATS | B | user | YES | YES | Offer stage |
+| F41 | Performance review finalize | B | user | YES | YES |  |
+| F42 | Training assign | B | user | NO | YES | Manager approval required (locked) |
+| F43 | Staff meal / housing / transport assign | B | user | NO | YES | Manager approval required (locked) |
+| F44 | Asset issue / return | B | user | NO | NO | Exit clearance may YES via F37 |
+| F45 | Export payroll bank file | B | user | YES | YES | **Finance** when HR+Fin; else Manager |
+| F46 | Post payroll to Finance module | B | user | YES | YES | Finance when HR+Fin |
+| F47 | Grant / revoke employee capabilities (supervisor) | A | user | NO | NO | HR/Manager configures; see Part 0c |
+| F48 | Supervisor approve/reject leave (scoped) | A | emp | N/A | N/A | Supervisor recommend → Manager countersign; scope = departments + reportees |
+| F49 | Finance HR payroll queue actions | A | user | N/A | N/A | Module-gated; see Part 0b |
 
 
-**Phase A Manager-approval implement now (default):** F04, F09, F19 (F19 may also include Finance — Part 0b).  
-**After you edit “Your decision”, update Task 0 before coding any YES feature.**
+**LOCKED — Phase A Manager-bell YES:** F04, F06, F09 (countersign after supervisor), F12, F17, F19.  
+**LOCKED — Phase A other actors:** F18 mark-paid = HR **and** Finance when HR+Fin; F19 = Finance participates then **Manager** final when HR+Fin (Manager only if no Fin).  
+**LOCKED — Supervisor (F47/F48):** recommend → **Manager countersign**; scope = **departments + reportees**.  
+**Phase B Manager YES also locked where You set YES:** F28–F32, F34, F37–F43, F45–F46 (and Proposed YES rows).
 
 ---
 
@@ -105,25 +107,25 @@ Which **tasks** appear on the Finance terminal / GraphQL allowlist depends on ot
 | Financial Management alone (edge)                   | Minimal / billing-adjacent only — confirm in Task 0; prefer requiring Inv and/or HR for meaningful Finance work                 | Full Inv or HR finance until those modules on |
 
 
-**Proposed Phase A Finance HR tasks** (when `HR Module` + `Financial Management`):
+**LOCKED Phase A Finance HR tasks** (when `HR Module` + `Financial Management`):
 
 
-| Task                                  | Finance can                                   | HR Manager can | Manager can         |
-| ------------------------------------- | --------------------------------------------- | -------------- | ------------------- |
-| View payroll periods / payslip totals | YES                                           | YES            | YES                 |
-| Generate / open payroll period        | NO (HR)                                       | YES            | config only         |
-| Mark payslips paid                    | optional YES — lock in Task 0                 | YES            | —                   |
-| Final approve payroll payment (F19)   | YES (with or instead of Manager — **decide**) | NO             | YES (default today) |
-| Tax/pension rule view                 | YES                                           | limited        | YES                 |
-| Tax/pension rule publish (B / F29)    | YES + approval                                | propose        | YES                 |
+| Task | Finance can | HR Manager can | Manager can |
+| ---- | ----------- | -------------- | ----------- |
+| View payroll periods / payslip totals | YES | YES | YES |
+| Generate / open payroll period | NO — HR creates; **Manager must approve (F17 YES)** | YES (create) | YES (approve open/generate) |
+| Mark payslips paid (F18) | YES (with HR when HR+Fin) | YES | — |
+| Final approve payroll payment (F19) | YES participates (review / prior step when HR+Fin) | NO | YES **final** (Manager with Finance) |
+| Tax/pension rule view | YES | limited | YES |
+| Tax/pension rule publish (B / F29) | YES + approval | propose | YES |
 
 
 **Implementation rule:** `lib/financeHrCapabilities.ts` (new) + extend `filterFinanceSectionId` / Finance sidebar so HR payroll sections appear only when `tenantHasModule(..., "HR Module")`; inventory sections only when `Inventory` is subscribed (already mostly true for Inv flows).
 
-**Your decisions to lock in Task 0:**
+**LOCKED Task 0 answers (Part 0b):**
 
-1. Final payroll payment (F19): **Manager only** / **Finance only when HR+Fin** / **either Manager or Finance**?
-2. Mark paid (F18): HR only, or HR + Finance when HR+Fin?
+1. **F19:** Manager **with** Finance when HR+Fin (Finance participates; Manager final approve). Without Financial Management, Manager only.
+2. **F18:** **Both** HR and Finance may mark paid when HR+Fin.
 
 ---
 
@@ -143,22 +145,23 @@ Employees in `hotcol-emp` remain ESS-only by default. HR Manager (or Manager) ma
 
 - Stored on employee (e.g. `hr_employee_capability` rows: `employeeId`, `code`, `scopeJson`, `grantedBy`, `active`).
 - Emp GraphQL checks JWT employee + active capability + scope before `decideLeaveAsSupervisor`.
-- Still create **notifications** to Manager on escalate / optional “Manager must countersign” if you set leave policy later — default Phase A: supervisor decision is enough for in-scope leave; out-of-scope stays Manager (F09).
+- **LOCKED:** Supervisor leave is **recommend → Manager countersign** (notification to Manager). Out-of-scope leave stays Manager-only (F09).
+- **LOCKED scope:** **both** department codes **and** named reportees (`scopeJson`).
 - Granting capability does **not** give payroll, OTP reset, or HR admin.
 - Café/hotel: same model; link employee to department used by leave/shifts.
 
-**Your decisions to lock in Task 0:**
+**LOCKED Task 0 answers (Part 0c):**
 
-1. Supervisor leave approve: **final** or **recommend → Manager still confirms**?
-2. Scope model: **department codes**, **named reportees**, or **both**?
+1. Supervisor leave: **Manager countersign** (not final).
+2. Scope: **both** departments and reportees.
 
 ---
 
-**Phase A approval / actor implement now (until you change tables):**
+**Phase A approval / actor implement now (LOCKED):**
 
-- Manager bell YES: **F04**, **F09** (when no supervisor), **F19** (per Part 0b decision).
-- Supervisor path: **F47/F48** if you enable in Task 0.
-- Finance HR surface: **F49** when modules include HR + Financial Management.
+- Manager bell YES: **F04**, **F06**, **F09** (incl. countersign after supervisor), **F12**, **F17**, **F19** (with Finance when HR+Fin).
+- Supervisor path: **F47/F48** enabled (recommend only).
+- Finance HR surface: **F49** when HR Module + Financial Management; mark-paid **F18** = HR + Finance.
 
 ---
 
@@ -200,7 +203,7 @@ Sync schema: after `hotcol-user` Prisma migrate, refresh `hotcol-emp/BackEnd/pri
 - [x] **Step 2:** Answer Part 0b questions (F19 actor; F18 mark-paid).
 - [x] **Step 3:** Answer Part 0c questions (supervisor final vs countersign; scope model).
 - [x] **Step 4:** Confirm Phase A YES / actor set.
-- [ ] **Step 5:** Commit matrix decisions.
+- [x] **Step 5:** Commit matrix decisions.
 
 ```bash
 git add docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md
@@ -392,7 +395,7 @@ git commit -m "feat(finance): gate inventory vs HR finance tasks by subscribed m
 **Interfaces:**
 
 - Produces: capability `leave_approve_supervisor` with `scopeJson` (`departmentCodes: string[]` and/or `employeeIds: number[]`) per Task 0c
-- Produces: emp mutation scoped; refuses out-of-scope leave; notifies employee of decision; optional Manager notify if countersign mode
+- Produces: emp mutation scoped; refuses out-of-scope leave; supervisor recommend sets leave to awaiting Manager countersign + Manager notification (locked)
 
 - [ ] **Step 1:** Staff GraphQL + UI to grant/revoke capabilities.
 - [ ] **Step 2:** Emp GraphQL supervise leave decide + tests for scope denial.
@@ -571,27 +574,31 @@ Implement in order below unless you reprioritize. Each slice: schema → GraphQL
 ## Spec coverage self-check
 
 
-| Spec section                      | Plan task            |
-| --------------------------------- | -------------------- |
-| Split GraphQL apps                | Tasks 4, 7, 8        |
-| OTP hire/reset visibility         | Tasks 2, 4, 7, 8, 10 |
-| Unified notifications             | Tasks 3, 8, 9        |
-| Apex solo HR + biometrics toggles | Tasks 5, 6           |
-| Biometric code gated              | Task 6               |
-| Phase A ESS baseline              | Task 8               |
-| Phase B PRD backlog               | Part 2 B1–B9         |
-| Approval identification           | Part 0 + Task 0      |
+| Spec section                      | Plan task                   |
+| --------------------------------- | --------------------------- |
+| Split GraphQL apps                | Tasks 4, 7, 8               |
+| OTP hire/reset visibility         | Tasks 2, 4, 7, 8, 10        |
+| Unified notifications             | Tasks 3, 8, 9               |
+| Apex solo HR + biometrics toggles | Tasks 5, 6                  |
+| Biometric code gated              | Task 6                      |
+| Phase A ESS baseline              | Task 8                      |
+| Finance Inv vs HR by modules      | Task 5b, Part 0b            |
+| Employee supervisor capabilities  | Task 5c, Part 0c, Task 8    |
+| Phase B PRD backlog               | Part 2 B1–B9                |
+| Approval identification           | Part 0a–0c + Task 0         |
 
 
 ---
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md`.
+Plan locked for Phase A actors: `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md`.
 
-**First action for you:** fill **Your decision** in Part 0 (especially F01–F25). Reply with changes (e.g. “F06 YES, F12 YES, rest as proposed”) so we lock Task 0.
+**Task 0 status:** Decisions locked in Part 0a–0c. Remaining Task 0 step: commit this plan file (Step 5), then start Task 1.
 
-**Then choose execution:**
+**Nothing else blocks implementation** except choosing how to execute Tasks 1+.
+
+**Choose execution:**
 
 1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks
 2. **Inline Execution** — execute tasks in this session with checkpoints

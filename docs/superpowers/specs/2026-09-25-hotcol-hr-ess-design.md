@@ -45,7 +45,9 @@ Expand HotCol HR toward the Hotel HRMS PRD while shipping in short **build → t
 | **Employee** | `hotcol-emp`; may hold capabilities such as supervisor leave approve. |
 | **Café Admin** | If Apex **solo HR Manager** is **off**, Admin hosts HR. If **on**, café uses dedicated HR Manager role. |
 
-Manager-approval and Finance/supervisor actors are detailed in `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md` Part 0. **Spec-locked Manager YES:** OTP reset/regenerate.
+Manager-approval and Finance/supervisor actors are detailed in `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md` Part 0 (**Task 0 locked 2026-09-25**).
+
+**Locked highlights:** OTP reset → Manager; leave supervisor → recommend then Manager countersign (scope: departments + reportees); F18 mark-paid = HR + Finance when HR+Fin; F19 = Finance participates then Manager final when HR+Fin; Finance UI gated by Inventory and/or HR Module.
 
 ---
 
