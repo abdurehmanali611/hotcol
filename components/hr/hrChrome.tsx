@@ -156,6 +156,11 @@ export const HR_SECTION_COPY: Record<
     description:
       "Maintain the employee master — role, pay, bank, and hire details. Salary feeds payslips; approved leave overrides Active to On leave.",
   },
+  "otp-reset": {
+    title: "HR · OTP resets",
+    description:
+      "Approve or reject portal OTP reset requests from HR Manager. Approved codes are visible only to Manager until the employee’s first login.",
+  },
   leave: {
     title: "HR · Leave",
     description:

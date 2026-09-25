@@ -9,6 +9,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  KeyRound,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -36,7 +37,7 @@ import { logoutAction, notifyApiFailure } from "@/lib/actions";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
-import { hrCapabilities } from "@/lib/hrCapabilities";
+import { hrCapabilities, hrRoleDisplayLabel } from "@/lib/hrCapabilities";
 import { isLodgingBusinessType, type BusinessType } from "@/constants";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
 import { HrOverviewPanel } from "@/components/hr/HrOverviewPanel";
@@ -52,6 +53,8 @@ import {
 } from "@/components/hr/HrPayrollSidebarGroup";
 import { HrIncidentsPanel } from "@/components/hr/HrIncidentsPanel";
 import { HrDepartmentsPanel } from "@/components/hr/HrDepartmentsPanel";
+import { HrOtpResetApprovalPanel } from "@/components/hr/HrOtpResetApprovalPanel";
+import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
 import type { HrPayrollView } from "@/constants";
 import { hrPayrollViewFromTab } from "@/constants";
 import {
@@ -86,7 +89,8 @@ export type HrSection =
   | "payroll-settings"
   | "payroll-history"
   | "incidents"
-  | "departments";
+  | "departments"
+  | "otp-reset";
 
 const PAYROLL_SECTIONS = new Set<HrSection>([
   "payroll-generate",
@@ -130,6 +134,7 @@ function sectionFromPayrollView(view: HrPayrollView): HrSection {
 const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "employees", label: "Employees", icon: Users },
+  { id: "otp-reset", label: "OTP resets", icon: KeyRound },
   { id: "leave", label: "Leave", icon: CalendarDays },
   { id: "attendance", label: "Attendance", icon: ClipboardList },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
@@ -141,6 +146,9 @@ function navForRole(role: string) {
   return NAV.filter((item) => {
     if (item.id === "employees") return caps.canManageEmployees;
     if (item.id === "departments") return caps.canConfigureDepartments;
+    if (item.id === "otp-reset") {
+      return role === "Manager" || role === "Admin";
+    }
     return true;
   }).map((item) => {
     if (item.id === "leave" && role === "Manager") {
@@ -172,7 +180,7 @@ export function HrDashboard({
   const router = useRouter();
   const { displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const logoUrl = searchParams.get("logo") || "";
-  const headerLabel = displayName || "HR";
+  const headerLabel = displayName || hrRoleDisplayLabel(actorRole) || "HR";
 
   const [internalSection, setInternalSection] = useState<HrSection>("dashboard");
   const section = sectionProp ?? internalSection;
@@ -208,6 +216,29 @@ export function HrDashboard({
       setActorRole("");
     }
   }, []);
+
+  useEffect(() => {
+    if (sectionProp) return;
+    const fromUrl = searchParams.get("section")?.trim();
+    if (!fromUrl) return;
+    const allowed = new Set<string>([
+      "dashboard",
+      "employees",
+      "leave",
+      "attendance",
+      "documents",
+      "payroll-generate",
+      "payroll-runs",
+      "payroll-settings",
+      "payroll-history",
+      "incidents",
+      "departments",
+      "otp-reset",
+    ]);
+    if (allowed.has(fromUrl)) {
+      setInternalSection(fromUrl as HrSection);
+    }
+  }, [searchParams, sectionProp]);
 
   /** Café properties use Admin for HR — no standalone /HR terminal. */
   useEffect(() => {
@@ -293,6 +324,10 @@ export function HrDashboard({
           employees={employees}
           onRefresh={() => loadAll(true)}
         />
+      ) : null}
+      {section === "otp-reset" &&
+      (actorRole === "Manager" || actorRole === "Admin") ? (
+        <HrOtpResetApprovalPanel />
       ) : null}
       {section === "leave" ? (
         <HrLeavePanel
@@ -478,6 +513,11 @@ export function HrDashboard({
                 busy={refreshing}
                 disabled={loading}
                 onClick={() => void loadAll(true)}
+              />
+              <HrNotificationCenter
+                onNavigateSection={(next) => {
+                  setSection(next as HrSection);
+                }}
               />
               <ChangeOwnPasswordButton />
               <Link

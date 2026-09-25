@@ -18,8 +18,42 @@ export type HrEmployee = {
   credentialUserId: number | null;
   credentialUserName: string;
   notes: string;
+  portalOtpPreview: string;
+  portalOtpViewer: string;
+  mustChangeOtp: boolean;
+  portalOtpIssuedAt: string | null;
+  portalFirstLoginAt: string | null;
+  profileImageUrl: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type HrNotification = {
+  id: number;
+  HotelName: string;
+  recipientRole: string;
+  employeeId: number | null;
+  kind: string;
+  title: string;
+  body: string;
+  href: string;
+  actionStatus: string;
+  createdBy: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type HrOtpResetRequest = {
+  id: number;
+  HotelName: string;
+  employeeId: number;
+  requestedBy: string;
+  status: string;
+  decidedBy: string;
+  decidedAt: string | null;
+  createdAt: string;
+  portalOtpPreview: string;
+  employee?: HrEmployee | null;
 };
 
 export type HrLeaveType = {
@@ -226,7 +260,9 @@ export type HrDashboardStats = {
 const EMP_FIELDS = `
   id HotelName fullName phone email department jobTitle status
   hireDate endDate wageType baseSalaryETB bankName accountNumber
-  credentialUserId credentialUserName notes createdAt updatedAt
+  credentialUserId credentialUserName notes
+  portalOtpPreview portalOtpViewer mustChangeOtp portalOtpIssuedAt portalFirstLoginAt
+  profileImageUrl createdAt updatedAt
 `;
 
 const PAYSLIP_FIELDS = `
@@ -454,6 +490,102 @@ export async function terminateHrEmployeeApi(id: number, endDate?: string) {
     { id, endDate },
   );
   return data.terminateHrEmployee;
+}
+
+export async function enableHrEmployeePortalApi(id: number) {
+  const data = await gql<{ enableHrEmployeePortal: HrEmployee }>(
+    `mutation ($id: Int!) {
+      enableHrEmployeePortal(id: $id) { ${EMP_FIELDS} }
+    }`,
+    { id },
+  );
+  return data.enableHrEmployeePortal;
+}
+
+export async function requestHrOtpResetApi(employeeId: number) {
+  const data = await gql<{ requestHrOtpReset: HrOtpResetRequest }>(
+    `mutation ($employeeId: Int!) {
+      requestHrOtpReset(employeeId: $employeeId) {
+        id HotelName employeeId requestedBy status decidedBy decidedAt createdAt portalOtpPreview
+        employee { id fullName }
+      }
+    }`,
+    { employeeId },
+  );
+  return data.requestHrOtpReset;
+}
+
+export async function decideHrOtpResetApi(id: number, approve: boolean) {
+  const data = await gql<{ decideHrOtpReset: HrOtpResetRequest }>(
+    `mutation ($id: Int!, $approve: Boolean!) {
+      decideHrOtpReset(id: $id, approve: $approve) {
+        id HotelName employeeId requestedBy status decidedBy decidedAt createdAt portalOtpPreview
+        employee { id fullName portalOtpPreview portalOtpViewer mustChangeOtp }
+      }
+    }`,
+    { id, approve },
+  );
+  return data.decideHrOtpReset;
+}
+
+export async function fetchHrOtpResetRequestsApi(status?: string) {
+  const data = await gql<{ hrOtpResetRequests: HrOtpResetRequest[] }>(
+    `query ($status: String) {
+      hrOtpResetRequests(status: $status) {
+        id HotelName employeeId requestedBy status decidedBy decidedAt createdAt portalOtpPreview
+        employee { id fullName portalOtpPreview portalOtpViewer }
+      }
+    }`,
+    { status: status || null },
+  );
+  return data.hrOtpResetRequests || [];
+}
+
+export async function fetchHrNotificationsApi(unreadOnly?: boolean) {
+  const data = await gql<{ hrNotifications: HrNotification[] }>(
+    `query ($unreadOnly: Boolean) {
+      hrNotifications(unreadOnly: $unreadOnly) {
+        id HotelName recipientRole employeeId kind title body href actionStatus
+        createdBy readAt createdAt
+      }
+    }`,
+    { unreadOnly: unreadOnly ?? null },
+  );
+  return data.hrNotifications || [];
+}
+
+export async function markHrNotificationReadApi(id: number) {
+  const data = await gql<{ markHrNotificationRead: HrNotification }>(
+    `mutation ($id: Int!) {
+      markHrNotificationRead(id: $id) {
+        id readAt kind title href actionStatus
+      }
+    }`,
+    { id },
+  );
+  return data.markHrNotificationRead;
+}
+
+export async function createHrEmployeeNotificationApi(input: {
+  employeeIds: number[];
+  title: string;
+  body: string;
+  href?: string;
+}) {
+  const data = await gql<{ createHrEmployeeNotification: HrNotification[] }>(
+    `mutation ($employeeIds: [Int!]!, $title: String!, $body: String!, $href: String) {
+      createHrEmployeeNotification(
+        employeeIds: $employeeIds
+        title: $title
+        body: $body
+        href: $href
+      ) {
+        id employeeId title kind createdAt
+      }
+    }`,
+    input,
+  );
+  return data.createHrEmployeeNotification;
 }
 
 export async function fetchHrLeaveRequests(status?: string): Promise<HrLeaveRequest[]> {

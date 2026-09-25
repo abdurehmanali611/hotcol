@@ -56,10 +56,21 @@ import {
   fetchHrDepartments,
   terminateHrEmployeeApi,
   updateHrEmployeeApi,
+  enableHrEmployeePortalApi,
+  requestHrOtpResetApi,
   type HrEmployee,
 } from "@/lib/api/hr";
 import { PendingButton } from "@/components/ui/pending-button";
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { KeyRound } from "lucide-react";
 const PhoneInput = dynamic(
   () => import("@/components/phone-input").then((m) => m.PhoneInput),
   { ssr: false },
@@ -87,6 +98,9 @@ export function HrEmployeesPanel({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HrEmployee | null>(null);
   const [pending, setPending] = useState(false);
+  const [issuedOtp, setIssuedOtp] = useState<{ name: string; otp: string } | null>(
+    null,
+  );
   const [hrDepartments, setHrDepartments] = useState<HrDepartmentSetting[]>(
     [],
   );
@@ -281,31 +295,72 @@ export function HrEmployeesPanel({
               Edit
             </Button>
             {row.original.status !== "terminated" ? (
-              <HrConfirmAction
-                destructive
-                title={`Terminate ${row.original.fullName}?`}
-                description="Marks this employee terminated from today. History stays on file."
-                confirmLabel="Terminate"
-                trigger={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Terminate
-                  </Button>
-                }
-                onConfirm={async () => {
-                  try {
-                    await terminateHrEmployeeApi(row.original.id, todayYmd());
-                    toast.success("Employee terminated");
-                    await onRefresh();
-                  } catch (e) {
-                    notifyApiFailure(e, "Terminate failed");
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={async () => {
+                    try {
+                      const updated = await enableHrEmployeePortalApi(row.original.id);
+                      const otp = String(updated.portalOtpPreview || "").trim();
+                      if (otp) {
+                        setIssuedOtp({ name: updated.fullName, otp });
+                      } else {
+                        toast.message(
+                          "Portal OTP issued. Preview is only visible to HR Manager until first login.",
+                        );
+                      }
+                      await onRefresh();
+                    } catch (e) {
+                      notifyApiFailure(e, "Could not enable portal");
+                    }
+                  }}
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Portal OTP
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await requestHrOtpResetApi(row.original.id);
+                      toast.success("OTP reset sent to Manager for approval");
+                      await onRefresh();
+                    } catch (e) {
+                      notifyApiFailure(e, "OTP reset request failed");
+                    }
+                  }}
+                >
+                  Request reset
+                </Button>
+                <HrConfirmAction
+                  destructive
+                  title={`Terminate ${row.original.fullName}?`}
+                  description="Marks this employee terminated from today. History stays on file."
+                  confirmLabel="Terminate"
+                  trigger={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Terminate
+                    </Button>
                   }
-                }}
-              />
+                  onConfirm={async () => {
+                    try {
+                      await terminateHrEmployeeApi(row.original.id, todayYmd());
+                      toast.success("Employee terminated");
+                      await onRefresh();
+                    } catch (e) {
+                      notifyApiFailure(e, "Terminate failed");
+                    }
+                  }}
+                />
+              </>
             ) : null}
           </div>
         ),
@@ -595,6 +650,41 @@ export function HrEmployeesPanel({
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(issuedOtp)}
+        onOpenChange={(next) => {
+          if (!next) setIssuedOtp(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Portal OTP for {issuedOtp?.name}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Share this code with the employee for hotcol-emp login. It stays visible
+              to HR Manager only until their first login, then they must change it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <p className="rounded-lg border bg-muted/40 px-4 py-3 text-center font-mono text-2xl tracking-[0.35em]">
+            {issuedOtp?.otp}
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(issuedOtp?.otp || "");
+                  toast.success("OTP copied");
+                } catch {
+                  /* ignore */
+                }
+                setIssuedOtp(null);
+              }}
+            >
+              Copy and close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </HrPanelShell>
   );
 }
