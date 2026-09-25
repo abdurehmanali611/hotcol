@@ -85,6 +85,7 @@ import {
   Inbox,
   Loader2,
   LogOut,
+  Users,
   Wallet,
   XCircle,
   LayoutGrid,
@@ -115,7 +116,9 @@ type FinanceSection =
   | "payment-paid"
   | "payment-with-vat"
   | "payment-without-vat"
-  | "creditor-usage";
+  | "creditor-usage"
+  | "hr-payroll"
+  | "hr-payslips";
 
 function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
@@ -367,6 +370,16 @@ function FinanceInner() {
             label: "Creditor staff usage report",
             icon: Table2,
           },
+          {
+            section: "hr-payroll" as const,
+            label: "HR payroll",
+            icon: Users,
+          },
+          {
+            section: "hr-payslips" as const,
+            label: "HR payslips",
+            icon: Wallet,
+          },
         ] as {
           section: FinanceSection;
           label: string;
@@ -378,9 +391,10 @@ function FinanceInner() {
 
   useEffect(() => {
     if (!filterFinanceSectionId(financeSection, tenantModules)) {
-      setFinanceSection("queue");
+      const first = financeNavItems[0]?.section ?? "queue";
+      setFinanceSection(first);
     }
-  }, [financeSection, tenantModules]);
+  }, [financeSection, tenantModules, financeNavItems]);
 
   if (loading) {
     return (
@@ -429,14 +443,18 @@ function FinanceInner() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <HotelRequestStatusSidebarGroup
-                activeSection={financeSection}
-                onSelect={(id) => setFinanceSection(id as FinanceSection)}
-              />
-              <HotelInventoryPaymentSidebarGroup
-                activeSection={financeSection}
-                onSelect={(id) => setFinanceSection(id as FinanceSection)}
-              />
+              {filterFinanceSectionId("queue", tenantModules) ? (
+                <>
+                  <HotelRequestStatusSidebarGroup
+                    activeSection={financeSection}
+                    onSelect={(id) => setFinanceSection(id as FinanceSection)}
+                  />
+                  <HotelInventoryPaymentSidebarGroup
+                    activeSection={financeSection}
+                    onSelect={(id) => setFinanceSection(id as FinanceSection)}
+                  />
+                </>
+              ) : null}
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 pt-2">
@@ -762,6 +780,35 @@ function FinanceInner() {
         {financeSection === "creditor-usage" && (
           <section className="space-y-4">
             <HotelCreditorUsageReportPanel tenantLabel={displayName || "Property"} />
+          </section>
+        )}
+
+        {financeSection === "hr-payroll" && (
+          <section className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>HR payroll</CardTitle>
+                <CardDescription>
+                  Review payroll periods and participate in payment approval when
+                  HR Module and Financial Management are subscribed. Mark paid is
+                  available to Finance and HR Manager; Manager gives final approval.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </section>
+        )}
+
+        {financeSection === "hr-payslips" && (
+          <section className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>HR payslips</CardTitle>
+                <CardDescription>
+                  View payslip totals for this property. Full mark-paid actions
+                  wire through the shared HR payroll GraphQL (Phase A).
+                </CardDescription>
+              </CardHeader>
+            </Card>
           </section>
         )}
 

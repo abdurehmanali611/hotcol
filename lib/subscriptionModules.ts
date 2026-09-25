@@ -75,6 +75,8 @@ export type TenantSubscription = SignupPricing & {
   receptionCmPortalEnabled?: boolean;
   waiterOrderingEnabled?: boolean;
   waiterPaymentApprovalEnabled?: boolean;
+  hrSoloManagerEnabled?: boolean;
+  hrBiometricsEnabled?: boolean;
 };
 
 export function isModuleComingSoon(mod: ModuleOption): boolean {
@@ -359,6 +361,30 @@ export const FINANCE_SECTION_MODULES: Partial<Record<string, ModuleOption>> = {
   "creditor-usage": "Credit Management",
 };
 
+/** Inventory finance queues — require Inventory + Financial Management. */
+export const FINANCE_INVENTORY_SECTIONS = new Set([
+  "queue",
+  "stock-queue",
+  "purchase-request-status",
+  "stock-movement-status",
+  "item-registration-status",
+  "history",
+  "inventory",
+  "registrations",
+  "item-receipts",
+  "payment-all",
+  "payment-credit",
+  "payment-paid",
+  "payment-with-vat",
+  "payment-without-vat",
+]);
+
+/** HR payroll finance surfaces — require HR Module + Financial Management. */
+export const FINANCE_HR_SECTIONS = new Set([
+  "hr-payroll",
+  "hr-payslips",
+]);
+
 /** Cost Control terminal sections that require a subscribed module. */
 export const COST_CONTROL_SECTION_MODULES: Partial<
   Record<string, ModuleOption>
@@ -371,8 +397,17 @@ export function filterFinanceSectionId(
   modules: readonly ModuleOption[],
 ): boolean {
   const required = FINANCE_SECTION_MODULES[sectionId];
-  if (!required) return true;
-  return tenantHasModule(modules, required);
+  if (required) return tenantHasModule(modules, required);
+
+  // Lazy import avoided — keep check inline to match financeHrCapabilities.
+  const hasFin = tenantHasModule(modules, "Financial Management");
+  if (FINANCE_INVENTORY_SECTIONS.has(sectionId)) {
+    return hasFin && tenantHasModule(modules, "Inventory");
+  }
+  if (FINANCE_HR_SECTIONS.has(sectionId)) {
+    return hasFin && tenantHasModule(modules, "HR Module");
+  }
+  return true;
 }
 
 export function filterCostControlSectionId(
