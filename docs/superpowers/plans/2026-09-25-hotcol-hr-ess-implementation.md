@@ -18,7 +18,7 @@
 - Café: Apex toggles mirror `waiterOrderingEnabled` pattern on `tenant_account`.
 - Biometrics: implement code; runtime only when `hrBiometricsEnabled === true`; otherwise HR manual clock in/out.
 - Emp API always scopes by JWT `employeeId` + tenant; **capability grants** may widen allowlisted mutations (e.g. approve leave for assigned scope only).
-- **Finance (`Role=Finance`)** requires `Financial Management`. UI/API tasks further split by whether tenant also has `Inventory` and/or `HR Module` (see Part 0b).
+- **Finance (**`Role=Finance`**)** requires `Financial Management`. UI/API tasks further split by whether tenant also has `Inventory` and/or `HR Module` (see Part 0b).
 - Polish both `hotcol-user` and `hotcol-emp` to match HotCol patterns.
 - Plan covers PRD backlog; implement A → test → B slices.
 
@@ -196,10 +196,10 @@ Sync schema: after `hotcol-user` Prisma migrate, refresh `hotcol-emp/BackEnd/pri
 
 - Modify: `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md` (this file, Part 0a–0c)
 
-- [ ] **Step 1:** Fill **Your decision** for F01–F49 (at least F01–F25 + F47–F49 for Phase A).
-- [ ] **Step 2:** Answer Part 0b questions (F19 actor; F18 mark-paid).
-- [ ] **Step 3:** Answer Part 0c questions (supervisor final vs countersign; scope model).
-- [ ] **Step 4:** Confirm Phase A YES / actor set.
+- [x] **Step 1:** Fill **Your decision** for F01–F49 (at least F01–F25 + F47–F49 for Phase A).
+- [x] **Step 2:** Answer Part 0b questions (F19 actor; F18 mark-paid).
+- [x] **Step 3:** Answer Part 0c questions (supervisor final vs countersign; scope model).
+- [x] **Step 4:** Confirm Phase A YES / actor set.
 - [ ] **Step 5:** Commit matrix decisions.
 
 ```bash
