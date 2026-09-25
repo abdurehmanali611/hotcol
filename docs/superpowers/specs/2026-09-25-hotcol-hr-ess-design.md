@@ -23,15 +23,15 @@ Expand HotCol HR toward the Hotel HRMS PRD while shipping in short **build → t
 
 | App | Actors | Responsibility |
 |-----|--------|----------------|
-| `hotcol-user` | HR Manager, Manager; café Admin when solo-HR toggle is off | Hire, roster, leave, attendance, payroll, docs, incidents; issue hire OTP; request OTP reset; create notifications; Manager approval actions from bell |
-| `hotcol-emp` | Employee | OTP login; forced first PIN change; ESS (least privilege); own notification bell |
+| `hotcol-user` | HR Manager, Manager, Finance (module-gated); café Admin when solo-HR toggle is off | Hire, roster, leave, attendance, payroll, docs, incidents; issue hire OTP; request OTP reset; create notifications; Manager approval actions from bell; grant employee capabilities |
+| `hotcol-emp` | Employee (+ optional granted capabilities e.g. supervisor) | OTP login; forced first PIN change; ESS (least privilege); optional supervisor leave approve in scope; own notification bell |
 | `hotcol` (Apex) | Apex admin | Café HR Module toggles: **solo HR Manager**, **HR biometrics** |
-| Shared MySQL | — | Employee master, OTP fields, reset requests, notifications, existing HR tables |
+| Shared MySQL | — | Employee master, OTP fields, capabilities, reset requests, notifications, existing HR tables |
 
 ### Auth boundary
 
-- **Staff:** existing HotCol username/password credentials. Role `HR` is shown in UI as **HR Manager**.
-- **Employee:** OTP/PIN session on `hotcol-emp` only (JWT scoped to `employeeId` + tenant). No access to HR admin mutations.
+- **Staff:** existing HotCol username/password credentials. Role `HR` is shown in UI as **HR Manager**. Role `Finance` requires **Financial Management**; task list further gated by **Inventory** and/or **HR Module**.
+- **Employee:** OTP/PIN session on `hotcol-emp` only (JWT scoped to `employeeId` + tenant). Default: no HR admin. **Granted capabilities** may allow scoped actions (e.g. leave approve for a department).
 
 ---
 
@@ -39,12 +39,13 @@ Expand HotCol HR toward the Hotel HRMS PRD while shipping in short **build → t
 
 | Role | Notes |
 |------|--------|
-| **HR Manager** | UI label for credential role `HR`. Operates HR; sees hire OTP until employee first login; requests OTP reset (never sees reset OTP). |
-| **Manager** | Approves OTP reset (and other approval-needed features as listed later). Sees reset OTP until employee first login with that code. Bell-only for approval items (open portal and act). |
-| **Employee** | `hotcol-emp` only. |
+| **HR Manager** | UI label for credential role `HR`. Operates HR; sees hire OTP until employee first login; requests OTP reset (never sees reset OTP); can grant employee capabilities. |
+| **Manager** | Approves OTP reset (and other approval-needed features per plan Part 0a). Sees reset OTP until employee first login with that code. Bell-only for approval items (open portal and act). |
+| **Finance** | Inventory finance tasks when Inventory+Financial Management; HR finance (payroll/payslips/tax/pension-related) when HR Module+Financial Management; **both** when all three subscribed. See implementation plan Part 0b. |
+| **Employee** | `hotcol-emp`; may hold capabilities such as supervisor leave approve. |
 | **Café Admin** | If Apex **solo HR Manager** is **off**, Admin hosts HR. If **on**, café uses dedicated HR Manager role. |
 
-Further features that need Manager approval will be identified when the detailed build feature list is finalized (before the implementation plan). **Known today:** OTP reset/regenerate.
+Manager-approval and Finance/supervisor actors are detailed in `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md` Part 0. **Spec-locked Manager YES:** OTP reset/regenerate.
 
 ---
 

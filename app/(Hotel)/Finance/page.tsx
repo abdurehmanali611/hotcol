@@ -49,6 +49,7 @@ import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorU
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { ItemRegistrationStatusPanel } from "@/components/hotel/ItemRegistrationStatusPanel";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   filterFinanceSectionId,
 } from "@/lib/subscriptionModules";
@@ -470,6 +471,7 @@ function FinanceInner() {
               disabled={loading}
               onClick={() => void load(true)}
             />
+            <ChangeOwnPasswordButton />
             <Avatar className="h-8 w-8 border shadow-sm">
               <AvatarImage src={logoUrl} alt={displayName || "Property"} />
               <AvatarFallback>
