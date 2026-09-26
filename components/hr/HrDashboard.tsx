@@ -194,7 +194,6 @@ export function HrDashboard({
   const router = useRouter();
   const { displayName } = useTenantScopeAndDisplay(searchParams.get("hotel"));
   const logoUrl = searchParams.get("logo") || "";
-  const headerLabel = displayName || hrRoleDisplayLabel(actorRole) || "HR";
 
   const [internalSection, setInternalSection] = useState<HrSection>("dashboard");
   const section = sectionProp ?? internalSection;
@@ -218,6 +217,7 @@ export function HrDashboard({
   const [incidents, setIncidents] = useState<HrIncident[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [actorRole, setActorRole] = useState("");
+  const headerLabel = displayName || hrRoleDisplayLabel(actorRole) || "HR";
   const caps = useMemo(() => hrCapabilities(actorRole), [actorRole]);
   const navItems = useMemo(() => navForRole(actorRole), [actorRole]);
 

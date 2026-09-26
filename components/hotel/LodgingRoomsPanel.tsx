@@ -86,7 +86,7 @@ function usePaneWheelContain(ref: RefObject<HTMLElement | null>) {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [ref]);
 }
 
 function roomStatusBadgeClass(status: string): string {

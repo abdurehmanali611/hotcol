@@ -82,20 +82,56 @@ async function loadCrystalCache(): Promise<CrystalNameRow[]> {
 }
 
 function displayPrimary(row: CrystalNameRow): string {
-  return `${row.amharic} / ${row.romanized}`;
+  const am = row.amharic?.trim() || "";
+  const rom = row.romanized?.trim() || "";
+  if (am && rom) return `${am} / ${rom}`;
+  if (am) return am;
+  if (rom) return rom;
+  return row.english?.trim() || row.crystalLabel || "";
 }
 
 function parseCrystalValue(value: string): CrystalNameRow | null {
   if (!value) return null;
-  const parts = value.split("|").map((p) => p.trim());
-  if (parts.length < 3) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split("|").map((p) => p.trim());
+  if (parts.length >= 3) {
+    return {
+      id: -1,
+      amharic: parts[0],
+      romanized: parts[1],
+      english: parts.slice(2).join("|"),
+      crystalLabel: trimmed,
+    };
+  }
+  // Pending proposals / free-text names are not yet in the catalog and may
+  // not be the Amharic|Romanized|English triple — still show what was applied.
   return {
     id: -1,
-    amharic: parts[0],
-    romanized: parts[1],
-    english: parts.slice(2).join("|"),
-    crystalLabel: value,
+    amharic: "",
+    romanized: trimmed,
+    english: "",
+    crystalLabel: trimmed,
   };
+}
+
+/** Prefer API crystalLabel; else compose from language fields; else rawText. */
+function labelFromProposal(proposal: {
+  crystalLabel?: string | null;
+  amharic?: string | null;
+  romanized?: string | null;
+  english?: string | null;
+  rawText?: string | null;
+}): string {
+  const crystal = String(proposal.crystalLabel || "").trim();
+  if (crystal) return crystal;
+  const amharic = String(proposal.amharic || "").trim();
+  const romanized = String(proposal.romanized || "").trim();
+  const english = String(proposal.english || "").trim();
+  if (amharic || romanized || english) {
+    return `${amharic}|${romanized}|${english}`;
+  }
+  return String(proposal.rawText || "").trim();
 }
 
 function hasEthiopic(text: string): boolean {
@@ -253,10 +289,7 @@ export function CrystalNameSelector({
   const applyProposalResult = useCallback(
     async (proposal: Awaited<ReturnType<typeof proposeCrystalName>>) => {
       // Prefer full crystal label; otherwise keep what the user typed.
-      const label =
-        proposal.crystalLabel?.trim() ||
-        proposal.rawText?.trim() ||
-        "";
+      const label = labelFromProposal(proposal);
       if (!label) {
         toast.error("Could not apply proposed name");
         return;

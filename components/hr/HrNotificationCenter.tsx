@@ -48,6 +48,8 @@ export function HrNotificationCenter({ onNavigateSection }: Props) {
   }, []);
 
   useEffect(() => {
+    // Initial fetch; polling is handled by useVisibleInterval below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount fetch into local notification list
     void load();
   }, [load]);
 

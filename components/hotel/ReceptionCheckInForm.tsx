@@ -170,6 +170,7 @@ export function ReceptionCheckInForm({
   );
   const [dateFitRooms, setDateFitRooms] = useState<LodgingRoom[]>([]);
   const registrationPrintRef = useRef<HTMLDivElement>(null);
+  const identityExtrasRef = useRef<HTMLDivElement>(null);
   const handleRegistrationPrint = useReactToPrint({
     contentRef: registrationPrintRef,
     documentTitle: "Guest_registration_card",
@@ -221,6 +222,13 @@ export function ReceptionCheckInForm({
         },
       ]);
     }
+    // Guide reception to fields reservations never collect.
+    window.setTimeout(() => {
+      identityExtrasRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
   }, [reservation]);
 
   useEffect(() => {
@@ -319,11 +327,44 @@ export function ReceptionCheckInForm({
     [assignedRoomsMeta],
   );
 
+  const idDocumentOk = guest.isEthiopian
+    ? Boolean(guest.nationalId.trim())
+    : Boolean(guest.passportNumber.trim());
+  const locationOk =
+    Boolean(guest.country.trim()) && Boolean(guest.stateRegion.trim());
+  /** Fields reservation create never collects — must be filled at check-in. */
+  const reservationExtrasMissing = useMemo(() => {
+    if (!reservation) return [] as string[];
+    const missing: string[] = [];
+    if (!guest.sex.trim()) missing.push("Sex");
+    if (!idDocumentOk) {
+      missing.push(
+        guest.isEthiopian ? "National ID (FCN / FIN)" : "Passport number",
+      );
+    }
+    if (!guest.country.trim()) missing.push("Country");
+    if (!guest.stateRegion.trim()) missing.push("State / region");
+    return missing;
+  }, [
+    reservation,
+    guest.sex,
+    guest.isEthiopian,
+    guest.nationalId,
+    guest.passportNumber,
+    guest.country,
+    guest.stateRegion,
+    idDocumentOk,
+  ]);
+
   const canSubmit =
     Boolean(guest.firstName.trim()) &&
     Boolean(guest.lastName.trim()) &&
     Boolean(guest.phone.trim()) &&
-    selectedRoomIds.length > 0;
+    Boolean(guest.sex.trim()) &&
+    idDocumentOk &&
+    locationOk &&
+    selectedRoomIds.length > 0 &&
+    (!reservation || reservationExtrasMissing.length === 0);
 
   const searchGuests = async () => {
     const q = guestSearch.trim();
@@ -375,6 +416,16 @@ export function ReceptionCheckInForm({
 
   const submitCheckIn = async () => {
     if (!canSubmit) {
+      if (reservation && reservationExtrasMissing.length > 0) {
+        toast.error(
+          `Complete required check-in fields first: ${reservationExtrasMissing.join(", ")}`,
+        );
+        identityExtrasRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        return;
+      }
       toast.error("Complete guest name, phone, and at least one room");
       return;
     }
@@ -384,6 +435,26 @@ export function ReceptionCheckInForm({
     }
     if (isCompany && (!companyName.trim() || !companyTin.trim())) {
       toast.error("Company name and TIN are required");
+      return;
+    }
+    if (!idDocumentOk) {
+      toast.error(
+        guest.isEthiopian
+          ? "National ID (FCN / FIN) is required"
+          : "Passport number is required",
+      );
+      identityExtrasRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+    if (!locationOk) {
+      toast.error("Country and state / region are required");
+      identityExtrasRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
       return;
     }
     const now = new Date();
@@ -485,8 +556,9 @@ export function ReceptionCheckInForm({
                 Guest check-in
               </CardTitle>
               <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-                Look up a returning guest or enter a new profile, set arrival,
-                then assign one or more vacant clean rooms and submit once.
+                {reservation
+                  ? `Completing reservation ${reservation.reservationCode}. Name, phone, and rooms come from the booking — fill identification fields below before submitting.`
+                  : "Look up a returning guest or enter a new profile, set arrival, then assign one or more vacant clean rooms and submit once."}
               </CardDescription>
             </div>
             <Badge
@@ -504,6 +576,36 @@ export function ReceptionCheckInForm({
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pb-8">
+          {reservation && reservationExtrasMissing.length > 0 ? (
+            <div
+              role="status"
+              className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100"
+            >
+              <p className="font-medium">
+                Required before check-in (not collected on the reservation)
+              </p>
+              <ul className="mt-1.5 list-inside list-disc text-xs text-amber-900/90 dark:text-amber-100/90">
+                {reservationExtrasMissing.map((label) => (
+                  <li key={label}>{label}</li>
+                ))}
+              </ul>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 h-8 border-amber-500/40 bg-background/70"
+                onClick={() =>
+                  identityExtrasRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
+                }
+              >
+                Fill identification
+              </Button>
+            </div>
+          ) : null}
+
           {/* Returning guest finder */}
           <HotelFormSection
             title="Returning guest"
@@ -679,9 +781,14 @@ export function ReceptionCheckInForm({
           </HotelFormSection>
 
           {/* ID + location */}
+          <div ref={identityExtrasRef} className="scroll-mt-24">
           <HotelFormSection
             title="Identification & location"
-            description="Ethiopian guests use Fayda FCN/FIN; others use passport. Country and state only."
+            description={
+              reservation
+                ? "Required at check-in — reservations only store name and phone."
+                : "Ethiopian guests use Fayda FCN/FIN; others use passport. Country and state only."
+            }
           >
             <div
               className={cn(
@@ -724,23 +831,39 @@ export function ReceptionCheckInForm({
 
             {guest.isEthiopian ? (
               <div className="space-y-1.5 max-w-md">
-                <Label htmlFor="ci-fcn">National ID (FCN / FIN)</Label>
+                <Label htmlFor="ci-fcn">
+                  National ID (FCN / FIN){" "}
+                  <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="ci-fcn"
-                  className="h-10 font-mono tracking-wide"
+                  className={cn(
+                    "h-10 font-mono tracking-wide",
+                    reservation &&
+                      !guest.nationalId.trim() &&
+                      "border-amber-500/50 ring-1 ring-amber-500/20",
+                  )}
                   value={guest.nationalId}
                   onChange={(e) =>
                     setGuest((g) => ({ ...g, nationalId: e.target.value }))
                   }
                   placeholder="Enter FCN or FIN"
+                  required
                 />
               </div>
             ) : (
               <div className="space-y-1.5 max-w-md">
-                <Label htmlFor="ci-pass">Passport number</Label>
+                <Label htmlFor="ci-pass">
+                  Passport number <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="ci-pass"
-                  className="h-10 font-mono tracking-wide uppercase"
+                  className={cn(
+                    "h-10 font-mono tracking-wide uppercase",
+                    reservation &&
+                      !guest.passportNumber.trim() &&
+                      "border-amber-500/50 ring-1 ring-amber-500/20",
+                  )}
                   value={guest.passportNumber}
                   onChange={(e) =>
                     setGuest((g) => ({
@@ -749,6 +872,7 @@ export function ReceptionCheckInForm({
                     }))
                   }
                   placeholder="Passport number"
+                  required
                 />
               </div>
             )}
@@ -757,7 +881,7 @@ export function ReceptionCheckInForm({
               <div className="space-y-1.5">
                 <Label className="inline-flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                  Country
+                  Country <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={guest.country}
@@ -783,7 +907,9 @@ export function ReceptionCheckInForm({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>State / region</Label>
+                <Label>
+                  State / region <span className="text-destructive">*</span>
+                </Label>
                 <Select
                   value={
                     guest.stateRegion || statesForCountry(guest.country)[0]
@@ -806,6 +932,7 @@ export function ReceptionCheckInForm({
               </div>
             </div>
           </HotelFormSection>
+          </div>
 
           {/* Stay timing */}
           <HotelFormSection
