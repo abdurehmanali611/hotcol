@@ -66,6 +66,8 @@ const hrEmployeeBaseFields = z.object({
     .max(80, "Job title is too long")
     .optional()
     .or(z.literal("")),
+  orgPosition: z.enum(["leader", "employee"]).default("employee"),
+  teamId: z.coerce.number().optional().nullable(),
   wageType: z.enum(HR_WAGE_TYPES, { message: "Select a wage type" }),
   baseSalaryETB: z.coerce
     .number({ message: "Enter a valid salary" })

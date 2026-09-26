@@ -8,6 +8,8 @@ export type HrEmployee = {
   email: string;
   department: string;
   jobTitle: string;
+  orgPosition: string;
+  teamId: number | null;
   status: string;
   hireDate: string;
   endDate: string;
@@ -26,6 +28,26 @@ export type HrEmployee = {
   profileImageUrl: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type HrTeam = {
+  id: number;
+  HotelName: string;
+  departmentId: number;
+  code: string;
+  label: string;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type HrApprovalFlow = {
+  id: number;
+  HotelName: string;
+  requestType: string;
+  departmentId: number | null;
+  requireTeamLeaderFirst: boolean;
+  stepsJson: unknown;
+  active: boolean;
 };
 
 export type HrNotification = {
@@ -258,7 +280,7 @@ export type HrDashboardStats = {
 };
 
 const EMP_FIELDS = `
-  id HotelName fullName phone email department jobTitle status
+  id HotelName fullName phone email department jobTitle orgPosition teamId status
   hireDate endDate wageType baseSalaryETB bankName accountNumber
   credentialUserId credentialUserName notes
   portalOtpPreview portalOtpViewer mustChangeOtp portalOtpIssuedAt portalFirstLoginAt
@@ -305,6 +327,8 @@ export async function createHrEmployeeApi(input: {
   email?: string;
   department?: string;
   jobTitle?: string;
+  orgPosition?: string;
+  teamId?: number | null;
   hireDate?: string;
   wageType?: string;
   baseSalaryETB?: number;
@@ -319,6 +343,8 @@ export async function createHrEmployeeApi(input: {
       $email: String
       $department: String
       $jobTitle: String
+      $orgPosition: String
+      $teamId: Int
       $hireDate: String
       $wageType: String
       $baseSalaryETB: Float
@@ -332,6 +358,8 @@ export async function createHrEmployeeApi(input: {
         email: $email
         department: $department
         jobTitle: $jobTitle
+        orgPosition: $orgPosition
+        teamId: $teamId
         hireDate: $hireDate
         wageType: $wageType
         baseSalaryETB: $baseSalaryETB
@@ -340,7 +368,7 @@ export async function createHrEmployeeApi(input: {
         notes: $notes
       ) { ${EMP_FIELDS} }
     }`,
-    { ...input },
+    { ...input, teamId: input.teamId ?? null },
   );
   return data.createHrEmployee;
 }
@@ -385,6 +413,115 @@ export async function fetchHrDepartments(): Promise<HrDepartment[]> {
     }
   `);
   return data.hrDepartments || [];
+}
+
+export async function fetchHrTeamsApi(departmentId?: number) {
+  const data = await gql<{ hrTeams: HrTeam[] }>(
+    `query ($departmentId: Int) {
+      hrTeams(departmentId: $departmentId) {
+        id HotelName departmentId code label active sortOrder
+      }
+    }`,
+    { departmentId: departmentId ?? null },
+  );
+  return data.hrTeams || [];
+}
+
+export async function upsertHrTeamApi(input: {
+  id?: number;
+  departmentId: number;
+  code: string;
+  label: string;
+  active?: boolean;
+  sortOrder?: number;
+}) {
+  const data = await gql<{ upsertHrTeam: HrTeam }>(
+    `mutation (
+      $id: Int
+      $departmentId: Int!
+      $code: String!
+      $label: String!
+      $active: Boolean
+      $sortOrder: Int
+    ) {
+      upsertHrTeam(
+        id: $id
+        departmentId: $departmentId
+        code: $code
+        label: $label
+        active: $active
+        sortOrder: $sortOrder
+      ) {
+        id HotelName departmentId code label active sortOrder
+      }
+    }`,
+    input,
+  );
+  return data.upsertHrTeam;
+}
+
+export async function deleteHrTeamApi(id: number) {
+  const data = await gql<{ deleteHrTeam: boolean }>(
+    `mutation ($id: Int!) { deleteHrTeam(id: $id) }`,
+    { id },
+  );
+  return data.deleteHrTeam;
+}
+
+export async function fetchHrApprovalFlowsApi(requestType?: string) {
+  const data = await gql<{ hrApprovalFlows: HrApprovalFlow[] }>(
+    `query ($requestType: String) {
+      hrApprovalFlows(requestType: $requestType) {
+        id HotelName requestType departmentId requireTeamLeaderFirst stepsJson active
+      }
+    }`,
+    { requestType: requestType || null },
+  );
+  return data.hrApprovalFlows || [];
+}
+
+export async function upsertHrApprovalFlowApi(input: {
+  id?: number;
+  requestType: string;
+  departmentId?: number | null;
+  requireTeamLeaderFirst?: boolean;
+  stepsJson: unknown;
+  active?: boolean;
+}) {
+  const data = await gql<{ upsertHrApprovalFlow: HrApprovalFlow }>(
+    `mutation (
+      $id: Int
+      $requestType: String!
+      $departmentId: Int
+      $requireTeamLeaderFirst: Boolean
+      $stepsJson: JSON!
+      $active: Boolean
+    ) {
+      upsertHrApprovalFlow(
+        id: $id
+        requestType: $requestType
+        departmentId: $departmentId
+        requireTeamLeaderFirst: $requireTeamLeaderFirst
+        stepsJson: $stepsJson
+        active: $active
+      ) {
+        id HotelName requestType departmentId requireTeamLeaderFirst stepsJson active
+      }
+    }`,
+    {
+      ...input,
+      departmentId: input.departmentId ?? null,
+    },
+  );
+  return data.upsertHrApprovalFlow;
+}
+
+export async function deleteHrApprovalFlowApi(id: number) {
+  const data = await gql<{ deleteHrApprovalFlow: boolean }>(
+    `mutation ($id: Int!) { deleteHrApprovalFlow(id: $id) }`,
+    { id },
+  );
+  return data.deleteHrApprovalFlow;
 }
 
 export async function replaceHrDepartmentsApi(
@@ -449,6 +586,8 @@ export async function updateHrEmployeeApi(
       $email: String
       $department: String
       $jobTitle: String
+      $orgPosition: String
+      $teamId: Int
       $status: String
       $hireDate: String
       $wageType: String
@@ -466,6 +605,8 @@ export async function updateHrEmployeeApi(
         email: $email
         department: $department
         jobTitle: $jobTitle
+        orgPosition: $orgPosition
+        teamId: $teamId
         status: $status
         hireDate: $hireDate
         wageType: $wageType

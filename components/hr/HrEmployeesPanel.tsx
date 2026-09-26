@@ -135,6 +135,8 @@ export function HrEmployeesPanel({
       email: "",
       department: "",
       jobTitle: "",
+      orgPosition: "employee",
+      teamId: null,
       wageType: "monthly",
       baseSalaryETB: 0,
       bankName: "",
@@ -164,6 +166,8 @@ export function HrEmployeesPanel({
       email: "",
       department: defaultDepartment,
       jobTitle: "",
+      orgPosition: "employee",
+      teamId: null,
       wageType: "monthly",
       baseSalaryETB: 0,
       bankName: "",
@@ -189,6 +193,9 @@ export function HrEmployeesPanel({
         email: row.email || "",
         department: dept || defaultDepartment,
         jobTitle: row.jobTitle || "",
+        orgPosition:
+          row.orgPosition === "leader" ? "leader" : "employee",
+        teamId: row.teamId ?? null,
         wageType: (HR_WAGE_TYPES as readonly string[]).includes(row.wageType)
           ? (row.wageType as HrEmployeeFormValues["wageType"])
           : "monthly",
@@ -212,6 +219,8 @@ export function HrEmployeesPanel({
         email: values.email || undefined,
         department: values.department,
         jobTitle: values.jobTitle,
+        orgPosition: values.orgPosition,
+        teamId: values.teamId || null,
         wageType: values.wageType,
         baseSalaryETB: values.baseSalaryETB,
         bankName: values.bankName || "",
@@ -540,10 +549,38 @@ export function HrEmployeesPanel({
                     name="jobTitle"
                     render={({ field }) => (
                       <FormItem className={roleFieldClass}>
-                        <FormLabel>Job title</FormLabel>
+                        <FormLabel>Specific role</FormLabel>
                         <FormControl>
-                          <Input className={roleInputClass} {...field} />
+                          <Input
+                            className={roleInputClass}
+                            placeholder="Skill / professional name"
+                            {...field}
+                          />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="orgPosition"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Position</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className={roleTriggerClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="employee">Employee</SelectItem>
+                            <SelectItem value="leader">Leader</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

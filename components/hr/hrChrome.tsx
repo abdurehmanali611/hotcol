@@ -161,6 +161,11 @@ export const HR_SECTION_COPY: Record<
     description:
       "Approve or reject portal OTP reset requests from HR Manager. Approved codes are visible only to Manager until the employee’s first login.",
   },
+  workflows: {
+    title: "HR · Approval workflows",
+    description:
+      "Configure per-department approval chains for leave (and overtime). Optional teams and Leader/Employee org positions drive who can approve each step.",
+  },
   leave: {
     title: "HR · Leave",
     description:
