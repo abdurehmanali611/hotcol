@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   Coffee,
   RefreshCw,
@@ -233,6 +234,7 @@ function BaristaContent() {
               />
               Refresh
             </Button>
+            <ChangeOwnPasswordButton variant="outline" />
             <Button
               type="button"
               variant="outline"

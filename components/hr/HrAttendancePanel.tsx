@@ -51,10 +51,15 @@ import {
   createHrShiftApi,
   deleteHrShiftApi,
   fetchHrDepartments,
+  upsertHrAttendanceApi,
   type HrAttendance,
   type HrEmployee,
   type HrShift,
 } from "@/lib/api/hr";
+import {
+  isPendingManagerApprovalError,
+  pendingManagerApprovalMessage,
+} from "@/lib/hrPendingApproval";
 import { cn } from "@/lib/utils";
 
 const fieldClass = "min-w-0";
@@ -136,6 +141,12 @@ export function HrAttendancePanel({
   const [clocking, setClocking] = useState<"in" | "out" | null>(null);
   const [clockEmployeeIds, setClockEmployeeIds] = useState<number[]>([]);
   const [clockSearch, setClockSearch] = useState("");
+  const [correctForm, setCorrectForm] = useState({
+    employeeId: "",
+    workDate: todayYmd(),
+    status: "present",
+    notes: "",
+  });
   const [shiftForm, setShiftForm] = useState({
     employeeId: "",
     workDates: [todayYmd()] as string[],
@@ -342,6 +353,7 @@ export function HrAttendancePanel({
   return (
     <HrPanelShell>
       {canManageTime ? (
+        <>
         <HrSectionCard
           title="Clock and schedule"
           description="HR marks arrival and departure for today until attendance devices (e.g. ZKTeco) are connected. Scheduling plans coverage for a chosen date, including overnight shifts."
@@ -836,6 +848,109 @@ export function HrAttendancePanel({
             </HotelFormSection>
           </div>
         </HrSectionCard>
+
+        <HrSectionCard
+          title="Correct attendance"
+          description="Adjust status or notes for a work day. Changes go to Manager for approval before they apply."
+          icon={<ClipboardList className="h-5 w-5" />}
+          accent="bg-linear-to-r from-amber-500 to-orange-400"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className={fieldClass}>
+              <Label>Employee</Label>
+              <Select
+                value={correctForm.employeeId || undefined}
+                onValueChange={(v) =>
+                  setCorrectForm((f) => ({ ...f, employeeId: v }))
+                }
+              >
+                <SelectTrigger className={triggerClass}>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rosterEmployees.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={fieldClass}>
+              <Label>Work date</Label>
+              <HotelDayPicker
+                value={correctForm.workDate}
+                onChange={(v) =>
+                  setCorrectForm((f) => ({ ...f, workDate: v || todayYmd() }))
+                }
+              />
+            </div>
+            <div className={fieldClass}>
+              <Label>Status</Label>
+              <Select
+                value={correctForm.status}
+                onValueChange={(v) =>
+                  setCorrectForm((f) => ({ ...f, status: v }))
+                }
+              >
+                <SelectTrigger className={triggerClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="half_day">Half day</SelectItem>
+                  <SelectItem value="on_leave">On leave</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={fieldClass}>
+              <Label>Notes</Label>
+              <Input
+                className={inputClass}
+                value={correctForm.notes}
+                onChange={(e) =>
+                  setCorrectForm((f) => ({ ...f, notes: e.target.value }))
+                }
+                placeholder="Reason for correction"
+              />
+            </div>
+          </div>
+          <PendingButton
+            className="mt-4"
+            pending={pending}
+            onClick={async () => {
+              const employeeId = Number(correctForm.employeeId);
+              if (!employeeId) {
+                toast.error("Select an employee");
+                return;
+              }
+              setPending(true);
+              try {
+                await upsertHrAttendanceApi({
+                  employeeId,
+                  workDate: correctForm.workDate,
+                  status: correctForm.status,
+                  notes: correctForm.notes,
+                });
+                toast.success("Attendance updated");
+                await onRefresh();
+              } catch (e) {
+                if (isPendingManagerApprovalError(e)) {
+                  toast.success(pendingManagerApprovalMessage(e));
+                  return;
+                }
+                notifyApiFailure(e, "Correction failed");
+              } finally {
+                setPending(false);
+              }
+            }}
+          >
+            Submit correction
+          </PendingButton>
+        </HrSectionCard>
+        </>
       ) : (
         <HrSectionCard
           title="Attendance reports"

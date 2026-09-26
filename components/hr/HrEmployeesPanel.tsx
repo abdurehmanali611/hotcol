@@ -44,9 +44,7 @@ import {
   type HrEmployeeFormValues,
 } from "@/lib/hrConstraints";
 import {
-  activeHrDepartments,
   hrDepartmentLabel,
-  type HrDepartmentSetting,
 } from "@/lib/hrDepartments";
 import { formatETB } from "@/lib/subscriptionModules";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
@@ -54,12 +52,19 @@ import { notifyApiFailure } from "@/lib/actions";
 import {
   createHrEmployeeApi,
   fetchHrDepartments,
+  fetchHrTeamsApi,
   terminateHrEmployeeApi,
   updateHrEmployeeApi,
   enableHrEmployeePortalApi,
   requestHrOtpResetApi,
+  type HrDepartment,
   type HrEmployee,
+  type HrTeam,
 } from "@/lib/api/hr";
+import {
+  isPendingManagerApprovalError,
+  pendingManagerApprovalMessage,
+} from "@/lib/hrPendingApproval";
 import { PendingButton } from "@/components/ui/pending-button";
 import {
   AlertDialog,
@@ -101,9 +106,8 @@ export function HrEmployeesPanel({
   const [issuedOtp, setIssuedOtp] = useState<{ name: string; otp: string } | null>(
     null,
   );
-  const [hrDepartments, setHrDepartments] = useState<HrDepartmentSetting[]>(
-    [],
-  );
+  const [hrDepartments, setHrDepartments] = useState<HrDepartment[]>([]);
+  const [teams, setTeams] = useState<HrTeam[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +115,7 @@ export function HrEmployeesPanel({
       try {
         const rows = await fetchHrDepartments();
         if (cancelled) return;
-        setHrDepartments(activeHrDepartments(rows));
+        setHrDepartments(rows.filter((d) => d.active));
       } catch (e) {
         notifyApiFailure(e, "Could not load departments");
       }
@@ -145,6 +149,33 @@ export function HrEmployeesPanel({
       notes: "",
     },
   });
+
+  const departmentCode = form.watch("department");
+  const selectedDeptId = useMemo(() => {
+    const code = String(departmentCode || "").trim();
+    return hrDepartments.find((d) => d.code === code)?.id ?? null;
+  }, [departmentCode, hrDepartments]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (selectedDeptId == null) {
+        setTeams([]);
+        return;
+      }
+      try {
+        const rows = await fetchHrTeamsApi(selectedDeptId);
+        if (cancelled) return;
+        setTeams(rows.filter((t) => t.active));
+      } catch (e) {
+        notifyApiFailure(e, "Could not load teams");
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDeptId]);
 
   const filtered = useMemo(
     () =>
@@ -365,6 +396,11 @@ export function HrEmployeesPanel({
                       toast.success("Employee terminated");
                       await onRefresh();
                     } catch (e) {
+                      if (isPendingManagerApprovalError(e)) {
+                        toast.success(pendingManagerApprovalMessage(e));
+                        await onRefresh();
+                        return;
+                      }
                       notifyApiFailure(e, "Terminate failed");
                     }
                   }}
@@ -505,7 +541,10 @@ export function HrEmployeesPanel({
                         <FormLabel>Department</FormLabel>
                         <Select
                           value={field.value || undefined}
-                          onValueChange={field.onChange}
+                          onValueChange={(v) => {
+                            field.onChange(v);
+                            form.setValue("teamId", null);
+                          }}
                           disabled={!hrDepartments.length && !orphan}
                         >
                           <FormControl>
@@ -579,6 +618,49 @@ export function HrEmployeesPanel({
                           <SelectContent>
                             <SelectItem value="employee">Employee</SelectItem>
                             <SelectItem value="leader">Leader</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="teamId"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Team (optional)</FormLabel>
+                        <Select
+                          value={
+                            field.value != null && field.value > 0
+                              ? String(field.value)
+                              : "none"
+                          }
+                          onValueChange={(v) =>
+                            field.onChange(v === "none" ? null : Number(v))
+                          }
+                          disabled={!selectedDeptId}
+                        >
+                          <FormControl>
+                            <SelectTrigger className={roleTriggerClass}>
+                              <SelectValue
+                                placeholder={
+                                  selectedDeptId
+                                    ? teams.length
+                                      ? "Select team"
+                                      : "No teams in department"
+                                    : "Pick department first"
+                                }
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No team</SelectItem>
+                            {teams.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />

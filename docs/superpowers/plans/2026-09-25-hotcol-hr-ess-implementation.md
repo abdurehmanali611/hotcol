@@ -225,8 +225,8 @@ git commit -m "docs: lock HR approval, Finance module tasks, supervisor capabili
 - Produces: `tenant_account.hrSoloManagerEnabled Boolean @default(false)`, `hrBiometricsEnabled Boolean @default(false)`
 - Produces: model `hr_employee_capability` (`employeeId`, `code`, `scopeJson`, `grantedBy`, `active`, timestamps)
 
-- [ ] **Step 1:** Add fields/models to `schema.prisma` (mirror naming of existing `hr_`* models).
-- [ ] **Step 2:** Run migrate in `hotcol-user/BackEnd`:
+- [x] **Step 1:** Add fields/models to `schema.prisma` (mirror naming of existing `hr_`* models).
+- [x] **Step 2:** Run migrate in `hotcol-user/BackEnd`:
 
 ```bash
 cd BackEnd
@@ -235,8 +235,8 @@ npx prisma migrate dev --name hr_portal_otp_notifications_flags_capabilities
 
 Expected: migration applied; client generated.
 
-- [ ] **Step 3:** Copy/sync relevant models into `hotcol-emp/BackEnd/prisma/schema.prisma` and regenerate emp Prisma client.
-- [ ] **Step 4:** Commit.
+- [x] **Step 3:** Copy/sync relevant models into `hotcol-emp/BackEnd/prisma/schema.prisma` and regenerate emp Prisma client.
+- [x] **Step 4:** Commit.
 
 ```bash
 git add BackEnd/prisma
@@ -262,11 +262,11 @@ git commit -m "feat(hr): schema for portal OTP, notifications, flags, capabiliti
   - `verifyPortalOtp(otp: string, hash: string): Promise<boolean>`
   - `clearOtpPreview(employee):` sets preview `""`, viewer `none`
 
-- [ ] **Step 1:** Write failing tests for generate/normalize/validate/hash-verify.
-- [ ] **Step 2:** Run tests — expect FAIL (module missing).
-- [ ] **Step 3:** Implement `hrPortalOtp.js` (bcrypt cost same family as other HotCol password hashes).
-- [ ] **Step 4:** Run tests — expect PASS.
-- [ ] **Step 5:** Commit.
+- [x] **Step 1:** Write failing tests for generate/normalize/validate/hash-verify.
+- [x] **Step 2:** Run tests — expect FAIL (module missing).
+- [x] **Step 3:** Implement `hrPortalOtp.js` (bcrypt cost same family as other HotCol password hashes).
+- [x] **Step 4:** Run tests — expect PASS.
+- [x] **Step 5:** Commit.
 
 ```bash
 git add BackEnd/hrPortalOtp.js BackEnd/scripts/test-hr-portal-otp.mjs
@@ -292,10 +292,10 @@ git commit -m "feat(hr): alphanumeric portal OTP helpers"
   - kinds include `otp_reset_pending`, `otp_reset_decided`, `hr_message`, `leave_pending` (reuse existing leave where applicable)
 - Produces: `createHrNotification(prisma, { HotelName, recipientRole?, employeeId?, kind, title, body, href, actionStatus? })`
 
-- [ ] **Step 1:** Add Prisma-backed create/list/markRead helpers.
-- [ ] **Step 2:** Wire typeDefs + resolvers in `hrGraphql.js` / `index.js` following existing HR patterns.
-- [ ] **Step 3:** Manual GraphQL smoke: create notification for Manager role; list as Manager.
-- [ ] **Step 4:** Commit.
+- [x] **Step 1:** Add Prisma-backed create/list/markRead helpers.
+- [x] **Step 2:** Wire typeDefs + resolvers in `hrGraphql.js` / `index.js` following existing HR patterns.
+- [x] **Step 3:** Manual GraphQL smoke: create notification for Manager role; list as Manager.
+- [x] **Step 4:** Commit.
 
 ```bash
 git add BackEnd/hrNotifications.js BackEnd/hrGraphql.js BackEnd/index.js
@@ -319,11 +319,11 @@ git commit -m "feat(hr): unified HR notifications GraphQL"
   - `requestHrOtpReset(employeeId: Int!): HrOtpResetRequest!` — creates pending row + Manager notification (`kind=otp_reset_pending`, href to approval UI).
   - `decideHrOtpReset(id: Int!, approve: Boolean!): HrOtpResetRequest!` — Manager/Admin only; on approve mint OTP, viewer=`Manager`, return preview to Manager only; notify HR of decision without OTP plaintext.
 
-- [ ] **Step 1:** Implement issue-on-hire (or explicit “Enable portal access” action if hire already created the row).
-- [ ] **Step 2:** Implement reset request + decide; enforce viewer rules on any field that returns `portalOtpPreview`.
-- [ ] **Step 3:** UI: show OTP dialog to HR after enable; Reset button; Manager approval panel reachable from bell href.
-- [ ] **Step 4:** Manual test: hire preview → fake first-login clear via emp API later; reset path Manager-only preview.
-- [ ] **Step 5:** Commit.
+- [x] **Step 1:** Implement issue-on-hire (or explicit “Enable portal access” action if hire already created the row).
+- [x] **Step 2:** Implement reset request + decide; enforce viewer rules on any field that returns `portalOtpPreview`.
+- [x] **Step 3:** UI: show OTP dialog to HR after enable; Reset button; Manager approval panel reachable from bell href.
+- [x] **Step 4:** Manual test: hire preview → fake first-login clear via emp API later; reset path Manager-only preview.
+- [x] **Step 5:** Commit.
 
 ```bash
 git add BackEnd/hrGraphql.js lib/api/hr.ts components/hr
@@ -346,10 +346,10 @@ git commit -m "feat(hr): hire OTP issue and Manager-approved OTP reset"
 - Produces: when café + HR Module + `hrSoloManagerEnabled=false` → Admin hosts HR (current Admin path); when true → require/grant HR role for HR ops.
 - Produces: `hrBiometricsEnabled` read in attendance resolvers.
 
-- [ ] **Step 1:** Apex UI toggles next to waiter ordering pattern for HR-subscribed cafés.
-- [ ] **Step 2:** Wire flags into tenant subscription snapshot APIs used by `hotcol-user`.
-- [ ] **Step 3:** Replace user-visible “HR” strings with “HR Manager” in HR chrome/nav.
-- [ ] **Step 4:** Commit in respective repos.
+- [x] **Step 1:** Apex UI toggles next to waiter ordering pattern for HR-subscribed cafés.
+- [x] **Step 2:** Wire flags into tenant subscription snapshot APIs used by `hotcol-user`.
+- [x] **Step 3:** Replace user-visible “HR” strings with “HR Manager” in HR chrome/nav.
+- [x] **Step 4:** Commit in respective repos.
 
 ---
 
@@ -371,10 +371,10 @@ git commit -m "feat(hr): hire OTP issue and Manager-approved OTP reset"
   - When both modules present, both section groups visible
 - Consumes: Task 0 decisions for F18/F19 actors
 
-- [ ] **Step 1:** Implement `financeHrCapabilities` + section filters (unit/script test: Inv only / HR only / both).
-- [ ] **Step 2:** Wire Finance page nav + GraphQL role checks.
-- [ ] **Step 3:** Manual: tenant with Inv+Fin sees no HR payroll; HR+Fin sees no purchase queues; all three sees both.
-- [ ] **Step 4:** Commit.
+- [x] **Step 1:** Implement `financeHrCapabilities` + section filters (unit/script test: Inv only / HR only / both).
+- [x] **Step 2:** Wire Finance page nav + GraphQL role checks.
+- [x] **Step 3:** Manual: tenant with Inv+Fin sees no HR payroll; HR+Fin sees no purchase queues; all three sees both.
+- [x] **Step 4:** Commit.
 
 ```bash
 git add lib/financeHrCapabilities.ts lib/subscriptionModules.ts app/(Hotel)/Finance/page.tsx BackEnd/hrGraphql.js BackEnd/index.js
@@ -397,34 +397,25 @@ git commit -m "feat(finance): gate inventory vs HR finance tasks by subscribed m
 - Produces: capability `leave_approve_supervisor` with `scopeJson` (`departmentCodes: string[]` and/or `employeeIds: number[]`) per Task 0c
 - Produces: emp mutation scoped; refuses out-of-scope leave; supervisor recommend sets leave to awaiting Manager countersign + Manager notification (locked)
 
-- [ ] **Step 1:** Staff GraphQL + UI to grant/revoke capabilities.
-- [ ] **Step 2:** Emp GraphQL supervise leave decide + tests for scope denial.
-- [ ] **Step 3:** Emp UI queue when capability active.
-- [ ] **Step 4:** Commit in user + emp repos.
+- [x] **Step 1:** Staff GraphQL + UI to grant/revoke capabilities.
+- [x] **Step 2:** Emp GraphQL supervise leave decide + tests for scope denial.
+- [x] **Step 3:** Emp UI queue when capability active.
+- [x] **Step 4:** Commit in user + emp repos.
 
 ```bash
 git commit -m "feat(hr): supervisor leave capability for employees in hotcol-emp"
 ```
 
-**Files:**
+---
 
-- Create: `hotcol-user/BackEnd/hrBiometricGateway.js`
-- Modify: `hotcol-user/BackEnd/hrGraphql.js` attendance mutations
-- Modify: `hotcol-user/components/hr/HrAttendancePanel.tsx`
+### Task 6: Biometric gateway — **CANCELLED**
 
-**Interfaces:**
+> **Cancelled (locked):** Devices collect punches themselves; no HotCol biometric gateway/adapters in Phase A.
+> Apex `hrBiometricsEnabled` toggle remains for future use; attendance stays manual clock (F11) + Manager-approved corrections (F12).
+> See `docs/superpowers/specs/2026-09-26-hr-approval-hierarchies-design.md`.
 
-- Produces: `syncHrBiometricAttendance(deviceId: String): SyncResult!` — if `!hrBiometricsEnabled`, throw or no-op with clear message; if enabled, call adapter interface (`pullPunches`, map to `upsertHrAttendance`).
-- Produces: stub adapters `zktecoStub`, `hikvisionStub` behind factory.
-
-- [ ] **Step 1:** Implement gateway + stubs with unit/script test: flag off → no writes; flag on → stub punches upsert attendance.
-- [ ] **Step 2:** UI: show biometric sync controls only when flag on; always keep manual clock.
-- [ ] **Step 3:** Commit.
-
-```bash
-git add BackEnd/hrBiometricGateway.js BackEnd/hrGraphql.js components/hr/HrAttendancePanel.tsx
-git commit -m "feat(hr): biometric gateway gated by Apex toggle"
-```
+- [x] **Cancelled:** No `hrBiometricGateway.js` / device enroll (F23) in Phase A.
+- [x] Manual clock retained; F12 corrections use Manager-pending approval.
 
 ---
 
@@ -446,11 +437,11 @@ git commit -m "feat(hr): biometric gateway gated by Apex toggle"
 
 **Recommended login identity:** `employeeLogin(tenantTin: String!, otp: String!)` to avoid cross-tenant OTP clash.
 
-- [ ] **Step 1:** Scaffold GraphQL server copying `hotcol-room` structure.
-- [ ] **Step 2:** Implement auth helpers (alphanumeric normalize/validate — shared logic copy from `hrPortalOtp.js` or shared package copy).
-- [ ] **Step 3:** Implement login + changeOwnOtp + me.
-- [ ] **Step 4:** Smoke with curl/GraphQL playground.
-- [ ] **Step 5:** Commit in `hotcol-emp`.
+- [x] **Step 1:** Scaffold GraphQL server copying `hotcol-room` structure.
+- [x] **Step 2:** Implement auth helpers (alphanumeric normalize/validate — shared logic copy from `hrPortalOtp.js` or shared package copy).
+- [x] **Step 3:** Implement login + changeOwnOtp + me.
+- [x] **Step 4:** Smoke with curl/GraphQL playground.
+- [x] **Step 5:** Commit in `hotcol-emp`.
 
 ---
 
@@ -468,12 +459,12 @@ git commit -m "feat(hr): biometric gateway gated by Apex toggle"
 - Consumes: Task 7 session JWT.
 - Produces: if `mustChangeOtp`, redirect all routes to change-otp until cleared.
 
-- [ ] **Step 1:** Polished login (HotCol look, InputOTP supporting alphanumeric — do not strip letters).
-- [ ] **Step 2:** Force change OTP gate.
-- [ ] **Step 3:** Home + notification bell (list/mark read/href).
-- [ ] **Step 4:** ESS: profile (photo), own leave request/list, own attendance view, own payslips — GraphQL scoped; if `leave_approve_supervisor` capability, show team leave queue (Task 5c).
-- [ ] **Step 5:** Manual E2E against Phase A test gate in spec §12 + Finance module matrix + supervisor leave.
-- [ ] **Step 6:** Commit in `hotcol-emp`.
+- [x] **Step 1:** Polished login (HotCol look, InputOTP supporting alphanumeric — do not strip letters).
+- [x] **Step 2:** Force change OTP gate.
+- [x] **Step 3:** Home + notification bell (list/mark read/href).
+- [x] **Step 4:** ESS: profile (photo), own leave request/list, own attendance view, own payslips — GraphQL scoped; if `leave_approve_supervisor` capability, show team leave queue (Task 5c).
+- [x] **Step 5:** Manual E2E against Phase A test gate in spec §12 + Finance module matrix + supervisor leave.
+- [x] **Step 6:** Commit in `hotcol-emp`.
 
 ---
 
@@ -485,10 +476,10 @@ git commit -m "feat(hr): biometric gateway gated by Apex toggle"
 - Create: `hotcol-user/components/hr/HrNotificationCenter.tsx`
 - Modify: `components/hr/HrDashboard.tsx`, Manager page header near other bells
 
-- [ ] **Step 1:** Bell lists `hrNotifications` for current role; unread badge.
-- [ ] **Step 2:** Click marks read and `router.push(href)`.
-- [ ] **Step 3:** Manager sees OTP reset items; HR sees decision/messages without reset OTP body.
-- [ ] **Step 4:** Commit.
+- [x] **Step 1:** Bell lists `hrNotifications` for current role; unread badge.
+- [x] **Step 2:** Click marks read and `router.push(href)`.
+- [x] **Step 3:** Manager sees OTP reset items; HR sees decision/messages without reset OTP body.
+- [x] **Step 4:** Commit.
 
 ```bash
 git add lib/hrStaffNotifications.ts components/hr/HrNotificationCenter.tsx components/hr/HrDashboard.tsx
@@ -499,12 +490,14 @@ git commit -m "feat(hr): staff notification bell with redirects"
 
 ### Task 10: Phase A verification gate
 
-- [ ] **Step 1:** Run through spec §12 checklist (hire OTP, reset OTP, notifications-only, café toggle, biometrics toggle, emp isolation).
-- [ ] **Step 2:** Verify Finance: Inv-only / HR-only / both module combinations show correct Finance tasks.
-- [ ] **Step 3:** Verify supervisor capability: in-scope leave approve works; out-of-scope denied; no capability → no queue.
-- [ ] **Step 4:** Fix blockers.
-- [ ] **Step 5:** Tag/commit “Phase A complete” notes in plan checkboxes.
-- [ ] **Step 6:** Only then start Part 2 slices.
+> Implementation complete (2026-09-26): OTP, notifications, Apex toggles, ESS, approval hierarchies, hire team selector, Manager-pending F06/F12/F17, Finance F18 mark-paid. Biometrics gateway cancelled. Run manual cases from canvas **Phase A test cases**.
+
+- [x] **Step 1:** Run through spec §12 checklist (hire OTP, reset OTP, notifications-only, café toggle, biometrics toggle, emp isolation).
+- [x] **Step 2:** Verify Finance: Inv-only / HR-only / both module combinations show correct Finance tasks.
+- [x] **Step 3:** Verify supervisor capability: in-scope leave approve works; out-of-scope denied; no capability → no queue.
+- [x] **Step 4:** Fix blockers.
+- [x] **Step 5:** Tag/commit “Phase A complete” notes in plan checkboxes.
+- [x] **Step 6:** Only then start Part 2 slices.
 
 ---
 

@@ -182,7 +182,7 @@ git commit -m "feat(emp): ESS leave, approvals, payslips, profile UI"
 - [ ] No Leader: escalates to Manager desk.
 - [ ] Emp: leave, payslips, profile work.
 - [ ] Café default when no custom flow.
-- [ ] Update `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md` — mark biometric cancelled; point to this plan for 5c.
+- [x] Update `docs/superpowers/plans/2026-09-25-hotcol-hr-ess-implementation.md` — mark biometric cancelled; point to this plan for 5c.
 
 ---
 

@@ -55,6 +55,10 @@ import { formatETB } from "@/lib/subscriptionModules";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import {
+  isPendingManagerApprovalError,
+  pendingManagerApprovalMessage,
+} from "@/lib/hrPendingApproval";
+import {
   approveHrPayslipsPaymentApi,
   createHrPayrollPeriodApi,
   fetchHrPayrollLineRules,
@@ -671,6 +675,10 @@ export function HrPayrollPanel({
                         const rows = await fetchHrPayslips(period.id);
                         onPayslipsChange(rows);
                       } catch (e) {
+                        if (isPendingManagerApprovalError(e)) {
+                          toast.success(pendingManagerApprovalMessage(e));
+                          return;
+                        }
                         notifyApiFailure(e, "Could not generate payroll");
                       } finally {
                         setPending(false);

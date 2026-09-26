@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   ChefHat,
   RefreshCw,
@@ -232,6 +233,10 @@ function ChefContent() {
               />
               Refresh
             </Button>
+            <ChangeOwnPasswordButton
+              variant="outline"
+              className="shadow-sm"
+            />
             <Button
               type="button"
               variant="outline"

@@ -24,6 +24,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
 import {
   ChevronRight,
   ClipboardCheck,
@@ -1034,6 +1035,7 @@ export function StoreComponent({
                 busy={fetching}
                 onClick={() => void loadData()}
               />
+              <ChangeOwnPasswordButton />
               <Avatar className="h-8 w-8 border shadow-sm">
                 <AvatarImage src={logoUrl || ""} alt={displayLabel} />
                 <AvatarFallback>{displayLabel.slice(0, 2).toUpperCase()}</AvatarFallback>

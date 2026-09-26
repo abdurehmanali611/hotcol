@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
+  ClipboardCheck,
   ClipboardList,
   GitBranch,
   KeyRound,
@@ -55,6 +56,7 @@ import {
 import { HrIncidentsPanel } from "@/components/hr/HrIncidentsPanel";
 import { HrDepartmentsPanel } from "@/components/hr/HrDepartmentsPanel";
 import { HrOtpResetApprovalPanel } from "@/components/hr/HrOtpResetApprovalPanel";
+import { HrManagerPendingPanel } from "@/components/hr/HrManagerPendingPanel";
 import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
 import { HrApprovalConfigPanel } from "@/components/hr/HrApprovalConfigPanel";
 import type { HrPayrollView } from "@/constants";
@@ -93,6 +95,7 @@ export type HrSection =
   | "incidents"
   | "departments"
   | "otp-reset"
+  | "manager-pending"
   | "workflows";
 
 const PAYROLL_SECTIONS = new Set<HrSection>([
@@ -138,6 +141,7 @@ const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "employees", label: "Employees", icon: Users },
   { id: "otp-reset", label: "OTP resets", icon: KeyRound },
+  { id: "manager-pending", label: "HR approvals", icon: ClipboardCheck },
   { id: "workflows", label: "Workflows", icon: GitBranch },
   { id: "leave", label: "Leave", icon: CalendarDays },
   { id: "attendance", label: "Attendance", icon: ClipboardList },
@@ -151,6 +155,9 @@ function navForRole(role: string) {
     if (item.id === "employees") return caps.canManageEmployees;
     if (item.id === "departments") return caps.canConfigureDepartments;
     if (item.id === "otp-reset") {
+      return role === "Manager" || role === "Admin";
+    }
+    if (item.id === "manager-pending") {
       return role === "Manager" || role === "Admin";
     }
     if (item.id === "workflows") {
@@ -241,6 +248,7 @@ export function HrDashboard({
       "incidents",
       "departments",
       "otp-reset",
+      "manager-pending",
       "workflows",
     ]);
     if (allowed.has(fromUrl)) {
@@ -336,6 +344,10 @@ export function HrDashboard({
       {section === "otp-reset" &&
       (actorRole === "Manager" || actorRole === "Admin") ? (
         <HrOtpResetApprovalPanel />
+      ) : null}
+      {section === "manager-pending" &&
+      (actorRole === "Manager" || actorRole === "Admin") ? (
+        <HrManagerPendingPanel />
       ) : null}
       {section === "workflows" &&
       (actorRole === "Manager" || actorRole === "Admin") ? (

@@ -78,6 +78,20 @@ export type HrOtpResetRequest = {
   employee?: HrEmployee | null;
 };
 
+export type HrManagerPendingAction = {
+  id: number;
+  HotelName: string;
+  kind: string;
+  employeeId: number | null;
+  payloadJson: unknown;
+  requestedBy: string;
+  status: string;
+  decidedBy: string;
+  decidedAt: string | null;
+  createdAt: string;
+  employee?: HrEmployee | null;
+};
+
 export type HrLeaveType = {
   id: number;
   HotelName: string;
@@ -667,6 +681,70 @@ export async function decideHrOtpResetApi(id: number, approve: boolean) {
     { id, approve },
   );
   return data.decideHrOtpReset;
+}
+
+export async function fetchHrManagerPendingActionsApi(status?: string) {
+  const data = await gql<{ hrManagerPendingActions: HrManagerPendingAction[] }>(
+    `query ($status: String) {
+      hrManagerPendingActions(status: $status) {
+        id HotelName kind employeeId payloadJson requestedBy status decidedBy decidedAt createdAt
+        employee { id fullName }
+      }
+    }`,
+    { status: status ?? null },
+  );
+  return data.hrManagerPendingActions || [];
+}
+
+export async function decideHrManagerPendingActionApi(
+  id: number,
+  approve: boolean,
+) {
+  const data = await gql<{
+    decideHrManagerPendingAction: HrManagerPendingAction;
+  }>(
+    `mutation ($id: Int!, $approve: Boolean!) {
+      decideHrManagerPendingAction(id: $id, approve: $approve) {
+        id HotelName kind employeeId payloadJson requestedBy status decidedBy decidedAt createdAt
+        employee { id fullName }
+      }
+    }`,
+    { id, approve },
+  );
+  return data.decideHrManagerPendingAction;
+}
+
+export async function upsertHrAttendanceApi(input: {
+  employeeId: number;
+  workDate: string;
+  clockInAt?: string | null;
+  clockOutAt?: string | null;
+  status?: string;
+  notes?: string;
+}) {
+  const data = await gql<{ upsertHrAttendance: HrAttendance }>(
+    `mutation (
+      $employeeId: Int!
+      $workDate: String!
+      $clockInAt: DateTime
+      $clockOutAt: DateTime
+      $status: String
+      $notes: String
+    ) {
+      upsertHrAttendance(
+        employeeId: $employeeId
+        workDate: $workDate
+        clockInAt: $clockInAt
+        clockOutAt: $clockOutAt
+        status: $status
+        notes: $notes
+      ) {
+        id employeeId workDate clockInAt clockOutAt status notes
+      }
+    }`,
+    input,
+  );
+  return data.upsertHrAttendance;
 }
 
 export async function fetchHrOtpResetRequestsApi(status?: string) {

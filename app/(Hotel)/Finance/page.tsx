@@ -46,6 +46,7 @@ import {
   paymentModeFromSection,
 } from "@/constants/hotelInventoryNav";
 import { HotelCreditorUsageReportPanel } from "@/components/hotel/HotelCreditorUsageReportPanel";
+import { FinanceHrPayrollSection } from "@/components/finance/FinanceHrPayrollSection";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { ItemRegistrationStatusPanel } from "@/components/hotel/ItemRegistrationStatusPanel";
@@ -785,30 +786,13 @@ function FinanceInner() {
 
         {financeSection === "hr-payroll" && (
           <section className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>HR payroll</CardTitle>
-                <CardDescription>
-                  Review payroll periods and participate in payment approval when
-                  HR Module and Financial Management are subscribed. Mark paid is
-                  available to Finance and HR Manager; Manager gives final approval.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <FinanceHrPayrollSection mode="payroll" />
           </section>
         )}
 
         {financeSection === "hr-payslips" && (
           <section className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>HR payslips</CardTitle>
-                <CardDescription>
-                  View payslip totals for this property. Full mark-paid actions
-                  wire through the shared HR payroll GraphQL (Phase A).
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <FinanceHrPayrollSection mode="payslips" />
           </section>
         )}
 
