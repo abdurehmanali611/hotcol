@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, Check, Plus, X } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
@@ -43,6 +43,7 @@ import {
   HrSectionCard,
   HrStatusBadge,
 } from "@/components/hr/hrChrome";
+import { cn } from "@/lib/utils";
 import {
   hrLeaveRequestSchema,
   inclusiveLeaveDays,
@@ -194,21 +195,43 @@ export function HrLeavePanel({
       {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => <HrStatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <div className="flex flex-col items-start gap-0.5">
+            <HrStatusBadge status={row.original.status} />
+            {row.original.status === "pending" ? (
+              <span className="text-[10px] text-muted-foreground">
+                Awaiting approval step{" "}
+                {(Number(row.original.currentStepIndex) || 0) + 1}
+              </span>
+            ) : null}
+          </div>
+        ),
       },
       ...(canApprove
         ? [
             {
               id: "actions",
-              header: "",
+              header: "Decision",
               cell: ({ row }) =>
                 row.original.status === "pending" ? (
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-nowrap items-center justify-end gap-2">
                     <HrConfirmAction
                       title="Approve this leave?"
-                      description={`${row.original.employee?.fullName || "Employee"} · ${row.original.fromYmd} to ${row.original.toYmd}. Paid leave reduces the matching balance.`}
+                      description={`${row.original.employee?.fullName || "Employee"} · ${row.original.fromYmd} to ${row.original.toYmd}. If more steps remain in the flow, the request stays pending until the final approver. Paid leave balance is reduced only on final approval.`}
                       confirmLabel="Approve"
-                      trigger={<Button size="sm">Approve</Button>}
+                      trigger={
+                        <Button
+                          size="sm"
+                          className={cn(
+                            "h-8 gap-1.5 rounded-lg px-3 font-medium shadow-sm",
+                            "bg-emerald-600 text-white hover:bg-emerald-500",
+                            "dark:bg-emerald-600 dark:hover:bg-emerald-500",
+                          )}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Approve
+                        </Button>
+                      }
                       onConfirm={async () => {
                         try {
                           const updated = await decideHrLeaveRequestApi(
@@ -217,8 +240,8 @@ export function HrLeavePanel({
                           );
                           toast.success(
                             updated.status === "approved"
-                              ? "Leave approved"
-                              : "Leave advanced to the next approval step",
+                              ? "Leave fully approved"
+                              : "Step approved — waiting on the next approver",
                           );
                           await onRefresh();
                         } catch (e) {
@@ -232,7 +255,18 @@ export function HrLeavePanel({
                       description="The request stays on file as rejected and does not change balances."
                       confirmLabel="Reject"
                       trigger={
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={cn(
+                            "h-8 gap-1.5 rounded-lg px-3 font-medium shadow-sm",
+                            "border-rose-500/35 bg-rose-500/5 text-rose-700",
+                            "hover:bg-rose-500/12 hover:text-rose-800",
+                            "dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-300",
+                            "dark:hover:bg-rose-500/20 dark:hover:text-rose-200",
+                          )}
+                        >
+                          <X className="h-3.5 w-3.5" />
                           Reject
                         </Button>
                       }
@@ -247,7 +281,9 @@ export function HrLeavePanel({
                       }}
                     />
                   </div>
-                ) : null,
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                ),
             } satisfies ColumnDef<HrLeaveRequest>,
           ]
         : []),
