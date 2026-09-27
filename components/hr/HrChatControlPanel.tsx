@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -161,21 +162,47 @@ export function HrChatControlPanel() {
                     <div
                       key={m.id}
                       className={cn(
-                        "w-fit max-w-[min(75%,22rem)] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
-                        m.senderIsManager
-                          ? "ml-auto bg-primary text-primary-foreground"
-                          : "bg-card ring-1 ring-border/60",
+                        "flex w-full",
+                        m.senderIsManager ? "justify-end" : "justify-start",
                       )}
                     >
-                      <div className="mb-0.5 flex items-baseline gap-2 text-[10px] opacity-70">
-                        <span className="font-medium">{m.senderName}</span>
-                        <span className="shrink-0 whitespace-nowrap">
-                          {formatMsgTime(m.createdAt)}
-                        </span>
+                      <div
+                        className={cn(
+                          "inline-block max-w-60 space-y-2 rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-68",
+                          m.senderIsManager
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-card ring-1 ring-border/60",
+                        )}
+                      >
+                        <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] opacity-70">
+                          <span className="font-medium">{m.senderName}</span>
+                          <span className="whitespace-nowrap">
+                            {formatMsgTime(m.createdAt)}
+                          </span>
+                        </div>
+                        {m.imageUrl ? (
+                          <a
+                            href={m.imageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block overflow-hidden rounded-lg"
+                          >
+                            <Image
+                              src={m.imageUrl}
+                              alt="Chat attachment"
+                              width={280}
+                              height={200}
+                              className="max-h-40 w-auto object-contain"
+                              unoptimized
+                            />
+                          </a>
+                        ) : null}
+                        {m.body ? (
+                          <p className="whitespace-pre-wrap leading-relaxed">
+                            {m.body}
+                          </p>
+                        ) : null}
                       </div>
-                      <p className="whitespace-pre-wrap leading-relaxed">
-                        {m.body}
-                      </p>
                     </div>
                   ))
                 )}

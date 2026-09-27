@@ -14,7 +14,7 @@ async function gql<T>(
 const THREAD_FIELDS = `
   id HotelName kind title createdByEmployeeId createdByManagerUserId
   createdAt updatedAt messageCount
-  lastMessage { id body createdAt senderIsManager senderName }
+  lastMessage { id body imageUrl createdAt senderIsManager senderName }
   members {
     id threadId employeeId isManager memberKey joinedAt lastReadAt employeeName
   }
@@ -37,6 +37,7 @@ export type HrChatMessage = {
   senderEmployeeId: number | null;
   senderIsManager: boolean;
   body: string;
+  imageUrl?: string;
   createdAt: string;
   senderName: string;
 };
@@ -82,7 +83,7 @@ export async function fetchHrChatMessages(
   const data = await gql<{ hrChatMessages: HrChatMessage[] }>(
     `query ($threadId: Int!, $limit: Int) {
       hrChatMessages(threadId: $threadId, limit: $limit) {
-        id threadId senderEmployeeId senderIsManager body createdAt senderName
+        id threadId senderEmployeeId senderIsManager body imageUrl createdAt senderName
       }
     }`,
     { threadId, limit },
@@ -186,14 +187,19 @@ export async function createHrChatGroupApi(input: {
 export async function sendHrChatMessageApi(
   threadId: number,
   body: string,
+  imageUrl?: string | null,
 ): Promise<HrChatMessage> {
   const data = await gql<{ sendHrChatMessage: HrChatMessage }>(
-    `mutation ($threadId: Int!, $body: String!) {
-      sendHrChatMessage(threadId: $threadId, body: $body) {
-        id threadId senderEmployeeId senderIsManager body createdAt senderName
+    `mutation ($threadId: Int!, $body: String, $imageUrl: String) {
+      sendHrChatMessage(threadId: $threadId, body: $body, imageUrl: $imageUrl) {
+        id threadId senderEmployeeId senderIsManager body imageUrl createdAt senderName
       }
     }`,
-    { threadId, body },
+    {
+      threadId,
+      body: body?.trim() || null,
+      imageUrl: imageUrl?.trim() || null,
+    },
   );
   return data.sendHrChatMessage;
 }

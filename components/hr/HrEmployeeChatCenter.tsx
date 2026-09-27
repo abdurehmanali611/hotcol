@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Send, Loader2 } from "lucide-react";
+import Image from "next/image";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
+import { ImagePlus, MessageSquare, Send, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,9 +41,16 @@ import {
   type HrChatMessage,
   type HrChatThread,
 } from "@/lib/api/hrChat";
+import {
+  isCloudinaryUploadConfigured,
+  uploadImageFileToCloudinary,
+} from "@/lib/cloudinaryUploadOptions";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 10000;
+const CHAT_IMAGE_ACCEPT =
+  "image/png,image/jpeg,image/jpg,image/webp,image/jfif";
+const CHAT_MAX_IMAGES = 5;
 
 function formatMsgTime(iso: string): string {
   const d = new Date(iso);
@@ -59,6 +74,14 @@ function formatMsgTime(iso: string): string {
   });
 }
 
+function previewForLastMessage(t: HrChatThread): string {
+  const last = t.lastMessage;
+  if (!last) return t.kind;
+  if (last.body?.trim()) return last.body;
+  if (last.imageUrl?.trim()) return "Photo";
+  return t.kind;
+}
+
 /** Manager (hotel) / Admin (café) live employee chat. Control lives under HR → Chat control. */
 export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   const [open, setOpen] = useState(false);
@@ -66,6 +89,9 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [messages, setMessages] = useState<HrChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [pendingImageUrls, setPendingImageUrls] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [employees, setEmployees] = useState<HrEmployee[]>([]);
   const [pickEmpId, setPickEmpId] = useState<string>("");
   const [unread, setUnread] = useState(0);
@@ -73,6 +99,8 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   const [msgsLoading, setMsgsLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickingFileRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!enabled) return;
@@ -102,6 +130,28 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
     () => threads.find((t) => t.id === activeId) || null,
     [threads, activeId],
   );
+
+  const employeeNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const e of employees) map.set(e.id, e.fullName);
+    return map;
+  }, [employees]);
+
+  const labelForMessage = (m: HrChatMessage) => {
+    if (m.senderEmployeeId != null && m.senderEmployeeId > 0) {
+      return (
+        employeeNameById.get(m.senderEmployeeId) ||
+        (m.senderName !== "Manager" ? m.senderName : null) ||
+        "Employee"
+      );
+    }
+    if (m.senderIsManager) return "Manager";
+    return m.senderName || "Employee";
+  };
+
+  const isManagerBubble = (m: HrChatMessage) =>
+    Boolean(m.senderIsManager) &&
+    !(m.senderEmployeeId != null && m.senderEmployeeId > 0);
 
   const loadMessages = useCallback(
     async (threadId: number, opts?: { quiet?: boolean }) => {
@@ -136,10 +186,121 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeId]);
 
+  const canSend =
+    Boolean(draft.trim() || pendingImageUrls.length) &&
+    !busy &&
+    !uploadingImage;
+  const atImageLimit = pendingImageUrls.length >= CHAT_MAX_IMAGES;
+
+  const handlePickImage = () => {
+    if (busy || uploadingImage || atImageLimit) return;
+    pickingFileRef.current = true;
+    const onWindowFocus = () => {
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+      }, 0);
+    };
+    window.addEventListener("focus", onWindowFocus, { once: true });
+    fileInputRef.current?.click();
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImageUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleImageFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    pickingFileRef.current = false;
+    if (files.length === 0) return;
+
+    const slotsLeft = CHAT_MAX_IMAGES - pendingImageUrls.length;
+    if (slotsLeft <= 0) {
+      toast.error(`You can attach up to ${CHAT_MAX_IMAGES} images at a time.`);
+      return;
+    }
+
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      toast.error("Please choose image files (PNG, JPEG, or WebP).");
+      return;
+    }
+    if (imageFiles.length < files.length) {
+      toast.error("Some files were skipped because they are not images.");
+    }
+
+    const toUpload = imageFiles.slice(0, slotsLeft);
+    if (imageFiles.length > slotsLeft) {
+      toast.info(
+        `Only ${slotsLeft} more image${slotsLeft === 1 ? "" : "s"} added (max ${CHAT_MAX_IMAGES}).`,
+      );
+    }
+
+    setUploadingImage(true);
+    const uploaded: string[] = [];
+    try {
+      for (let i = 0; i < toUpload.length; i++) {
+        setUploadProgress(`Uploading ${i + 1}/${toUpload.length}…`);
+        const url = await uploadImageFileToCloudinary(toUpload[i], {
+          folder: "hotcol-hr-chat",
+        });
+        uploaded.push(url);
+      }
+      setPendingImageUrls((prev) =>
+        [...prev, ...uploaded].slice(0, CHAT_MAX_IMAGES),
+      );
+    } catch (err) {
+      if (uploaded.length > 0) {
+        setPendingImageUrls((prev) =>
+          [...prev, ...uploaded].slice(0, CHAT_MAX_IMAGES),
+        );
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Image upload failed. Try again.",
+      );
+    } finally {
+      setUploadingImage(false);
+      setUploadProgress(null);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!active || !canSend) return;
+    const text = draft.trim();
+    const images = pendingImageUrls.map((url) => url.trim()).filter(Boolean);
+    setBusy(true);
+    try {
+      if (images.length === 0) {
+        await sendHrChatMessageApi(active.id, text);
+      } else {
+        for (let i = 0; i < images.length; i++) {
+          await sendHrChatMessageApi(
+            active.id,
+            i === 0 ? text : "",
+            images[i],
+          );
+        }
+      }
+      setDraft("");
+      setPendingImageUrls([]);
+      await loadMessages(active.id, { quiet: true });
+      draftRef.current?.focus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Send failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSheetOpenChange = (next: boolean) => {
+    if (!next && (uploadingImage || pickingFileRef.current)) return;
+    setOpen(next);
+  };
+
   if (!enabled) return null;
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleSheetOpenChange}>
       <SheetTrigger asChild>
         <Button
           type="button"
@@ -159,7 +320,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
           ) : null}
         </Button>
       </SheetTrigger>
-      <SheetContent className="flex h-full w-full max-w-full flex-col gap-0 p-0 sm:max-w-2xl md:max-w-3xl lg:max-w-4xl">
+      <SheetContent className="flex h-full w-full max-w-full flex-col gap-0 p-0 sm:max-w-lg md:max-w-xl">
         <SheetHeader className="border-b px-4 py-3 text-left">
           <SheetTitle>Employee chat</SheetTitle>
           <SheetDescription>
@@ -211,7 +372,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
             </Button>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[13rem_1fr] md:grid-cols-[15rem_1fr]">
+          <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[11rem_1fr] md:grid-cols-[12.5rem_1fr]">
             <ul className="max-h-40 space-y-0.5 overflow-y-auto border-b p-2 sm:max-h-none sm:border-b-0 sm:border-r">
               {threads.length === 0 ? (
                 <li className="px-2 py-8 text-center text-xs text-muted-foreground">
@@ -232,7 +393,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
                         {t.title || `Chat #${t.id}`}
                       </p>
                       <p className="truncate text-[10px] text-muted-foreground">
-                        {t.lastMessage?.body || t.kind}
+                        {previewForLastMessage(t)}
                       </p>
                       {t.lastMessage?.createdAt ? (
                         <p className="mt-0.5 text-[9px] text-muted-foreground/80">
@@ -268,75 +429,164 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
                     <div
                       key={m.id}
                       className={cn(
-                        "w-fit max-w-[min(75%,20rem)] rounded-2xl px-3 py-2 text-sm shadow-sm",
-                        m.senderIsManager
-                          ? "ml-auto bg-primary text-primary-foreground"
-                          : "bg-muted",
+                        "flex w-full",
+                        isManagerBubble(m) ? "justify-end" : "justify-start",
                       )}
                     >
-                      <div className="mb-0.5 flex items-baseline gap-2 text-[10px] opacity-70">
-                        <span className="font-medium">{m.senderName}</span>
-                        <span className="shrink-0 whitespace-nowrap">
-                          {formatMsgTime(m.createdAt)}
-                        </span>
+                      <div
+                        className={cn(
+                          "inline-block max-w-60 space-y-2 rounded-2xl px-3 py-2 text-sm shadow-sm sm:max-w-68",
+                          isManagerBubble(m)
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted",
+                        )}
+                      >
+                        <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] opacity-70">
+                          <span className="font-medium">{labelForMessage(m)}</span>
+                          <span className="whitespace-nowrap">
+                            {formatMsgTime(m.createdAt)}
+                          </span>
+                        </div>
+                        {m.imageUrl ? (
+                          <a
+                            href={m.imageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block overflow-hidden rounded-lg"
+                          >
+                            <Image
+                              src={m.imageUrl}
+                              alt="Chat attachment"
+                              width={280}
+                              height={200}
+                              className="max-h-40 w-auto object-contain"
+                              unoptimized
+                            />
+                          </a>
+                        ) : null}
+                        {m.body ? (
+                          <p className="whitespace-pre-wrap leading-relaxed">
+                            {m.body}
+                          </p>
+                        ) : null}
                       </div>
-                      <p className="whitespace-pre-wrap leading-relaxed">
-                        {m.body}
-                      </p>
                     </div>
                   ))
                 )}
                 <div ref={endRef} />
               </div>
               {active ? (
-                <form
-                  className="flex gap-2 border-t p-3"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!draft.trim() || busy) return;
-                    setBusy(true);
-                    try {
-                      await sendHrChatMessageApi(active.id, draft.trim());
-                      setDraft("");
-                      await loadMessages(active.id, { quiet: true });
-                      draftRef.current?.focus();
-                    } catch (err) {
-                      toast.error(
-                        err instanceof Error ? err.message : "Send failed",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  <Textarea
-                    ref={draftRef}
-                    rows={2}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        e.currentTarget.form?.requestSubmit();
+                <div className="space-y-2 border-t p-3">
+                  {pendingImageUrls.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {pendingImageUrls.map((url, index) => (
+                        <div
+                          key={`${url}-${index}`}
+                          className="relative inline-block"
+                        >
+                          <Image
+                            src={url}
+                            alt={`Attachment preview ${index + 1}`}
+                            width={80}
+                            height={80}
+                            className="h-16 w-16 rounded-lg border object-cover"
+                            unoptimized
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            className="absolute -right-2 -top-2 h-5 w-5 rounded-full shadow-sm"
+                            aria-label={`Remove image ${index + 1}`}
+                            disabled={busy || uploadingImage}
+                            onClick={() => removePendingImage(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={CHAT_IMAGE_ACCEPT}
+                      multiple
+                      className="sr-only"
+                      tabIndex={-1}
+                      aria-hidden
+                      onChange={(e) => void handleImageFileChange(e)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 shrink-0"
+                      disabled={busy || uploadingImage || atImageLimit}
+                      aria-label="Attach images"
+                      title={
+                        !isCloudinaryUploadConfigured()
+                          ? "Image upload not configured"
+                          : atImageLimit
+                            ? `Maximum ${CHAT_MAX_IMAGES} images`
+                            : `Attach images (up to ${CHAT_MAX_IMAGES})`
                       }
-                    }}
-                    placeholder="Message… (Enter to send)"
-                    className="min-h-10 resize-none"
-                    disabled={busy}
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    className="h-10 w-10 shrink-0"
-                    disabled={busy || !draft.trim()}
-                  >
-                    {busy ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Send className="size-4" />
-                    )}
-                  </Button>
-                </form>
+                      onClick={() => {
+                        if (!isCloudinaryUploadConfigured()) {
+                          toast.error(
+                            "Image upload is not configured. Add NEXT_PUBLIC_CLOUDINARY_PRESET_NAME and NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME to .env.local.",
+                          );
+                          return;
+                        }
+                        handlePickImage();
+                      }}
+                    >
+                      {uploadingImage ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ImagePlus className="size-4" />
+                      )}
+                    </Button>
+                    <Textarea
+                      ref={draftRef}
+                      rows={2}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSend();
+                        }
+                      }}
+                      placeholder={
+                        uploadProgress ||
+                        "Message… (Enter to send)"
+                      }
+                      className="min-h-10 resize-none"
+                      disabled={busy || uploadingImage}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="h-10 w-10 shrink-0"
+                      disabled={!canSend}
+                      onClick={() => void handleSend()}
+                    >
+                      {busy ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Send className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {uploadProgress ??
+                      (atImageLimit
+                        ? `${CHAT_MAX_IMAGES}/${CHAT_MAX_IMAGES} images · Enter to send`
+                        : `Up to ${CHAT_MAX_IMAGES} images · Enter to send · Shift+Enter for new line`)}
+                  </p>
+                </div>
               ) : null}
             </div>
           </div>
