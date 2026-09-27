@@ -24,7 +24,7 @@ export function hrCapabilities(role: HrActorRole) {
     /** File leave on behalf of employees */
     canFileLeave: isStaffHr,
     /** Approve / reject leave */
-    canApproveLeave: isManager || isAdmin,
+    canApproveLeave: isManager || isAdmin || isHr,
     /** Clock in/out and schedule shifts */
     canManageTime: isStaffHr,
     /** Open payroll runs and mark payslips paid (HR/Admin) */

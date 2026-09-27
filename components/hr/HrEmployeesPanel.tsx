@@ -54,6 +54,7 @@ import {
   fetchHrDepartments,
   fetchHrTeamsApi,
   terminateHrEmployeeApi,
+  deleteHrEmployeeApi,
   updateHrEmployeeApi,
   enableHrEmployeePortalApi,
   requestHrOtpResetApi,
@@ -439,6 +440,35 @@ export function HrEmployeesPanel({
                 />
               </>
             ) : null}
+            <HrConfirmAction
+              destructive
+              title={`Delete ${emp.fullName}?`}
+              description={
+                emp.status === "terminated"
+                  ? "Permanently removes this terminated employee and related HR records (leave, attendance, documents, payslips). This cannot be undone."
+                  : "Permanently removes this employee and related HR records (leave, attendance, documents, payslips). Prefer Terminate if you only need to end employment. This cannot be undone."
+              }
+              confirmLabel="Delete"
+              trigger={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              }
+              onConfirm={async () => {
+                try {
+                  await deleteHrEmployeeApi(emp.id);
+                  toast.success("Employee deleted");
+                  await onRefresh();
+                } catch (e) {
+                  notifyApiFailure(e, "Delete failed");
+                }
+              }}
+            />
           </div>
           );
         },

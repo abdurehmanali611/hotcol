@@ -320,6 +320,22 @@ function flowChainLabel(f: HrApprovalFlow): string {
     : base;
 }
 
+type TeamDraftLine = {
+  key: string;
+  departmentId: string;
+  code: string;
+  label: string;
+};
+
+function emptyTeamLine(): TeamDraftLine {
+  return {
+    key: `team-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    departmentId: "",
+    code: "",
+    label: "",
+  };
+}
+
 export function HrApprovalConfigPanel() {
   const [departments, setDepartments] = useState<HrDepartment[]>([]);
   const [teams, setTeams] = useState<HrTeam[]>([]);
@@ -328,9 +344,9 @@ export function HrApprovalConfigPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [teamDeptId, setTeamDeptId] = useState<string>("");
-  const [teamCode, setTeamCode] = useState("");
-  const [teamLabel, setTeamLabel] = useState("");
+  const [teamLines, setTeamLines] = useState<TeamDraftLine[]>(() => [
+    emptyTeamLine(),
+  ]);
   const [savingTeam, setSavingTeam] = useState(false);
 
   const [flowDeptId, setFlowDeptId] = useState("default");
@@ -428,6 +444,33 @@ export function HrApprovalConfigPanel() {
       })),
     [departments],
   );
+
+  const validTeamLines = useMemo(
+    () =>
+      teamLines.filter(
+        (l) => l.departmentId && l.code.trim() && l.label.trim(),
+      ),
+    [teamLines],
+  );
+
+  const updateTeamLine = (
+    key: string,
+    patch: Partial<Omit<TeamDraftLine, "key">>,
+  ) => {
+    setTeamLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
+  };
+
+  const addTeamLine = () => {
+    setTeamLines((prev) => [...prev, emptyTeamLine()]);
+  };
+
+  const removeTeamLine = (key: string) => {
+    setTeamLines((prev) =>
+      prev.length <= 1 ? [emptyTeamLine()] : prev.filter((l) => l.key !== key),
+    );
+  };
 
   const addStep = (kind: string) => {
     setSteps((prev) => [...prev, { kind }]);
@@ -916,69 +959,127 @@ export function HrApprovalConfigPanel() {
                 <Plus className="size-3.5" />
               </span>
               <div>
-                <p className="text-sm font-semibold tracking-tight">Add team</p>
+                <p className="text-sm font-semibold tracking-tight">
+                  Add teams
+                </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Code is unique within the department
+                  Batch lines — code is unique within each department
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              <FieldShell
-                label="Department"
-                icon={<Building2 className="size-3" />}
-              >
-                <OptionCombobox
-                  value={teamDeptId}
-                  onChange={setTeamDeptId}
-                  options={departmentOptions}
-                  placeholder="Search department…"
-                  emptyText="No departments found."
-                />
-              </FieldShell>
+              <div className="space-y-3">
+                {teamLines.map((line, index) => (
+                  <div
+                    key={line.key}
+                    className="space-y-3 rounded-xl border border-border/70 bg-card/60 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Line {index + 1}
+                      </p>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-muted-foreground hover:text-rose-600"
+                        disabled={teamLines.length <= 1}
+                        aria-label={`Remove team line ${index + 1}`}
+                        onClick={() => removeTeamLine(line.key)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <FieldShell label="Code" hint="Short key">
-                  <Input
-                    value={teamCode}
-                    onChange={(e) => setTeamCode(e.target.value)}
-                    placeholder="e.g. AM"
-                    className="h-10 w-full min-w-0"
-                  />
-                </FieldShell>
-                <FieldShell label="Label" hint="Display name">
-                  <Input
-                    value={teamLabel}
-                    onChange={(e) => setTeamLabel(e.target.value)}
-                    placeholder="e.g. Morning"
-                    className="h-10 w-full min-w-0"
-                  />
-                </FieldShell>
+                    <FieldShell
+                      label="Department"
+                      icon={<Building2 className="size-3" />}
+                    >
+                      <OptionCombobox
+                        value={line.departmentId}
+                        onChange={(v) =>
+                          updateTeamLine(line.key, { departmentId: v })
+                        }
+                        options={departmentOptions}
+                        placeholder="Search department…"
+                        emptyText="No departments found."
+                      />
+                    </FieldShell>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <FieldShell label="Code" hint="Short key">
+                        <Input
+                          value={line.code}
+                          onChange={(e) =>
+                            updateTeamLine(line.key, { code: e.target.value })
+                          }
+                          placeholder="e.g. AM"
+                          className="h-10 w-full min-w-0"
+                        />
+                      </FieldShell>
+                      <FieldShell label="Label" hint="Display name">
+                        <Input
+                          value={line.label}
+                          onChange={(e) =>
+                            updateTeamLine(line.key, { label: e.target.value })
+                          }
+                          placeholder="e.g. Morning"
+                          className="h-10 w-full min-w-0"
+                        />
+                      </FieldShell>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <Button
                 type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 font-medium"
+                onClick={addTeamLine}
+              >
+                <Plus className="h-4 w-4" />
+                Add line
+              </Button>
+
+              <Button
+                type="button"
                 className="w-full"
-                disabled={
-                  savingTeam ||
-                  !teamDeptId ||
-                  !teamCode.trim() ||
-                  !teamLabel.trim()
-                }
+                disabled={savingTeam || validTeamLines.length === 0}
                 onClick={async () => {
+                  if (validTeamLines.length === 0) {
+                    toast.info("Complete at least one team line");
+                    return;
+                  }
                   setSavingTeam(true);
+                  let ok = 0;
+                  let failed = 0;
                   try {
-                    await upsertHrTeamApi({
-                      departmentId: Number(teamDeptId),
-                      code: teamCode.trim(),
-                      label: teamLabel.trim(),
-                    });
-                    toast.success("Team created");
-                    setTeamCode("");
-                    setTeamLabel("");
+                    for (const line of validTeamLines) {
+                      try {
+                        await upsertHrTeamApi({
+                          departmentId: Number(line.departmentId),
+                          code: line.code.trim(),
+                          label: line.label.trim(),
+                        });
+                        ok += 1;
+                      } catch {
+                        failed += 1;
+                      }
+                    }
+                    setTeamLines([emptyTeamLine()]);
                     await load();
-                  } catch (e) {
-                    notifyApiFailure(e, "Could not create team");
+                    if (ok > 0 && failed === 0) {
+                      toast.success(
+                        ok === 1 ? "Team created" : `${ok} teams created`,
+                      );
+                    } else if (ok > 0) {
+                      toast.warning(`${ok} created, ${failed} failed`);
+                    } else {
+                      toast.error("Could not create teams");
+                    }
                   } finally {
                     setSavingTeam(false);
                   }
@@ -989,7 +1090,9 @@ export function HrApprovalConfigPanel() {
                 ) : (
                   <Plus className="mr-2 h-4 w-4" />
                 )}
-                Add team
+                {validTeamLines.length > 1
+                  ? `Create ${validTeamLines.length} teams`
+                  : "Create team"}
               </Button>
             </div>
           </div>

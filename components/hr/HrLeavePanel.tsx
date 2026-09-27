@@ -80,7 +80,10 @@ export function HrLeavePanel({
 }) {
   const canConfigureTypes = actorRole === "Manager" || actorRole === "Admin";
   const canFileLeave = actorRole === "HR" || actorRole === "Admin";
-  const canApprove = actorRole === "Manager" || actorRole === "Admin";
+  const canApprove =
+    actorRole === "Manager" ||
+    actorRole === "Admin" ||
+    actorRole === "HR";
 
   const [filter, setFilter] = useState<LeaveFilter>("all");
   const [leaveTypes, setLeaveTypes] = useState<HrLeaveType[]>([]);
@@ -208,8 +211,15 @@ export function HrLeavePanel({
                       trigger={<Button size="sm">Approve</Button>}
                       onConfirm={async () => {
                         try {
-                          await decideHrLeaveRequestApi(row.original.id, true);
-                          toast.success("Leave approved");
+                          const updated = await decideHrLeaveRequestApi(
+                            row.original.id,
+                            true,
+                          );
+                          toast.success(
+                            updated.status === "approved"
+                              ? "Leave approved"
+                              : "Leave advanced to the next approval step",
+                          );
                           await onRefresh();
                         } catch (e) {
                           notifyApiFailure(e, "Approve failed");
@@ -263,11 +273,9 @@ export function HrLeavePanel({
       <HrSectionCard
         title="Leave queue"
         description={
-          canApprove && !canFileLeave
-            ? "Approve or reject requests filed by HR. Approving paid leave reduces the matching balance."
-            : canApprove
-              ? "Review requests filed by HR. Approving paid leave reduces the matching balance."
-              : "File leave for employees here. The manager reviews and approves or rejects each request."
+          canApprove
+            ? "Approve or reject pending leave. Approving paid leave reduces the matching balance."
+            : "File leave for employees here. HR, Manager, or Admin reviews each request."
         }
         actions={
           canFileLeave ? (

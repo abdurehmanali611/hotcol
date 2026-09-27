@@ -647,6 +647,14 @@ export async function terminateHrEmployeeApi(id: number, endDate?: string) {
   return data.terminateHrEmployee;
 }
 
+export async function deleteHrEmployeeApi(id: number) {
+  const data = await gql<{ deleteHrEmployee: boolean }>(
+    `mutation ($id: Int!) { deleteHrEmployee(id: $id) }`,
+    { id },
+  );
+  return data.deleteHrEmployee;
+}
+
 export async function enableHrEmployeePortalApi(id: number) {
   const data = await gql<{ enableHrEmployeePortal: HrEmployee }>(
     `mutation ($id: Int!) {
