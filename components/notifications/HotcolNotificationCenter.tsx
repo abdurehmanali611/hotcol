@@ -358,12 +358,23 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
     { id: "inventory", label: "Inventory" },
   ];
 
-  const severityFilters: { id: UnifiedSeverityFilter; label: string }[] = [
+  const severityFilters: {
+    id: UnifiedSeverityFilter;
+    label: string;
+    count?: number;
+  }[] = [
     { id: "all", label: "All" },
-    { id: "critical", label: "Critical" },
-    { id: "warning", label: "Warn" },
-    { id: "info", label: "Info" },
+    { id: "critical", label: "Critical", count: severityCounts.critical },
+    { id: "warning", label: "Warn", count: severityCounts.warning },
+    { id: "info", label: "Info", count: severityCounts.info },
   ];
+
+  const sourceCols =
+    filters.length === 4
+      ? "grid-cols-4"
+      : filters.length === 3
+        ? "grid-cols-3"
+        : "grid-cols-2";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -390,84 +401,114 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
         align="end"
         className="w-[min(24rem,calc(100vw-2rem))] p-0"
       >
-        <div className="border-b px-3 py-2.5 space-y-2.5">
+        <div className="space-y-3 border-b px-3 py-3">
           <div>
             <p className="text-sm font-semibold">Notifications</p>
             <p className="text-xs text-muted-foreground">
               HR, rooming, and inventory in one place.
             </p>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {filters.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => {
-                  setFilter(f.id);
-                  // HR has no ops severity — reset severity when switching to HR-only
-                  if (f.id === "hr") setSeverityFilter("all");
-                }}
-                className={cn(
-                  "rounded-lg px-2.5 py-1 text-xs font-medium transition",
-                  filter === f.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          {filter !== "hr" ? (
-            <>
-              <div className="grid grid-cols-3 gap-1.5">
-                <div className="rounded-md border border-destructive/25 bg-destructive/5 px-2 py-1 text-center">
-                  <p className="text-sm font-bold tabular-nums text-destructive">
-                    {severityCounts.critical}
-                  </p>
-                  <p className="text-[9px] uppercase text-muted-foreground">
-                    Critical
-                  </p>
-                </div>
-                <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-2 py-1 text-center">
-                  <p className="text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                    {severityCounts.warning}
-                  </p>
-                  <p className="text-[9px] uppercase text-muted-foreground">
-                    Warn
-                  </p>
-                </div>
-                <div className="rounded-md border border-border/60 bg-card px-2 py-1 text-center">
-                  <p className="text-sm font-bold tabular-nums">
-                    {severityCounts.info}
-                  </p>
-                  <p className="text-[9px] uppercase text-muted-foreground">
-                    Info
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {severityFilters.map((f) => (
+
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Source
+            </p>
+            <div
+              className={cn(
+                "grid gap-1 rounded-xl border border-border/60 bg-muted/40 p-1",
+                sourceCols,
+              )}
+            >
+              {filters.map((f) => {
+                const active = filter === f.id;
+                const tone =
+                  f.id === "hr"
+                    ? active
+                      ? "bg-violet-600 text-white shadow-sm shadow-violet-500/25"
+                      : "text-violet-800/80 hover:bg-violet-500/10 dark:text-violet-200"
+                    : f.id === "rooming"
+                      ? active
+                        ? "bg-sky-600 text-white shadow-sm shadow-sky-500/25"
+                        : "text-sky-800/80 hover:bg-sky-500/10 dark:text-sky-200"
+                      : f.id === "inventory"
+                        ? active
+                          ? "bg-amber-600 text-white shadow-sm shadow-amber-500/25"
+                          : "text-amber-900/80 hover:bg-amber-500/10 dark:text-amber-200"
+                        : active
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-background/80 hover:text-foreground";
+                return (
                   <button
                     key={f.id}
                     type="button"
-                    onClick={() => setSeverityFilter(f.id)}
+                    onClick={() => {
+                      setFilter(f.id);
+                      if (f.id === "hr") setSeverityFilter("all");
+                    }}
                     className={cn(
-                      "rounded-lg px-2.5 py-1 text-xs font-medium transition",
-                      severityFilter === f.id
-                        ? f.id === "critical"
-                          ? "bg-destructive text-destructive-foreground"
-                          : f.id === "warning"
-                            ? "bg-amber-600 text-white"
-                            : "bg-primary text-primary-foreground"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                      "rounded-lg px-1.5 py-2 text-center text-[11px] font-semibold transition",
+                      tone,
                     )}
                   >
                     {f.label}
                   </button>
-                ))}
+                );
+              })}
+            </div>
+          </div>
+
+          {filter !== "hr" ? (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Severity
+              </p>
+              <div className="grid grid-cols-4 gap-1 rounded-xl border border-border/60 bg-muted/40 p-1">
+                {severityFilters.map((f) => {
+                  const active = severityFilter === f.id;
+                  const tone =
+                    f.id === "critical"
+                      ? active
+                        ? "bg-destructive text-destructive-foreground shadow-sm shadow-destructive/25"
+                        : "text-destructive/80 hover:bg-destructive/10"
+                      : f.id === "warning"
+                        ? active
+                          ? "bg-amber-600 text-white shadow-sm shadow-amber-500/25"
+                          : "text-amber-800/80 hover:bg-amber-500/10 dark:text-amber-200"
+                        : f.id === "info"
+                          ? active
+                            ? "bg-slate-700 text-white shadow-sm dark:bg-slate-200 dark:text-slate-900"
+                            : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                          : active
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:bg-background/80 hover:text-foreground";
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setSeverityFilter(f.id)}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition",
+                        tone,
+                      )}
+                    >
+                      <span className="text-[11px] font-semibold leading-none">
+                        {f.label}
+                      </span>
+                      {f.count != null ? (
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold tabular-nums leading-none",
+                            active ? "opacity-90" : "opacity-70",
+                          )}
+                        >
+                          {f.count}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
-            </>
+            </div>
           ) : null}
         </div>
         <ScrollArea className="h-[min(22rem,55vh)]">
