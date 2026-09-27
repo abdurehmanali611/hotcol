@@ -13,7 +13,6 @@ import { ImagePlus, MessageSquare, Send, Loader2, Users, X } from "lucide-react"
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,15 +30,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { fetchHrEmployees, type HrEmployee } from "@/lib/api/hr";
+import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import {
   createHrChatDirectApi,
   createHrChatGroupApi,
@@ -56,6 +48,7 @@ import {
   uploadImageFileToCloudinary,
 } from "@/lib/cloudinaryUploadOptions";
 import { cn } from "@/lib/utils";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 
 const POLL_MS = 10000;
 const CHAT_IMAGE_ACCEPT =
@@ -137,10 +130,10 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [employees, setEmployees] = useState<HrEmployee[]>([]);
-  const [pickEmpId, setPickEmpId] = useState<string>("");
+  const [pickEmpIds, setPickEmpIds] = useState<number[]>([]);
   const [groupOpen, setGroupOpen] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
-  const [groupPick, setGroupPick] = useState<Record<number, boolean>>({});
+  const [groupMemberIds, setGroupMemberIds] = useState<number[]>([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msgsLoading, setMsgsLoading] = useState(false);
@@ -378,33 +371,31 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex flex-wrap gap-2 border-b p-3">
-            <Select value={pickEmpId} onValueChange={setPickEmpId}>
-              <SelectTrigger className="h-9 min-w-40 flex-1">
-                <SelectValue placeholder="Start chat with…" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>
-                    {e.fullName}
-                    {e.department ? ` · ${e.department}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-start gap-2 border-b p-3">
+            <div className="min-w-0 flex-1 basis-48">
+              <HrEmployeeCombobox
+                employees={employees}
+                valueIds={pickEmpIds}
+                onChange={setPickEmpIds}
+                placeholder="Start chat with…"
+                emptyText="No employees found."
+              />
+            </div>
             <Button
               type="button"
               size="sm"
-              className="h-9"
-              disabled={!pickEmpId || busy}
+              className="h-10"
+              disabled={pickEmpIds.length === 0 || busy}
               onClick={async () => {
+                const employeeId = pickEmpIds[0];
+                if (employeeId == null) return;
                 setBusy(true);
                 try {
                   const t = await createHrChatDirectApi({
-                    employeeId: Number(pickEmpId),
+                    employeeId,
                     includeManager: true,
                   });
-                  setPickEmpId("");
+                  setPickEmpIds([]);
                   await load();
                   setActiveId(t.id);
                 } catch (e) {
@@ -422,7 +413,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
               type="button"
               size="sm"
               variant="outline"
-              className="h-9 gap-1.5"
+              className="h-10 gap-1.5"
               disabled={busy || employees.length === 0}
               onClick={() => setGroupOpen(true)}
             >
@@ -668,38 +659,16 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
               placeholder="Optional group name"
             />
           </div>
-          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-2">
-            {employees.length === 0 ? (
-              <p className="p-3 text-center text-sm text-muted-foreground">
-                No employees found
-              </p>
-            ) : (
-              employees.map((e) => (
-                <label
-                  key={e.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
-                >
-                  <Checkbox
-                    checked={Boolean(groupPick[e.id])}
-                    onCheckedChange={(v) =>
-                      setGroupPick((prev) => ({
-                        ...prev,
-                        [e.id]: v === true,
-                      }))
-                    }
-                  />
-                  <span className="min-w-0 truncate">
-                    {e.fullName}
-                    {e.department ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {e.department}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              ))
-            )}
+          <div className="space-y-1.5">
+            <Label>Members</Label>
+            <HrEmployeeCombobox
+              employees={employees}
+              valueIds={groupMemberIds}
+              onChange={setGroupMemberIds}
+              multiple
+              placeholder="Search & pick employees…"
+              emptyText="No employees found."
+            />
           </div>
           <p className="text-[11px] text-muted-foreground">
             You are included as Manager in the group automatically.
@@ -709,10 +678,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
             className="w-full"
             disabled={busy}
             onClick={async () => {
-              const ids = Object.entries(groupPick)
-                .filter(([, on]) => on)
-                .map(([id]) => Number(id));
-              if (ids.length < 1) {
+              if (groupMemberIds.length < 1) {
                 toast.error("Pick at least one employee");
                 return;
               }
@@ -720,12 +686,12 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
               try {
                 const t = await createHrChatGroupApi({
                   title: groupTitle.trim() || undefined,
-                  employeeIds: ids,
+                  employeeIds: groupMemberIds,
                   includeManager: true,
                 });
                 setGroupOpen(false);
                 setGroupTitle("");
-                setGroupPick({});
+                setGroupMemberIds([]);
                 await load();
                 setActiveId(t.id);
               } catch (e) {
