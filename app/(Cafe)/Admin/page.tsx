@@ -84,7 +84,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
-import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
+import { HrEmployeeChatCenter } from "@/components/hr/HrEmployeeChatCenter";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
 import { ManagerCollapsibleSidebarGroup } from "@/components/hotel/ManagerCollapsibleSidebarGroup";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
@@ -96,7 +96,7 @@ import {
 } from "@/constants/hotelInventoryNav";
 import AdminInventory from "@/components/AdminInventory";
 import { StoreItemReceiptPrinting } from "@/components/hotel/StoreItemReceiptPrinting";
-import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import { HotcolNotificationCenter } from "@/components/notifications/HotcolNotificationCenter";
 import { TenantFeedbackCenter } from "@/components/feedback/TenantFeedbackCenter";
 import {
   SubscriptionAlertBanner,
@@ -804,21 +804,21 @@ function AdminDashboardContent() {
               <TrialBillingButton />
               <SubscriptionNotificationCenter />
               <TenantFeedbackCenter />
-              {tenantHasModule(tenantModules, "HR Module") ? (
-                <HrNotificationCenter
-                  onNavigateSection={(section) => {
-                    const tab = (
-                      Object.entries(HR_TAB_TO_SECTION) as [
-                        string,
-                        HrSection,
-                      ][]
-                    ).find(([, sec]) => sec === section)?.[0];
-                    if (tab) setActiveTab(tab);
-                  }}
-                />
-              ) : null}
-              <InventoryNotificationCenter
+              <HrEmployeeChatCenter
+                enabled={tenantHasModule(tenantModules, "HR Module")}
+              />
+              <HotcolNotificationCenter
                 audience="cafe-admin"
+                includeHr={tenantHasModule(tenantModules, "HR Module")}
+                onNavigateHrSection={(section) => {
+                  const tab = (
+                    Object.entries(HR_TAB_TO_SECTION) as [
+                      string,
+                      HrSection,
+                    ][]
+                  ).find(([, sec]) => sec === section)?.[0];
+                  if (tab) setActiveTab(tab);
+                }}
                 items={inventoryAlerts}
                 hotelLodging={false}
               />

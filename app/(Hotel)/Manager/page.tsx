@@ -81,7 +81,7 @@ import {
 } from "@/components/hr/HrPayrollSidebarGroup";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { readTenantModulesFromStorage } from "@/lib/tenantModules";
-import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import { HotcolNotificationCenter } from "@/components/notifications/HotcolNotificationCenter";
 import {
   fetchLodgingDashboardStats,
   type LodgingDashboardStats,
@@ -213,7 +213,7 @@ import { LodgingCmStaffRegistryPanel } from "@/components/hotel/LodgingCmStaffRe
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
-import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
+import { HrEmployeeChatCenter } from "@/components/hr/HrEmployeeChatCenter";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -2074,16 +2074,16 @@ function ManagerContent() {
             <TrialBillingButton />
             <SubscriptionNotificationCenter />
             <TenantFeedbackCenter />
-            {tenantHasModule(tenantModules, "HR Module") ? (
-              <HrNotificationCenter
-                onNavigateSection={(section) => {
-                  const tab = HR_SECTION_TO_MANAGER_TAB[section];
-                  if (tab) setActiveTab(tab);
-                }}
-              />
-            ) : null}
-            <InventoryNotificationCenter
+            <HrEmployeeChatCenter
+              enabled={tenantHasModule(tenantModules, "HR Module")}
+            />
+            <HotcolNotificationCenter
               audience="hotel-manager"
+              includeHr={tenantHasModule(tenantModules, "HR Module")}
+              onNavigateHrSection={(section) => {
+                const tab = HR_SECTION_TO_MANAGER_TAB[section];
+                if (tab) setActiveTab(tab);
+              }}
               items={items}
               purchaseRequests={purchases as PurchaseRequestRow[]}
               stockMovements={scopedStockReqs as StockOutRequestRow[]}
