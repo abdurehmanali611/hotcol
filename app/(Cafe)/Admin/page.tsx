@@ -313,6 +313,9 @@ function AdminDashboardContent() {
           if (!isStale()) {
             setLoading(false);
             setRefreshing(false);
+            if (isRefresh) {
+              window.dispatchEvent(new Event("hotcol-hr-refresh"));
+            }
           }
         }
       });

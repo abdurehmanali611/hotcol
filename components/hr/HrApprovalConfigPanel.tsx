@@ -9,13 +9,14 @@ import {
   Building2,
   CalendarClock,
   CalendarDays,
+  Check,
+  ChevronsUpDown,
   ClipboardList,
   Clock,
   FileText,
   GitBranch,
   Loader2,
   Plus,
-  RefreshCw,
   Shield,
   Trash2,
   UserRound,
@@ -34,17 +35,23 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   HrPanelShell,
   HrSectionCard,
@@ -169,7 +176,7 @@ function FieldShell({
   className?: string;
 }) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={cn("min-w-0 space-y-1.5", className)}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <Label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {icon}
@@ -179,10 +186,124 @@ function FieldShell({
           <span className="text-[10px] text-muted-foreground">{hint}</span>
         ) : null}
       </div>
-      <div className="rounded-xl border border-border/70 bg-background p-0.5 shadow-sm transition focus-within:ring-2 focus-within:ring-sky-400/20">
-        {children}
-      </div>
+      {children}
     </div>
+  );
+}
+
+type ComboboxOption = { value: string; label: string; hint?: string };
+
+/** Searchable combobox — same interaction pattern as hotel store item name. */
+function OptionCombobox({
+  value,
+  onChange,
+  options,
+  placeholder = "Search…",
+  emptyText = "No matches.",
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboboxOption[];
+  placeholder?: string;
+  emptyText?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+
+  const filtered = useMemo(() => {
+    if (!query) return options;
+    return options.filter((o) => {
+      const hay = `${o.label} ${o.hint || ""} ${o.value}`.toLowerCase();
+      return hay.includes(query);
+    });
+  }, [options, query]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setSearch("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "h-10 w-full min-w-0 justify-between font-normal",
+            className,
+          )}
+        >
+          <span
+            className={cn(
+              "min-w-0 truncate text-left",
+              selected ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {selected?.label || placeholder}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search…"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {filtered.length === 0 ? (
+              <CommandEmpty>{emptyText}</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filtered.map((o) => {
+                  const on = o.value === value;
+                  return (
+                    <CommandItem
+                      key={o.value}
+                      value={`${o.value}-${o.label}`}
+                      onSelect={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4 shrink-0",
+                          on ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {o.label}
+                        {o.hint ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {o.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -244,6 +365,14 @@ export function HrApprovalConfigPanel() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const onRefresh = () => {
+      void load();
+    };
+    window.addEventListener("hotcol-hr-refresh", onRefresh);
+    return () => window.removeEventListener("hotcol-hr-refresh", onRefresh);
+  }, [load]);
+
   const clearEditor = () => {
     const reset = resetEditorState();
     setEditingFlowId(reset.editingFlowId);
@@ -277,6 +406,28 @@ export function HrApprovalConfigPanel() {
     }
     return labels.join(" → ") || "Add at least one step";
   }, [steps, requireTeam]);
+
+  const scopeOptions = useMemo<ComboboxOption[]>(
+    () => [
+      { value: "default", label: "Tenant default", hint: "All departments" },
+      ...departments.map((d) => ({
+        value: String(d.id),
+        label: d.label,
+        hint: d.code || undefined,
+      })),
+    ],
+    [departments],
+  );
+
+  const departmentOptions = useMemo<ComboboxOption[]>(
+    () =>
+      departments.map((d) => ({
+        value: String(d.id),
+        label: d.label,
+        hint: d.code || undefined,
+      })),
+    [departments],
+  );
 
   const addStep = (kind: string) => {
     setSteps((prev) => [...prev, { kind }]);
@@ -348,23 +499,6 @@ export function HrApprovalConfigPanel() {
           <GitBranch className="h-5 w-5 text-sky-600 dark:text-sky-400" />
         }
         accent="bg-linear-to-r from-sky-500 via-cyan-400 to-primary/70"
-        actions={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            {loading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5" />
-            )}
-            Refresh
-          </Button>
-        }
       >
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-border/60 bg-muted/30 px-3 py-2.5">
@@ -435,8 +569,8 @@ export function HrApprovalConfigPanel() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)]">
-          <div className="space-y-3">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.95fr)]">
+          <div className="order-2 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="flex size-8 items-center justify-center rounded-lg bg-sky-500/12 text-sky-700 dark:text-sky-300">
@@ -539,7 +673,7 @@ export function HrApprovalConfigPanel() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 sm:p-5">
+          <div className="order-1 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:p-5">
             <div className="mb-4 flex items-start gap-2.5">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/12 text-sky-700 dark:text-sky-300">
                 <GitBranch className="size-3.5" />
@@ -557,43 +691,33 @@ export function HrApprovalConfigPanel() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <FieldShell
-                  label="Scope"
-                  icon={<Building2 className="size-3" />}
-                  hint="Who this chain applies to"
-                >
-                  <Select value={flowDeptId} onValueChange={setFlowDeptId}>
-                    <SelectTrigger className="h-11 border-0 bg-transparent shadow-none focus:ring-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Tenant default</SelectItem>
-                      {departments.map((d) => (
-                        <SelectItem key={d.id} value={String(d.id)}>
-                          {d.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FieldShell>
+              <FieldShell
+                label="Scope"
+                icon={<Building2 className="size-3" />}
+                hint="Who this chain applies to"
+              >
+                <OptionCombobox
+                  value={flowDeptId}
+                  onChange={setFlowDeptId}
+                  options={scopeOptions}
+                  placeholder="Search scope…"
+                  emptyText="No scope matches."
+                />
+              </FieldShell>
 
-                <div className="flex h-full items-stretch">
-                  <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background px-3 py-2.5 shadow-sm">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Team leader first
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        When the employee is on a team
-                      </p>
-                    </div>
-                    <Switch
-                      checked={requireTeam}
-                      onCheckedChange={setRequireTeam}
-                    />
-                  </div>
+              <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background px-3 py-2.5 shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Team leader first
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    When the employee is on a team
+                  </p>
                 </div>
+                <Switch
+                  checked={requireTeam}
+                  onCheckedChange={setRequireTeam}
+                />
               </div>
 
               <div className="rounded-xl border border-sky-500/15 bg-sky-500/5 px-3 py-2.5">
@@ -720,10 +844,10 @@ export function HrApprovalConfigPanel() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 border-t border-border/50 pt-4">
+              <div className="space-y-2 border-t border-border/50 pt-4">
                 <Button
                   type="button"
-                  className="min-w-[8.5rem]"
+                  className="w-full"
                   disabled={saving || steps.length === 0}
                   onClick={() => void saveFlow()}
                 >
@@ -735,7 +859,12 @@ export function HrApprovalConfigPanel() {
                   {editingFlowId ? "Update flow" : "Save flow"}
                 </Button>
                 {editingFlowId ? (
-                  <Button type="button" variant="ghost" onClick={clearEditor}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={clearEditor}
+                  >
                     Cancel edit
                   </Button>
                 ) : null}
@@ -799,18 +928,13 @@ export function HrApprovalConfigPanel() {
                 label="Department"
                 icon={<Building2 className="size-3" />}
               >
-                <Select value={teamDeptId} onValueChange={setTeamDeptId}>
-                  <SelectTrigger className="h-11 border-0 bg-transparent shadow-none focus:ring-0">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={String(d.id)}>
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <OptionCombobox
+                  value={teamDeptId}
+                  onChange={setTeamDeptId}
+                  options={departmentOptions}
+                  placeholder="Search department…"
+                  emptyText="No departments found."
+                />
               </FieldShell>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -819,7 +943,7 @@ export function HrApprovalConfigPanel() {
                     value={teamCode}
                     onChange={(e) => setTeamCode(e.target.value)}
                     placeholder="e.g. AM"
-                    className="h-11 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                    className="h-10 w-full min-w-0"
                   />
                 </FieldShell>
                 <FieldShell label="Label" hint="Display name">
@@ -827,14 +951,14 @@ export function HrApprovalConfigPanel() {
                     value={teamLabel}
                     onChange={(e) => setTeamLabel(e.target.value)}
                     placeholder="e.g. Morning"
-                    className="h-11 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                    className="h-10 w-full min-w-0"
                   />
                 </FieldShell>
               </div>
 
               <Button
                 type="button"
-                className="w-full sm:w-auto"
+                className="w-full"
                 disabled={
                   savingTeam ||
                   !teamDeptId ||

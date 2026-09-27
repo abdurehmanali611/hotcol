@@ -585,7 +585,10 @@ function ManagerContent() {
           if (!isStale()) {
             setLoading(false);
             setRefreshing(false);
-            if (isRefresh) setInventoryRefreshKey((n) => n + 1);
+            if (isRefresh) {
+              setInventoryRefreshKey((n) => n + 1);
+              window.dispatchEvent(new Event("hotcol-hr-refresh"));
+            }
           }
         }
       });

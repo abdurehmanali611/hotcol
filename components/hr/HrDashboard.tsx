@@ -299,6 +299,9 @@ export function HrDashboard({
       setPeriods(pr);
       setIncidents(inc);
       setSelectedPeriodId((current) => current ?? pr[0]?.id ?? null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("hotcol-hr-refresh"));
+      }
     } catch (e) {
       notifyApiFailure(e, "Could not load HR data");
     } finally {
