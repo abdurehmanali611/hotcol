@@ -159,7 +159,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
           ) : null}
         </Button>
       </SheetTrigger>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+      <SheetContent className="flex h-full w-full max-w-full flex-col gap-0 p-0 sm:max-w-2xl md:max-w-3xl lg:max-w-4xl">
         <SheetHeader className="border-b px-4 py-3 text-left">
           <SheetTitle>Employee chat</SheetTitle>
           <SheetDescription>
@@ -211,8 +211,8 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
             </Button>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[9rem_1fr]">
-            <ul className="max-h-36 space-y-0.5 overflow-y-auto border-b p-2 sm:max-h-none sm:border-b-0 sm:border-r">
+          <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[13rem_1fr] md:grid-cols-[15rem_1fr]">
+            <ul className="max-h-40 space-y-0.5 overflow-y-auto border-b p-2 sm:max-h-none sm:border-b-0 sm:border-r">
               {threads.length === 0 ? (
                 <li className="px-2 py-8 text-center text-xs text-muted-foreground">
                   No threads yet. Pick an employee above.
@@ -268,15 +268,17 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
                     <div
                       key={m.id}
                       className={cn(
-                        "max-w-[90%] rounded-2xl px-3 py-2 text-sm shadow-sm",
+                        "w-fit max-w-[min(75%,20rem)] rounded-2xl px-3 py-2 text-sm shadow-sm",
                         m.senderIsManager
                           ? "ml-auto bg-primary text-primary-foreground"
                           : "bg-muted",
                       )}
                     >
-                      <div className="mb-0.5 flex items-baseline justify-between gap-2 text-[10px] opacity-70">
-                        <span>{m.senderName}</span>
-                        <span>{formatMsgTime(m.createdAt)}</span>
+                      <div className="mb-0.5 flex items-baseline gap-2 text-[10px] opacity-70">
+                        <span className="font-medium">{m.senderName}</span>
+                        <span className="shrink-0 whitespace-nowrap">
+                          {formatMsgTime(m.createdAt)}
+                        </span>
                       </div>
                       <p className="whitespace-pre-wrap leading-relaxed">
                         {m.body}

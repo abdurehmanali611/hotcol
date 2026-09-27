@@ -161,15 +161,17 @@ export function HrChatControlPanel() {
                     <div
                       key={m.id}
                       className={cn(
-                        "max-w-[min(100%,28rem)] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
+                        "w-fit max-w-[min(75%,22rem)] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
                         m.senderIsManager
                           ? "ml-auto bg-primary text-primary-foreground"
                           : "bg-card ring-1 ring-border/60",
                       )}
                     >
-                      <div className="mb-0.5 flex items-baseline justify-between gap-3 text-[10px] opacity-70">
+                      <div className="mb-0.5 flex items-baseline gap-2 text-[10px] opacity-70">
                         <span className="font-medium">{m.senderName}</span>
-                        <span>{formatMsgTime(m.createdAt)}</span>
+                        <span className="shrink-0 whitespace-nowrap">
+                          {formatMsgTime(m.createdAt)}
+                        </span>
                       </div>
                       <p className="whitespace-pre-wrap leading-relaxed">
                         {m.body}
