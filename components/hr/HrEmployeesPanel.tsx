@@ -335,7 +335,7 @@ export function HrEmployeesPanel({
           const portalIssued = Boolean(emp.portalOtpIssuedAt);
           const awaitingFirstLogin = portalIssued && !emp.portalFirstLoginAt;
           return (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="inline-flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
             <Button size="sm" variant="outline" onClick={() => openEdit(emp)}>
               Edit
             </Button>
