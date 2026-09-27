@@ -128,6 +128,7 @@ import {
   Gift,
   ClipboardCheck,
   KeyRound,
+  ShieldOff,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -214,6 +215,7 @@ import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderU
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
 import { HrEmployeeChatCenter } from "@/components/hr/HrEmployeeChatCenter";
+import { HrChatControlPanel } from "@/components/hr/HrChatControlPanel";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -259,6 +261,7 @@ const managerSidebarIconMap: Record<
   Gift,
   ClipboardCheck,
   KeyRound,
+  ShieldOff,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -291,7 +294,10 @@ const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
 
 const MANAGER_HR_NAV_TAB_IDS = new Set<TabId>([...MANAGER_HR_TAB_IDS]);
 
-const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> = {
+const HR_TAB_TO_SECTION: Record<
+  Exclude<(typeof MANAGER_HR_TAB_IDS)[number], "hr-chat-control">,
+  HrSection
+> = {
   "hr-overview": "dashboard",
   "hr-manager-pending": "manager-pending",
   "hr-otp-reset": "otp-reset",
@@ -770,6 +776,7 @@ function ManagerContent() {
       "hr-overview": "HR · Overview",
       "hr-manager-pending": "HR · Approvals",
       "hr-otp-reset": "HR · OTP resets",
+      "hr-chat-control": "HR · Chat control",
       "hr-leave": "HR · Leave types",
       "hr-attendance": "HR · Attendance",
       "hr-payroll-generate": "HR · Payroll · Generate",
@@ -796,6 +803,8 @@ function ManagerContent() {
         "Approve or reject HR requests to terminate employees, correct attendance, or generate payroll.",
       "hr-otp-reset":
         "Approve or reject portal OTP reset requests. Approved codes stay Manager-only until first login.",
+      "hr-chat-control":
+        "Block employee chat paths and audit message history (read-only). Live messaging stays on the header chat icon.",
       "hr-leave":
         "Configure leave types and approve or reject requests filed by HR.",
       "hr-attendance":
@@ -1854,6 +1863,9 @@ function ManagerContent() {
           </div>
         );
 
+      case "hr-chat-control":
+        return <HrChatControlPanel />;
+
       case "hr-overview":
       case "hr-manager-pending":
       case "hr-otp-reset":
@@ -1870,7 +1882,10 @@ function ManagerContent() {
             embedded
             section={
               HR_TAB_TO_SECTION[
-                activeTab as (typeof MANAGER_HR_TAB_IDS)[number]
+                activeTab as Exclude<
+                  (typeof MANAGER_HR_TAB_IDS)[number],
+                  "hr-chat-control"
+                >
               ]
             }
           />

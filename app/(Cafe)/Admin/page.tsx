@@ -60,6 +60,7 @@ import {
   UtensilsCrossed,
   ClipboardCheck,
   KeyRound,
+  ShieldOff,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
@@ -85,6 +86,7 @@ import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
 import { HrEmployeeChatCenter } from "@/components/hr/HrEmployeeChatCenter";
+import { HrChatControlPanel } from "@/components/hr/HrChatControlPanel";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
 import { ManagerCollapsibleSidebarGroup } from "@/components/hotel/ManagerCollapsibleSidebarGroup";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
@@ -135,8 +137,10 @@ const ADMIN_ACCESS_TAB_IDS = new Set([
   "delete-credential",
 ]);
 const ADMIN_HR_TAB_IDS = new Set<string>([...HR_WORKSPACE_TAB_IDS]);
-const HR_TAB_TO_SECTION: Record<(typeof HR_WORKSPACE_TAB_IDS)[number], HrSection> =
-  {
+const HR_TAB_TO_SECTION: Record<
+  Exclude<(typeof HR_WORKSPACE_TAB_IDS)[number], "hr-chat-control">,
+  HrSection
+> = {
     "hr-overview": "dashboard",
     "hr-employees": "employees",
     "hr-manager-pending": "manager-pending",
@@ -378,6 +382,7 @@ function AdminDashboardContent() {
     UtensilsCrossed,
     ClipboardCheck,
     KeyRound,
+    ShieldOff,
   };
 
   const tenantModules = useTenantModules();
@@ -649,6 +654,8 @@ function AdminDashboardContent() {
             />
           </div>
         );
+      case "hr-chat-control":
+        return <HrChatControlPanel />;
       case "hr-overview":
       case "hr-employees":
       case "hr-manager-pending":
@@ -666,7 +673,10 @@ function AdminDashboardContent() {
             embedded
             section={
               HR_TAB_TO_SECTION[
-                activeTab as (typeof HR_WORKSPACE_TAB_IDS)[number]
+                activeTab as Exclude<
+                  (typeof HR_WORKSPACE_TAB_IDS)[number],
+                  "hr-chat-control"
+                >
               ]
             }
           />
@@ -850,22 +860,28 @@ function AdminDashboardContent() {
                 <>
                   <div className="space-y-1.5 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
                     <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
-                      {
-                        HR_SECTION_COPY[
-                          HR_TAB_TO_SECTION[
-                            activeTab as (typeof HR_WORKSPACE_TAB_IDS)[number]
-                          ]
-                        ]?.title
-                      }
+                      {activeTab === "hr-chat-control"
+                        ? "Chat control"
+                        : HR_SECTION_COPY[
+                            HR_TAB_TO_SECTION[
+                              activeTab as Exclude<
+                                (typeof HR_WORKSPACE_TAB_IDS)[number],
+                                "hr-chat-control"
+                              >
+                            ]
+                          ]?.title}
                     </h2>
                     <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                      {
-                        HR_SECTION_COPY[
-                          HR_TAB_TO_SECTION[
-                            activeTab as (typeof HR_WORKSPACE_TAB_IDS)[number]
-                          ]
-                        ]?.description
-                      }
+                      {activeTab === "hr-chat-control"
+                        ? "Block employee chat paths and audit message history. Live messaging stays on the header chat icon."
+                        : HR_SECTION_COPY[
+                            HR_TAB_TO_SECTION[
+                              activeTab as Exclude<
+                                (typeof HR_WORKSPACE_TAB_IDS)[number],
+                                "hr-chat-control"
+                              >
+                            ]
+                          ]?.description}
                     </p>
                   </div>
                   {renderContent()}
