@@ -61,6 +61,7 @@ import {
   ClipboardCheck,
   KeyRound,
   ShieldOff,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
@@ -145,6 +146,7 @@ const HR_TAB_TO_SECTION: Record<
     "hr-employees": "employees",
     "hr-manager-pending": "manager-pending",
     "hr-otp-reset": "otp-reset",
+    "hr-workflows": "workflows",
     "hr-leave": "leave",
     "hr-attendance": "attendance",
     "hr-payroll-generate": "payroll-generate",
@@ -383,6 +385,7 @@ function AdminDashboardContent() {
     ClipboardCheck,
     KeyRound,
     ShieldOff,
+    GitBranch,
   };
 
   const tenantModules = useTenantModules();
@@ -660,6 +663,7 @@ function AdminDashboardContent() {
       case "hr-employees":
       case "hr-manager-pending":
       case "hr-otp-reset":
+      case "hr-workflows":
       case "hr-leave":
       case "hr-attendance":
       case "hr-payroll-generate":

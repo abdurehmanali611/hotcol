@@ -169,7 +169,7 @@ export const HR_SECTION_COPY: Record<
   workflows: {
     title: "HR · Approval workflows",
     description:
-      "Configure per-department approval chains for leave (and overtime). Optional teams and Leader/Employee org positions drive who can approve each step.",
+      "Configure per-request-type approval chains (leave, overtime, documents, incidents, schedule change, timesheet) — tenant default or per department. Teams and Leader/Employee positions drive who can approve each step.",
   },
   leave: {
     title: "HR · Leave",

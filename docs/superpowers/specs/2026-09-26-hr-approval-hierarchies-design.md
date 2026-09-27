@@ -73,7 +73,9 @@ On hire / register / edit (staff HR):
 
 Manager config portal stores **`hr_approval_flow`**:
 
-- `requestType`: `leave` | `overtime` | … (Phase A implement leave; UI can list OT for config)
+- `requestType` (Manager config picker — all six):
+  - `leave` | `overtime` | `document` | `incident` | `schedule_change` | `timesheet`
+  - Phase A runtime: leave uses the engine; other types store flows now and attach when those request UIs ship
 - `departmentId`: null = **tenant default**; else department-specific override
 - `requireTeamLeaderFirst`: boolean — when employee has a team, whether `team_leader` is enforced before other steps
 - `stepsJson`: ordered list of `{ "kind": "team_leader" | "department_leader" | "hr" | "manager" | "admin" }`
@@ -117,7 +119,7 @@ New HR section (Manager/Admin), e.g. **Workflows** / **Approval config**:
 
 1. **Departments** — existing editor; link to teams.
 2. **Teams** — CRUD under a department.
-3. **Approval flows** — pick request type → edit default chain and optional per-department overrides; toggle require team leader first; drag/reorder step kinds.
+3. **Approval flows** — Manager/Admin sidebar **Workflows** (`hr-workflows`); pick request type (leave, overtime, documents, incidents, schedule/shift change, timesheet/attendance correction) → edit default chain and optional per-department overrides; toggle require team leader first; reorder step kinds.
 4. Preview copy: “For Kitchen leave: Team leader → Department leader → Manager”.
 
 Employee master (HR Manager): org fields from §3.2.

@@ -129,6 +129,7 @@ import {
   ClipboardCheck,
   KeyRound,
   ShieldOff,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -262,6 +263,7 @@ const managerSidebarIconMap: Record<
   ClipboardCheck,
   KeyRound,
   ShieldOff,
+  GitBranch,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -301,6 +303,7 @@ const HR_TAB_TO_SECTION: Record<
   "hr-overview": "dashboard",
   "hr-manager-pending": "manager-pending",
   "hr-otp-reset": "otp-reset",
+  "hr-workflows": "workflows",
   "hr-leave": "leave",
   "hr-attendance": "attendance",
   "hr-payroll-generate": "payroll-generate",
@@ -316,6 +319,7 @@ const HR_SECTION_TO_MANAGER_TAB: Record<string, TabId> = {
   dashboard: "hr-overview",
   "manager-pending": "hr-manager-pending",
   "otp-reset": "hr-otp-reset",
+  workflows: "hr-workflows",
   leave: "hr-leave",
   attendance: "hr-attendance",
   "payroll-generate": "hr-payroll-generate",
@@ -777,6 +781,7 @@ function ManagerContent() {
       "hr-manager-pending": "HR · Approvals",
       "hr-otp-reset": "HR · OTP resets",
       "hr-chat-control": "HR · Chat control",
+      "hr-workflows": "HR · Approval workflows",
       "hr-leave": "HR · Leave types",
       "hr-attendance": "HR · Attendance",
       "hr-payroll-generate": "HR · Payroll · Generate",
@@ -805,6 +810,8 @@ function ManagerContent() {
         "Approve or reject portal OTP reset requests. Approved codes stay Manager-only until first login.",
       "hr-chat-control":
         "Block employee chat paths and audit message history (read-only). Live messaging stays on the header chat icon.",
+      "hr-workflows":
+        "Configure approval chains for leave, overtime, documents, incidents, schedule changes, and timesheet corrections — tenant default or per department.",
       "hr-leave":
         "Configure leave types and approve or reject requests filed by HR.",
       "hr-attendance":
@@ -1869,6 +1876,7 @@ function ManagerContent() {
       case "hr-overview":
       case "hr-manager-pending":
       case "hr-otp-reset":
+      case "hr-workflows":
       case "hr-leave":
       case "hr-attendance":
       case "hr-payroll-generate":
