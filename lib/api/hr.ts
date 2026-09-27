@@ -138,6 +138,8 @@ export type HrLeaveRequest = {
   status: string;
   flowId?: number | null;
   currentStepIndex?: number;
+  /** Waiting step kind when pending: hr | manager | department_leader | … */
+  currentStepKind?: string;
   decidedBy: string;
   decidedAt: string | null;
   createdAt: string;
@@ -822,7 +824,7 @@ export async function fetchHrLeaveRequests(status?: string): Promise<HrLeaveRequ
     `query ($status: String) {
       hrLeaveRequests(status: $status) {
         id HotelName employeeId leaveType fromYmd toYmd days reason status
-        flowId currentStepIndex decidedBy decidedAt createdAt
+        flowId currentStepIndex currentStepKind decidedBy decidedAt createdAt
         employee { id fullName department }
       }
     }`,
@@ -866,7 +868,7 @@ export async function decideHrLeaveRequestApi(id: number, approve: boolean) {
   const data = await gql<{ decideHrLeaveRequest: HrLeaveRequest }>(
     `mutation ($id: Int!, $approve: Boolean!) {
       decideHrLeaveRequest(id: $id, approve: $approve) {
-        id status currentStepIndex flowId
+        id status currentStepIndex currentStepKind flowId
       }
     }`,
     { id, approve },

@@ -63,6 +63,32 @@ import {
 
 type LeaveFilter = "all" | "pending" | "approved" | "rejected";
 
+function stepWaitingLabel(kind: string | undefined) {
+  switch (String(kind || "").trim()) {
+    case "team_leader":
+      return "Waiting on team leader";
+    case "department_leader":
+      return "Waiting on department leader";
+    case "hr":
+      return "Waiting on HR";
+    case "manager":
+      return "Waiting on Manager";
+    case "admin":
+      return "Waiting on Admin";
+    default:
+      return "Awaiting next approver";
+  }
+}
+
+/** HR only acts on the hr step; Manager/Admin can act on any pending row. */
+function actorCanDecideLeaveRow(actorRole: string, row: HrLeaveRequest) {
+  if (row.status !== "pending") return false;
+  const step = String(row.currentStepKind || "").trim();
+  if (actorRole === "HR") return step === "hr";
+  if (actorRole === "Manager" || actorRole === "Admin") return true;
+  return false;
+}
+
 function todayYmd() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -200,8 +226,7 @@ export function HrLeavePanel({
             <HrStatusBadge status={row.original.status} />
             {row.original.status === "pending" ? (
               <span className="text-[10px] text-muted-foreground">
-                Awaiting approval step{" "}
-                {(Number(row.original.currentStepIndex) || 0) + 1}
+                {stepWaitingLabel(row.original.currentStepKind)}
               </span>
             ) : null}
           </div>
@@ -213,7 +238,7 @@ export function HrLeavePanel({
               id: "actions",
               header: "Decision",
               cell: ({ row }) =>
-                row.original.status === "pending" ? (
+                actorCanDecideLeaveRow(actorRole, row.original) ? (
                   <div className="flex flex-nowrap items-center justify-end gap-2">
                     <HrConfirmAction
                       title="Approve this leave?"
@@ -281,6 +306,10 @@ export function HrLeavePanel({
                       }}
                     />
                   </div>
+                ) : row.original.status === "pending" ? (
+                  <span className="text-xs text-muted-foreground">
+                    {stepWaitingLabel(row.original.currentStepKind)}
+                  </span>
                 ) : (
                   <span className="text-xs text-muted-foreground">—</span>
                 ),
@@ -288,7 +317,7 @@ export function HrLeavePanel({
           ]
         : []),
     ],
-    [canApprove, onRefresh, typeLabels],
+    [actorRole, canApprove, onRefresh, typeLabels],
   );
 
   return (
