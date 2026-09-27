@@ -54,6 +54,7 @@ import {
 const POLL_MS = 15000;
 
 export type UnifiedSourceFilter = "all" | "hr" | "rooming" | "inventory";
+export type UnifiedSeverityFilter = InventoryAlertSeverity | "all";
 
 type UnifiedItem = {
   key: string;
@@ -178,6 +179,8 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<UnifiedSourceFilter>("all");
+  const [severityFilter, setSeverityFilter] =
+    useState<UnifiedSeverityFilter>("all");
   const [hrRows, setHrRows] = useState<HrStaffNotification[]>([]);
 
   const storageKey = useMemo(
@@ -294,8 +297,23 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
   }, [hrItems, opsItems]);
 
   const visible = useMemo(() => {
-    if (filter === "all") return merged;
-    return merged.filter((n) => n.source === filter);
+    return merged.filter((n) => {
+      if (filter !== "all" && n.source !== filter) return false;
+      if (severityFilter === "all") return true;
+      // HR rows have no ops severity — only show under severity "all"
+      if (!n.severity) return false;
+      return n.severity === severityFilter;
+    });
+  }, [merged, filter, severityFilter]);
+
+  const severityCounts = useMemo(() => {
+    const scoped =
+      filter === "all" ? merged : merged.filter((n) => n.source === filter);
+    return {
+      critical: scoped.filter((n) => n.severity === "critical").length,
+      warning: scoped.filter((n) => n.severity === "warning").length,
+      info: scoped.filter((n) => n.severity === "info").length,
+    };
   }, [merged, filter]);
 
   const hrUnread = hrItems.filter((n) => n.unread).length;
@@ -340,6 +358,13 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
     { id: "inventory", label: "Inventory" },
   ];
 
+  const severityFilters: { id: UnifiedSeverityFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "critical", label: "Critical" },
+    { id: "warning", label: "Warn" },
+    { id: "info", label: "Info" },
+  ];
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -365,7 +390,7 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
         align="end"
         className="w-[min(24rem,calc(100vw-2rem))] p-0"
       >
-        <div className="border-b px-3 py-2.5 space-y-2">
+        <div className="border-b px-3 py-2.5 space-y-2.5">
           <div>
             <p className="text-sm font-semibold">Notifications</p>
             <p className="text-xs text-muted-foreground">
@@ -377,7 +402,11 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setFilter(f.id)}
+                onClick={() => {
+                  setFilter(f.id);
+                  // HR has no ops severity — reset severity when switching to HR-only
+                  if (f.id === "hr") setSeverityFilter("all");
+                }}
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-xs font-medium transition",
                   filter === f.id
@@ -389,6 +418,57 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
               </button>
             ))}
           </div>
+          {filter !== "hr" ? (
+            <>
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="rounded-md border border-destructive/25 bg-destructive/5 px-2 py-1 text-center">
+                  <p className="text-sm font-bold tabular-nums text-destructive">
+                    {severityCounts.critical}
+                  </p>
+                  <p className="text-[9px] uppercase text-muted-foreground">
+                    Critical
+                  </p>
+                </div>
+                <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-2 py-1 text-center">
+                  <p className="text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300">
+                    {severityCounts.warning}
+                  </p>
+                  <p className="text-[9px] uppercase text-muted-foreground">
+                    Warn
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/60 bg-card px-2 py-1 text-center">
+                  <p className="text-sm font-bold tabular-nums">
+                    {severityCounts.info}
+                  </p>
+                  <p className="text-[9px] uppercase text-muted-foreground">
+                    Info
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {severityFilters.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setSeverityFilter(f.id)}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-xs font-medium transition",
+                      severityFilter === f.id
+                        ? f.id === "critical"
+                          ? "bg-destructive text-destructive-foreground"
+                          : f.id === "warning"
+                            ? "bg-amber-600 text-white"
+                            : "bg-primary text-primary-foreground"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
         <ScrollArea className="h-[min(22rem,55vh)]">
           {visible.length === 0 ? (
@@ -396,7 +476,14 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
               <p className="text-sm font-medium">All clear</p>
               <p className="text-xs text-muted-foreground">
-                No {filter === "all" ? "" : `${filter} `}notifications.
+                No{" "}
+                {[
+                  filter !== "all" ? filter : null,
+                  severityFilter !== "all" ? severityFilter : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || ""}{" "}
+                notifications.
               </p>
             </div>
           ) : (
@@ -418,11 +505,29 @@ export function HotcolNotificationCenter(props: HotcolNotificationCenterProps) {
                           "mt-0.5 size-4 shrink-0",
                           item.severity === "critical" && "text-destructive",
                           item.severity === "warning" && "text-amber-600",
+                          item.severity === "info" && "text-muted-foreground",
                         )}
                       />
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <SourceChip source={item.source} />
+                          {item.severity ? (
+                            <span
+                              className={cn(
+                                "inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                                item.severity === "critical" &&
+                                  "border-destructive/30 bg-destructive/10 text-destructive",
+                                item.severity === "warning" &&
+                                  "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200",
+                                item.severity === "info" &&
+                                  "border-border/60 bg-muted/50 text-muted-foreground",
+                              )}
+                            >
+                              {item.severity === "warning"
+                                ? "Warn"
+                                : item.severity}
+                            </span>
+                          ) : null}
                           {item.unread ? (
                             <span className="size-1.5 rounded-full bg-primary" />
                           ) : (
