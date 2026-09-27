@@ -435,7 +435,7 @@ git commit -m "feat(hr): supervisor leave capability for employees in hotcol-emp
   - `employeeMe: HrEmployeePublic!`
   - Rate-limit login like room `consumeGuestLoginAttempt`.
 
-**Recommended login identity:** `employeeLogin(tenantTin: String!, otp: String!)` to avoid cross-tenant OTP clash.
+**Recommended login identity:** `employeeLogin(otp: String!)` — portal OTP is **globally unique** among active employees (same model as lodging `guestOtp` / hotcol-room). No company TIN on the login form.
 
 - [x] **Step 1:** Scaffold GraphQL server copying `hotcol-room` structure.
 - [x] **Step 2:** Implement auth helpers (alphanumeric normalize/validate — shared logic copy from `hrPortalOtp.js` or shared package copy).

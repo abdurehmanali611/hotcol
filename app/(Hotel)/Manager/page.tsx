@@ -126,6 +126,8 @@ import {
   UtensilsCrossed,
   Shield,
   Gift,
+  ClipboardCheck,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
@@ -211,6 +213,7 @@ import { LodgingCmStaffRegistryPanel } from "@/components/hotel/LodgingCmStaffRe
 import { CafeCashierOrderUpdatePanel } from "@/components/cafe/CafeCashierOrderUpdatePanel";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
+import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -254,6 +257,8 @@ const managerSidebarIconMap: Record<
   UtensilsCrossed,
   Shield,
   Gift,
+  ClipboardCheck,
+  KeyRound,
 };
 
 const LEGACY_SERVICE_TAB_REMAP: Partial<
@@ -288,6 +293,8 @@ const MANAGER_HR_NAV_TAB_IDS = new Set<TabId>([...MANAGER_HR_TAB_IDS]);
 
 const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> = {
   "hr-overview": "dashboard",
+  "hr-manager-pending": "manager-pending",
+  "hr-otp-reset": "otp-reset",
   "hr-leave": "leave",
   "hr-attendance": "attendance",
   "hr-payroll-generate": "payroll-generate",
@@ -296,6 +303,21 @@ const HR_TAB_TO_SECTION: Record<(typeof MANAGER_HR_TAB_IDS)[number], HrSection> 
   "hr-payroll-history": "payroll-history",
   "hr-incidents": "incidents",
   "hr-departments": "departments",
+};
+
+/** Map HR shell / notification section keys → Manager sidebar tab ids. */
+const HR_SECTION_TO_MANAGER_TAB: Record<string, TabId> = {
+  dashboard: "hr-overview",
+  "manager-pending": "hr-manager-pending",
+  "otp-reset": "hr-otp-reset",
+  leave: "hr-leave",
+  attendance: "hr-attendance",
+  "payroll-generate": "hr-payroll-generate",
+  "payroll-runs": "hr-payroll-runs",
+  "payroll-settings": "hr-payroll-settings",
+  "payroll-history": "hr-payroll-history",
+  incidents: "hr-incidents",
+  departments: "hr-departments",
 };
 
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([
@@ -746,6 +768,8 @@ function ManagerContent() {
       "lodging-guest-complaints": "Guest feedback · Complaints",
       "lodging-guest-ratings": "Guest feedback · Ratings",
       "hr-overview": "HR · Overview",
+      "hr-manager-pending": "HR · Approvals",
+      "hr-otp-reset": "HR · OTP resets",
       "hr-leave": "HR · Leave types",
       "hr-attendance": "HR · Attendance",
       "hr-payroll-generate": "HR · Payroll · Generate",
@@ -768,6 +792,10 @@ function ManagerContent() {
         "Module scorecard and charts for rooms, inventory, café, and other subscribed areas.",
       "hr-overview":
         "Workforce snapshot: headcount, leave queue, and shift coverage.",
+      "hr-manager-pending":
+        "Approve or reject HR requests to terminate employees, correct attendance, or generate payroll.",
+      "hr-otp-reset":
+        "Approve or reject portal OTP reset requests. Approved codes stay Manager-only until first login.",
       "hr-leave":
         "Configure leave types and approve or reject requests filed by HR.",
       "hr-attendance":
@@ -1827,6 +1855,8 @@ function ManagerContent() {
         );
 
       case "hr-overview":
+      case "hr-manager-pending":
+      case "hr-otp-reset":
       case "hr-leave":
       case "hr-attendance":
       case "hr-payroll-generate":
@@ -2044,6 +2074,14 @@ function ManagerContent() {
             <TrialBillingButton />
             <SubscriptionNotificationCenter />
             <TenantFeedbackCenter />
+            {tenantHasModule(tenantModules, "HR Module") ? (
+              <HrNotificationCenter
+                onNavigateSection={(section) => {
+                  const tab = HR_SECTION_TO_MANAGER_TAB[section];
+                  if (tab) setActiveTab(tab);
+                }}
+              />
+            ) : null}
             <InventoryNotificationCenter
               audience="hotel-manager"
               items={items}

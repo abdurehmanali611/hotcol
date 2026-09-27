@@ -58,6 +58,8 @@ import {
   AlertTriangle,
   Ban,
   UtensilsCrossed,
+  ClipboardCheck,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
@@ -82,6 +84,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
+import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
 import { ManagerCollapsibleSidebarGroup } from "@/components/hotel/ManagerCollapsibleSidebarGroup";
 import { HotelInventoryPaymentCategoryPanel } from "@/components/hotel/HotelInventoryPaymentCategoryPanel";
@@ -136,6 +139,8 @@ const HR_TAB_TO_SECTION: Record<(typeof HR_WORKSPACE_TAB_IDS)[number], HrSection
   {
     "hr-overview": "dashboard",
     "hr-employees": "employees",
+    "hr-manager-pending": "manager-pending",
+    "hr-otp-reset": "otp-reset",
     "hr-leave": "leave",
     "hr-attendance": "attendance",
     "hr-payroll-generate": "payroll-generate",
@@ -371,6 +376,8 @@ function AdminDashboardContent() {
     AlertTriangle,
     Ban,
     UtensilsCrossed,
+    ClipboardCheck,
+    KeyRound,
   };
 
   const tenantModules = useTenantModules();
@@ -644,6 +651,8 @@ function AdminDashboardContent() {
         );
       case "hr-overview":
       case "hr-employees":
+      case "hr-manager-pending":
+      case "hr-otp-reset":
       case "hr-leave":
       case "hr-attendance":
       case "hr-payroll-generate":
@@ -795,6 +804,19 @@ function AdminDashboardContent() {
               <TrialBillingButton />
               <SubscriptionNotificationCenter />
               <TenantFeedbackCenter />
+              {tenantHasModule(tenantModules, "HR Module") ? (
+                <HrNotificationCenter
+                  onNavigateSection={(section) => {
+                    const tab = (
+                      Object.entries(HR_TAB_TO_SECTION) as [
+                        string,
+                        HrSection,
+                      ][]
+                    ).find(([, sec]) => sec === section)?.[0];
+                    if (tab) setActiveTab(tab);
+                  }}
+                />
+              ) : null}
               <InventoryNotificationCenter
                 audience="cafe-admin"
                 items={inventoryAlerts}

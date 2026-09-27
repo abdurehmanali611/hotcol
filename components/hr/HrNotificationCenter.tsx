@@ -27,10 +27,16 @@ type Props = {
 
 function sectionFromHref(href: string): string | null {
   try {
-    return new URL(href, "http://local").searchParams.get("section");
+    const url = new URL(href, "http://local");
+    const fromQuery = url.searchParams.get("section");
+    if (fromQuery) return fromQuery;
   } catch {
-    return null;
+    /* fall through */
   }
+  // Backend sometimes stores a bare section key (e.g. "manager-pending").
+  const bare = href.trim();
+  if (/^[a-z][a-z0-9-]*$/i.test(bare)) return bare;
+  return null;
 }
 
 export function HrNotificationCenter({ onNavigateSection }: Props) {

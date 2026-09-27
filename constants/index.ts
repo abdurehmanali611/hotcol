@@ -74,6 +74,8 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
   { id: "hr-employees", label: "Employees", icon: "Users" },
+  { id: "hr-manager-pending", label: "HR approvals", icon: "ClipboardCheck" },
+  { id: "hr-otp-reset", label: "OTP resets", icon: "KeyRound" },
   { id: "hr-leave", label: "Leave", icon: "CalendarDays" },
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
@@ -176,6 +178,8 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
+  { id: "hr-manager-pending", label: "HR approvals", icon: "ClipboardCheck" },
+  { id: "hr-otp-reset", label: "OTP resets", icon: "KeyRound" },
   { id: "hr-leave", label: "Leave types", icon: "CalendarDays" },
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-incidents", label: "Incident types", icon: "AlertTriangle" },
@@ -232,6 +236,8 @@ export function hrPayrollViewFromTab(id: string): HrPayrollView | null {
 /** Manager HR: reports, leave/incident types, departments, attendance + payroll. */
 export const MANAGER_HR_TAB_IDS = [
   "hr-overview",
+  "hr-manager-pending",
+  "hr-otp-reset",
   "hr-leave",
   "hr-attendance",
   ...HR_PAYROLL_NAV_ITEMS.map((item) => item.id),
@@ -243,6 +249,8 @@ export const MANAGER_HR_TAB_IDS = [
 export const HR_WORKSPACE_TAB_IDS = [
   "hr-overview",
   "hr-employees",
+  "hr-manager-pending",
+  "hr-otp-reset",
   "hr-leave",
   "hr-attendance",
   ...HR_PAYROLL_NAV_ITEMS.map((item) => item.id),

@@ -329,55 +329,87 @@ export function HrEmployeesPanel({
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => openEdit(row.original)}>
+        cell: ({ row }) => {
+          const emp = row.original;
+          const preview = String(emp.portalOtpPreview || "").trim();
+          const portalIssued = Boolean(emp.portalOtpIssuedAt);
+          const awaitingFirstLogin = portalIssued && !emp.portalFirstLoginAt;
+          return (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => openEdit(emp)}>
               Edit
             </Button>
-            {row.original.status !== "terminated" ? (
+            {emp.status !== "terminated" ? (
               <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  onClick={async () => {
-                    try {
-                      const updated = await enableHrEmployeePortalApi(row.original.id);
-                      const otp = String(updated.portalOtpPreview || "").trim();
-                      if (otp) {
-                        setIssuedOtp({ name: updated.fullName, otp });
-                      } else {
-                        toast.message(
-                          "Portal OTP issued. Preview is only visible to HR Manager until first login.",
-                        );
+                {!portalIssued ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={async () => {
+                      try {
+                        const updated = await enableHrEmployeePortalApi(emp.id);
+                        const otp = String(updated.portalOtpPreview || "").trim();
+                        if (otp) {
+                          setIssuedOtp({ name: updated.fullName, otp });
+                        } else {
+                          toast.message(
+                            "Portal OTP issued. Preview is only visible to HR Manager until first login.",
+                          );
+                        }
+                        await onRefresh();
+                      } catch (e) {
+                        notifyApiFailure(e, "Could not enable portal");
                       }
-                      await onRefresh();
-                    } catch (e) {
-                      notifyApiFailure(e, "Could not enable portal");
-                    }
-                  }}
-                >
-                  <KeyRound className="h-3.5 w-3.5" />
-                  Portal OTP
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      await requestHrOtpResetApi(row.original.id);
-                      toast.success("OTP reset sent to Manager for approval");
-                      await onRefresh();
-                    } catch (e) {
-                      notifyApiFailure(e, "OTP reset request failed");
-                    }
-                  }}
-                >
-                  Request reset
-                </Button>
+                    }}
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Portal OTP
+                  </Button>
+                ) : null}
+                {awaitingFirstLogin && preview ? (
+                  <button
+                    type="button"
+                    title="Copy portal OTP (visible until first login)"
+                    className="inline-flex h-8 max-w-44 items-center gap-1.5 rounded-md border border-input bg-background px-2 font-mono text-xs tracking-wider hover:bg-accent"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(preview);
+                        toast.success("Portal OTP copied");
+                      } catch {
+                        toast.message(preview);
+                      }
+                    }}
+                  >
+                    <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{preview}</span>
+                  </button>
+                ) : null}
+                {awaitingFirstLogin && !preview ? (
+                  <span className="text-xs text-muted-foreground">
+                    Awaiting first login
+                  </span>
+                ) : null}
+                {portalIssued ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await requestHrOtpResetApi(emp.id);
+                        toast.success("OTP reset sent to Manager for approval");
+                        await onRefresh();
+                      } catch (e) {
+                        notifyApiFailure(e, "OTP reset request failed");
+                      }
+                    }}
+                  >
+                    Request reset
+                  </Button>
+                ) : null}
                 <HrConfirmAction
                   destructive
-                  title={`Terminate ${row.original.fullName}?`}
+                  title={`Terminate ${emp.fullName}?`}
                   description="Marks this employee terminated from today. History stays on file."
                   confirmLabel="Terminate"
                   trigger={
@@ -392,7 +424,7 @@ export function HrEmployeesPanel({
                   }
                   onConfirm={async () => {
                     try {
-                      await terminateHrEmployeeApi(row.original.id, todayYmd());
+                      await terminateHrEmployeeApi(emp.id, todayYmd());
                       toast.success("Employee terminated");
                       await onRefresh();
                     } catch (e) {
@@ -408,7 +440,8 @@ export function HrEmployeesPanel({
               </>
             ) : null}
           </div>
-        ),
+          );
+        },
       },
     ],
     [hrDepartments, onRefresh, openEdit],
