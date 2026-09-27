@@ -9,11 +9,20 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
-import { ImagePlus, MessageSquare, Send, Loader2, X } from "lucide-react";
+import { ImagePlus, MessageSquare, Send, Loader2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -33,6 +42,7 @@ import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { fetchHrEmployees, type HrEmployee } from "@/lib/api/hr";
 import {
   createHrChatDirectApi,
+  createHrChatGroupApi,
   fetchHrChatMessages,
   fetchHrChatThreads,
   fetchHrChatUnreadCount,
@@ -82,6 +92,40 @@ function previewForLastMessage(t: HrChatThread): string {
   return t.kind;
 }
 
+/** Manager-facing label: never show bare "Manager" — use employee member names. */
+function threadListTitle(
+  t: HrChatThread,
+  employeeNameById: Map<number, string>,
+): string {
+  const empNames = t.members
+    .filter((m) => !m.isManager)
+    .map((m) => {
+      const id = m.employeeId != null ? Number(m.employeeId) : null;
+      return (
+        (m.employeeName && m.employeeName !== "Manager"
+          ? m.employeeName
+          : null) ||
+        (id != null ? employeeNameById.get(id) : null) ||
+        null
+      );
+    })
+    .filter((n): n is string => Boolean(n && n.trim()));
+
+  const stored = String(t.title || "").trim();
+  const storedIsManagerLabel = stored.toLowerCase() === "manager";
+
+  if (t.kind === "group") {
+    if (stored && !storedIsManagerLabel) return stored;
+    if (empNames.length) return empNames.join(", ");
+    return `Group #${t.id}`;
+  }
+
+  if (empNames.length === 1) return empNames[0];
+  if (empNames.length > 1) return empNames.join(", ");
+  if (stored && !storedIsManagerLabel) return stored;
+  return `Chat #${t.id}`;
+}
+
 /** Manager (hotel) / Admin (café) live employee chat. Control lives under HR → Chat control. */
 export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   const [open, setOpen] = useState(false);
@@ -94,6 +138,9 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [employees, setEmployees] = useState<HrEmployee[]>([]);
   const [pickEmpId, setPickEmpId] = useState<string>("");
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [groupTitle, setGroupTitle] = useState("");
+  const [groupPick, setGroupPick] = useState<Record<number, boolean>>({});
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msgsLoading, setMsgsLoading] = useState(false);
@@ -300,6 +347,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
   if (!enabled) return null;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={handleSheetOpenChange}>
       <SheetTrigger asChild>
         <Button
@@ -330,9 +378,9 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex gap-2 border-b p-3">
+          <div className="flex flex-wrap gap-2 border-b p-3">
             <Select value={pickEmpId} onValueChange={setPickEmpId}>
-              <SelectTrigger className="h-9 flex-1">
+              <SelectTrigger className="h-9 min-w-40 flex-1">
                 <SelectValue placeholder="Start chat with…" />
               </SelectTrigger>
               <SelectContent>
@@ -370,6 +418,17 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
             >
               Open
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5"
+              disabled={busy || employees.length === 0}
+              onClick={() => setGroupOpen(true)}
+            >
+              <Users className="size-3.5" />
+              Group
+            </Button>
           </div>
 
           <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[11rem_1fr] md:grid-cols-[12.5rem_1fr]">
@@ -390,7 +449,7 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
                       onClick={() => setActiveId(t.id)}
                     >
                       <p className="truncate font-medium">
-                        {t.title || `Chat #${t.id}`}
+                        {threadListTitle(t, employeeNameById)}
                       </p>
                       <p className="truncate text-[10px] text-muted-foreground">
                         {previewForLastMessage(t)}
@@ -593,5 +652,97 @@ export function HrEmployeeChatCenter({ enabled }: { enabled: boolean }) {
         </div>
       </SheetContent>
     </Sheet>
+
+    <Dialog open={groupOpen} onOpenChange={setGroupOpen}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New group chat</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="mgr-group-title">Title</Label>
+            <Input
+              id="mgr-group-title"
+              value={groupTitle}
+              onChange={(e) => setGroupTitle(e.target.value)}
+              placeholder="Optional group name"
+            />
+          </div>
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-2">
+            {employees.length === 0 ? (
+              <p className="p-3 text-center text-sm text-muted-foreground">
+                No employees found
+              </p>
+            ) : (
+              employees.map((e) => (
+                <label
+                  key={e.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
+                >
+                  <Checkbox
+                    checked={Boolean(groupPick[e.id])}
+                    onCheckedChange={(v) =>
+                      setGroupPick((prev) => ({
+                        ...prev,
+                        [e.id]: v === true,
+                      }))
+                    }
+                  />
+                  <span className="min-w-0 truncate">
+                    {e.fullName}
+                    {e.department ? (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {e.department}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            You are included as Manager in the group automatically.
+          </p>
+          <Button
+            type="button"
+            className="w-full"
+            disabled={busy}
+            onClick={async () => {
+              const ids = Object.entries(groupPick)
+                .filter(([, on]) => on)
+                .map(([id]) => Number(id));
+              if (ids.length < 1) {
+                toast.error("Pick at least one employee");
+                return;
+              }
+              setBusy(true);
+              try {
+                const t = await createHrChatGroupApi({
+                  title: groupTitle.trim() || undefined,
+                  employeeIds: ids,
+                  includeManager: true,
+                });
+                setGroupOpen(false);
+                setGroupTitle("");
+                setGroupPick({});
+                await load();
+                setActiveId(t.id);
+              } catch (e) {
+                toast.error(
+                  e instanceof Error ? e.message : "Could not create group",
+                );
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+            Create group
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

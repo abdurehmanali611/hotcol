@@ -57,6 +57,26 @@ function threadMembersLabel(t: HrChatThread): string {
     .join(", ");
 }
 
+/** Prefer employee names over a stored "Manager" title (emp-started threads). */
+function threadDisplayTitle(t: HrChatThread): string {
+  const empNames = t.members
+    .filter((m) => !m.isManager)
+    .map((m) => m.employeeName)
+    .filter((n): n is string => Boolean(n && n.trim() && n !== "Manager"));
+  const stored = String(t.title || "").trim();
+  const storedIsManager = stored.toLowerCase() === "manager";
+
+  if (t.kind === "group") {
+    if (stored && !storedIsManager) return stored;
+    if (empNames.length) return empNames.join(", ");
+    return `Group #${t.id}`;
+  }
+  if (empNames.length === 1) return empNames[0];
+  if (empNames.length > 1) return empNames.join(", ");
+  if (stored && !storedIsManager) return stored;
+  return `Thread #${t.id}`;
+}
+
 /** Manager / Café Admin — Blocks + History with read-only message viewer. */
 export function HrChatControlPanel() {
   const [tab, setTab] = useState<ControlTab>("blocks");
@@ -126,7 +146,7 @@ export function HrChatControlPanel() {
       <div className="p-4 md:p-6">
         <HrPanelShell>
           <HrSectionCard
-            title={viewerThread.title || `Thread #${viewerThread.id}`}
+            title={threadDisplayTitle(viewerThread)}
             description={`Read-only · ${viewerThread.kind} · ${threadMembersLabel(viewerThread)}`}
             icon={<MessageSquareText className="size-5 text-cyan-600 dark:text-cyan-400" />}
             accent="bg-linear-to-r from-cyan-500 via-sky-500 to-teal-500"
@@ -589,7 +609,7 @@ export function HrChatControlPanel() {
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium">
-                            {t.title || `Thread #${t.id}`}
+                            {threadDisplayTitle(t)}
                           </p>
                           <Badge variant="secondary" className="text-[10px]">
                             {t.kind}
