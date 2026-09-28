@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
-  ClipboardCheck,
   ClipboardList,
   GitBranch,
   KeyRound,
@@ -41,7 +40,7 @@ import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { HotelWorkflowGlossary } from "@/components/hotel/HotelWorkflowGlossary";
 import { hrCapabilities, hrRoleDisplayLabel } from "@/lib/hrCapabilities";
 import { isLodgingBusinessType, type BusinessType } from "@/constants";
-import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
+import { HR_SECTION_COPY, HrPageHero } from "@/components/hr/hrChrome";
 import { HrOverviewPanel } from "@/components/hr/HrOverviewPanel";
 import { HrEmployeesPanel } from "@/components/hr/HrEmployeesPanel";
 import { HrLeavePanel } from "@/components/hr/HrLeavePanel";
@@ -53,6 +52,7 @@ import {
   hrPayrollTabForView,
   hrPayrollViewsForCaps,
 } from "@/components/hr/HrPayrollSidebarGroup";
+import { HrApprovalsSidebarGroup } from "@/components/hr/HrApprovalsSidebarGroup";
 import { HrIncidentsPanel } from "@/components/hr/HrIncidentsPanel";
 import { HrDepartmentsPanel } from "@/components/hr/HrDepartmentsPanel";
 import { HrOtpResetApprovalPanel } from "@/components/hr/HrOtpResetApprovalPanel";
@@ -60,7 +60,12 @@ import { HrManagerPendingPanel } from "@/components/hr/HrManagerPendingPanel";
 import { HrNotificationCenter } from "@/components/hr/HrNotificationCenter";
 import { HrApprovalConfigPanel } from "@/components/hr/HrApprovalConfigPanel";
 import type { HrPayrollView } from "@/constants";
-import { hrPayrollViewFromTab } from "@/constants";
+import {
+  hrApprovalsKindFromSection,
+  hrPayrollViewFromTab,
+  isHrApprovalsSection,
+  HR_APPROVALS_NAV_ITEMS,
+} from "@/constants";
 import {
   fetchHrAttendance,
   fetchHrDashboardStats,
@@ -96,6 +101,9 @@ export type HrSection =
   | "departments"
   | "otp-reset"
   | "manager-pending"
+  | "approvals-terminate"
+  | "approvals-attendance"
+  | "approvals-payroll"
   | "workflows";
 
 const PAYROLL_SECTIONS = new Set<HrSection>([
@@ -105,8 +113,21 @@ const PAYROLL_SECTIONS = new Set<HrSection>([
   "payroll-history",
 ]);
 
+const APPROVALS_SECTIONS = new Set<HrSection>([
+  "manager-pending",
+  "approvals-terminate",
+  "approvals-attendance",
+  "approvals-payroll",
+]);
+
 export function isHrPayrollSection(section: string): section is HrSection {
   return PAYROLL_SECTIONS.has(section as HrSection);
+}
+
+export function isHrApprovalsDashboardSection(
+  section: string,
+): section is HrSection {
+  return APPROVALS_SECTIONS.has(section as HrSection);
 }
 
 export function payrollViewFromSection(section: HrSection): HrPayrollView | null {
@@ -141,7 +162,6 @@ const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "employees", label: "Employees", icon: Users },
   { id: "otp-reset", label: "OTP resets", icon: KeyRound },
-  { id: "manager-pending", label: "HR approvals", icon: ClipboardCheck },
   { id: "workflows", label: "Workflows", icon: GitBranch },
   { id: "leave", label: "Leave", icon: CalendarDays },
   { id: "attendance", label: "Attendance", icon: ClipboardList },
@@ -155,9 +175,6 @@ function navForRole(role: string) {
     if (item.id === "employees") return caps.canManageEmployees;
     if (item.id === "departments") return caps.canConfigureDepartments;
     if (item.id === "otp-reset") {
-      return role === "Manager" || role === "Admin";
-    }
-    if (item.id === "manager-pending") {
       return role === "Manager" || role === "Admin";
     }
     if (item.id === "workflows") {
@@ -175,8 +192,20 @@ function navForRole(role: string) {
   });
 }
 
+function canSeeApprovals(role: string) {
+  return role === "Manager" || role === "Admin";
+}
+
 function payrollSectionsForRole(role: string): HrSection[] {
   return hrPayrollViewsForCaps(hrCapabilities(role)).map(sectionFromPayrollView);
+}
+
+function approvalsSectionsForRole(role: string): HrSection[] {
+  if (!canSeeApprovals(role)) return [];
+  return [
+    "manager-pending",
+    ...HR_APPROVALS_NAV_ITEMS.map((item) => item.section as HrSection),
+  ];
 }
 
 export function HrDashboard({
@@ -249,6 +278,9 @@ export function HrDashboard({
       "departments",
       "otp-reset",
       "manager-pending",
+      "approvals-terminate",
+      "approvals-attendance",
+      "approvals-payroll",
       "workflows",
     ]);
     if (allowed.has(fromUrl)) {
@@ -270,6 +302,7 @@ export function HrDashboard({
     const allowed = new Set<HrSection>([
       ...navForRole(actorRole).map((n) => n.id),
       ...payrollSectionsForRole(actorRole),
+      ...approvalsSectionsForRole(actorRole),
     ]);
     if (!allowed.has(section)) {
       setSection("dashboard");
@@ -348,9 +381,11 @@ export function HrDashboard({
       (actorRole === "Manager" || actorRole === "Admin") ? (
         <HrOtpResetApprovalPanel />
       ) : null}
-      {section === "manager-pending" &&
+      {isHrApprovalsDashboardSection(section) &&
       (actorRole === "Manager" || actorRole === "Admin") ? (
-        <HrManagerPendingPanel />
+        <HrManagerPendingPanel
+          kindFilter={hrApprovalsKindFromSection(section)}
+        />
       ) : null}
       {section === "workflows" &&
       (actorRole === "Manager" || actorRole === "Admin") ? (
@@ -419,6 +454,11 @@ export function HrDashboard({
                 key={item.id}
                 size="sm"
                 variant={section === item.id ? "default" : "outline"}
+                className={
+                  section === item.id
+                    ? "border-violet-600 bg-violet-600 text-white hover:bg-violet-600/90"
+                    : "border-violet-500/30 hover:bg-violet-500/10"
+                }
                 onClick={() => setSection(item.id)}
               >
                 {item.label}
@@ -440,15 +480,15 @@ export function HrDashboard({
     <>
       <Toaster position="top-right" richColors />
       <SidebarProvider>
-        <div className="flex min-h-svh w-full bg-muted/40 text-foreground">
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
-            <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
+        <div className="flex min-h-svh w-full bg-background text-foreground">
+          <Sidebar collapsible="icon" className="border-r border-border/70 shadow-sm">
+            <SidebarHeader className="h-16 shrink-0 border-b border-border/70 bg-muted/20 px-4">
               <div className="flex h-full min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600/85 text-white shadow-sm">
                   <Users className="h-4.5 w-4.5" />
                 </div>
                 <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                     Terminal
                   </p>
                   <span className="block truncate font-semibold leading-tight">
@@ -463,7 +503,11 @@ export function HrDashboard({
             <SidebarContent className="flex-1 gap-0 px-2 pb-4 pt-2">
               <SidebarMenu className="gap-1">
                 {navItems
-                  .filter((item) => item.id !== "incidents" && item.id !== "departments")
+                  .filter((item) =>
+                    item.id === "dashboard" ||
+                    item.id === "employees" ||
+                    item.id === "otp-reset",
+                  )
                   .map((item) => {
                     const Icon = item.icon;
                     return (
@@ -473,7 +517,47 @@ export function HrDashboard({
                           onClick={() => setSection(item.id)}
                           tooltip={item.label}
                           size="lg"
-                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:bg-violet-500/10 data-[active=true]:font-medium data-[active=true]:text-violet-900 data-[active=true]:shadow-sm dark:data-[active=true]:text-violet-100"
+                        >
+                          <Icon className="opacity-80" />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                {canSeeApprovals(actorRole) ? (
+                  <HrApprovalsSidebarGroup
+                    activeSection={
+                      isHrApprovalsSection(section)
+                        ? HR_APPROVALS_NAV_ITEMS.find((i) => i.section === section)
+                            ?.id ??
+                          (section === "manager-pending"
+                            ? "hr-approvals-terminate"
+                            : "")
+                        : ""
+                    }
+                    onSelect={(id) => {
+                      const match = HR_APPROVALS_NAV_ITEMS.find((i) => i.id === id);
+                      if (match) setSection(match.section as HrSection);
+                    }}
+                  />
+                ) : null}
+                {navItems
+                  .filter((item) =>
+                    item.id === "workflows" ||
+                    item.id === "leave" ||
+                    item.id === "attendance",
+                  )
+                  .map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={section === item.id}
+                          onClick={() => setSection(item.id)}
+                          tooltip={item.label}
+                          size="lg"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:bg-violet-500/10 data-[active=true]:font-medium data-[active=true]:text-violet-900 data-[active=true]:shadow-sm dark:data-[active=true]:text-violet-100"
                         >
                           <Icon className="opacity-80" />
                           <span>{item.label}</span>
@@ -506,7 +590,7 @@ export function HrDashboard({
                           onClick={() => setSection(item.id)}
                           tooltip={item.label}
                           size="lg"
-                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:bg-violet-500/10 data-[active=true]:font-medium data-[active=true]:text-violet-900 data-[active=true]:shadow-sm dark:data-[active=true]:text-violet-100"
                         >
                           <Icon className="opacity-80" />
                           <span>{item.label}</span>
@@ -528,11 +612,11 @@ export function HrDashboard({
             </SidebarFooter>
           </Sidebar>
 
-          <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-            <header className="app-chrome-header sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-3 md:h-16 md:px-6">
+          <SidebarInset className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-background md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/70 md:bg-background md:shadow-sm">
+            <header className="app-chrome-header sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-violet-500/15 bg-background/90 px-3 backdrop-blur-md md:h-16 md:px-6">
               <SidebarTrigger />
               <div className="min-w-0 flex-1">
-                <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
+                <h1 className="truncate text-xs font-medium uppercase tracking-wider text-violet-800/70 dark:text-violet-300/80 md:text-sm">
                   {headerLabel}
                 </h1>
               </div>
@@ -543,6 +627,10 @@ export function HrDashboard({
               />
               <HrNotificationCenter
                 onNavigateSection={(next) => {
+                  if (next === "manager-pending") {
+                    setSection("approvals-terminate");
+                    return;
+                  }
                   setSection(next as HrSection);
                 }}
               />
@@ -562,17 +650,9 @@ export function HrDashboard({
             </header>
             <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6 [scrollbar-gutter:stable]">
               <div className="mx-auto max-w-6xl space-y-8 pb-10">
-                <div className="space-y-4 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
-                  <div className="space-y-1.5">
-                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
-                      {copy.title}
-                    </h2>
-                    <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                      {copy.description}
-                    </p>
-                  </div>
+                <HrPageHero title={copy.title} description={copy.description}>
                   <HotelWorkflowGlossary variant="manager" topic="hr" />
-                </div>
+                </HrPageHero>
                 {panel}
               </div>
             </main>

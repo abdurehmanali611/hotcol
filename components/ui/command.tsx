@@ -84,16 +84,39 @@ function CommandInput({
 
 function CommandList({
   className,
+  onWheel,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.List>) {
+  const listRef = React.useRef<HTMLDivElement | null>(null)
+
+  React.useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+
+    // Dialog / page scroll containers often steal wheel; force scroll on the list.
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      el.scrollTop += event.deltaY
+    }
+
+    el.addEventListener("wheel", handleWheel, { passive: false })
+    return () => el.removeEventListener("wheel", handleWheel)
+  }, [])
+
   return (
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain",
         className
       )}
       {...props}
+      ref={listRef}
+      onWheel={(e) => {
+        e.stopPropagation()
+        onWheel?.(e)
+      }}
     />
   )
 }

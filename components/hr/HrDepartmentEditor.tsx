@@ -16,6 +16,7 @@ import {
   slugHrDepartmentCode,
   type HrDepartmentSetting,
 } from "@/lib/hrDepartments";
+import { hrFieldClass, hrPrimaryBtnClass } from "@/components/hr/hrChrome";
 
 type Line = {
   key: string;
@@ -172,18 +173,21 @@ export function HrDepartmentEditor() {
             Register departments used when scheduling shifts. The list starts
             empty — add only what this property needs.
           </p>
-          <Button type="button" onClick={addLine}>
+          <Button type="button" className={hrPrimaryBtnClass} onClick={addLine}>
             <Plus className="mr-2 h-4 w-4" />
             Add first department
           </Button>
         </div>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/15 bg-muted/30 px-4 py-2.5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/20 bg-linear-to-r from-sky-500/10 via-indigo-500/5 to-violet-500/5 px-4 py-2.5 shadow-sm">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
               <p className="text-sm font-semibold">Departments</p>
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <Badge
+                variant="secondary"
+                className="h-5 border-sky-500/20 bg-sky-500/10 px-1.5 text-[10px] text-sky-900 dark:text-sky-200"
+              >
                 {lines.length}
               </Badge>
             </div>
@@ -194,7 +198,7 @@ export function HrDepartmentEditor() {
               {lines.map((line, index) => (
                 <article
                   key={line.key}
-                  className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                  className="overflow-hidden rounded-2xl border border-sky-500/20 bg-card shadow-sm ring-1 ring-sky-500/10"
                 >
                   <div className="flex items-center gap-3 p-4">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-xs font-bold text-sky-800 dark:text-sky-300">
@@ -210,7 +214,7 @@ export function HrDepartmentEditor() {
                           updateLine(index, { label: e.target.value })
                         }
                         placeholder="Kitchen, Front desk…"
-                        className="h-10"
+                        className={hrFieldClass}
                       />
                     </div>
                     <Button

@@ -20,28 +20,25 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PendingButton } from "@/components/ui/pending-button";
-import { FilterChipGroup, ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
+import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import { HrIncidentTypeEditor } from "@/components/hr/HrIncidentTypeEditor";
+import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
 import {
+  HrDialogHeader,
   HrEmptyState,
+  HrFormSection,
   HrPanelShell,
   HrSectionCard,
+  HrTableFrame,
+  hrFieldClass,
+  hrPrimaryBtnClass,
+  hrStatusFilterLabelClass,
+  hrStatusFilterTriggerClass,
 } from "@/components/hr/hrChrome";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { hrIncidentFormSchema, parseHrConstraint } from "@/lib/hrConstraints";
@@ -69,8 +66,8 @@ import {
 
 type KindFilter = "all" | string;
 
-const triggerClass = "h-10 w-full min-w-0 justify-between bg-background";
-const inputClass = "h-10 w-full min-w-0 bg-background";
+const triggerClass = cn(hrFieldClass, "justify-between");
+const inputClass = hrFieldClass;
 
 function todayYmd() {
   const d = new Date();
@@ -284,10 +281,18 @@ export function HrIncidentsPanel({
     const codes = new Set(typeChoices.map((t) => t.code));
     for (const row of incidents) codes.add(row.kind);
     return [...codes].map((code) => ({
-      id: code,
+      value: code,
       label: incidentTypeLabel(code, managerTypes),
     }));
   }, [typeChoices, incidents, managerTypes]);
+
+  const filterAccent = useMemo(() => {
+    if (filter === "all") return "all";
+    const type = findIncidentType(filter, managerTypes);
+    if (type?.deduct) return "rejected";
+    if ((type?.percentOfSalary ?? 0) > 0) return "approved";
+    return "pending";
+  }, [filter, managerTypes]);
 
   return (
     <HrPanelShell>
@@ -296,9 +301,9 @@ export function HrIncidentsPanel({
           title="Incident types"
           description="Add categories with a percent of salary (deduct or credit). Optionally link a type to attendance days."
           icon={
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <AlertTriangle className="h-5 w-5" />
           }
-          accent="bg-linear-to-r from-amber-500 via-orange-400 to-rose-500/80"
+          accent="bg-linear-to-r from-amber-500 via-orange-400 to-violet-400/50"
         >
           <HrIncidentTypeEditor />
         </HrSectionCard>
@@ -312,18 +317,19 @@ export function HrIncidentsPanel({
             : "Read-only report of incidents HR has recorded."
         }
         icon={
-          <FileWarning className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          <FileWarning className="h-5 w-5" />
         }
         accent={
           caps.canConfigureIncidentTypes
-            ? undefined
-            : "bg-linear-to-r from-amber-500 via-orange-400 to-rose-500/80"
+            ? "bg-linear-to-r from-violet-500 via-indigo-400 to-indigo-400/80"
+            : "bg-linear-to-r from-amber-500 via-orange-400 to-violet-400/50"
         }
         actions={
           caps.canRecordIncidents ? (
             <Button
               onClick={openCreate}
               disabled={!employees.length}
+              className={hrPrimaryBtnClass}
             >
               <Plus className="mr-2 h-4 w-4" />
               Record incident
@@ -332,24 +338,38 @@ export function HrIncidentsPanel({
         }
       >
         <div className="space-y-4">
-          <ListPanelFilterBar
-            showClear={filter !== "all"}
-            onClear={() => setFilter("all")}
-          >
-            <FilterChipGroup
-              label="Type"
-              value={filter}
-              onChange={setFilter}
-              options={[{ id: "all", label: "All" }, ...typeOptions]}
-            />
-          </ListPanelFilterBar>
+          <div className="flex justify-end">
+            <div className="w-full max-w-56 space-y-1.5">
+              <Label
+                className={cn(
+                  "text-xs font-medium",
+                  hrStatusFilterLabelClass(filterAccent),
+                )}
+              >
+                Type
+              </Label>
+              <HrOptionCombobox
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: "all", label: "All" },
+                  ...typeOptions,
+                ]}
+                placeholder="Filter type…"
+                emptyText="No types found."
+                className={hrStatusFilterTriggerClass(filterAccent)}
+              />
+            </div>
+          </div>
           {filtered.length ? (
-            <DataTable
-              columns={columns}
-              data={filtered}
-              searchPlaceholder="Search incidents?"
-              pageSize={8}
-            />
+            <HrTableFrame>
+              <DataTable
+                embedded columns={columns}
+                data={filtered}
+                searchPlaceholder="Search incidents…"
+                pageSize={8}
+              />
+            </HrTableFrame>
           ) : (
             <HrEmptyState
               title="No incidents in this view"
@@ -365,17 +385,14 @@ export function HrIncidentsPanel({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className={responsiveFormDialogClassName}>
-          <DialogHeader>
-            <DialogTitle>Record incident</DialogTitle>
-            <DialogDescription>
-              Attach a note to an employee. Pay impact follows the type, or you
-              set it when using Other.
-            </DialogDescription>
-          </DialogHeader>
+          <HrDialogHeader
+            title="Record incident"
+            description="Attach a note to an employee. Pay impact follows the type, or you set it when using Other."
+          />
 
           <div className="space-y-5">
             {(selectedEmployee || form.kind) && (
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-500/25 bg-violet-500/10 px-3.5 py-2.5">
                 {selectedEmployee ? (
                   <Badge
                     variant="secondary"
@@ -415,63 +432,63 @@ export function HrIncidentsPanel({
               </div>
             )}
 
-            <HotelFormSection title="Basics">
+            <HrFormSection title="Basics">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="hr-incident-employee">Employee</Label>
-                  <Select
-                    value={form.employeeId}
-                    onValueChange={(v) =>
-                      setForm((f) => ({ ...f, employeeId: v }))
+                  <HrEmployeeCombobox
+                    employees={employees}
+                    valueIds={
+                      form.employeeId ? [Number(form.employeeId)] : []
                     }
-                  >
-                    <SelectTrigger
-                      id="hr-incident-employee"
-                      className={triggerClass}
-                    >
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      {employees.map((e) => (
-                        <SelectItem key={e.id} value={String(e.id)}>
-                          {e.fullName}
-                          {e.department ? ` ? ${e.department}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(ids) =>
+                      setForm((f) => ({
+                        ...f,
+                        employeeId: ids[0] != null ? String(ids[0]) : "",
+                      }))
+                    }
+                    placeholder="Search employee…"
+                    emptyText="No employees found."
+                    triggerClassName={triggerClass}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="hr-incident-kind">Type</Label>
-                  <Select value={form.kind} onValueChange={onKindChange}>
-                    <SelectTrigger id="hr-incident-kind" className={triggerClass}>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      {typeChoices.map((t) => (
-                        <SelectItem key={t.code} value={t.code}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <HrOptionCombobox
+                    id="hr-incident-kind"
+                    value={form.kind}
+                    onChange={onKindChange}
+                    options={typeChoices.map((t) => ({
+                      value: t.code,
+                      label: t.label,
+                    }))}
+                    placeholder="Search type…"
+                    emptyText="No types found."
+                    disabled={!typeChoices.length}
+                    className={triggerClass}
+                  />
                 </div>
 
-                <HotelDayPicker
-                  label="Occurred on"
-                  value={form.occurredYmd}
-                  onChange={(occurredYmd) =>
-                    setForm((f) => ({ ...f, occurredYmd }))
-                  }
-                  disabledDays={(date) => date > new Date()}
-                  buttonClassName={cn(inputClass, "justify-start font-normal")}
-                  compact
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="hr-incident-occurred">Occurred on</Label>
+                  <HotelDayPicker
+                    id="hr-incident-occurred"
+                    value={form.occurredYmd}
+                    onChange={(occurredYmd) =>
+                      setForm((f) => ({ ...f, occurredYmd }))
+                    }
+                    disabledDays={(date) => date > new Date()}
+                    buttonClassName={cn(
+                      triggerClass,
+                      "justify-start font-normal",
+                    )}
+                  />
+                </div>
               </div>
-            </HotelFormSection>
+            </HrFormSection>
 
-            <HotelFormSection title="Description">
+            <HrFormSection title="Description">
               <div className="grid gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="hr-incident-title">Title</Label>
@@ -502,9 +519,9 @@ export function HrIncidentsPanel({
                   />
                 </div>
               </div>
-            </HotelFormSection>
+            </HrFormSection>
 
-            <HotelFormSection
+            <HrFormSection
               title="Pay impact"
               description={
                 adHocOther
@@ -586,7 +603,7 @@ export function HrIncidentsPanel({
                     hasPayImpact
                       ? form.salaryDeduct
                         ? "border-rose-500/25 bg-rose-500/5"
-                        : "border-emerald-500/25 bg-emerald-500/5"
+                        : "border-violet-500/25 bg-violet-500/5"
                       : "border-border/70 bg-muted/20",
                   )}
                 >
@@ -596,7 +613,7 @@ export function HrIncidentsPanel({
                       hasPayImpact
                         ? form.salaryDeduct
                           ? "border-rose-500/20 text-rose-700 dark:text-rose-400"
-                          : "border-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+                          : "border-violet-500/20 text-emerald-700 dark:text-emerald-400"
                         : "border-border/60 text-muted-foreground",
                     )}
                   >
@@ -626,15 +643,16 @@ export function HrIncidentsPanel({
                   </div>
                 </div>
               )}
-            </HotelFormSection>
+            </HrFormSection>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <PendingButton
               pending={pending}
+              className={hrPrimaryBtnClass}
               onClick={async () => {
                 const parsed = parseHrConstraint(hrIncidentFormSchema, {
                   ...form,

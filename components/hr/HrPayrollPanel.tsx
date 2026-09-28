@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import {
@@ -36,12 +36,17 @@ import {
 } from "@/components/ui/select";
 import { PendingButton } from "@/components/ui/pending-button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
 import {
   HrEmptyState,
+  HrFilterBar,
   HrMetricCard,
   HrPanelShell,
   HrSectionCard,
   HrStatusBadge,
+  HrTableFrame,
+  hrFieldClass,
+  hrPrimaryBtnClass,
 } from "@/components/hr/hrChrome";
 import { HR_WAGE_LABELS, HR_WAGE_TYPES, hrStatusLabel } from "@/lib/hrConstraints";
 import {
@@ -75,12 +80,22 @@ import {
 } from "@/lib/api/hr";
 
 const fieldClass = "min-w-0";
-const triggerClass = "h-10 w-full min-w-0 justify-between bg-background";
-const inputClass = "h-10 w-full min-w-0 bg-background";
+const triggerClass = cn(hrFieldClass, "justify-between");
+const inputClass = hrFieldClass;
 
 function todayYmd() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function payslipInDateRange(slip: HrPayslip, from: string, to: string) {
+  if (!from && !to) return true;
+  const pFrom = slip.period?.fromYmd || slip.payDate || "";
+  const pTo = slip.period?.toYmd || slip.payDate || pFrom;
+  if (!pFrom && !pTo) return true;
+  if (from && pTo && pTo < from) return false;
+  if (to && pFrom && pFrom > to) return false;
+  return true;
 }
 
 type LineDraft = {
@@ -150,6 +165,12 @@ export function HrPayrollPanel({
   const [historyMode, setHistoryMode] = useState(false);
   const [historyRows, setHistoryRows] = useState<HrPayslip[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [histFromYmd, setHistFromYmd] = useState("");
+  const [histToYmd, setHistToYmd] = useState("");
+  const [histEmployeeId, setHistEmployeeId] = useState("all");
+  const [histAmountFrom, setHistAmountFrom] = useState("");
+  const [histAmountTo, setHistAmountTo] = useState("");
+  const [histWageType, setHistWageType] = useState("all");
   const [lineDrafts, setLineDrafts] = useState<LineDraft[]>([]);
   const [windowDrafts, setWindowDrafts] = useState<WindowDraft[]>([]);
   const [configLoading, setConfigLoading] = useState(false);
@@ -211,11 +232,11 @@ export function HrPayrollPanel({
         .map((p) => p.id),
     [payslips],
   );
-  /** Final mark-paid (Finance/Manager confirmed, or legacy approved). */
+  /** Final mark-paid only (Finance/Manager confirmed, or legacy approved). */
   const isMarkedPaidSlip = (p: HrPayslip) => {
-    const st = p.paymentStatus;
+    const st = String(p.paymentStatus || "");
     if (st === "approved") return true;
-    if (st === "marked_paid") return true;
+    if (st === "marked_paid" && p.managerApprovedAt) return true;
     return false;
   };
   const markedPaidCount = useMemo(
@@ -224,13 +245,15 @@ export function HrPayrollPanel({
   );
   const allSlipsMarkedPaid =
     payslips.length > 0 && payslips.every(isMarkedPaidSlip);
-  /** Close when every slip is marked paid; hide only after status is closed. */
-  const periodNeedsClose =
+  const unpaidOrAwaitingCount = payslips.length - markedPaidCount;
+  /** Close control for Manager/Admin while run is open; enabled only when every slip is final marked paid. */
+  const showClosePayroll =
+    canApprovePayrollPayment &&
     !!selected &&
     selected.status !== "closed" &&
     selected.status !== "pending_generate" &&
-    allSlipsMarkedPaid &&
-    canApprovePayrollPayment;
+    payslips.length > 0;
+  const periodNeedsClose = showClosePayroll && allSlipsMarkedPaid;
   const canSelectRows =
     !historyMode &&
     (canRunPayroll || canApprovePayrollPayment) &&
@@ -310,7 +333,7 @@ export function HrPayrollPanel({
     setSelectedIds([]);
   }, [selectedPeriodId, payslips]);
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
       const rows = await fetchHrPayslips();
@@ -321,12 +344,19 @@ export function HrPayrollPanel({
     } finally {
       setHistoryLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (view !== "history") return;
     void loadHistory();
-  }, [view]);
+  }, [view, loadHistory]);
+
+  useEffect(() => {
+    if (view !== "history") return;
+    const onRefresh = () => void loadHistory();
+    window.addEventListener("hotcol-hr-refresh", onRefresh);
+    return () => window.removeEventListener("hotcol-hr-refresh", onRefresh);
+  }, [view, loadHistory]);
 
   const toggleId = (id: number, checked: boolean) => {
     setSelectedIds((prev) =>
@@ -414,7 +444,7 @@ export function HrPayrollPanel({
         cell: ({ row }) => (
           <Badge
             variant="secondary"
-            className="border-emerald-500/20 bg-emerald-500/10 font-normal text-emerald-800 dark:text-emerald-300"
+            className="border-violet-500/20 bg-violet-500/10 font-normal text-violet-800 dark:text-violet-300"
           >
             {row.original.taxPeriod || "—"}
           </Badge>
@@ -475,7 +505,7 @@ export function HrPayrollPanel({
             type="button"
             size="sm"
             variant="outline"
-            className="gap-1.5 border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/10"
+            className="gap-1.5 border-violet-500/25 bg-violet-500/5 hover:bg-violet-500/10"
             onClick={async () => {
               try {
                 await downloadPayslipPdf(row.original);
@@ -510,6 +540,78 @@ export function HrPayrollPanel({
       ) as ColumnDef<HrPayslip>[],
     [columns],
   );
+
+  const historyEmployeeOptions = useMemo(() => {
+    const byId = new Map<number, string>();
+    for (const e of employees) {
+      byId.set(e.id, e.fullName);
+    }
+    for (const row of historyRows) {
+      if (byId.has(row.employeeId)) continue;
+      byId.set(
+        row.employeeId,
+        row.employeeName ||
+          row.employee?.fullName ||
+          `#${row.employeeId}`,
+      );
+    }
+    return [...byId.entries()]
+      .map(([id, label]) => ({ value: String(id), label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [employees, historyRows]);
+
+  const historyFiltersActive =
+    Boolean(histFromYmd) ||
+    Boolean(histToYmd) ||
+    histEmployeeId !== "all" ||
+    histAmountFrom !== "" ||
+    histAmountTo !== "" ||
+    histWageType !== "all";
+
+  const filteredHistoryRows = useMemo(() => {
+    const amountFrom =
+      histAmountFrom.trim() === "" ? null : Number(histAmountFrom);
+    const amountTo =
+      histAmountTo.trim() === "" ? null : Number(histAmountTo);
+    const empId =
+      histEmployeeId !== "all" ? Number(histEmployeeId) : null;
+
+    return historyRows.filter((row) => {
+      if (!payslipInDateRange(row, histFromYmd, histToYmd)) return false;
+      if (empId != null && row.employeeId !== empId) return false;
+      if (
+        histWageType !== "all" &&
+        String(row.wageType || "") !== histWageType
+      ) {
+        return false;
+      }
+      const wage = Number(row.netPayETB) || 0;
+      if (amountFrom != null && Number.isFinite(amountFrom) && wage < amountFrom) {
+        return false;
+      }
+      if (amountTo != null && Number.isFinite(amountTo) && wage > amountTo) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    historyRows,
+    histFromYmd,
+    histToYmd,
+    histEmployeeId,
+    histAmountFrom,
+    histAmountTo,
+    histWageType,
+  ]);
+
+  const clearHistoryFilters = () => {
+    setHistFromYmd("");
+    setHistToYmd("");
+    setHistEmployeeId("all");
+    setHistAmountFrom("");
+    setHistAmountTo("");
+    setHistWageType("all");
+  };
 
   const saveConfig = async () => {
     setPending(true);
@@ -555,22 +657,22 @@ export function HrPayrollPanel({
           label="Payroll runs"
           value={periods.length}
           hint="Generated pay periods"
-          accent="from-emerald-500/15 border-emerald-500/25"
-          icon={<Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+          accent="from-violet-500/15 border-violet-500/25"
+          icon={<Wallet className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
         />
         <HrMetricCard
           label="Payslips in run"
           value={payslips.length}
           hint={selected ? `${selected.fromYmd} → ${selected.toYmd}` : "Select a run"}
-          accent="from-teal-500/15 border-teal-500/25"
-          icon={<FileText className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
+          accent="from-violet-500/15 border-violet-500/25"
+          icon={<FileText className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
         />
         <HrMetricCard
           label="Net in run"
           value={formatETB(totalNet)}
           hint={`${markedPaidCount} marked paid`}
-          accent="from-cyan-500/15 border-cyan-500/25"
-          icon={<Banknote className="h-4 w-4 text-cyan-700 dark:text-cyan-400" />}
+          accent="from-indigo-500/15 border-indigo-500/25"
+          icon={<Banknote className="h-4 w-4 text-indigo-700 dark:text-indigo-400" />}
         />
         <HrMetricCard
           label="Named month"
@@ -588,12 +690,12 @@ export function HrPayrollPanel({
               title="Generate payslips"
               description="Payslips include gross pay, common rules, incident pay impact, unpaid leave (daily rate), and attendance-linked deductions for the From–To range. The incident occurred date must fall inside From–To. Re-generating the same open From–To replaces the run so new incidents are included."
               icon={
-                <CalendarRange className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <CalendarRange className="h-5 w-5 text-violet-600 dark:text-violet-400" />
               }
-              accent="bg-linear-to-r from-emerald-500 via-teal-400 to-primary/70"
+              accent="bg-linear-to-r from-violet-500 via-violet-400 to-primary/70"
             >
               <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                <div className="space-y-4 rounded-xl border border-border/70 bg-muted/15 p-4 sm:p-5">
+                <div className="space-y-4 rounded-xl border border-violet-500/20 bg-linear-to-br from-violet-500/8 via-muted/15 to-indigo-500/8 p-4 shadow-sm sm:p-5">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className={fieldClass}>
                       <HotelDayPicker
@@ -601,6 +703,10 @@ export function HrPayrollPanel({
                         value={fromYmd}
                         onChange={setFromYmd}
                         compact
+                        buttonClassName={cn(
+                          inputClass,
+                          "justify-start font-normal",
+                        )}
                       />
                     </div>
                     <div className={fieldClass}>
@@ -609,42 +715,47 @@ export function HrPayrollPanel({
                         value={toYmd}
                         onChange={setToYmd}
                         compact
+                        buttonClassName={cn(
+                          inputClass,
+                          "justify-start font-normal",
+                        )}
                       />
                     </div>
                   </div>
 
                   <div className={cn(fieldClass, "space-y-1.5")}>
-                    <Label className="text-xs text-muted-foreground">
+                    <Label className="text-xs font-medium text-violet-900/60 dark:text-violet-200/70">
                       Scope
                     </Label>
-                    <Select
+                    <HrOptionCombobox
                       value={generateScope}
-                      onValueChange={setGenerateScope}
-                    >
-                      <SelectTrigger className={triggerClass}>
-                        <SelectValue placeholder="Select scope" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="batch">
-                          Batch — monthly + weekly
-                        </SelectItem>
-                        <SelectItem value="monthly">
-                          Monthly wage type
-                        </SelectItem>
-                        <SelectItem value="weekly">
-                          Weekly wage type
-                        </SelectItem>
-                        {activeEmployees.map((e) => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {e.fullName} (
-                            {HR_WAGE_LABELS[
+                      onChange={setGenerateScope}
+                      options={[
+                        {
+                          value: "batch",
+                          label: "Batch — monthly + weekly",
+                        },
+                        {
+                          value: "monthly",
+                          label: "Monthly wage type",
+                        },
+                        {
+                          value: "weekly",
+                          label: "Weekly wage type",
+                        },
+                        ...activeEmployees.map((e) => ({
+                          value: String(e.id),
+                          label: e.fullName,
+                          hint:
+                            HR_WAGE_LABELS[
                               e.wageType as keyof typeof HR_WAGE_LABELS
-                            ] || e.wageType}
-                            )
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                            ] || e.wageType,
+                        })),
+                      ]}
+                      placeholder="Select scope"
+                      emptyText="No scopes found."
+                      className={triggerClass}
+                    />
                     <p className="text-xs text-muted-foreground">
                       Batch pays both wage types. Monthly / Weekly pays only
                       that type. From–To must span at least the wage window
@@ -660,7 +771,7 @@ export function HrPayrollPanel({
 
                   <PendingButton
                     pending={pending}
-                    className="w-full gap-2 sm:w-auto"
+                    className={cn("w-full gap-2 sm:w-auto", hrPrimaryBtnClass)}
                     onClick={async () => {
                       if (toYmd < fromYmd) {
                         toast.error("To date must not be before From date");
@@ -717,9 +828,9 @@ export function HrPayrollPanel({
                   </PendingButton>
                 </div>
 
-                <div className="flex flex-col justify-between gap-4 rounded-xl border border-emerald-500/20 bg-linear-to-br from-emerald-500/10 via-card to-teal-500/5 p-5">
+                <div className="flex flex-col justify-between gap-4 rounded-xl border border-violet-500/20 bg-linear-to-br from-violet-500/10 via-card to-indigo-500/5 p-5">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/80 dark:text-emerald-400">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700/80 dark:text-violet-400">
                       Payslip month preview
                     </p>
                     <p className="mt-2 text-3xl font-semibold tracking-tight">
@@ -733,14 +844,14 @@ export function HrPayrollPanel({
                   </div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2 rounded-lg bg-background/60 px-3 py-2">
-                      <CalendarRange className="h-4 w-4 shrink-0 text-emerald-600" />
+                      <CalendarRange className="h-4 w-4 shrink-0 text-violet-600" />
                       <span className="tabular-nums">
                         {fromYmd} → {toYmd}
                         {rangeDays > 0 ? ` · ${rangeDays}d` : ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 rounded-lg bg-background/60 px-3 py-2">
-                      <FileText className="h-4 w-4 shrink-0 text-teal-600" />
+                      <FileText className="h-4 w-4 shrink-0 text-violet-600" />
                       <span>
                         {/^\d+$/.test(generateScope)
                           ? "One employee PDF"
@@ -764,39 +875,29 @@ export function HrPayrollPanel({
             title="Runs & payment"
             description="Select a run, download PDFs, mark paid (HR), Finance/Manager confirm, then Close when every slip is marked paid."
             icon={
-              <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <ClipboardList className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             }
-            accent="bg-linear-to-r from-teal-500 via-cyan-400 to-emerald-400/80"
+            accent="bg-linear-to-r from-violet-500 via-indigo-400 to-indigo-400/80"
           >
-            <div className="mb-4 rounded-xl border border-border/70 bg-muted/20 p-4">
-              <Label className="text-xs text-muted-foreground">
+            <div className="mb-4 rounded-xl border border-violet-500/20 bg-linear-to-br from-violet-500/8 via-muted/15 to-indigo-500/5 p-4 shadow-sm">
+              <Label className="text-xs font-medium text-violet-900/60 dark:text-violet-200/70">
                 Payroll run
               </Label>
-              <Select
+              <HrOptionCombobox
                 value={selectedPeriodId ? String(selectedPeriodId) : ""}
-                onValueChange={(v) => {
+                onChange={(v) => {
                   setHistoryMode(false);
                   onSelectedPeriodChange(Number(v));
                 }}
-              >
-                <SelectTrigger className={cn(triggerClass, "mt-1.5")}>
-                  <SelectValue placeholder="Choose a payroll run" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      <span className="font-medium tabular-nums">
-                        {p.fromYmd} → {p.toYmd}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {p.monthName || p.periodKey} ·{" "}
-                        {hrStatusLabel(p.status)}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={periods.map((p) => ({
+                  value: String(p.id),
+                  label: `${p.fromYmd} → ${p.toYmd}`,
+                  hint: `${p.monthName || p.periodKey} · ${hrStatusLabel(p.status)}`,
+                }))}
+                placeholder="Choose a payroll run"
+                emptyText="No payroll runs yet."
+                className={cn(triggerClass, "mt-1.5")}
+              />
             </div>
 
             {!selected ? (
@@ -813,14 +914,17 @@ export function HrPayrollPanel({
               />
             ) : payslips.length ? (
               <>
-                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-teal-500/15 bg-muted/30 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-violet-500/20 bg-linear-to-r from-violet-500/8 via-muted/20 to-indigo-500/5 px-4 py-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className="font-normal">
+                    <Badge
+                      variant="secondary"
+                      className="border-violet-500/20 bg-violet-500/10 font-normal text-violet-900 dark:text-violet-200"
+                    >
                       {payslips.length} payslip
                       {payslips.length === 1 ? "" : "s"}
                     </Badge>
                     {selectedIds.length ? (
-                      <Badge className="border-emerald-500/30 bg-emerald-500/10 font-normal text-emerald-800 dark:text-emerald-300">
+                      <Badge className="border-emerald-500/30 bg-violet-500/10 font-normal text-emerald-800 dark:text-emerald-300">
                         {selectedIds.length} selected
                       </Badge>
                     ) : null}
@@ -830,7 +934,7 @@ export function HrPayrollPanel({
                       <PendingButton
                         pending={pending}
                         size="sm"
-                        className="gap-1.5"
+                        className={cn("gap-1.5", hrPrimaryBtnClass)}
                         onClick={async () => {
                           const ids = selectedIds.some((id) =>
                             unpaidIds.includes(id),
@@ -865,7 +969,7 @@ export function HrPayrollPanel({
                         pending={pending}
                         size="sm"
                         variant="secondary"
-                        className="gap-1.5"
+                        className="gap-1.5 border-emerald-500/30 bg-violet-500/10 text-emerald-900 hover:bg-violet-500/15 dark:text-emerald-200"
                         onClick={async () => {
                           const ids = selectedIds.some((id) =>
                             markedIds.includes(id),
@@ -895,12 +999,24 @@ export function HrPayrollPanel({
                         Confirm paid (Manager) ({markedIds.length})
                       </PendingButton>
                     ) : null}
-                    {canApprovePayrollPayment && periodNeedsClose ? (
+                    {showClosePayroll ? (
                       <PendingButton
                         pending={pending}
                         size="sm"
-                        className="gap-1.5"
+                        className={cn("gap-1.5", hrPrimaryBtnClass)}
+                        disabled={!periodNeedsClose}
+                        title={
+                          periodNeedsClose
+                            ? "Close this payroll run"
+                            : `Close when every payslip is marked paid (${unpaidOrAwaitingCount} still unpaid or awaiting confirm)`
+                        }
                         onClick={async () => {
+                          if (!periodNeedsClose) {
+                            toast.error(
+                              `Close payroll when every slip is marked paid — ${unpaidOrAwaitingCount} still unpaid or awaiting Finance/Manager confirm`,
+                            );
+                            return;
+                          }
                           setPending(true);
                           try {
                             await closeHrPayrollPeriodApi(selected.id);
@@ -915,13 +1031,16 @@ export function HrPayrollPanel({
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Close payroll
+                        {!periodNeedsClose
+                          ? ` (${unpaidOrAwaitingCount} left)`
+                          : ""}
                       </PendingButton>
                     ) : null}
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10"
+                      className="gap-1.5 border-emerald-500/30 bg-violet-500/5 hover:bg-violet-500/10"
                       onClick={async () => {
                         try {
                           const targets = selectedIds.length
@@ -944,13 +1063,15 @@ export function HrPayrollPanel({
                     </Button>
                   </div>
                 </div>
-                <DataTable
-                  columns={columns}
-                  data={payslips}
-                  searchColumnId="employeeName"
-                  searchPlaceholder="Search payslips…"
-                  pageSize={10}
-                />
+                <HrTableFrame>
+                  <DataTable
+                    embedded columns={columns}
+                    data={payslips}
+                    searchColumnId="employeeName"
+                    searchPlaceholder="Search payslips…"
+                    pageSize={10}
+                  />
+                </HrTableFrame>
               </>
             ) : (
               <HrEmptyState
@@ -971,12 +1092,12 @@ export function HrPayrollPanel({
               icon={
                 <Settings2 className="h-5 w-5 text-sky-600 dark:text-sky-400" />
               }
-              accent="bg-linear-to-r from-sky-500 via-cyan-400 to-teal-400/80"
+              accent="bg-linear-to-r from-sky-500 via-indigo-400 to-violet-400/80"
               actions={
                 <PendingButton
                   pending={pending}
                   size="sm"
-                  variant="outline"
+                  className={hrPrimaryBtnClass}
                   onClick={saveConfig}
                 >
                   Save all settings
@@ -1024,7 +1145,7 @@ export function HrPayrollPanel({
                       {windowDrafts.map((row, index) => (
                         <article
                           key={row.key}
-                          className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                          className="overflow-hidden rounded-2xl border border-sky-500/20 bg-card shadow-sm ring-1 ring-sky-500/10"
                         >
                           <div className="flex items-center gap-2 border-b border-border/50 bg-sky-500/5 px-4 py-2">
                             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/15 text-xs font-bold text-sky-800 dark:text-sky-300">
@@ -1211,9 +1332,9 @@ export function HrPayrollPanel({
                       {lineDrafts.map((row, index) => (
                         <article
                           key={row.key}
-                          className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                          className="overflow-hidden rounded-2xl border border-amber-500/20 bg-card shadow-sm ring-1 ring-amber-500/10"
                         >
-                          <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-4 py-2.5">
+                          <div className="flex items-center justify-between gap-2 border-b border-amber-500/15 bg-amber-500/5 px-4 py-2.5">
                             <div className="flex min-w-0 items-center gap-2">
                               <span
                                 className={cn(
@@ -1433,7 +1554,11 @@ export function HrPayrollPanel({
                       <Plus className="mr-2 h-4 w-4" />
                       Add line
                     </Button>
-                    <PendingButton pending={pending} onClick={saveConfig}>
+                    <PendingButton
+                      pending={pending}
+                      className={hrPrimaryBtnClass}
+                      onClick={saveConfig}
+                    >
                       Save settings
                     </PendingButton>
                   </div>
@@ -1451,37 +1576,132 @@ export function HrPayrollPanel({
             icon={
               <History className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             }
-            accent="bg-linear-to-r from-violet-500 via-fuchsia-400 to-rose-400/70"
-            actions={
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={historyLoading}
-                onClick={loadHistory}
-              >
-                {historyLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <History className="h-3.5 w-3.5" />
-                )}
-                {historyRows.length ? "Refresh" : "Load history"}
-              </Button>
-            }
+              accent="bg-linear-to-r from-violet-500 via-indigo-400 to-indigo-400/80"
           >
-            {historyRows.length ? (
-              <DataTable
-                columns={historyColumns}
-                data={historyRows}
-                searchColumnId="employeeName"
-                searchPlaceholder="Search history…"
-                pageSize={10}
+            <HrFilterBar
+              title="Filters"
+              showClear={historyFiltersActive}
+              onClear={clearHistoryFilters}
+              className="mb-4"
+            >
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className={cn(fieldClass, "space-y-1.5")}>
+                  <HotelDayPicker
+                    label="From date"
+                    value={histFromYmd}
+                    onChange={setHistFromYmd}
+                    compact
+                    placeholder="Any start"
+                    buttonClassName={cn(
+                      inputClass,
+                      "justify-start font-normal",
+                    )}
+                  />
+                </div>
+                <div className={cn(fieldClass, "space-y-1.5")}>
+                  <HotelDayPicker
+                    label="To date"
+                    value={histToYmd}
+                    onChange={setHistToYmd}
+                    compact
+                    placeholder="Any end"
+                    buttonClassName={cn(
+                      inputClass,
+                      "justify-start font-normal",
+                    )}
+                  />
+                </div>
+                <div className={cn(fieldClass, "space-y-1.5")}>
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Employee
+                  </Label>
+                  <HrOptionCombobox
+                    value={histEmployeeId}
+                    onChange={setHistEmployeeId}
+                    options={[
+                      { value: "all", label: "All employees" },
+                      ...historyEmployeeOptions,
+                    ]}
+                    placeholder="All employees"
+                    emptyText="No employees found."
+                    className={triggerClass}
+                  />
+                </div>
+                <div className={cn(fieldClass, "space-y-1.5")}>
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Amount from (ETB)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    className={inputClass}
+                    placeholder="Min net pay"
+                    value={histAmountFrom}
+                    onChange={(e) => setHistAmountFrom(e.target.value)}
+                  />
+                </div>
+                <div className={cn(fieldClass, "space-y-1.5")}>
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Amount to (ETB)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    className={inputClass}
+                    placeholder="Max net pay"
+                    value={histAmountTo}
+                    onChange={(e) => setHistAmountTo(e.target.value)}
+                  />
+                </div>
+                <div className={cn(fieldClass, "space-y-1.5")}>
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Wage type
+                  </Label>
+                  <HrOptionCombobox
+                    value={histWageType}
+                    onChange={setHistWageType}
+                    options={[
+                      { value: "all", label: "All wage types" },
+                      ...HR_WAGE_TYPES.map((w) => ({
+                        value: w,
+                        label: HR_WAGE_LABELS[w],
+                      })),
+                    ]}
+                    placeholder="All wage types"
+                    emptyText="No wage types."
+                    className={triggerClass}
+                  />
+                </div>
+              </div>
+            </HrFilterBar>
+
+            {historyLoading && !historyRows.length ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
+              </div>
+            ) : filteredHistoryRows.length ? (
+              <HrTableFrame>
+                <DataTable
+                  embedded
+                  columns={historyColumns}
+                  data={filteredHistoryRows}
+                  searchColumnId="employeeName"
+                  searchPlaceholder="Search history…"
+                  pageSize={10}
+                />
+              </HrTableFrame>
+            ) : historyRows.length ? (
+              <HrEmptyState
+                title="No matching payslips"
+                description="Try adjusting or clearing the filters above."
+                icon={<History className="h-7 w-7" />}
               />
             ) : (
               <HrEmptyState
-                title="No history loaded"
-                description="Load history to review past payslips without changing payment status."
+                title="No payslip history"
+                description="Approved payslips across payroll runs will appear here."
                 icon={<History className="h-7 w-7" />}
               />
             )}

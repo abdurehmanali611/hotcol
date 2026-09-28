@@ -299,9 +299,9 @@ export function HrChatControlPanel() {
             title={threadDisplayTitle(viewerThread)}
             description={`Read-only · ${viewerThread.kind} · ${threadMembersLabel(viewerThread)}`}
             icon={
-              <MessageSquareText className="size-5 text-cyan-600 dark:text-cyan-400" />
+              <MessageSquareText className="size-5 text-indigo-600 dark:text-indigo-400" />
             }
-            accent="bg-linear-to-r from-cyan-500/70 via-sky-500/60 to-teal-500/70"
+            accent="bg-linear-to-r from-indigo-500/70 via-sky-500/60 to-violet-500/70"
             actions={
               <Button
                 type="button"
@@ -471,7 +471,7 @@ export function HrChatControlPanel() {
                   {blocks.length}
                 </p>
               </div>
-              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-2.5">
+              <div className="rounded-2xl border border-violet-500/15 bg-violet-500/5 px-3 py-2.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700/80 dark:text-emerald-300/80">
                   ↔ Manager
                 </p>
@@ -519,9 +519,9 @@ export function HrChatControlPanel() {
                             hint: "One employee per line ↔ Manager",
                             icon: Building2,
                             active:
-                              "border-emerald-500/30 bg-emerald-500/8 ring-1 ring-emerald-400/20",
+                              "border-emerald-500/30 bg-violet-500/8 ring-1 ring-emerald-400/20",
                             iconCls:
-                              "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+                              "bg-emerald-500/12 text-violet-700 dark:text-violet-300",
                           },
                           {
                             id: "emp_emp" as const,
@@ -808,7 +808,7 @@ export function HrChatControlPanel() {
                         className={cn(
                           "flex min-h-20 items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-4 shadow-sm",
                           b.pathType === "emp_manager"
-                            ? "border-emerald-500/20"
+                            ? "border-violet-500/20"
                             : "border-sky-500/20",
                         )}
                       >
@@ -819,7 +819,7 @@ export function HrChatControlPanel() {
                               className={cn(
                                 "text-[10px]",
                                 b.pathType === "emp_manager"
-                                  ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-800 dark:text-emerald-200"
+                                  ? "border-violet-500/25 bg-violet-500/5 text-emerald-800 dark:text-emerald-200"
                                   : "border-sky-500/25 bg-sky-500/5 text-sky-800 dark:text-sky-200",
                               )}
                             >

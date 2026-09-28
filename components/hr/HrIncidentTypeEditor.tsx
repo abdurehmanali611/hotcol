@@ -27,6 +27,7 @@ import {
   slugIncidentTypeCode,
   type HrIncidentTypeSetting,
 } from "@/lib/hrIncidentTypes";
+import { hrFieldClass, hrPrimaryBtnClass } from "@/components/hr/hrChrome";
 
 const LINE_GRID =
   "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_88px_minmax(0,0.7fr)_minmax(0,1.2fr)_40px] lg:items-end lg:gap-x-2.5";
@@ -238,18 +239,25 @@ export function HrIncidentTypeEditor() {
             payroll applies that percent once per matching day. Days on approved
             leave are excluded from absence deductions.
           </p>
-          <Button type="button" onClick={addLine}>
+          <Button
+            type="button"
+            className={hrPrimaryBtnClass}
+            onClick={addLine}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add first incident type
           </Button>
         </div>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/15 bg-muted/30 px-4 py-2.5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/20 bg-linear-to-r from-amber-500/10 via-orange-500/5 to-violet-500/5 px-4 py-2.5 shadow-sm">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <p className="text-sm font-semibold">Incident types</p>
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <Badge
+                variant="secondary"
+                className="h-5 border-amber-500/20 bg-amber-500/10 px-1.5 text-[10px] text-amber-900 dark:text-amber-200"
+              >
                 {lines.length}
               </Badge>
             </div>
@@ -273,9 +281,9 @@ export function HrIncidentTypeEditor() {
               {lines.map((line, index) => (
                 <article
                   key={line.key}
-                  className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                  className="overflow-hidden rounded-2xl border border-amber-500/20 bg-card shadow-sm ring-1 ring-amber-500/10"
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-4 py-2.5">
+                  <div className="flex items-center justify-between gap-2 border-b border-amber-500/15 bg-amber-500/5 px-4 py-2.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-xs font-bold text-amber-800 dark:text-amber-300">
                         {index + 1}
@@ -315,7 +323,7 @@ export function HrIncidentTypeEditor() {
                           updateLine(index, { label: e.target.value })
                         }
                         placeholder="Type name (e.g. Absence)"
-                        className="h-9 w-full min-w-0 text-sm sm:h-10"
+                        className={cn(hrFieldClass, "text-sm")}
                       />
                     </div>
 
@@ -348,7 +356,10 @@ export function HrIncidentTypeEditor() {
                         autoComplete="off"
                         value={line.percentText}
                         placeholder="0"
-                        className="h-9 w-full min-w-0 text-center text-sm tabular-nums sm:h-10"
+                        className={cn(
+                          hrFieldClass,
+                          "text-center text-sm tabular-nums",
+                        )}
                         onChange={(e) => {
                           const parsed = parsePercentInput(e.target.value);
                           if (Number.isNaN(parsed.value)) return;
@@ -382,7 +393,9 @@ export function HrIncidentTypeEditor() {
                           )
                         }
                       >
-                        <SelectTrigger className="h-9 w-full min-w-0 bg-background sm:h-10">
+                        <SelectTrigger
+                          className={cn(hrFieldClass, "justify-between text-sm")}
+                        >
                           <SelectValue placeholder="No attendance link" />
                         </SelectTrigger>
                         <SelectContent>

@@ -56,6 +56,8 @@ import {
   HrPanelShell,
   HrSectionCard,
   HrEmptyState,
+  hrFieldClass,
+  hrPrimaryBtnClass,
 } from "@/components/hr/hrChrome";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
@@ -541,7 +543,7 @@ export function HrApprovalConfigPanel() {
         icon={
           <GitBranch className="h-5 w-5 text-sky-600 dark:text-sky-400" />
         }
-        accent="bg-linear-to-r from-sky-500 via-cyan-400 to-primary/70"
+        accent="bg-linear-to-r from-sky-500 via-indigo-400 to-primary/70"
       >
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-border/60 bg-muted/30 px-3 py-2.5">
@@ -890,7 +892,7 @@ export function HrApprovalConfigPanel() {
               <div className="space-y-2 border-t border-border/50 pt-4">
                 <Button
                   type="button"
-                  className="w-full"
+                  className={cn("w-full", hrPrimaryBtnClass)}
                   disabled={saving || steps.length === 0}
                   onClick={() => void saveFlow()}
                 >
@@ -1015,7 +1017,7 @@ export function HrApprovalConfigPanel() {
                             updateTeamLine(line.key, { code: e.target.value })
                           }
                           placeholder="e.g. AM"
-                          className="h-10 w-full min-w-0"
+                          className={hrFieldClass}
                         />
                       </FieldShell>
                       <FieldShell label="Label" hint="Display name">
@@ -1025,7 +1027,7 @@ export function HrApprovalConfigPanel() {
                             updateTeamLine(line.key, { label: e.target.value })
                           }
                           placeholder="e.g. Morning"
-                          className="h-10 w-full min-w-0"
+                          className={hrFieldClass}
                         />
                       </FieldShell>
                     </div>

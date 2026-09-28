@@ -263,6 +263,9 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-overview": "HR Module",
   "hr-employees": "HR Module",
   "hr-manager-pending": "HR Module",
+  "hr-approvals-terminate": "HR Module",
+  "hr-approvals-attendance": "HR Module",
+  "hr-approvals-payroll": "HR Module",
   "hr-otp-reset": "HR Module",
   "hr-chat-control": "HR Module",
   "hr-workflows": "HR Module",
@@ -312,6 +315,9 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-overview": "HR Module",
   "hr-employees": "HR Module",
   "hr-manager-pending": "HR Module",
+  "hr-approvals-terminate": "HR Module",
+  "hr-approvals-attendance": "HR Module",
+  "hr-approvals-payroll": "HR Module",
   "hr-otp-reset": "HR Module",
   "hr-chat-control": "HR Module",
   "hr-workflows": "HR Module",
@@ -390,7 +396,6 @@ export const FINANCE_INVENTORY_SECTIONS = new Set([
 /** HR payroll finance surfaces — require HR Module + Financial Management. */
 export const FINANCE_HR_SECTIONS = new Set([
   "hr-payroll",
-  "hr-payslips",
 ]);
 
 /** Cost Control terminal sections that require a subscribed module. */

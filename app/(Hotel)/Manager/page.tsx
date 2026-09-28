@@ -64,7 +64,9 @@ import {
   MANAGER_LODGING_NESTED_TAB_IDS,
   MANAGER_HR_TAB_IDS,
   isHrPayrollTab,
+  isHrApprovalsTab,
   type HrPayrollTabId,
+  type HrApprovalsTabId,
 } from "@/constants";
 import {
   filterManagerServiceTabId,
@@ -79,6 +81,7 @@ import {
   HrPayrollSidebarGroup,
   hrPayrollViewsForCaps,
 } from "@/components/hr/HrPayrollSidebarGroup";
+import { HrApprovalsSidebarGroup } from "@/components/hr/HrApprovalsSidebarGroup";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import { readTenantModulesFromStorage } from "@/lib/tenantModules";
 import { HotcolNotificationCenter } from "@/components/notifications/HotcolNotificationCenter";
@@ -126,7 +129,6 @@ import {
   UtensilsCrossed,
   Shield,
   Gift,
-  ClipboardCheck,
   KeyRound,
   ShieldOff,
   GitBranch,
@@ -228,7 +230,9 @@ type TabId =
   | (typeof MANAGER_SERVICE_LEGACY_TAB_IDS)[number]
   | (typeof MANAGER_LODGING_NESTED_TAB_IDS)[number]
   | PaymentTabId
-  | HrPayrollTabId;
+  | HrPayrollTabId
+  | HrApprovalsTabId
+  | "hr-manager-pending";
 
 const managerSidebarIconMap: Record<
   | (typeof MANAGER_SIDEBAR_ITEMS)[number]["icon"]
@@ -260,7 +264,6 @@ const managerSidebarIconMap: Record<
   UtensilsCrossed,
   Shield,
   Gift,
-  ClipboardCheck,
   KeyRound,
   ShieldOff,
   GitBranch,
@@ -301,6 +304,9 @@ const HR_TAB_TO_SECTION: Record<
   HrSection
 > = {
   "hr-overview": "dashboard",
+  "hr-approvals-terminate": "approvals-terminate",
+  "hr-approvals-attendance": "approvals-attendance",
+  "hr-approvals-payroll": "approvals-payroll",
   "hr-manager-pending": "manager-pending",
   "hr-otp-reset": "otp-reset",
   "hr-workflows": "workflows",
@@ -317,7 +323,10 @@ const HR_TAB_TO_SECTION: Record<
 /** Map HR shell / notification section keys → Manager sidebar tab ids. */
 const HR_SECTION_TO_MANAGER_TAB: Record<string, TabId> = {
   dashboard: "hr-overview",
-  "manager-pending": "hr-manager-pending",
+  "manager-pending": "hr-approvals-terminate",
+  "approvals-terminate": "hr-approvals-terminate",
+  "approvals-attendance": "hr-approvals-attendance",
+  "approvals-payroll": "hr-approvals-payroll",
   "otp-reset": "hr-otp-reset",
   workflows: "hr-workflows",
   leave: "hr-leave",
@@ -611,6 +620,10 @@ function ManagerContent() {
       setActiveTab("hr-payroll-runs");
       return;
     }
+    if ((activeTab as string) === "hr-manager-pending") {
+      setActiveTab("hr-approvals-terminate");
+      return;
+    }
     if ((activeTab as string) === "lodging-guest-feedback") {
       setActiveTab("lodging-guest-complaints");
       return;
@@ -715,6 +728,7 @@ function ManagerContent() {
       !isPaymentCategorySection(activeTab) &&
       !isLodgingServiceNestedTab(activeTab) &&
       !isHrPayrollTab(activeTab) &&
+      !isHrApprovalsTab(activeTab) &&
       activeTab !== "lodging-reports"
     ) {
       setActiveTab(allNavItems[0]!.id);
@@ -781,6 +795,9 @@ function ManagerContent() {
       "lodging-guest-complaints": "Guest feedback · Complaints",
       "lodging-guest-ratings": "Guest feedback · Ratings",
       "hr-overview": "HR · Overview",
+      "hr-approvals-terminate": "HR · Approvals · Terminations",
+      "hr-approvals-attendance": "HR · Approvals · Attendance",
+      "hr-approvals-payroll": "HR · Approvals · Payroll",
       "hr-manager-pending": "HR · Approvals",
       "hr-otp-reset": "HR · OTP resets",
       "hr-chat-control": "HR · Chat control",
@@ -807,6 +824,12 @@ function ManagerContent() {
         "Module scorecard and charts for rooms, inventory, café, and other subscribed areas.",
       "hr-overview":
         "Workforce snapshot: headcount, leave queue, and shift coverage.",
+      "hr-approvals-terminate":
+        "Approve or reject HR requests to terminate employees.",
+      "hr-approvals-attendance":
+        "Approve or reject HR attendance correction requests.",
+      "hr-approvals-payroll":
+        "Approve or cancel HR requests to generate a payroll run for a date range.",
       "hr-manager-pending":
         "Approve or reject HR requests to terminate employees, correct attendance, or generate payroll.",
       "hr-otp-reset":
@@ -1877,6 +1900,9 @@ function ManagerContent() {
         return <HrChatControlPanel />;
 
       case "hr-overview":
+      case "hr-approvals-terminate":
+      case "hr-approvals-attendance":
+      case "hr-approvals-payroll":
       case "hr-manager-pending":
       case "hr-otp-reset":
       case "hr-workflows":
@@ -2049,12 +2075,32 @@ function ManagerContent() {
                 <ManagerCollapsibleSidebarGroup
                   label="HR"
                   icon={Users}
-                  items={hrSidebarItems}
+                  items={hrSidebarItems.filter((item) => item.id === "hr-overview")}
                   activeSection={activeTab}
                   isGroupActive={hrGroupActive}
                   onSelect={(id) => setActiveTab(id as TabId)}
                   layout="flat"
                 >
+                  <HrApprovalsSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={(id) => setActiveTab(id as TabId)}
+                  />
+                  {hrSidebarItems
+                    .filter((item) => item.id !== "hr-overview")
+                    .map((item) => (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={activeTab === item.id}
+                          onClick={() => setActiveTab(item.id)}
+                          tooltip={item.label}
+                          size="lg"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
                   <HrPayrollSidebarGroup
                     activeSection={activeTab}
                     onSelect={(id) => setActiveTab(id as TabId)}

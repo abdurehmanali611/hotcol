@@ -86,7 +86,6 @@ import {
   Inbox,
   Loader2,
   LogOut,
-  Users,
   Wallet,
   XCircle,
   LayoutGrid,
@@ -118,8 +117,7 @@ type FinanceSection =
   | "payment-with-vat"
   | "payment-without-vat"
   | "creditor-usage"
-  | "hr-payroll"
-  | "hr-payslips";
+  | "hr-payroll";
 
 function buildFinanceHistoryColumns(): ColumnDef<PurchaseRequestRow>[] {
   return [
@@ -374,12 +372,7 @@ function FinanceInner() {
           {
             section: "hr-payroll" as const,
             label: "HR payroll",
-            icon: Users,
-          },
-          {
-            section: "hr-payslips" as const,
-            label: "HR payslips",
-            icon: Wallet,
+            icon: Banknote,
           },
         ] as {
           section: FinanceSection;
@@ -786,13 +779,7 @@ function FinanceInner() {
 
         {financeSection === "hr-payroll" && (
           <section className="space-y-4">
-            <FinanceHrPayrollSection mode="payroll" />
-          </section>
-        )}
-
-        {financeSection === "hr-payslips" && (
-          <section className="space-y-4">
-            <FinanceHrPayrollSection mode="payslips" />
+            <FinanceHrPayrollSection />
           </section>
         )}
 

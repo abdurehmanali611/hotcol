@@ -58,18 +58,18 @@ import {
   AlertTriangle,
   Ban,
   UtensilsCrossed,
-  ClipboardCheck,
   KeyRound,
   ShieldOff,
   GitBranch,
   type LucideIcon,
 } from "lucide-react";
-import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab } from "@/constants";
+import { ADMIN_SIDEBAR_ITEMS, HR_WORKSPACE_TAB_IDS, isHrPayrollTab, isHrApprovalsTab } from "@/constants";
 import { filterAdminTabId, tenantHasModule } from "@/lib/subscriptionModules";
 import { useTenantModules } from "@/hooks/useTenantModules";
 import { useCafeOrderMode } from "@/hooks/useCafeOrderMode";
 import { isAnalogCafeOrderMode } from "@/lib/cafeOrderMode";
 import { HrPayrollSidebarGroup, hrPayrollViewsForCaps } from "@/components/hr/HrPayrollSidebarGroup";
+import { HrApprovalsSidebarGroup } from "@/components/hr/HrApprovalsSidebarGroup";
 import { hrCapabilities } from "@/lib/hrCapabilities";
 import {
   Sidebar,
@@ -77,6 +77,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarProvider,
   SidebarInset,
   SidebarSeparator,
@@ -144,6 +146,9 @@ const HR_TAB_TO_SECTION: Record<
 > = {
     "hr-overview": "dashboard",
     "hr-employees": "employees",
+    "hr-approvals-terminate": "approvals-terminate",
+    "hr-approvals-attendance": "approvals-attendance",
+    "hr-approvals-payroll": "approvals-payroll",
     "hr-manager-pending": "manager-pending",
     "hr-otp-reset": "otp-reset",
     "hr-workflows": "workflows",
@@ -385,7 +390,6 @@ function AdminDashboardContent() {
     AlertTriangle,
     Ban,
     UtensilsCrossed,
-    ClipboardCheck,
     KeyRound,
     ShieldOff,
     GitBranch,
@@ -430,10 +434,15 @@ function AdminDashboardContent() {
       setActiveTab("hr-payroll-generate");
       return;
     }
+    if (activeTab === "hr-manager-pending") {
+      setActiveTab("hr-approvals-terminate");
+      return;
+    }
     if (
       sidebarItems.length > 0 &&
       !sidebarItems.some((item) => item.id === activeTab) &&
       !isHrPayrollTab(activeTab) &&
+      !isHrApprovalsTab(activeTab) &&
       !isPaymentCategorySection(activeTab)
     ) {
       setActiveTab(sidebarItems[0]!.id);
@@ -664,6 +673,9 @@ function AdminDashboardContent() {
         return <HrChatControlPanel />;
       case "hr-overview":
       case "hr-employees":
+      case "hr-approvals-terminate":
+      case "hr-approvals-attendance":
+      case "hr-approvals-payroll":
       case "hr-manager-pending":
       case "hr-otp-reset":
       case "hr-workflows":
@@ -771,12 +783,38 @@ function AdminDashboardContent() {
                 <ManagerCollapsibleSidebarGroup
                   label="HR"
                   icon={Users}
-                  items={hrSidebarItems}
+                  items={hrSidebarItems.filter(
+                    (item) =>
+                      item.id === "hr-overview" || item.id === "hr-employees",
+                  )}
                   activeSection={activeTab}
                   isGroupActive={ADMIN_HR_TAB_IDS.has(activeTab)}
                   onSelect={setActiveTab}
                   layout="flat"
                 >
+                  <HrApprovalsSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={setActiveTab}
+                  />
+                  {hrSidebarItems
+                    .filter(
+                      (item) =>
+                        item.id !== "hr-overview" && item.id !== "hr-employees",
+                    )
+                    .map((item) => (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={activeTab === item.id}
+                          onClick={() => setActiveTab(item.id)}
+                          tooltip={item.label}
+                          size="lg"
+                          className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
                   <HrPayrollSidebarGroup
                     activeSection={activeTab}
                     onSelect={setActiveTab}

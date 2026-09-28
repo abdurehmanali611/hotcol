@@ -33,14 +33,14 @@ import { cn } from "@/lib/utils";
 import type { HrDashboardStats, HrEmployee, HrLeaveRequest, HrShift } from "@/lib/api/hr";
 
 const PIE_COLORS = [
+  "hsl(173 80% 36%)",
+  "hsl(187 85% 40%)",
+  "hsl(160 70% 38%)",
   "hsl(199 89% 42%)",
-  "hsl(24 90% 50%)",
-  "hsl(262 70% 55%)",
-  "hsl(142 60% 40%)",
-  "hsl(221 70% 50%)",
-  "hsl(168 65% 38%)",
   "hsl(38 92% 48%)",
+  "hsl(24 90% 50%)",
   "hsl(0 72% 55%)",
+  "hsl(221 70% 50%)",
 ];
 
 function readinessTone(points: number) {
@@ -80,7 +80,7 @@ export function HrOverviewPanel({
     readiness >= 75 ? "On track" : readiness >= 45 ? "Needs attention" : "At risk";
   const readinessBadgeClass =
     readiness >= 75
-      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+      ? "border-violet-500/20 bg-violet-500/10 text-emerald-700 dark:text-emerald-400"
       : readiness >= 45
         ? "border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-400"
         : "border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-400";
@@ -141,10 +141,10 @@ export function HrOverviewPanel({
   }, [leave]);
 
   const deptConfig = {
-    value: { label: "People", color: "hsl(199 89% 42%)" },
+    value: { label: "People", color: "hsl(173 80% 36%)" },
   } satisfies ChartConfig;
   const leaveConfig = {
-    count: { label: "Requests", color: "hsl(262 70% 55%)" },
+    count: { label: "Requests", color: "hsl(187 85% 40%)" },
   } satisfies ChartConfig;
 
   const drivers = [
@@ -197,9 +197,9 @@ export function HrOverviewPanel({
       hint: "Active + on leave",
       icon: Users,
       accent:
-        "border-rose-500/35 bg-linear-to-br from-rose-500/15 via-card to-card shadow-rose-500/10",
-      valueClass: "text-rose-700 dark:text-rose-400",
-      iconWrap: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+        "border-violet-500/35 bg-linear-to-br from-violet-500/15 via-card to-card shadow-violet-500/10",
+      valueClass: "text-violet-700 dark:text-violet-400",
+      iconWrap: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
     },
     {
       label: "On leave today",
@@ -217,9 +217,9 @@ export function HrOverviewPanel({
       hint: "Needs an HR decision",
       icon: AlertTriangle,
       accent:
-        "border-violet-500/35 bg-linear-to-br from-violet-500/15 via-card to-card shadow-violet-500/10",
-      valueClass: "text-violet-700 dark:text-violet-400",
-      iconWrap: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+        "border-indigo-500/35 bg-linear-to-br from-indigo-500/15 via-card to-card shadow-indigo-500/10",
+      valueClass: "text-indigo-800 dark:text-indigo-400",
+      iconWrap: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-400",
     },
     {
       label: "Shifts today",
@@ -237,9 +237,9 @@ export function HrOverviewPanel({
       hint: "Periods not yet closed",
       icon: Wallet,
       accent:
-        "border-emerald-500/35 bg-linear-to-br from-emerald-500/15 via-card to-card shadow-emerald-500/10",
-      valueClass: "text-emerald-700 dark:text-emerald-400",
-      iconWrap: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+        "border-violet-500/35 bg-linear-to-br from-violet-500/15 via-card to-card shadow-violet-500/10",
+      valueClass: "text-violet-700 dark:text-violet-400",
+      iconWrap: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
     },
   ];
 
@@ -247,14 +247,14 @@ export function HrOverviewPanel({
     <HrPanelShell>
       <section
         aria-label="Workforce readiness"
-        className="overflow-hidden rounded-2xl border border-border/50 bg-linear-to-b from-muted/40 via-card to-card shadow-sm"
+        className="overflow-hidden rounded-2xl border border-violet-500/20 bg-linear-to-b from-violet-500/8 via-card to-indigo-500/5 shadow-md ring-1 ring-violet-500/10"
       >
-        <div className="h-px bg-linear-to-r from-transparent via-rose-500/40 to-transparent" />
+        <div className="h-px bg-linear-to-r from-transparent via-violet-500/50 to-transparent" />
         <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 ring-1 ring-rose-500/20">
-                <Sparkles className="h-5 w-5 text-rose-700 dark:text-rose-400" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 ring-1 ring-violet-500/25">
+                <Sparkles className="h-5 w-5 text-violet-700 dark:text-violet-400" />
               </div>
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -336,7 +336,7 @@ export function HrOverviewPanel({
               </ul>
             </div>
           ) : (
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-muted-foreground">
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 px-4 py-3 text-sm text-muted-foreground">
               No blocking HR actions right now. Roster, leave queue, and payroll look
               clear.
             </div>

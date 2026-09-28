@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { notifyApiFailure } from "@/lib/actions";
 import { fetchHrLeaveTypes, replaceHrLeaveTypesApi } from "@/lib/api/hr";
 import { slugLeaveTypeCode, type HrLeaveTypeSetting } from "@/lib/hrLeaveTypes";
+import { hrFieldClass, hrPrimaryBtnClass } from "@/components/hr/hrChrome";
 
 const LINE_GRID =
   "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_110px_120px_40px] lg:items-end lg:gap-x-2.5";
@@ -181,7 +182,7 @@ export function HrLeaveTypeEditor() {
           <Button
             type="button"
             size="lg"
-            className="mt-4 gap-2 shadow-sm"
+            className={cn("mt-4 gap-2 shadow-sm", hrPrimaryBtnClass)}
             onClick={addLine}
           >
             <Plus className="h-4 w-4" />
@@ -190,11 +191,14 @@ export function HrLeaveTypeEditor() {
         </div>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-500/15 bg-muted/30 px-4 py-2.5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-500/20 bg-linear-to-r from-violet-500/10 via-fuchsia-500/5 to-violet-500/5 px-4 py-2.5 shadow-sm">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
               <p className="text-sm font-semibold">Leave types</p>
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <Badge
+                variant="secondary"
+                className="h-5 border-violet-500/20 bg-violet-500/10 px-1.5 text-[10px] text-violet-900 dark:text-violet-200"
+              >
                 {lines.length}
               </Badge>
             </div>
@@ -217,9 +221,9 @@ export function HrLeaveTypeEditor() {
               {lines.map((line, index) => (
                 <article
                   key={line.key}
-                  className="overflow-hidden rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-muted/20 shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                  className="overflow-hidden rounded-2xl border border-violet-500/20 bg-linear-to-br from-card via-card to-violet-500/5 shadow-sm ring-1 ring-violet-500/10"
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-4 py-2.5">
+                  <div className="flex items-center justify-between gap-2 border-b border-violet-500/15 bg-violet-500/5 px-4 py-2.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-xs font-bold text-violet-700 dark:text-violet-400">
                         {index + 1}
@@ -253,7 +257,7 @@ export function HrLeaveTypeEditor() {
                           updateLine(index, { label: e.target.value })
                         }
                         placeholder="Annual, sick, maternity…"
-                        className="h-9 w-full min-w-0 text-sm sm:h-10"
+                        className={cn(hrFieldClass, "text-sm")}
                       />
                     </div>
 
@@ -267,7 +271,10 @@ export function HrLeaveTypeEditor() {
                         autoComplete="off"
                         value={line.defaultDays || ""}
                         placeholder="0"
-                        className="h-9 w-full min-w-0 text-center text-sm tabular-nums sm:h-10"
+                        className={cn(
+                          hrFieldClass,
+                          "text-center text-sm tabular-nums",
+                        )}
                         onChange={(e) => {
                           const raw = e.target.value;
                           if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return;

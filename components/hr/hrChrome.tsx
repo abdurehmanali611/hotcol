@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -13,6 +14,25 @@ import {
 import { cn } from "@/lib/utils";
 import { hrStatusLabel } from "@/lib/hrConstraints";
 
+/** Shared HR accent rails — soft violet / indigo (Finance-aligned, moderated). */
+export const HR_ACCENTS = {
+  teal: "bg-linear-to-r from-violet-500/45 via-indigo-400/35 to-transparent",
+  emerald: "bg-linear-to-r from-violet-500/40 via-indigo-400/30 to-transparent",
+  cyan: "bg-linear-to-r from-indigo-500/40 via-violet-400/30 to-transparent",
+  sky: "bg-linear-to-r from-sky-500/40 via-violet-400/25 to-transparent",
+  amber: "bg-linear-to-r from-amber-500/45 via-orange-400/30 to-transparent",
+  rose: "bg-linear-to-r from-rose-500/45 via-orange-400/30 to-transparent",
+} as const;
+
+export const HR_METRIC_ACCENTS = {
+  teal: "from-violet-500/8 border-violet-500/15",
+  emerald: "from-indigo-500/8 border-indigo-500/15",
+  cyan: "from-primary/8 border-primary/15",
+  sky: "from-sky-500/8 border-sky-500/15",
+  amber: "from-amber-500/10 border-amber-500/20",
+  rose: "from-rose-500/10 border-rose-500/20",
+} as const;
+
 export function HrPanelShell({
   children,
   className,
@@ -21,7 +41,53 @@ export function HrPanelShell({
   className?: string;
 }) {
   return (
-    <div className={cn("space-y-6", className)}>{children}</div>
+    <div
+      className={cn(
+        "relative space-y-6",
+        "before:pointer-events-none before:absolute before:-inset-x-2 before:-top-2 before:h-32 before:rounded-3xl before:bg-linear-to-b before:from-violet-500/4 before:via-transparent before:to-transparent before:opacity-70",
+        className,
+      )}
+    >
+      <div className="relative space-y-6">{children}</div>
+    </div>
+  );
+}
+
+export function HrPageHero({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-violet-500/12 bg-linear-to-br from-violet-500/4 via-card to-indigo-500/3 p-5 shadow-sm md:p-6">
+      <div className="relative space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-700/60 dark:text-violet-300/70">
+              HR workspace
+            </p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+              {title}
+            </h2>
+            {description ? (
+              <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                {description}
+              </p>
+            ) : null}
+          </div>
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+          ) : null}
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -29,7 +95,7 @@ export function HrSectionCard({
   title,
   description,
   icon,
-  accent,
+  accent = HR_ACCENTS.teal,
   actions,
   children,
 }: {
@@ -41,12 +107,16 @@ export function HrSectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden border-border/70 bg-card/95 shadow-md ring-1 ring-black/4 dark:ring-white/8">
-      {accent ? <div className={cn("h-1", accent)} /> : null}
-      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+    <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm ring-1 ring-black/3 dark:ring-white/5">
+      <div className={cn("h-1", accent)} />
+      <CardHeader className="flex flex-col gap-3 space-y-0 bg-muted/15 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2 text-lg tracking-tight md:text-xl">
-            {icon}
+          <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight md:text-xl">
+            {icon ? (
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-violet-500/15 bg-violet-500/6 text-violet-700/90 dark:text-violet-300">
+                {icon}
+              </span>
+            ) : null}
             {title}
           </CardTitle>
           {description ? (
@@ -55,7 +125,9 @@ export function HrSectionCard({
             </CardDescription>
           ) : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+        ) : null}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
@@ -66,7 +138,7 @@ export function HrMetricCard({
   label,
   value,
   hint,
-  accent = "from-primary/10 border-primary/20",
+  accent = HR_METRIC_ACCENTS.teal,
   icon,
 }: {
   label: string;
@@ -78,14 +150,14 @@ export function HrMetricCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden border shadow-md bg-linear-to-br to-card",
+        "overflow-hidden border shadow-sm bg-linear-to-br to-card transition-shadow hover:shadow-md",
         accent,
       )}
     >
       <CardHeader className="space-y-3 pb-3 pt-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {label}
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight md:text-3xl">
@@ -93,7 +165,7 @@ export function HrMetricCard({
             </p>
           </div>
           {icon ? (
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-background/80">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/90 text-violet-700/80 dark:text-violet-300">
               {icon}
             </span>
           ) : null}
@@ -105,25 +177,62 @@ export function HrMetricCard({
 }
 
 export function HrStatusBadge({ status }: { status: string }) {
-  const variant =
-    status === "terminated" || status === "rejected" || status === "absent"
-      ? "destructive"
-      : status === "pending" ||
-          status === "on_leave" ||
-          status === "open" ||
-          status === "half_day" ||
-          status === "late" ||
-          status === "awaiting_finance" ||
-          status === "awaiting_manager" ||
-          status === "pending_generate" ||
-          status === "unpaid"
-        ? "secondary"
-        : status === "closed" ||
-            status === "approved" ||
-            status === "marked_paid"
-          ? "outline"
-          : "default";
-  return <Badge variant={variant}>{hrStatusLabel(status)}</Badge>;
+  const s = String(status || "").toLowerCase();
+  const className =
+    s === "terminated" || s === "rejected" || s === "absent" || s === "unpaid"
+      ? "border-rose-500/30 bg-rose-500/15 text-rose-800 dark:text-rose-300"
+      : s === "pending" ||
+          s === "on_leave" ||
+          s === "open" ||
+          s === "half_day" ||
+          s === "late" ||
+          s === "awaiting_finance" ||
+          s === "awaiting_manager" ||
+          s === "pending_generate"
+        ? "border-amber-500/30 bg-amber-500/15 text-amber-900 dark:text-amber-300"
+        : s === "closed" ||
+            s === "approved" ||
+            s === "marked_paid" ||
+            s === "present" ||
+            s === "active"
+          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+          : "border-violet-500/20 bg-violet-500/8 text-violet-800 dark:text-violet-300";
+
+  return (
+    <Badge variant="outline" className={cn("font-medium capitalize", className)}>
+      {hrStatusLabel(status)}
+    </Badge>
+  );
+}
+
+/** Soft accent colors for status filter comboboxes (matches badge semantics). */
+export function hrStatusFilterTriggerClass(status: string) {
+  const s = String(status || "").toLowerCase();
+  if (s === "terminated" || s === "rejected" || s === "absent") {
+    return "border-rose-500/30 bg-rose-500/10 font-medium text-rose-800 hover:bg-rose-500/15 dark:text-rose-300";
+  }
+  if (s === "pending" || s === "on_leave" || s === "late" || s === "half_day") {
+    return "border-amber-500/30 bg-amber-500/10 font-medium text-amber-900 hover:bg-amber-500/15 dark:text-amber-300";
+  }
+  if (s === "approved" || s === "active" || s === "present") {
+    return "border-emerald-500/25 bg-emerald-500/10 font-medium text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-300";
+  }
+  // "all" and other defaults
+  return "border-violet-500/30 bg-violet-500/10 font-medium text-violet-800 hover:bg-violet-500/15 dark:text-violet-300";
+}
+
+export function hrStatusFilterLabelClass(status: string) {
+  const s = String(status || "").toLowerCase();
+  if (s === "terminated" || s === "rejected" || s === "absent") {
+    return "text-rose-600/90 dark:text-rose-400";
+  }
+  if (s === "pending" || s === "on_leave" || s === "late" || s === "half_day") {
+    return "text-amber-700/90 dark:text-amber-400";
+  }
+  if (s === "approved" || s === "active" || s === "present") {
+    return "text-emerald-700/90 dark:text-emerald-400";
+  }
+  return "text-violet-700/90 dark:text-violet-400";
 }
 
 export function HrEmptyState({
@@ -136,14 +245,256 @@ export function HrEmptyState({
   icon?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-12 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center text-muted-foreground/40">
-        {icon ?? <Inbox className="h-7 w-7" />}
+    <div className="rounded-2xl border border-dashed border-border/80 bg-muted/10 px-4 py-12 text-center">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-muted/40 text-muted-foreground">
+        {icon ?? <Inbox className="h-6 w-6" />}
       </div>
-      <p className="text-sm font-medium">{title}</p>
+      <p className="text-sm font-semibold">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground text-pretty">
         {description}
       </p>
+    </div>
+  );
+}
+
+/** Shared field chrome for HR inputs / selects. */
+export const hrFieldClass =
+  "h-10 w-full min-w-0 rounded-xl border-border/70 bg-background shadow-sm focus-visible:border-violet-500/35 focus-visible:ring-violet-500/15";
+
+export const hrPrimaryBtnClass =
+  "gap-1.5 rounded-xl border-violet-600/80 bg-violet-600/85 text-white shadow-sm hover:bg-violet-600";
+
+export function HrFilterBar({
+  title = "Filters",
+  children,
+  onClear,
+  showClear,
+  className,
+}: {
+  title?: string;
+  children: ReactNode;
+  onClear?: () => void;
+  showClear?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "space-y-3 rounded-2xl border border-border/70 bg-muted/20 px-4 py-3.5 shadow-sm",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          {title}
+        </span>
+        {showClear && onClear ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            onClick={onClear}
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function HrFilterChips<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: { id: T; label: string }[];
+}) {
+  return (
+    <div className="space-y-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="inline-flex flex-wrap gap-1 rounded-xl border border-border/60 bg-background/80 p-1">
+        {options.map((opt) => (
+          <Button
+            key={opt.id}
+            type="button"
+            size="sm"
+            variant="ghost"
+            className={cn(
+              "h-8 rounded-lg px-3.5 text-xs font-medium transition-colors",
+              value === opt.id
+                ? "bg-violet-600/80 text-white shadow-sm hover:bg-violet-600/90 hover:text-white"
+                : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+            )}
+            onClick={() => onChange(opt.id)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Soft frame around DataTable / lists. */
+export function HrTableFrame({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-sm",
+        className,
+      )}
+    >
+      <div className="h-1 bg-linear-to-r from-violet-500/50 via-indigo-400/40 to-transparent" />
+      <div className="space-y-3 p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
+
+/** Soft hero band with optional metric tiles. */
+export function HrSurfaceHero({
+  eyebrow,
+  title,
+  description,
+  icon,
+  actions,
+  stats,
+  className,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  icon?: ReactNode;
+  actions?: ReactNode;
+  stats?: { label: string; value: string | number; tone?: string }[];
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "relative overflow-hidden rounded-2xl border border-border/70 bg-linear-to-br from-violet-500/4 via-card to-muted/20 shadow-sm",
+        className,
+      )}
+    >
+      <div className="relative space-y-5 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl space-y-3">
+            {eyebrow ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/15 bg-violet-500/6 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-violet-800/70 dark:text-violet-300/80">
+                {eyebrow}
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <h2 className="flex items-center gap-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+                {icon ? (
+                  <span className="flex size-11 items-center justify-center rounded-2xl bg-violet-500/8 text-violet-700/90 ring-1 ring-violet-500/15 dark:text-violet-300">
+                    {icon}
+                  </span>
+                ) : null}
+                {title}
+              </h2>
+              {description ? (
+                <p className="text-sm leading-relaxed text-muted-foreground text-pretty sm:text-[15px]">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+          ) : null}
+        </div>
+        {stats?.length ? (
+          <div
+            className={cn(
+              "grid gap-3",
+              stats.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2",
+            )}
+          >
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className={cn(
+                  "rounded-2xl border border-border/60 bg-linear-to-br p-4 shadow-sm",
+                  stat.tone ?? "from-violet-500/6 to-transparent",
+                )}
+              >
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {stat.label}
+                </p>
+                <p className="mt-2 text-xl font-semibold tracking-tight tabular-nums">
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+export function HrFormSection({
+  title,
+  description,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "space-y-4 rounded-xl border border-border/70 bg-muted/15 p-4 shadow-sm sm:p-5",
+        className,
+      )}
+    >
+      <div className="space-y-1 border-b border-border/50 pb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </h3>
+        {description ? (
+          <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function HrDialogHeader({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="-mx-6 -mt-6 mb-2 overflow-hidden rounded-t-lg border-b border-border/60 bg-muted/20 px-6 pb-4 pt-6">
+      <div className="mb-3 h-0.5 w-12 rounded-full bg-violet-500/50" />
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      {description ? (
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -171,6 +522,21 @@ export const HR_SECTION_COPY: Record<
     title: "HR · Approvals",
     description:
       "Approve or reject HR requests to terminate employees, correct attendance, or generate payroll.",
+  },
+  "approvals-terminate": {
+    title: "HR · Approvals · Terminations",
+    description:
+      "Approve or reject HR requests to end employment for a staff member.",
+  },
+  "approvals-attendance": {
+    title: "HR · Approvals · Attendance",
+    description:
+      "Approve or reject HR corrections to clock times and attendance status.",
+  },
+  "approvals-payroll": {
+    title: "HR · Approvals · Payroll",
+    description:
+      "Approve or cancel HR requests to generate a payroll run for a date range.",
   },
   workflows: {
     title: "HR · Approval workflows",

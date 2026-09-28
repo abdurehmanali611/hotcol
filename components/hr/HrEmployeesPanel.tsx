@@ -6,16 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { UserPlus, Users, Trash2 } from "lucide-react";
+import { UserPlus, Users, Trash2, Pencil, Building2, Wallet, Check, ChevronsUpDown } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -27,16 +25,35 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { FilterChipGroup, ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
-import { HrEmptyState, HrPanelShell, HrSectionCard, HrStatusBadge } from "@/components/hr/hrChrome";
+import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
+import {
+  HrDialogHeader,
+  HrEmptyState,
+  HrFormSection,
+  HrPanelShell,
+  HrStatusBadge,
+  HrSurfaceHero,
+  HrTableFrame,
+  hrFieldClass,
+  hrPrimaryBtnClass,
+  hrStatusFilterLabelClass,
+  hrStatusFilterTriggerClass,
+} from "@/components/hr/hrChrome";
 import {
   HR_WAGE_LABELS,
   HR_WAGE_TYPES,
@@ -46,9 +63,11 @@ import {
 import {
   hrDepartmentLabel,
 } from "@/lib/hrDepartments";
+import { ETHIOPIAN_BANKS } from "@/lib/hrEthiopianBanks";
 import { formatETB } from "@/lib/subscriptionModules";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 import { notifyApiFailure } from "@/lib/actions";
+import { cn } from "@/lib/utils";
 import {
   createHrEmployeeApi,
   fetchHrDepartments,
@@ -84,9 +103,129 @@ const PhoneInput = dynamic(
 
 type StatusFilter = "all" | "active" | "on_leave" | "terminated";
 
+type ComboboxOption = { value: string; label: string; hint?: string };
+
+/** Searchable combobox — same interaction pattern as hotel store / HR approval config. */
+function OptionCombobox({
+  value,
+  onChange,
+  options,
+  placeholder = "Search…",
+  emptyText = "No matches.",
+  disabled = false,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboboxOption[];
+  placeholder?: string;
+  emptyText?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+
+  const filtered = useMemo(() => {
+    if (!query) return options;
+    return options.filter((o) => {
+      const hay = `${o.label} ${o.hint || ""} ${o.value}`.toLowerCase();
+      return hay.includes(query);
+    });
+  }, [options, query]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (disabled) return;
+        setOpen(next);
+        if (!next) setSearch("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className={cn(
+            hrFieldClass,
+            "justify-between font-normal",
+            className,
+          )}
+        >
+          <span
+            className={cn(
+              "min-w-0 truncate text-left",
+              selected ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {selected?.label || placeholder}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search…"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {filtered.length === 0 ? (
+              <CommandEmpty>{emptyText}</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filtered.map((o) => {
+                  const on = o.value === value;
+                  return (
+                    <CommandItem
+                      key={o.value}
+                      value={`${o.value}-${o.label}`}
+                      onSelect={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4 shrink-0",
+                          on ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {o.label}
+                        {o.hint ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {o.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const roleFieldClass = "min-w-0";
-const roleTriggerClass = "h-10 w-full min-w-0 justify-between bg-background";
-const roleInputClass = "h-10 w-full min-w-0 bg-background";
+const roleInputClass = hrFieldClass;
 
 function todayYmd() {
   const d = new Date();
@@ -186,6 +325,29 @@ export function HrEmployeesPanel({
     [employees, statusFilter],
   );
 
+  const directoryStats = useMemo(() => {
+    const active = employees.filter((e) => e.status === "active").length;
+    const onLeave = employees.filter((e) => e.status === "on_leave").length;
+    const terminated = employees.filter((e) => e.status === "terminated").length;
+    return [
+      {
+        label: "Active",
+        value: active,
+        tone: "from-emerald-500/[0.07] to-transparent",
+      },
+      {
+        label: "On leave",
+        value: onLeave,
+        tone: "from-amber-500/[0.07] to-transparent",
+      },
+      {
+        label: "Terminated",
+        value: terminated,
+        tone: "from-rose-500/[0.07] to-transparent",
+      },
+    ];
+  }, [employees]);
+
   const openCreate = () => {
     if (!hrDepartments.length) {
       toast.error("Register departments in HR → Departments first");
@@ -282,45 +444,89 @@ export function HrEmployeesPanel({
       {
         accessorKey: "fullName",
         header: "Employee",
+        cell: ({ row }) => {
+          const emp = row.original;
+          const initials = emp.fullName
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((p) => p[0]?.toUpperCase() ?? "")
+            .join("");
+          return (
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-xs font-semibold tracking-wide text-foreground/80 ring-1 ring-border/60">
+                {initials || "?"}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold tracking-tight">
+                  {emp.fullName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {emp.jobTitle || "No title"}
+                  {emp.wageType
+                    ? ` · ${HR_WAGE_LABELS[emp.wageType as keyof typeof HR_WAGE_LABELS] || emp.wageType}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "department",
+        header: "Department",
         cell: ({ row }) => (
-          <div>
-            <p className="font-medium">{row.original.fullName}</p>
-            <p className="text-xs text-muted-foreground">
-              {row.original.jobTitle || "No title"}
+          <Badge
+            variant="outline"
+            className="gap-1.5 border-border/70 bg-muted/40 font-normal text-foreground/80"
+          >
+            <Building2 className="h-3 w-3 opacity-70" />
+            {hrDepartmentLabel(row.original.department || "", hrDepartments) ||
+              "—"}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "phone",
+        header: "Phone",
+        cell: ({ row }) => (
+          <span className="tabular-nums text-sm">
+            {row.original.phone || "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "baseSalaryETB",
+        header: "Salary",
+        cell: ({ row }) => (
+          <span className="inline-flex items-center gap-1.5 font-medium tabular-nums">
+            <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+            {formatETB(row.original.baseSalaryETB || 0)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "bankName",
+        header: "Bank",
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {row.original.bankName || "—"}
+            </p>
+            <p className="truncate font-mono text-[11px] text-muted-foreground">
+              {row.original.accountNumber || "No account"}
             </p>
           </div>
         ),
       },
       {
-        accessorKey: "department",
-        header: "Department",
-        cell: ({ row }) =>
-          hrDepartmentLabel(row.original.department || "", hrDepartments),
-      },
-      {
-        accessorKey: "phone",
-        header: "Phone",
-        cell: ({ row }) => row.original.phone || "—",
-      },
-      {
-        accessorKey: "baseSalaryETB",
-        header: "Salary",
-        cell: ({ row }) => formatETB(row.original.baseSalaryETB || 0),
-      },
-      {
-        accessorKey: "bankName",
-        header: "Bank",
-        cell: ({ row }) => row.original.bankName || "—",
-      },
-      {
-        accessorKey: "accountNumber",
-        header: "Account",
-        cell: ({ row }) => row.original.accountNumber || "—",
-      },
-      {
         accessorKey: "hireDate",
         header: "Hired",
-        cell: ({ row }) => row.original.hireDate || "—",
+        cell: ({ row }) => (
+          <span className="tabular-nums text-sm">
+            {row.original.hireDate || "—"}
+          </span>
+        ),
       },
       {
         accessorKey: "status",
@@ -337,7 +543,13 @@ export function HrEmployeesPanel({
           const awaitingFirstLogin = portalIssued && !emp.portalFirstLoginAt;
           return (
           <div className="inline-flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-            <Button size="sm" variant="outline" onClick={() => openEdit(emp)}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 rounded-lg"
+              onClick={() => openEdit(emp)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
               Edit
             </Button>
             {emp.status !== "terminated" ? (
@@ -346,7 +558,7 @@ export function HrEmployeesPanel({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5"
+                    className="h-8 gap-1.5 rounded-lg"
                     onClick={async () => {
                       try {
                         const updated = await enableHrEmployeePortalApi(emp.id);
@@ -372,7 +584,7 @@ export function HrEmployeesPanel({
                   <button
                     type="button"
                     title="Copy portal OTP (visible until first login)"
-                    className="inline-flex h-8 max-w-44 items-center gap-1.5 rounded-md border border-input bg-background px-2 font-mono text-xs tracking-wider hover:bg-accent"
+                    className="inline-flex h-8 max-w-44 items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 font-mono text-xs tracking-wider text-amber-950 hover:bg-amber-500/15 dark:text-amber-100"
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(preview);
@@ -382,7 +594,7 @@ export function HrEmployeesPanel({
                       }
                     }}
                   >
-                    <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <KeyRound className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{preview}</span>
                   </button>
                 ) : null}
@@ -440,35 +652,33 @@ export function HrEmployeesPanel({
                 />
               </>
             ) : null}
-            <HrConfirmAction
-              destructive
-              title={`Delete ${emp.fullName}?`}
-              description={
-                emp.status === "terminated"
-                  ? "Permanently removes this terminated employee and related HR records (leave, attendance, documents, payslips). This cannot be undone."
-                  : "Permanently removes this employee and related HR records (leave, attendance, documents, payslips). Prefer Terminate if you only need to end employment. This cannot be undone."
-              }
-              confirmLabel="Delete"
-              trigger={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </Button>
-              }
-              onConfirm={async () => {
-                try {
-                  await deleteHrEmployeeApi(emp.id);
-                  toast.success("Employee deleted");
-                  await onRefresh();
-                } catch (e) {
-                  notifyApiFailure(e, "Delete failed");
+            {emp.status === "terminated" ? (
+              <HrConfirmAction
+                destructive
+                title={`Delete ${emp.fullName}?`}
+                description="Permanently removes this terminated employee and related HR records (leave, attendance, documents, payslips). This cannot be undone."
+                confirmLabel="Delete"
+                trigger={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
                 }
-              }}
-            />
+                onConfirm={async () => {
+                  try {
+                    await deleteHrEmployeeApi(emp.id);
+                    toast.success("Employee deleted");
+                    await onRefresh();
+                  } catch (e) {
+                    notifyApiFailure(e, "Delete failed");
+                  }
+                }}
+              />
+            ) : null}
           </div>
           );
         },
@@ -479,38 +689,53 @@ export function HrEmployeesPanel({
 
   return (
     <HrPanelShell>
-      <HrSectionCard
-        title="Employee directory"
+      <HrSurfaceHero
+        eyebrow="HR directory"
+        title="Employees"
         description="Search, filter, and maintain employment records. Salary and hire details feed system payroll when a period is closed."
-        icon={<Users className="h-5 w-5 text-rose-600 dark:text-rose-400" />}
-        accent="bg-linear-to-r from-rose-500 via-orange-400 to-primary/80"
+        icon={<Users className="size-5" />}
         actions={
-          <Button onClick={openCreate}>
+          <Button
+            onClick={openCreate}
+            className={cn("h-11 rounded-xl", hrPrimaryBtnClass)}
+          >
             <UserPlus className="mr-2 h-4 w-4" />
             Add employee
           </Button>
         }
-      >
-        <div className="space-y-4">
-          <ListPanelFilterBar
-            title="Directory filters"
-            showClear={statusFilter !== "all"}
-            onClear={() => setStatusFilter("all")}
-          >
-            <FilterChipGroup
-              label="Status"
+        stats={directoryStats}
+      />
+
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <div className="w-full max-w-[14rem] space-y-1.5">
+            <Label
+              className={cn(
+                "text-xs font-medium",
+                hrStatusFilterLabelClass(statusFilter),
+              )}
+            >
+              Status
+            </Label>
+            <HrOptionCombobox
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(v) => setStatusFilter(v as StatusFilter)}
               options={[
-                { id: "all", label: "All" },
-                { id: "active", label: "Active" },
-                { id: "on_leave", label: "On leave" },
-                { id: "terminated", label: "Terminated" },
+                { value: "all", label: "All" },
+                { value: "active", label: "Active" },
+                { value: "on_leave", label: "On leave" },
+                { value: "terminated", label: "Terminated" },
               ]}
+              placeholder="Filter status…"
+              emptyText="No statuses."
+              className={hrStatusFilterTriggerClass(statusFilter)}
             />
-          </ListPanelFilterBar>
-          {filtered.length ? (
+          </div>
+        </div>
+        {filtered.length ? (
+          <HrTableFrame>
             <DataTable
+              embedded
               columns={columns}
               data={filtered}
               searchColumnId="fullName"
@@ -518,27 +743,25 @@ export function HrEmployeesPanel({
               emptyMessage="No employees match these filters."
               pageSize={8}
             />
-          ) : (
-            <HrEmptyState
-              title="No employees in this view"
-              description="Add the first employee or clear filters to see the full directory."
-            />
-          )}
-        </div>
-      </HrSectionCard>
+          </HrTableFrame>
+        ) : (
+          <HrEmptyState
+            title="No employees in this view"
+            description="Add the first employee or clear filters to see the full directory."
+            icon={<Users className="h-6 w-6" />}
+          />
+        )}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className={responsiveFormDialogClassName}>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit employee" : "Add employee"}</DialogTitle>
-            <DialogDescription>
-              Employment master data for this property. Salary and hire date feed
-              system payroll when a period is closed.
-            </DialogDescription>
-          </DialogHeader>
+          <HrDialogHeader
+            title={editing ? "Edit employee" : "Add employee"}
+            description="Employment master data for this property. Salary and hire date feed system payroll when a period is closed."
+          />
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <HotelFormSection title="Identity" description="Legal name and optional contact.">
+              <HrFormSection title="Identity" description="Legal name and optional contact.">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -547,7 +770,7 @@ export function HrEmployeesPanel({
                       <FormItem className="sm:col-span-2">
                         <FormLabel>Full name</FormLabel>
                         <FormControl>
-                          <Input className="h-10 bg-background" {...field} />
+                          <Input className={hrFieldClass} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -580,15 +803,15 @@ export function HrEmployeesPanel({
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input className="h-10 bg-background" type="email" {...field} />
+                          <Input className={hrFieldClass} type="email" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-              </HotelFormSection>
-              <HotelFormSection title="Role & pay" description="Department, title, wage type, and hire date.">
+              </HrFormSection>
+              <HrFormSection title="Role & pay" description="Department, title, wage type, and hire date.">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -599,42 +822,40 @@ export function HrEmployeesPanel({
                         !hrDepartments.some((d) => d.code === field.value)
                           ? field.value
                           : "";
+                      const options: ComboboxOption[] = [
+                        ...hrDepartments.map((d) => ({
+                          value: d.code,
+                          label: d.label,
+                        })),
+                        ...(orphan
+                          ? [
+                              {
+                                value: orphan,
+                                label: `${hrDepartmentLabel(orphan, hrDepartments)} (not in current list)`,
+                              },
+                            ]
+                          : []),
+                      ];
                       return (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Department</FormLabel>
-                        <Select
-                          value={field.value || undefined}
-                          onValueChange={(v) => {
-                            field.onChange(v);
-                            form.setValue("teamId", null);
-                          }}
-                          disabled={!hrDepartments.length && !orphan}
-                        >
-                          <FormControl>
-                            <SelectTrigger className={roleTriggerClass}>
-                              <SelectValue
-                                placeholder={
-                                  hrDepartments.length
-                                    ? "Select department"
-                                    : "Register departments first"
-                                }
-                              />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent position="popper">
-                            {hrDepartments.map((d) => (
-                              <SelectItem key={d.code} value={d.code}>
-                                {d.label}
-                              </SelectItem>
-                            ))}
-                            {orphan ? (
-                              <SelectItem value={orphan}>
-                                {hrDepartmentLabel(orphan, hrDepartments)}{" "}
-                                (not in current list)
-                              </SelectItem>
-                            ) : null}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <OptionCombobox
+                            value={field.value || ""}
+                            onChange={(v) => {
+                              field.onChange(v);
+                              form.setValue("teamId", null);
+                            }}
+                            options={options}
+                            disabled={!hrDepartments.length && !orphan}
+                            placeholder={
+                              hrDepartments.length
+                                ? "Search department…"
+                                : "Register departments first"
+                            }
+                            emptyText="No departments found."
+                          />
+                        </FormControl>
                         {!hrDepartments.length ? (
                           <p className="text-[11px] text-muted-foreground">
                             Add departments under HR → Departments, then pick
@@ -667,22 +888,39 @@ export function HrEmployeesPanel({
                     control={form.control}
                     name="orgPosition"
                     render={({ field }) => (
-                      <FormItem className={roleFieldClass}>
+                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
                         <FormLabel>Position</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger className={roleTriggerClass}>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="employee">Employee</SelectItem>
-                            <SelectItem value="leader">Leader</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <RadioGroup
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            className="grid grid-cols-2 gap-2 sm:max-w-md"
+                          >
+                            {(
+                              [
+                                { id: "employee", label: "Employee" },
+                                { id: "leader", label: "Leader" },
+                              ] as const
+                            ).map((opt) => (
+                              <Label
+                                key={opt.id}
+                                htmlFor={`hr-org-pos-${opt.id}`}
+                                className={cn(
+                                  "flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-normal transition-colors",
+                                  field.value === opt.id
+                                    ? "border-violet-500/35 bg-violet-500/[0.07]"
+                                    : "border-border/70 bg-background hover:bg-muted/40",
+                                )}
+                              >
+                                <RadioGroupItem
+                                  value={opt.id}
+                                  id={`hr-org-pos-${opt.id}`}
+                                />
+                                {opt.label}
+                              </Label>
+                            ))}
+                          </RadioGroup>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -690,45 +928,44 @@ export function HrEmployeesPanel({
                   <FormField
                     control={form.control}
                     name="teamId"
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      const options: ComboboxOption[] = [
+                        { value: "none", label: "No team" },
+                        ...teams.map((t) => ({
+                          value: String(t.id),
+                          label: t.label,
+                          hint: t.code,
+                        })),
+                      ];
+                      const current =
+                        field.value != null && field.value > 0
+                          ? String(field.value)
+                          : "none";
+                      return (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Team (optional)</FormLabel>
-                        <Select
-                          value={
-                            field.value != null && field.value > 0
-                              ? String(field.value)
-                              : "none"
-                          }
-                          onValueChange={(v) =>
-                            field.onChange(v === "none" ? null : Number(v))
-                          }
-                          disabled={!selectedDeptId}
-                        >
-                          <FormControl>
-                            <SelectTrigger className={roleTriggerClass}>
-                              <SelectValue
-                                placeholder={
-                                  selectedDeptId
-                                    ? teams.length
-                                      ? "Select team"
-                                      : "No teams in department"
-                                    : "Pick department first"
-                                }
-                              />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">No team</SelectItem>
-                            {teams.map((t) => (
-                              <SelectItem key={t.id} value={String(t.id)}>
-                                {t.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <OptionCombobox
+                            value={current}
+                            onChange={(v) =>
+                              field.onChange(v === "none" ? null : Number(v))
+                            }
+                            options={options}
+                            disabled={!selectedDeptId}
+                            placeholder={
+                              selectedDeptId
+                                ? teams.length
+                                  ? "Search team…"
+                                  : "No teams in department"
+                                : "Pick department first"
+                            }
+                            emptyText="No teams found."
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}
+                      );
+                    }}
                   />
                   <FormField
                     control={form.control}
@@ -736,20 +973,18 @@ export function HrEmployeesPanel({
                     render={({ field }) => (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Wage type</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger className={roleTriggerClass}>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent position="popper">
-                            {HR_WAGE_TYPES.map((w) => (
-                              <SelectItem key={w} value={w}>
-                                {HR_WAGE_LABELS[w]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <OptionCombobox
+                            value={field.value}
+                            onChange={field.onChange}
+                            options={HR_WAGE_TYPES.map((w) => ({
+                              value: w,
+                              label: HR_WAGE_LABELS[w],
+                            }))}
+                            placeholder="Search wage type…"
+                            emptyText="No wage types."
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -776,19 +1011,42 @@ export function HrEmployeesPanel({
                   <FormField
                     control={form.control}
                     name="bankName"
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      const options: ComboboxOption[] = [
+                        ...ETHIOPIAN_BANKS.map((name) => ({
+                          value: name,
+                          label: name,
+                        })),
+                      ];
+                      // Keep orphan / custom saved bank selectable when editing
+                      if (
+                        field.value &&
+                        !ETHIOPIAN_BANKS.includes(
+                          field.value as (typeof ETHIOPIAN_BANKS)[number],
+                        )
+                      ) {
+                        options.unshift({
+                          value: field.value,
+                          label: field.value,
+                          hint: "saved",
+                        });
+                      }
+                      return (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Bank name</FormLabel>
                         <FormControl>
-                          <Input
-                            className={roleInputClass}
-                            placeholder="Commercial Bank…"
-                            {...field}
+                          <OptionCombobox
+                            value={field.value || ""}
+                            onChange={field.onChange}
+                            options={options}
+                            placeholder="Search Ethiopian bank…"
+                            emptyText="No banks found."
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}
+                      );
+                    }}
                   />
                   <FormField
                     control={form.control}
@@ -811,12 +1069,16 @@ export function HrEmployeesPanel({
                     control={form.control}
                     name="hireDate"
                     render={({ field }) => (
-                      <FormItem className="w-fit justify-self-center sm:col-span-2">
+                      <FormItem className={roleFieldClass}>
                         <FormLabel>Hire date</FormLabel>
                         <FormControl>
                           <HotelDayPicker
                             value={field.value}
                             onChange={field.onChange}
+                            buttonClassName={cn(
+                              roleInputClass,
+                              "justify-start font-normal",
+                            )}
                           />
                         </FormControl>
                         <FormMessage />
@@ -824,8 +1086,12 @@ export function HrEmployeesPanel({
                     )}
                   />
                 </div>
-              </HotelFormSection>
-              <PendingButton type="submit" pending={pending} className="h-11 w-full shadow-md">
+              </HrFormSection>
+              <PendingButton
+                type="submit"
+                pending={pending}
+                className={cn("h-11 w-full", hrPrimaryBtnClass)}
+              >
                 {editing ? "Save changes" : "Save employee"}
               </PendingButton>
             </form>

@@ -67,6 +67,11 @@ export interface DataTableProps<TData, TValue> {
   footerSummary?: (filteredRows: TData[]) => React.ReactNode;
   /** When set, rows with children become expandable (e.g. same-name inventory groups). */
   getSubRows?: (row: TData) => TData[] | undefined;
+  /**
+   * Drop the inner bordered card shell so a parent frame (e.g. HrTableFrame)
+   * owns borders, rails, and header tint.
+   */
+  embedded?: boolean;
 }
 
 function DataTableInner<TData extends { id?: number | string }, TValue>(
@@ -85,6 +90,7 @@ function DataTableInner<TData extends { id?: number | string }, TValue>(
     pageSize = 10,
     footerSummary,
     getSubRows,
+    embedded = false,
   }: DataTableProps<TData, TValue>,
   ref: React.ForwardedRef<DataTableRef>,
 ) {
@@ -272,13 +278,18 @@ function DataTableInner<TData extends { id?: number | string }, TValue>(
       {!hideToolbar ? (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         {searchColumn ? (
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={(searchColumn.getFilterValue() as string) ?? ""}
             onChange={(e) => searchColumn.setFilterValue(e.target.value)}
-            className="pl-8 h-9 shadow-sm"
+            className={cn(
+              "shadow-sm",
+              embedded
+                ? "h-11 rounded-xl border-border/70 bg-background/80 pl-10"
+                : "h-9 pl-8",
+            )}
           />
         </div>
         ) : (
@@ -286,7 +297,16 @@ function DataTableInner<TData extends { id?: number | string }, TValue>(
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 w-full gap-2 sm:ml-auto sm:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "w-full gap-2 sm:ml-auto sm:w-auto",
+                embedded
+                  ? "h-11 rounded-xl border-border/70 bg-background/80"
+                  : "h-9",
+              )}
+            >
               <Settings2 className="h-4 w-4" />
               Columns
             </Button>
@@ -310,15 +330,32 @@ function DataTableInner<TData extends { id?: number | string }, TValue>(
       </div>
       ) : null}
 
-      <div className="rounded-lg border bg-card shadow-sm w-full min-w-0 overflow-x-auto">
+      <div
+        className={cn(
+          "w-full min-w-0 overflow-x-auto",
+          embedded
+            ? "rounded-xl border border-border/50 bg-muted/10"
+            : "rounded-lg border bg-card shadow-sm",
+        )}
+      >
         <Table className="w-full">
-          <TableHeader className="bg-muted/50">
+          <TableHeader
+            className={cn(embedded ? "bg-muted/40" : "bg-muted/50")}
+          >
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow
+                key={headerGroup.id}
+                className={cn(
+                  embedded && "border-border/50 hover:bg-transparent",
+                )}
+              >
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="h-9 px-2 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap"
+                    className={cn(
+                      "h-10 px-3 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap",
+                      embedded && "text-muted-foreground",
+                    )}
                   >
                     {header.isPlaceholder
                       ? null
@@ -338,14 +375,23 @@ function DataTableInner<TData extends { id?: number | string }, TValue>(
                   key={row.id}
                   data-state={row.getIsSelected() ? "selected" : undefined}
                   className={cn(
-                    "hover:bg-muted/30 transition-colors data-[state=selected]:bg-muted/50",
+                    "transition-colors data-[state=selected]:bg-muted/50",
+                    embedded
+                      ? "border-border/40 hover:bg-muted/30 data-[state=selected]:bg-muted/40"
+                      : "hover:bg-muted/30",
                     row.depth > 0 && "bg-muted/25 border-l-2 border-l-primary/25",
                     (row.original as { isAggregated?: boolean }).isAggregated &&
                       "bg-muted/40 hover:bg-muted/50",
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-2 py-2 align-middle">
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "align-middle",
+                        embedded ? "px-3 py-3" : "px-2 py-2",
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

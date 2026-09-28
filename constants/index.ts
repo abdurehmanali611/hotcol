@@ -74,7 +74,6 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "credit-registrations", label: "Corporate credit", icon: "Building2" },
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
   { id: "hr-employees", label: "Employees", icon: "Users" },
-  { id: "hr-manager-pending", label: "HR approvals", icon: "ClipboardCheck" },
   { id: "hr-otp-reset", label: "OTP resets", icon: "KeyRound" },
   { id: "hr-chat-control", label: "Chat control", icon: "ShieldOff" },
   { id: "hr-workflows", label: "Workflows", icon: "GitBranch" },
@@ -180,7 +179,6 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "item-receipts", label: "Item receipts", icon: "Receipt" },
   { id: "reports-beginnings", label: "Station daily counts", icon: "ClipboardList" },
   { id: "hr-overview", label: "Overview", icon: "LayoutDashboard" },
-  { id: "hr-manager-pending", label: "HR approvals", icon: "ClipboardCheck" },
   { id: "hr-otp-reset", label: "OTP resets", icon: "KeyRound" },
   { id: "hr-chat-control", label: "Chat control", icon: "ShieldOff" },
   { id: "hr-workflows", label: "Workflows", icon: "GitBranch" },
@@ -237,9 +235,63 @@ export function hrPayrollViewFromTab(id: string): HrPayrollView | null {
   return HR_PAYROLL_NAV_ITEMS.find((item) => item.id === id)?.view ?? null;
 }
 
+/**
+ * Nested under HR → Approvals (Manager / Admin).
+ * Legacy flat id `hr-manager-pending` still accepted for deep links / notifications.
+ */
+export const HR_APPROVALS_NAV_ITEMS = [
+  {
+    id: "hr-approvals-terminate",
+    label: "Terminations",
+    kind: "terminate",
+    section: "approvals-terminate",
+  },
+  {
+    id: "hr-approvals-attendance",
+    label: "Attendance",
+    kind: "attendance_correction",
+    section: "approvals-attendance",
+  },
+  {
+    id: "hr-approvals-payroll",
+    label: "Payroll",
+    kind: "payroll_generate",
+    section: "approvals-payroll",
+  },
+] as const;
+
+export type HrApprovalsTabId = (typeof HR_APPROVALS_NAV_ITEMS)[number]["id"];
+export type HrApprovalsKind = (typeof HR_APPROVALS_NAV_ITEMS)[number]["kind"];
+export type HrApprovalsSection =
+  (typeof HR_APPROVALS_NAV_ITEMS)[number]["section"];
+
+export function isHrApprovalsTab(id: string): id is HrApprovalsTabId {
+  return HR_APPROVALS_NAV_ITEMS.some((item) => item.id === id);
+}
+
+export function isHrApprovalsSection(
+  id: string,
+): id is HrApprovalsSection | "manager-pending" {
+  return (
+    id === "manager-pending" ||
+    HR_APPROVALS_NAV_ITEMS.some((item) => item.section === id)
+  );
+}
+
+export function hrApprovalsKindFromTab(id: string): HrApprovalsKind | null {
+  return HR_APPROVALS_NAV_ITEMS.find((item) => item.id === id)?.kind ?? null;
+}
+
+export function hrApprovalsKindFromSection(
+  id: string,
+): HrApprovalsKind | null {
+  return HR_APPROVALS_NAV_ITEMS.find((item) => item.section === id)?.kind ?? null;
+}
+
 /** Manager HR: reports, leave/incident types, departments, attendance + payroll. */
 export const MANAGER_HR_TAB_IDS = [
   "hr-overview",
+  ...HR_APPROVALS_NAV_ITEMS.map((item) => item.id),
   "hr-manager-pending",
   "hr-otp-reset",
   "hr-chat-control",
@@ -255,6 +307,7 @@ export const MANAGER_HR_TAB_IDS = [
 export const HR_WORKSPACE_TAB_IDS = [
   "hr-overview",
   "hr-employees",
+  ...HR_APPROVALS_NAV_ITEMS.map((item) => item.id),
   "hr-manager-pending",
   "hr-otp-reset",
   "hr-chat-control",

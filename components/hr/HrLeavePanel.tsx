@@ -5,16 +5,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { CalendarDays, Check, Plus, X } from "lucide-react";
+import { CalendarDays, Check, ChevronsUpDown, Plus, X } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -26,22 +23,35 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { FilterChipGroup, ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
-import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
-import { HrLeaveTypeEditor } from "@/components/hr/HrLeaveTypeEditor";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
+import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
+import { HrLeaveTypeEditor } from "@/components/hr/HrLeaveTypeEditor";
+import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
+import {
+  HrDialogHeader,
   HrEmptyState,
+  HrFormSection,
   HrPanelShell,
   HrSectionCard,
   HrStatusBadge,
+  HrTableFrame,
+  hrFieldClass,
+  hrPrimaryBtnClass,
+  hrStatusFilterLabelClass,
+  hrStatusFilterTriggerClass,
 } from "@/components/hr/hrChrome";
 import { cn } from "@/lib/utils";
 import {
@@ -60,6 +70,7 @@ import {
   type HrLeaveRequest,
   type HrLeaveType,
 } from "@/lib/api/hr";
+import { Label } from "@/components/ui/label";
 
 type LeaveFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -92,6 +103,126 @@ function actorCanDecideLeaveRow(actorRole: string, row: HrLeaveRequest) {
 function todayYmd() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+type ComboboxOption = { value: string; label: string; hint?: string };
+
+function OptionCombobox({
+  value,
+  onChange,
+  options,
+  placeholder = "Search…",
+  emptyText = "No matches.",
+  disabled = false,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboboxOption[];
+  placeholder?: string;
+  emptyText?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+
+  const filtered = useMemo(() => {
+    if (!query) return options;
+    return options.filter((o) => {
+      const hay = `${o.label} ${o.hint || ""} ${o.value}`.toLowerCase();
+      return hay.includes(query);
+    });
+  }, [options, query]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (disabled) return;
+        setOpen(next);
+        if (!next) setSearch("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className={cn(
+            hrFieldClass,
+            "justify-between font-normal",
+            className,
+          )}
+        >
+          <span
+            className={cn(
+              "min-w-0 truncate text-left",
+              selected ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {selected?.label || placeholder}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search…"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {filtered.length === 0 ? (
+              <CommandEmpty>{emptyText}</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filtered.map((o) => {
+                  const on = o.value === value;
+                  return (
+                    <CommandItem
+                      key={o.value}
+                      value={`${o.value}-${o.label}`}
+                      onSelect={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4 shrink-0",
+                          on ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {o.label}
+                        {o.hint ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {o.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function HrLeavePanel({
@@ -327,9 +458,9 @@ export function HrLeavePanel({
           title="Leave types"
           description="Manager-configured categories HR uses when filing leave. Default days become the starting balance for new employees."
           icon={
-            <CalendarDays className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            <CalendarDays className="h-5 w-5" />
           }
-          accent="bg-linear-to-r from-violet-500 via-fuchsia-400 to-primary/70"
+          accent="bg-linear-to-r from-violet-500 via-indigo-400 to-indigo-400/80"
         >
           <HrLeaveTypeEditor />
         </HrSectionCard>
@@ -342,9 +473,15 @@ export function HrLeavePanel({
             ? "Approve or reject pending leave. Approving paid leave reduces the matching balance."
             : "File leave for employees here. HR, Manager, or Admin reviews each request."
         }
+        icon={<CalendarDays className="h-5 w-5" />}
+        accent="bg-linear-to-r from-violet-500 via-violet-400 to-indigo-400/80"
         actions={
           canFileLeave ? (
-            <Button onClick={openCreate} disabled={!activeEmployees.length}>
+            <Button
+              onClick={openCreate}
+              disabled={!activeEmployees.length}
+              className={hrPrimaryBtnClass}
+            >
               <Plus className="mr-2 h-4 w-4" />
               File leave
             </Button>
@@ -352,30 +489,41 @@ export function HrLeavePanel({
         }
       >
         <div className="space-y-4">
-          <ListPanelFilterBar
-            showClear={filter !== "all"}
-            onClear={() => setFilter("all")}
-          >
-            <FilterChipGroup
-              label="Status"
-              value={filter}
-              onChange={setFilter}
-              options={[
-                { id: "all", label: "All" },
-                { id: "pending", label: "Pending" },
-                { id: "approved", label: "Approved" },
-                { id: "rejected", label: "Rejected" },
-              ]}
-            />
-          </ListPanelFilterBar>
+          <div className="flex justify-end">
+            <div className="w-full max-w-[14rem] space-y-1.5">
+              <Label
+                className={cn(
+                  "text-xs font-medium",
+                  hrStatusFilterLabelClass(filter),
+                )}
+              >
+                Status
+              </Label>
+              <HrOptionCombobox
+                value={filter}
+                onChange={(v) => setFilter(v as LeaveFilter)}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "pending", label: "Pending" },
+                  { value: "approved", label: "Approved" },
+                  { value: "rejected", label: "Rejected" },
+                ]}
+                placeholder="Filter status…"
+                emptyText="No statuses."
+                className={hrStatusFilterTriggerClass(filter)}
+              />
+            </div>
+          </div>
           {filtered.length ? (
-            <DataTable
-              columns={columns}
-              data={filtered}
-              searchPlaceholder="Search leave…"
-              emptyMessage="No leave in this filter."
-              pageSize={8}
-            />
+            <HrTableFrame>
+              <DataTable
+                embedded columns={columns}
+                data={filtered}
+                searchPlaceholder="Search leave…"
+                emptyMessage="No leave in this filter."
+                pageSize={8}
+              />
+            </HrTableFrame>
           ) : (
             <HrEmptyState
               title="No leave requests yet"
@@ -391,19 +539,16 @@ export function HrLeavePanel({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className={responsiveFormDialogClassName}>
-          <DialogHeader>
-            <DialogTitle>File leave request</DialogTitle>
-            <DialogDescription>
-              Submit leave on behalf of an employee. The manager will approve or
-              reject it.
-            </DialogDescription>
-          </DialogHeader>
+          <HrDialogHeader
+            title="File leave request"
+            description="Submit leave on behalf of an employee. The manager will approve or reject it."
+          />
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-5"
             >
-              <HotelFormSection title="Request details">
+              <HrFormSection title="Request details">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -411,23 +556,18 @@ export function HrLeavePanel({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Employee</FormLabel>
-                        <Select
-                          value={field.value ? String(field.value) : ""}
-                          onValueChange={(v) => field.onChange(Number(v))}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="h-10 w-full bg-background">
-                              <SelectValue placeholder="Select employee" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent position="popper">
-                            {activeEmployees.map((emp) => (
-                              <SelectItem key={emp.id} value={String(emp.id)}>
-                                {emp.fullName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <HrEmployeeCombobox
+                            employees={activeEmployees}
+                            valueIds={field.value ? [field.value] : []}
+                            onChange={(ids) =>
+                              field.onChange(ids[0] ?? 0)
+                            }
+                            placeholder="Search employee…"
+                            emptyText="No employees found."
+                            triggerClassName={hrFieldClass}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -438,23 +578,20 @@ export function HrLeavePanel({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Leave type</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="h-10 w-full bg-background">
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent position="popper">
-                            {leaveTypes.map((type) => (
-                              <SelectItem key={type.code} value={type.code}>
-                                {type.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <OptionCombobox
+                            value={field.value || ""}
+                            onChange={field.onChange}
+                            options={leaveTypes.map((type) => ({
+                              value: type.code,
+                              label: type.label,
+                              hint: type.code,
+                            }))}
+                            placeholder="Search leave type…"
+                            emptyText="No leave types found."
+                            disabled={!leaveTypes.length}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -509,14 +646,14 @@ export function HrLeavePanel({
                     control={form.control}
                     name="days"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="sm:col-span-2 mx-auto w-full max-w-[10rem] text-center">
                         <FormLabel>Days</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
                             min={0.5}
                             step={0.5}
-                            className="h-10 bg-background"
+                            className={cn(hrFieldClass, "text-center tabular-nums")}
                             {...field}
                           />
                         </FormControl>
@@ -531,18 +668,21 @@ export function HrLeavePanel({
                       <FormItem className="sm:col-span-2">
                         <FormLabel>Reason</FormLabel>
                         <FormControl>
-                          <Textarea className="bg-background" {...field} />
+                          <Textarea
+                            className="min-h-24 border-violet-500/20 bg-background focus-visible:border-violet-500/50 focus-visible:ring-violet-500/25"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-              </HotelFormSection>
+              </HrFormSection>
               <PendingButton
                 type="submit"
                 pending={pending}
-                className="h-11 w-full shadow-md"
+                className={cn("h-11 w-full", hrPrimaryBtnClass)}
                 disabled={!leaveTypes.length}
               >
                 Submit for approval

@@ -16,13 +16,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PendingButton } from "@/components/ui/pending-button";
-import { FilterChipGroup, ListPanelFilterBar } from "@/components/hotel/ListPanelFilterBar";
 import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
 import {
   HrEmptyState,
+  HrFilterBar,
+  HrFilterChips,
   HrPanelShell,
   HrSectionCard,
+  HrTableFrame,
+  hrFieldClass,
+  hrPrimaryBtnClass,
 } from "@/components/hr/hrChrome";
+import { cn } from "@/lib/utils";
 import {
   HR_DOC_LABELS,
   HR_DOC_TYPES,
@@ -131,17 +136,17 @@ export function HrDocumentsPanel({
       <HrSectionCard
         title="Add document"
         description="Store title, type, and an optional file link on the employee file."
-        icon={<FileText className="h-5 w-5 text-slate-600 dark:text-slate-300" />}
-        accent="bg-linear-to-r from-slate-500 via-sky-400 to-primary/70"
+        icon={<FileText className="h-5 w-5" />}
+        accent="bg-linear-to-r from-indigo-500 via-violet-400 to-indigo-400/70"
       >
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 rounded-xl border border-violet-500/15 bg-linear-to-br from-violet-500/5 to-indigo-500/5 p-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Employee</Label>
             <Select
               value={form.employeeId}
               onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}
             >
-              <SelectTrigger className="h-10 bg-background">
+              <SelectTrigger className={hrFieldClass}>
                 <SelectValue placeholder="Select employee" />
               </SelectTrigger>
               <SelectContent>
@@ -159,7 +164,7 @@ export function HrDocumentsPanel({
               value={form.docType}
               onValueChange={(v) => setForm((f) => ({ ...f, docType: v }))}
             >
-              <SelectTrigger className="h-10 bg-background">
+              <SelectTrigger className={hrFieldClass}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -174,7 +179,7 @@ export function HrDocumentsPanel({
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Title</Label>
             <Input
-              className="h-10 bg-background"
+              className={hrFieldClass}
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             />
@@ -182,7 +187,7 @@ export function HrDocumentsPanel({
           <div className="space-y-1.5 sm:col-span-2">
             <Label>File URL</Label>
             <Input
-              className="h-10 bg-background"
+              className={hrFieldClass}
               placeholder="https://…"
               value={form.fileUrl}
               onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))}
@@ -190,6 +195,7 @@ export function HrDocumentsPanel({
           </div>
           <PendingButton
             pending={pending}
+            className={cn("sm:col-span-2", hrPrimaryBtnClass)}
             onClick={async () => {
               const parsed = parseHrConstraint(hrDocumentFormSchema, {
                 ...form,
@@ -222,8 +228,8 @@ export function HrDocumentsPanel({
 
       <HrSectionCard title="Document file" description="Filter by type and open linked files.">
         <div className="space-y-4">
-          <ListPanelFilterBar showClear={filter !== "all"} onClear={() => setFilter("all")}>
-            <FilterChipGroup
+          <HrFilterBar showClear={filter !== "all"} onClear={() => setFilter("all")}>
+            <HrFilterChips
               label="Type"
               value={filter}
               onChange={setFilter}
@@ -232,14 +238,16 @@ export function HrDocumentsPanel({
                 ...HR_DOC_TYPES.map((t) => ({ id: t, label: HR_DOC_LABELS[t] })),
               ]}
             />
-          </ListPanelFilterBar>
+          </HrFilterBar>
           {filtered.length ? (
-            <DataTable
-              columns={columns}
-              data={filtered}
-              searchPlaceholder="Search documents…"
-              pageSize={8}
-            />
+            <HrTableFrame>
+              <DataTable
+                embedded columns={columns}
+                data={filtered}
+                searchPlaceholder="Search documents…"
+                pageSize={8}
+              />
+            </HrTableFrame>
           ) : (
             <HrEmptyState
               title="No documents in this view"

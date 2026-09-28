@@ -20,25 +20,25 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HotelMultiDayPicker } from "@/components/hotel/HotelMultiDayPicker";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
-import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
+import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
+import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
 import {
   HrEmptyState,
+  HrFormSection,
   HrPanelShell,
   HrSectionCard,
   HrStatusBadge,
+  HrTableFrame,
+  hrFieldClass,
+  hrPrimaryBtnClass,
+  hrStatusFilterLabelClass,
+  hrStatusFilterTriggerClass,
 } from "@/components/hr/hrChrome";
+import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
 import { hrShiftFormSchema, parseHrConstraint } from "@/lib/hrConstraints";
 import {
   activeHrDepartments,
@@ -62,9 +62,17 @@ import {
 } from "@/lib/hrPendingApproval";
 import { cn } from "@/lib/utils";
 
+const ATTENDANCE_STATUS_OPTIONS = [
+  { value: "present", label: "Present" },
+  { value: "late", label: "Late" },
+  { value: "absent", label: "Absent" },
+  { value: "half_day", label: "Half day" },
+  { value: "on_leave", label: "On leave" },
+] as const;
+
 const fieldClass = "min-w-0";
-const triggerClass = "h-10 w-full min-w-0 justify-between bg-background";
-const inputClass = "h-10 w-full min-w-0 bg-background";
+const triggerClass = cn(hrFieldClass, "justify-between");
+const inputClass = hrFieldClass;
 
 const WEEKDAY_OPTIONS = [
   { id: 1, label: "Mon" },
@@ -160,6 +168,12 @@ export function HrAttendancePanel({
   const [hrDepartments, setHrDepartments] = useState<HrDepartmentSetting[]>(
     [],
   );
+  const [filterFrom, setFilterFrom] = useState(() =>
+    addDaysYmd(todayYmd(), -13),
+  );
+  const [filterTo, setFilterTo] = useState(() => todayYmd());
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterEmployeeId, setFilterEmployeeId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,6 +208,29 @@ export function HrAttendancePanel({
         (e.department || "").toLowerCase().includes(q),
     );
   }, [clockEmployees, clockSearch]);
+
+  const filteredAttendance = useMemo(() => {
+    return attendance.filter((row) => {
+      if (filterFrom && row.workDate < filterFrom) return false;
+      if (filterTo && row.workDate > filterTo) return false;
+      if (filterStatus !== "all" && row.status !== filterStatus) return false;
+      if (filterEmployeeId != null && row.employeeId !== filterEmployeeId) {
+        return false;
+      }
+      return true;
+    });
+  }, [attendance, filterFrom, filterTo, filterStatus, filterEmployeeId]);
+
+  const filteredShifts = useMemo(() => {
+    return shifts.filter((row) => {
+      if (filterFrom && row.workDate < filterFrom) return false;
+      if (filterTo && row.workDate > filterTo) return false;
+      if (filterEmployeeId != null && row.employeeId !== filterEmployeeId) {
+        return false;
+      }
+      return true;
+    });
+  }, [shifts, filterFrom, filterTo, filterEmployeeId]);
 
   const allFilteredSelected =
     filteredClockEmployees.length > 0 &&
@@ -360,10 +397,10 @@ export function HrAttendancePanel({
           icon={
             <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
           }
-          accent="bg-linear-to-r from-sky-500 via-cyan-400 to-primary/70"
+          accent="bg-linear-to-r from-sky-500 via-indigo-400 to-violet-400/80"
         >
           <div className="grid items-stretch gap-5 lg:grid-cols-2">
-            <HotelFormSection
+            <HrFormSection
               className="flex h-full flex-col"
               title="Record clock"
               description="Check one or more employees, then clock them in or out for today. Staff do not clock themselves here."
@@ -374,7 +411,7 @@ export function HrAttendancePanel({
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant="secondary"
-                      className="font-normal tabular-nums"
+                      className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
                     >
                       {clockEmployeeIds.length} selected
                     </Badge>
@@ -382,7 +419,7 @@ export function HrAttendancePanel({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-2 text-xs"
+                      className="h-8 px-2 text-xs text-violet-800 hover:bg-violet-500/15 dark:text-violet-200"
                       disabled={
                         !filteredClockEmployees.length || clocking !== null
                       }
@@ -394,19 +431,19 @@ export function HrAttendancePanel({
                 </div>
 
                 <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-violet-600/70" />
                   <Input
                     value={clockSearch}
                     onChange={(e) => setClockSearch(e.target.value)}
                     placeholder="Search by name or department…"
-                    className="h-10 bg-background pl-9"
+                    className={cn(hrFieldClass, "pl-9")}
                     disabled={clocking !== null}
                   />
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-violet-500/20 bg-background shadow-sm ring-1 ring-violet-500/10">
                   <ScrollArea className="h-full max-h-[min(280px,40vh)]">
-                    <ul className="divide-y divide-border/60 p-1">
+                    <ul className="divide-y divide-violet-500/10 p-1">
                       {filteredClockEmployees.length ? (
                         filteredClockEmployees.map((e) => {
                           const checked = clockEmployeeIds.includes(e.id);
@@ -418,8 +455,8 @@ export function HrAttendancePanel({
                                 className={cn(
                                   "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
                                   checked
-                                    ? "bg-sky-500/8"
-                                    : "hover:bg-muted/40",
+                                    ? "bg-violet-500/10"
+                                    : "hover:bg-violet-500/5",
                                   clocking !== null &&
                                     "pointer-events-none opacity-60",
                                 )}
@@ -443,7 +480,7 @@ export function HrAttendancePanel({
                                   ) : null}
                                 </span>
                                 {checked ? (
-                                  <Check className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+                                  <Check className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
                                 ) : null}
                               </label>
                             </li>
@@ -486,7 +523,7 @@ export function HrAttendancePanel({
                 <PendingButton
                   pending={clocking === "in"}
                   disabled={clocking === "out" || !clockEmployeeIds.length}
-                  className="h-11 gap-2"
+                  className={cn("h-11 gap-2", hrPrimaryBtnClass)}
                   onClick={() => void handleClock("in")}
                 >
                   <LogIn className="h-4 w-4" />
@@ -499,7 +536,7 @@ export function HrAttendancePanel({
                   pending={clocking === "out"}
                   disabled={clocking === "in" || !clockEmployeeIds.length}
                   variant="outline"
-                  className="h-11 gap-2"
+                  className="h-11 gap-2 border-violet-500/30 hover:bg-violet-500/10"
                   onClick={() => void handleClock("out")}
                 >
                   <LogOut className="h-4 w-4" />
@@ -509,9 +546,9 @@ export function HrAttendancePanel({
                     : ""}
                 </PendingButton>
               </div>
-            </HotelFormSection>
+            </HrFormSection>
 
-            <HotelFormSection
+            <HrFormSection
               className="flex h-full flex-col"
               title="Schedule"
               description="Pick multiple calendar days and/or weekdays in a range. Department comes from the manager’s registry."
@@ -520,9 +557,10 @@ export function HrAttendancePanel({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className={cn("space-y-1.5 sm:col-span-2", fieldClass)}>
                     <Label htmlFor="hr-shift-employee">Employee</Label>
-                    <Select
+                    <HrOptionCombobox
+                      id="hr-shift-employee"
                       value={shiftForm.employeeId}
-                      onValueChange={(v) => {
+                      onChange={(v) => {
                         const emp = rosterEmployees.find(
                           (e) => String(e.id) === v,
                         );
@@ -539,53 +577,38 @@ export function HrAttendancePanel({
                           department: deptCode || f.department,
                         }));
                       }}
-                    >
-                      <SelectTrigger
-                        id="hr-shift-employee"
-                        className={triggerClass}
-                      >
-                        <SelectValue placeholder="Who is scheduled?" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rosterEmployees.map((e) => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {e.fullName}
-                            {e.status === "on_leave" ? " (on leave)" : ""}
-                            {e.department ? ` · ${e.department}` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={rosterEmployees.map((e) => ({
+                        value: String(e.id),
+                        label: `${e.fullName}${e.status === "on_leave" ? " (on leave)" : ""}`,
+                        hint: e.department || undefined,
+                      }))}
+                      placeholder="Who is scheduled?"
+                      emptyText="No employees found."
+                      className={triggerClass}
+                    />
                   </div>
 
                   <div className={cn("space-y-1.5 sm:col-span-2", fieldClass)}>
                     <Label htmlFor="hr-shift-department">Department</Label>
-                    <Select
-                      value={shiftForm.department || undefined}
-                      onValueChange={(v) =>
+                    <HrOptionCombobox
+                      id="hr-shift-department"
+                      value={shiftForm.department}
+                      onChange={(v) =>
                         setShiftForm((f) => ({ ...f, department: v }))
                       }
-                    >
-                      <SelectTrigger
-                        id="hr-shift-department"
-                        className={triggerClass}
-                      >
-                        <SelectValue
-                          placeholder={
-                            hrDepartments.length
-                              ? "Select department"
-                              : "Register departments first"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {hrDepartments.map((d) => (
-                          <SelectItem key={d.code} value={d.code}>
-                            {d.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={hrDepartments.map((d) => ({
+                        value: d.code,
+                        label: d.label,
+                      }))}
+                      placeholder={
+                        hrDepartments.length
+                          ? "Select department"
+                          : "Register departments first"
+                      }
+                      emptyText="No departments found."
+                      disabled={!hrDepartments.length}
+                      className={triggerClass}
+                    />
                     {!hrDepartments.length ? (
                       <p className="text-xs text-muted-foreground">
                         Manager (hotel) or Admin (café) registers departments
@@ -627,7 +650,7 @@ export function HrAttendancePanel({
                   </div>
                 </div>
 
-                <div className="space-y-3 rounded-xl border border-border/60 bg-background/80 p-3">
+                <div className="space-y-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
                   <HotelMultiDayPicker
                     label="Shift dates"
                     values={shiftForm.workDates}
@@ -643,7 +666,7 @@ export function HrAttendancePanel({
                         <Badge
                           key={ymd}
                           variant="secondary"
-                          className="gap-1 font-normal tabular-nums"
+                          className="gap-1 border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
                         >
                           {ymd}
                           <button
@@ -665,7 +688,7 @@ export function HrAttendancePanel({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-xs"
+                        className="h-6 px-2 text-xs text-violet-800 hover:bg-violet-500/15"
                         onClick={() =>
                           setShiftForm((f) => ({ ...f, workDates: [] }))
                         }
@@ -676,7 +699,7 @@ export function HrAttendancePanel({
                   ) : null}
                 </div>
 
-                <div className="space-y-3 rounded-xl border border-border/60 bg-background/80 p-3">
+                <div className="space-y-3 rounded-xl border border-violet-500/20 bg-indigo-500/5 p-3">
                   <div className="space-y-1.5">
                     <Label>Weekdays in range</Label>
                     <p className="text-xs text-muted-foreground">
@@ -692,7 +715,12 @@ export function HrAttendancePanel({
                             type="button"
                             size="sm"
                             variant={on ? "default" : "outline"}
-                            className="h-8 min-w-11 px-2"
+                            className={cn(
+                              "h-8 min-w-11 rounded-full px-2",
+                              on
+                                ? "border-violet-600 bg-violet-600 text-white shadow-sm shadow-violet-600/25 hover:bg-violet-600/90"
+                                : "border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/10",
+                            )}
                             onClick={() =>
                               setShiftForm((f) => ({
                                 ...f,
@@ -741,7 +769,7 @@ export function HrAttendancePanel({
                   <Button
                     type="button"
                     variant="secondary"
-                    className="w-full sm:w-auto"
+                    className="w-full border-violet-500/25 bg-violet-500/10 text-violet-900 hover:bg-violet-500/15 dark:text-violet-100 sm:w-auto"
                     disabled={!shiftForm.weekdayIds.length}
                     onClick={() => {
                       const added = ymdsForWeekdaysInRange(
@@ -767,25 +795,31 @@ export function HrAttendancePanel({
                 </div>
               </div>
 
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-violet-500/15 pt-4">
                 <div className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <CalendarClock className="h-4 w-4 shrink-0" />
+                  <CalendarClock className="h-4 w-4 shrink-0 text-violet-600" />
                   <span className="tabular-nums">
                     {shiftForm.startTime || "—"} – {shiftForm.endTime || "—"}
                   </span>
-                  <Badge variant="secondary" className="font-normal tabular-nums">
+                  <Badge
+                    variant="secondary"
+                    className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
+                  >
                     {shiftForm.workDates.length} day
                     {shiftForm.workDates.length === 1 ? "" : "s"}
                   </Badge>
                   {overnight ? (
-                    <Badge variant="secondary" className="font-normal">
+                    <Badge
+                      variant="secondary"
+                      className="border-indigo-500/20 bg-indigo-500/10 font-normal text-indigo-900 dark:text-indigo-200"
+                    >
                       Overnight
                     </Badge>
                   ) : null}
                 </div>
                 <PendingButton
                   pending={pending}
-                  className="min-w-36"
+                  className={cn("min-w-36", hrPrimaryBtnClass)}
                   onClick={async () => {
                     if (!shiftForm.workDates.length) {
                       toast.error("Select at least one shift date");
@@ -845,7 +879,7 @@ export function HrAttendancePanel({
                     : ""}
                 </PendingButton>
               </div>
-            </HotelFormSection>
+            </HrFormSection>
           </div>
         </HrSectionCard>
 
@@ -855,57 +889,51 @@ export function HrAttendancePanel({
           icon={<ClipboardList className="h-5 w-5" />}
           accent="bg-linear-to-r from-amber-500 to-orange-400"
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className={fieldClass}>
+          <div className="grid gap-4 rounded-xl border border-amber-500/20 bg-linear-to-br from-amber-500/8 via-muted/10 to-violet-500/5 p-4 sm:grid-cols-2">
+            <div className={cn("space-y-1.5", fieldClass)}>
               <Label>Employee</Label>
-              <Select
-                value={correctForm.employeeId || undefined}
-                onValueChange={(v) =>
-                  setCorrectForm((f) => ({ ...f, employeeId: v }))
+              <HrEmployeeCombobox
+                employees={rosterEmployees}
+                valueIds={
+                  correctForm.employeeId
+                    ? [Number(correctForm.employeeId)]
+                    : []
                 }
-              >
-                <SelectTrigger className={triggerClass}>
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rosterEmployees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(ids) =>
+                  setCorrectForm((f) => ({
+                    ...f,
+                    employeeId: ids[0] != null ? String(ids[0]) : "",
+                  }))
+                }
+                placeholder="Search employee…"
+                emptyText="No employees found."
+                triggerClassName={triggerClass}
+              />
             </div>
-            <div className={fieldClass}>
+            <div className={cn("space-y-1.5", fieldClass)}>
               <Label>Work date</Label>
               <HotelDayPicker
                 value={correctForm.workDate}
                 onChange={(v) =>
                   setCorrectForm((f) => ({ ...f, workDate: v || todayYmd() }))
                 }
+                buttonClassName={cn(inputClass, "justify-start font-normal")}
               />
             </div>
-            <div className={fieldClass}>
+            <div className={cn("space-y-1.5", fieldClass)}>
               <Label>Status</Label>
-              <Select
+              <HrOptionCombobox
                 value={correctForm.status}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   setCorrectForm((f) => ({ ...f, status: v }))
                 }
-              >
-                <SelectTrigger className={triggerClass}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="present">Present</SelectItem>
-                  <SelectItem value="late">Late</SelectItem>
-                  <SelectItem value="absent">Absent</SelectItem>
-                  <SelectItem value="half_day">Half day</SelectItem>
-                  <SelectItem value="on_leave">On leave</SelectItem>
-                </SelectContent>
-              </Select>
+                options={[...ATTENDANCE_STATUS_OPTIONS]}
+                placeholder="Select status"
+                emptyText="No statuses."
+                className={triggerClass}
+              />
             </div>
-            <div className={fieldClass}>
+            <div className={cn("space-y-1.5", fieldClass)}>
               <Label>Notes</Label>
               <Input
                 className={inputClass}
@@ -916,39 +944,39 @@ export function HrAttendancePanel({
                 placeholder="Reason for correction"
               />
             </div>
-          </div>
-          <PendingButton
-            className="mt-4"
-            pending={pending}
-            onClick={async () => {
-              const employeeId = Number(correctForm.employeeId);
-              if (!employeeId) {
-                toast.error("Select an employee");
-                return;
-              }
-              setPending(true);
-              try {
-                await upsertHrAttendanceApi({
-                  employeeId,
-                  workDate: correctForm.workDate,
-                  status: correctForm.status,
-                  notes: correctForm.notes,
-                });
-                toast.success("Attendance updated");
-                await onRefresh();
-              } catch (e) {
-                if (isPendingManagerApprovalError(e)) {
-                  toast.success(pendingManagerApprovalMessage(e));
+            <PendingButton
+              className={cn("sm:col-span-2", hrPrimaryBtnClass)}
+              pending={pending}
+              onClick={async () => {
+                const employeeId = Number(correctForm.employeeId);
+                if (!employeeId) {
+                  toast.error("Select an employee");
                   return;
                 }
-                notifyApiFailure(e, "Correction failed");
-              } finally {
-                setPending(false);
-              }
-            }}
-          >
-            Submit correction
-          </PendingButton>
+                setPending(true);
+                try {
+                  await upsertHrAttendanceApi({
+                    employeeId,
+                    workDate: correctForm.workDate,
+                    status: correctForm.status,
+                    notes: correctForm.notes,
+                  });
+                  toast.success("Attendance updated");
+                  await onRefresh();
+                } catch (e) {
+                  if (isPendingManagerApprovalError(e)) {
+                    toast.success(pendingManagerApprovalMessage(e));
+                    return;
+                  }
+                  notifyApiFailure(e, "Correction failed");
+                } finally {
+                  setPending(false);
+                }
+              }}
+            >
+              Submit correction
+            </PendingButton>
+          </div>
         </HrSectionCard>
         </>
       ) : (
@@ -958,7 +986,7 @@ export function HrAttendancePanel({
           icon={
             <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
           }
-          accent="bg-linear-to-r from-sky-500 via-cyan-400 to-primary/70"
+          accent="bg-linear-to-r from-sky-500 via-indigo-400 to-violet-400/80"
         >
           <p className="text-sm leading-relaxed text-muted-foreground">
             Review all clock records and scheduled shifts below. Clock in/out and
@@ -968,44 +996,198 @@ export function HrAttendancePanel({
         </HrSectionCard>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-2xl border border-sky-500/20 bg-linear-to-br from-sky-500/8 via-card to-violet-500/5 p-4 shadow-sm ring-1 ring-sky-500/10 sm:p-5">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold tracking-tight">
+                Filter records
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Narrow attendance and shifts by date, type, and employee.
+              </p>
+            </div>
+            {(filterStatus !== "all" ||
+              filterEmployeeId != null ||
+              filterFrom !== addDaysYmd(todayYmd(), -13) ||
+              filterTo !== todayYmd()) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 cursor-pointer text-xs text-violet-800 hover:bg-violet-500/10 dark:text-violet-200"
+                onClick={() => {
+                  setFilterFrom(addDaysYmd(todayYmd(), -13));
+                  setFilterTo(todayYmd());
+                  setFilterStatus("all");
+                  setFilterEmployeeId(null);
+                }}
+              >
+                Reset filters
+              </Button>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-sky-800/80 dark:text-sky-300/90">
+                From
+              </Label>
+              <HotelDayPicker
+                value={filterFrom}
+                onChange={(v) => {
+                  const next = v || filterFrom;
+                  setFilterFrom(next);
+                  if (filterTo && next > filterTo) setFilterTo(next);
+                }}
+                buttonClassName={cn(
+                  hrFieldClass,
+                  "justify-start border-sky-500/25 bg-sky-500/5 font-normal hover:bg-sky-500/10",
+                )}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-sky-800/80 dark:text-sky-300/90">
+                To
+              </Label>
+              <HotelDayPicker
+                value={filterTo}
+                onChange={(v) => {
+                  const next = v || filterTo;
+                  setFilterTo(next);
+                  if (filterFrom && next < filterFrom) setFilterFrom(next);
+                }}
+                buttonClassName={cn(
+                  hrFieldClass,
+                  "justify-start border-sky-500/25 bg-sky-500/5 font-normal hover:bg-sky-500/10",
+                )}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label
+                className={cn(
+                  "text-xs font-medium",
+                  hrStatusFilterLabelClass(filterStatus),
+                )}
+              >
+                Type
+              </Label>
+              <HrOptionCombobox
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={[
+                  { value: "all", label: "All types" },
+                  ...ATTENDANCE_STATUS_OPTIONS,
+                ]}
+                placeholder="Filter type…"
+                emptyText="No types."
+                className={hrStatusFilterTriggerClass(filterStatus)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-violet-700/90 dark:text-violet-400">
+                Employee
+              </Label>
+              <HrEmployeeCombobox
+                employees={employees}
+                valueIds={filterEmployeeId != null ? [filterEmployeeId] : []}
+                onChange={(ids) => setFilterEmployeeId(ids[0] ?? null)}
+                placeholder="All employees"
+                emptyText="No employees found."
+                triggerClassName={cn(
+                  hrFieldClass,
+                  "justify-between border-violet-500/30 bg-violet-500/10 font-medium text-violet-800 hover:bg-violet-500/15 dark:text-violet-300",
+                )}
+              />
+            </div>
+          </div>
+        </div>
+
         <HrSectionCard
           title="Attendance"
-          description="Times HR recorded (or devices will record later)."
+          description="Clock records HR entered (or devices will record later)."
           icon={<Clock3 className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
+          accent="bg-linear-to-r from-sky-500 via-cyan-400 to-indigo-400/80"
         >
-          {attendance.length ? (
-            <DataTable
-              columns={attendanceColumns}
-              data={attendance}
-              searchPlaceholder="Search attendance…"
-              pageSize={8}
-            />
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge
+              variant="secondary"
+              className="border-sky-500/20 bg-sky-500/10 font-normal tabular-nums text-sky-900 dark:text-sky-200"
+            >
+              {filteredAttendance.length} record
+              {filteredAttendance.length === 1 ? "" : "s"}
+            </Badge>
+            {filterStatus !== "all" ? (
+              <span>
+                Type ·{" "}
+                {ATTENDANCE_STATUS_OPTIONS.find((o) => o.value === filterStatus)
+                  ?.label ?? filterStatus}
+              </span>
+            ) : null}
+          </div>
+          {filteredAttendance.length ? (
+            <HrTableFrame>
+              <DataTable
+                embedded
+                columns={attendanceColumns}
+                data={filteredAttendance}
+                searchPlaceholder="Search attendance…"
+                pageSize={10}
+              />
+            </HrTableFrame>
           ) : (
             <HrEmptyState
-              title="No attendance yet"
-              description="Record a clock in for someone to see it here."
+              title={
+                attendance.length
+                  ? "No attendance in this filter"
+                  : "No attendance yet"
+              }
+              description={
+                attendance.length
+                  ? "Widen the date range or clear type / employee filters."
+                  : "Record a clock in for someone to see it here."
+              }
             />
           )}
         </HrSectionCard>
+
         <HrSectionCard
           title="Shifts"
-          description="Scheduled coverage, including overnight rows."
+          description="Scheduled coverage for the selected dates, including overnight rows."
           icon={
-            <CalendarClock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+            <CalendarClock className="h-5 w-5 text-violet-600 dark:text-violet-400" />
           }
+          accent="bg-linear-to-r from-violet-500 via-indigo-400 to-sky-400/80"
         >
-          {shifts.length ? (
-            <DataTable
-              columns={shiftColumns}
-              data={shifts}
-              searchPlaceholder="Search shifts…"
-              pageSize={8}
-            />
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge
+              variant="secondary"
+              className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
+            >
+              {filteredShifts.length} shift
+              {filteredShifts.length === 1 ? "" : "s"}
+            </Badge>
+            <span>Uses the same date and employee filters above.</span>
+          </div>
+          {filteredShifts.length ? (
+            <HrTableFrame>
+              <DataTable
+                embedded
+                columns={shiftColumns}
+                data={filteredShifts}
+                searchPlaceholder="Search shifts…"
+                pageSize={10}
+              />
+            </HrTableFrame>
           ) : (
             <HrEmptyState
-              title="No shifts yet"
-              description="Add a shift schedule to build the roster."
+              title={
+                shifts.length ? "No shifts in this filter" : "No shifts yet"
+              }
+              description={
+                shifts.length
+                  ? "Widen the date range or clear the employee filter."
+                  : "Add a shift schedule to build the roster."
+              }
             />
           )}
         </HrSectionCard>

@@ -172,6 +172,18 @@ export function StoreItemRegistrationReceipt({
         isBulk && "receipt-bulk-print-doc",
       )}
     >
+      <style>{`
+        @media print {
+          .receipt-keep-together {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .receipt-items-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+        }
+      `}</style>
       <div
         className={cn(
           "px-8 pt-8 pb-5 print:px-6 print:pt-6",
@@ -283,52 +295,69 @@ export function StoreItemRegistrationReceipt({
 
       <Separator className="mx-8 bg-zinc-200 print:mx-6" />
 
-      <div className="px-8 py-6 grid grid-cols-2 gap-8 text-sm print:px-6">
-        <section className="space-y-2.5">
+      <div className="space-y-6 px-8 py-6 text-sm print:px-6">
+        <section className="min-w-0 space-y-2.5">
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
             Item{isMulti ? "s" : ""}
           </h3>
           {isMulti ? (
-            <table
-              className={cn(
-                "w-full text-sm border-collapse",
-                isBulk && "text-xs print:text-[10px]",
-              )}
-            >
-              <thead>
-                <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
-                  <th className="py-2 pr-2">Voucher</th>
-                  <th className="py-2 pr-2">Item</th>
-                  <th className="py-2 pr-2 text-right">Qty</th>
-                  <th className="py-2 pr-2 text-right">Unit</th>
-                  <th className="py-2 text-right">Line total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line) => (
-                  <tr key={line.id} className="border-b border-zinc-100">
-                    <td className="py-2.5 pr-2 font-mono text-xs text-zinc-600">
-                      {line.voucherDisplay || line.voucherNumber || "-"}
-                    </td>
-                    <td className="py-2.5 pr-2">
-                      <p className="font-medium">{line.name}</p>
-                      {line.notes ? (
-                        <p className="text-[11px] text-zinc-500 mt-0.5">{line.notes}</p>
-                      ) : null}
-                    </td>
-                    <td className="py-2.5 pr-2 text-right tabular-nums text-zinc-600">
-                      {formatQtyWithUnit(line.quantity, line.measuredBy)}
-                    </td>
-                    <td className="py-2.5 pr-2 text-right tabular-nums">
-                      {line.unitPrice != null ? line.unitPrice.toLocaleString() : "-"}
-                    </td>
-                    <td className="py-2.5 text-right tabular-nums font-medium">
-                      {line.lineTotal != null ? line.lineTotal.toLocaleString() : "-"}
-                    </td>
+            <div className="min-w-0 overflow-hidden">
+              <table
+                className={cn(
+                  "receipt-items-table w-full table-fixed text-sm border-collapse",
+                  isBulk && "text-xs print:text-[10px]",
+                )}
+              >
+                <colgroup>
+                  <col className="w-[14%]" />
+                  <col className="w-[42%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                    <th className="py-2 pr-2">Voucher</th>
+                    <th className="py-2 pr-2">Item</th>
+                    <th className="py-2 pr-2 text-right">Qty</th>
+                    <th className="py-2 pr-2 text-right">Unit</th>
+                    <th className="py-2 text-right">Line total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {lines.map((line) => (
+                    <tr key={line.id} className="border-b border-zinc-100">
+                      <td className="py-2.5 pr-2 align-top font-mono text-xs text-zinc-600 break-all">
+                        {line.voucherDisplay || line.voucherNumber || "-"}
+                      </td>
+                      <td className="py-2.5 pr-2 align-top min-w-0">
+                        <p className="font-medium wrap-anywhere">
+                          {line.name}
+                        </p>
+                        {line.notes ? (
+                          <p className="text-[11px] text-zinc-500 mt-0.5 wrap-anywhere">
+                            {line.notes}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="py-2.5 pr-2 align-top text-right tabular-nums text-zinc-600 whitespace-nowrap">
+                        {formatQtyWithUnit(line.quantity, line.measuredBy)}
+                      </td>
+                      <td className="py-2.5 pr-2 align-top text-right tabular-nums whitespace-nowrap">
+                        {line.unitPrice != null
+                          ? line.unitPrice.toLocaleString()
+                          : "-"}
+                      </td>
+                      <td className="py-2.5 align-top text-right tabular-nums font-medium whitespace-nowrap">
+                        {line.lineTotal != null
+                          ? line.lineTotal.toLocaleString()
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div
               className={cn(
@@ -358,7 +387,7 @@ export function StoreItemRegistrationReceipt({
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
                 <h2
                   className={cn(
-                    "text-2xl font-bold tracking-tight",
+                    "text-2xl font-bold tracking-tight wrap-anywhere",
                     isBulk && "text-lg print:text-base",
                   )}
                 >
@@ -379,19 +408,21 @@ export function StoreItemRegistrationReceipt({
                   </Badge>
                 ) : null}
                 {primary.notes ? (
-                  <p className="text-xs text-zinc-500 mt-1">{primary.notes}</p>
+                  <p className="text-xs text-zinc-500 mt-1 wrap-anywhere">
+                    {primary.notes}
+                  </p>
                 ) : null}
               </div>
             </div>
           )}
         </section>
-        <section className="space-y-2.5">
+        <section className="receipt-keep-together ml-auto w-full max-w-sm space-y-2.5">
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
             Financial summary
           </h3>
-          <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
+          <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2 shadow-sm">
             {!isMulti && primary.unitPrice != null ? (
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-3">
                 <span className="text-zinc-600">Unit price</span>
                 <span className="font-medium tabular-nums">
                   ETB {primary.unitPrice.toLocaleString()}
@@ -399,26 +430,27 @@ export function StoreItemRegistrationReceipt({
               </div>
             ) : (
               <p className="text-zinc-600 text-xs">
-                Combined total for {lines.length} line{lines.length !== 1 ? "s" : ""}.
+                Combined total for {lines.length} line
+                {lines.length !== 1 ? "s" : ""}.
               </p>
             )}
             <Separator className="bg-zinc-200" />
             {showVatBreakdown && financials ? (
               <>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between gap-3 text-sm">
                   <span className="text-zinc-600">Subtotal</span>
                   <span className="font-medium tabular-nums">
                     ETB {formatEtb(financials.subtotalETB)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between gap-3 text-sm">
                   <span className="text-zinc-600">VAT (15%)</span>
                   <span className="font-medium tabular-nums">
                     ETB {formatEtb(financials.vatETB)}
                   </span>
                 </div>
                 <Separator className="bg-zinc-200" />
-                <div className="flex justify-between font-bold text-base">
+                <div className="flex justify-between gap-3 font-bold text-base">
                   <span>Grand total</span>
                   <span className="tabular-nums text-emerald-800">
                     ETB {formatEtb(financials.grandTotalETB)}
@@ -426,14 +458,14 @@ export function StoreItemRegistrationReceipt({
                 </div>
               </>
             ) : (
-              <div className="flex justify-between font-bold text-base">
+              <div className="flex justify-between gap-3 font-bold text-base">
                 <span>Receipt total</span>
                 <span className="tabular-nums text-emerald-800">
                   ETB {resolvedBundle.totalETB.toLocaleString()}
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-zinc-600">
+            <div className="flex justify-between gap-3 text-zinc-600">
               <span>Payment status</span>
               <span>{totalPaidLabel}</span>
             </div>
@@ -441,7 +473,7 @@ export function StoreItemRegistrationReceipt({
         </section>
       </div>
 
-      <div className="px-8 pb-8 print:px-6 print:pb-6">
+      <div className="receipt-keep-together px-8 pb-8 print:px-6 print:pb-6">
         <div
           className={cn(
             "grid gap-x-8 gap-y-6 border border-zinc-200 rounded-xl p-5",
@@ -485,7 +517,7 @@ export function StoreItemRegistrationReceipt({
 
       <div
         className={cn(
-          "mx-8 mb-8 rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50 via-white to-amber-50 px-5 py-4 shadow-sm print:mx-6 print:mb-6 print:border-emerald-300 print:shadow-none",
+          "receipt-keep-together mx-8 mb-8 rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50 via-white to-amber-50 px-5 py-4 shadow-sm print:mx-6 print:mb-6 print:border-emerald-300 print:shadow-none",
           isBulk && "mx-4 mb-3 px-3 py-2 print:mx-3 print:mb-2 print:py-1.5",
         )}
       >
@@ -510,7 +542,7 @@ export function StoreItemRegistrationReceipt({
               </a>
             </div>
           </div>
-          <div className="text-right text-[10px] text-zinc-600 max-w-[220px]">
+          <div className="text-right text-[10px] text-zinc-600 max-w-55">
             <p>
               Powered by{" "}
               <span className="font-medium text-emerald-900">{HOTCOL_SYSTEM.name}</span>{" "}

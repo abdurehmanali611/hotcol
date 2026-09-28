@@ -10,95 +10,41 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, History } from "lucide-react";
+import { PendingButton } from "@/components/ui/pending-button";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileDown,
+  FileSpreadsheet,
+  History,
+} from "lucide-react";
 import type { LodgingActionLog } from "@/lib/api/lodgingRooms";
+import {
+  formatLodgingActionDetails,
+  lodgingActionLabel,
+} from "@/lib/lodgingActionHistoryFormat";
+import { downloadLodgingActionHistoryPdf } from "@/lib/lodgingActionHistoryPdf";
+import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
+import { toast } from "sonner";
+
+export { formatLodgingActionDetails } from "@/lib/lodgingActionHistoryFormat";
 
 const PAGE_SIZE = 10;
-
-function actionLabel(action: string) {
-  return action.replace(/_/g, " ");
-}
-
-function formatDetailValue(value: unknown): string {
-  if (value == null || value === "") return "";
-  if (Array.isArray(value)) {
-    return value
-      .map((v) => formatDetailValue(v))
-      .filter(Boolean)
-      .join(", ");
-  }
-  if (typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([k, v]) => {
-        const nested = formatDetailValue(v);
-        return nested ? `${k}: ${nested}` : "";
-      })
-      .filter(Boolean)
-      .join(" · ");
-  }
-  if (typeof value === "boolean") return value ? "yes" : "no";
-  return String(value);
-}
-
-/** Prefer human-readable snippets from lodging action detailJson. */
-export function formatLodgingActionDetails(detailJson: string): string {
-  const raw = String(detailJson ?? "").trim();
-  if (!raw) return "—";
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed == null || parsed === "") return "—";
-    if (typeof parsed !== "object") return String(parsed);
-
-    const obj = parsed as Record<string, unknown>;
-    const preferredKeys = [
-      "voucherCode",
-      "roomNumber",
-      "roomNumbers",
-      "roomIds",
-      "status",
-      "fromStatus",
-      "toStatus",
-      "workKind",
-      "assigneeName",
-      "assigneeNames",
-      "nights",
-      "amountETB",
-      "totalETB",
-      "lineIds",
-      "toStayId",
-      "guestId",
-      "notes",
-      "message",
-      "reason",
-    ];
-
-    const parts: string[] = [];
-    for (const key of preferredKeys) {
-      if (!(key in obj)) continue;
-      const formatted = formatDetailValue(obj[key]);
-      if (!formatted) continue;
-      const label = key
-        .replace(/([A-Z])/g, " $1")
-        .replace(/_/g, " ")
-        .trim()
-        .toLowerCase();
-      parts.push(`${label}: ${formatted}`);
-    }
-
-    if (parts.length === 0) {
-      const fallback = formatDetailValue(obj);
-      return fallback || "—";
-    }
-    return parts.join(" · ");
-  } catch {
-    return raw;
-  }
-}
 
 function logsSignature(logs: LodgingActionLog[]) {
   if (logs.length === 0) return "0";
   return `${logs.length}:${logs[0]!.id}:${logs[logs.length - 1]!.id}`;
+}
+
+function toExportRows(logs: LodgingActionLog[]) {
+  return logs.map((log) => ({
+    When: new Date(log.createdAt).toLocaleString(),
+    Action: lodgingActionLabel(log.action),
+    Actor: log.actorName || "",
+    Role: log.actorRole || "",
+    Entity: log.entityType || "",
+    "What changed": formatLodgingActionDetails(log.detailJson),
+  }));
 }
 
 export function LodgingActionHistoryPanel({
@@ -114,6 +60,8 @@ export function LodgingActionHistoryPanel({
 }) {
   const [page, setPage] = useState(0);
   const [logsSig, setLogsSig] = useState(() => logsSignature(logs));
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const nextSig = logsSignature(logs);
   if (nextSig !== logsSig) {
     setLogsSig(nextSig);
@@ -132,15 +80,83 @@ export function LodgingActionHistoryPanel({
   const from = logs.length === 0 ? 0 : safePage * size + 1;
   const to = Math.min((safePage + 1) * size, logs.length);
 
+  const exportPdf = async () => {
+    if (logs.length === 0) {
+      toast.error("No actions to export");
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      await downloadLodgingActionHistoryPdf({ logs, title });
+      toast.success("PDF downloaded");
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not export PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const exportExcel = async () => {
+    if (logs.length === 0) {
+      toast.error("No actions to export");
+      return;
+    }
+    setExportingExcel(true);
+    try {
+      await exportRowsExcel(
+        "lodging-recent-actions",
+        "Recent actions",
+        toExportRows(logs),
+      );
+      toast.success("Excel downloaded");
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not export Excel");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <Card className="overflow-hidden border-border/80 bg-card/95 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
       <div className="h-1 bg-linear-to-r from-slate-500/50 via-border to-transparent" />
-      <CardHeader className="space-y-1">
-        <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-          <History className="h-5 w-5 text-primary" />
-          {title}
-        </CardTitle>
-        <CardDescription className="leading-relaxed">{description}</CardDescription>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1 min-w-0">
+            <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
+              <History className="h-5 w-5 shrink-0 text-primary" />
+              {title}
+            </CardTitle>
+            <CardDescription className="leading-relaxed">
+              {description}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <PendingButton
+              type="button"
+              variant="outline"
+              className="h-9 gap-1.5"
+              disabled={logs.length === 0}
+              pending={exportingPdf}
+              onClick={() => void exportPdf()}
+            >
+              <FileDown className="h-4 w-4" />
+              Export PDF
+            </PendingButton>
+            <PendingButton
+              type="button"
+              variant="outline"
+              className="h-9 gap-1.5"
+              disabled={logs.length === 0}
+              pending={exportingExcel}
+              onClick={() => void exportExcel()}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </PendingButton>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4 pb-8">
         {logs.length === 0 ? (
@@ -173,7 +189,7 @@ export function LodgingActionHistoryPanel({
                           variant="outline"
                           className="font-normal capitalize"
                         >
-                          {actionLabel(log.action)}
+                          {lodgingActionLabel(log.action)}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">
