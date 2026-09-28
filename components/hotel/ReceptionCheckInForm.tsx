@@ -349,8 +349,6 @@ export function ReceptionCheckInForm({
     reservation,
     guest.sex,
     guest.isEthiopian,
-    guest.nationalId,
-    guest.passportNumber,
     guest.country,
     guest.stateRegion,
     idDocumentOk,

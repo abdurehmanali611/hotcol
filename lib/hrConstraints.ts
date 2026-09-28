@@ -327,7 +327,6 @@ export const HR_STATUS_LABELS: Record<string, string> = {
   unpaid: "Unpaid",
   awaiting_finance: "Awaiting Finance",
   marked_paid: "Marked paid",
-  closed: "Closed",
   present: "Present",
   absent: "Absent",
   late: "Late",

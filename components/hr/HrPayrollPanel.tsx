@@ -494,8 +494,6 @@ export function HrPayrollPanel({
       canApprovePayrollPayment,
       canRunPayroll,
       canSelectRows,
-      historyMode,
-      markedIds,
       payslips,
       selected,
       selectedIds,
