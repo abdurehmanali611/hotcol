@@ -77,7 +77,21 @@ export function HrManagerPendingPanel() {
                     {r.employee?.fullName
                       ? r.employee.fullName
                       : r.kind === "payroll_generate"
-                        ? "Payroll run"
+                        ? (() => {
+                            const p =
+                              r.payloadJson &&
+                              typeof r.payloadJson === "object"
+                                ? (r.payloadJson as {
+                                    fromYmd?: string;
+                                    toYmd?: string;
+                                  })
+                                : {};
+                            const from = String(p.fromYmd || "").trim();
+                            const to = String(p.toYmd || "").trim();
+                            return from && to
+                              ? `Payroll run · ${from} → ${to}`
+                              : "Payroll run";
+                          })()
                         : `Employee #${r.employeeId ?? "—"}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -91,7 +105,11 @@ export function HrManagerPendingPanel() {
                     onClick={async () => {
                       try {
                         await decideHrManagerPendingActionApi(r.id, false);
-                        toast.message("Request rejected");
+                        toast.message(
+                          r.kind === "payroll_generate"
+                            ? "Payroll generate cancelled — pending run removed"
+                            : "Request rejected",
+                        );
                         await load();
                       } catch (e) {
                         notifyApiFailure(e, "Reject failed");

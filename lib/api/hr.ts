@@ -1122,6 +1122,22 @@ export async function markHrPayslipsPaidApi(payslipIds: number[]) {
   return data.markHrPayslipsPaid || [];
 }
 
+/** Finance (or Admin) approve/reject HR mark-paid requests. */
+export async function decideHrPayslipsPaymentApi(
+  payslipIds: number[],
+  approve: boolean,
+) {
+  const data = await gql<{ decideHrPayslipsPayment: HrPayslip[] }>(
+    `mutation ($payslipIds: [Int!]!, $approve: Boolean!) {
+      decideHrPayslipsPayment(payslipIds: $payslipIds, approve: $approve) {
+        ${PAYSLIP_FIELDS}
+      }
+    }`,
+    { payslipIds, approve },
+  );
+  return data.decideHrPayslipsPayment || [];
+}
+
 export async function approveHrPayslipsPaymentApi(payslipIds: number[]) {
   const data = await gql<{ approveHrPayslipsPayment: HrPayslip[] }>(
     `mutation ($payslipIds: [Int!]!) {

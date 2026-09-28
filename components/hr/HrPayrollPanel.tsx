@@ -43,7 +43,7 @@ import {
   HrSectionCard,
   HrStatusBadge,
 } from "@/components/hr/hrChrome";
-import { HR_WAGE_LABELS, HR_WAGE_TYPES } from "@/lib/hrConstraints";
+import { HR_WAGE_LABELS, HR_WAGE_TYPES, hrStatusLabel } from "@/lib/hrConstraints";
 import {
   formatPayrollWeeksLabel,
   inclusiveDayCount,
@@ -200,12 +200,23 @@ export function HrPayrollPanel({
   const markedIds = useMemo(
     () =>
       payslips
-        .filter((p) => p.paymentStatus === "marked_paid")
+        .filter((p) => {
+          const st = p.paymentStatus;
+          if (st === "awaiting_finance") return true;
+          // Legacy: marked_paid before Finance confirm
+          if (st === "marked_paid" && !p.managerApprovedAt) return true;
+          return false;
+        })
         .map((p) => p.id),
     [payslips],
   );
-  const approvedCount = useMemo(
-    () => payslips.filter((p) => p.paymentStatus === "approved").length,
+  const markedPaidCount = useMemo(
+    () =>
+      payslips.filter(
+        (p) =>
+          (p.paymentStatus === "marked_paid" && p.managerApprovedAt) ||
+          p.paymentStatus === "approved",
+      ).length,
     [payslips],
   );
   const totalNet = useMemo(
@@ -347,9 +358,11 @@ export function HrPayrollPanel({
           if (historyMode) return null;
           const canCheck =
             canRunPayroll && row.original.paymentStatus === "unpaid";
+          const st = row.original.paymentStatus;
           const canApproveCheck =
             canApprovePayrollPayment &&
-            row.original.paymentStatus === "marked_paid";
+            (st === "awaiting_finance" ||
+              (st === "marked_paid" && !row.original.managerApprovedAt));
           if (!canCheck && !canApproveCheck) return null;
           return (
             <Checkbox
@@ -547,7 +560,7 @@ export function HrPayrollPanel({
         <HrMetricCard
           label="Net in run"
           value={formatETB(totalNet)}
-          hint={`${approvedCount} approved`}
+          hint={`${markedPaidCount} marked paid`}
           accent="from-cyan-500/15 border-cyan-500/25"
           icon={<Banknote className="h-4 w-4 text-cyan-700 dark:text-cyan-400" />}
         />
@@ -668,7 +681,7 @@ export function HrPayrollPanel({
                                 | "weekly"),
                         });
                         toast.success(
-                          `Generated payslips for ${period.monthName}`,
+                          `Generated payslips for ${period.fromYmd} → ${period.toYmd} (${period.monthName})`,
                         );
                         await onRefresh();
                         onSelectedPeriodChange(period.id);
@@ -706,7 +719,7 @@ export function HrPayrollPanel({
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {namedPreview
-                        ? `${namedPreview.periodKey} · ${namedPreview.dayCount} day${namedPreview.dayCount === 1 ? "" : "s"} in this month`
+                        ? `Payslip title month · ${namedPreview.periodKey} (${namedPreview.dayCount}d in that month). Pay range stays ${fromYmd} → ${toYmd}.`
                         : "Choose a valid From–To range"}
                     </p>
                   </div>
@@ -741,7 +754,7 @@ export function HrPayrollPanel({
           <div className="space-y-4">
           <HrSectionCard
             title="Runs & payment"
-            description="Select a run, download PDFs, mark paid (HR), then Manager approves."
+            description="Select a run, download PDFs, mark paid (HR), then Finance confirms."
             icon={
               <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             }
@@ -764,12 +777,13 @@ export function HrPayrollPanel({
                 <SelectContent>
                   {periods.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
-                      <span className="font-medium">
-                        {p.monthName || p.periodKey}
+                      <span className="font-medium tabular-nums">
+                        {p.fromYmd} → {p.toYmd}
                       </span>
                       <span className="text-muted-foreground">
                         {" "}
-                        · {p.fromYmd} → {p.toYmd} · {p.status}
+                        · {p.monthName || p.periodKey} ·{" "}
+                        {hrStatusLabel(p.status)}
                       </span>
                     </SelectItem>
                   ))}
@@ -781,6 +795,12 @@ export function HrPayrollPanel({
               <HrEmptyState
                 title="No run selected"
                 description="Generate a payroll run first, or pick one above."
+                icon={<Wallet className="h-7 w-7" />}
+              />
+            ) : selected.status === "pending_generate" ? (
+              <HrEmptyState
+                title="Awaiting Manager approval"
+                description={`This run (${selected.fromYmd} → ${selected.toYmd}) was submitted by HR and has no payslips yet. Manager must approve generate under HR approvals.`}
                 icon={<Wallet className="h-7 w-7" />}
               />
             ) : payslips.length ? (
@@ -818,7 +838,7 @@ export function HrPayrollPanel({
                           try {
                             await markHrPayslipsPaidApi(ids);
                             toast.success(
-                              "Marked paid — waiting for Manager",
+                              "Sent to Finance for mark-paid confirmation",
                             );
                             const rows = await fetchHrPayslips(selected.id);
                             onPayslipsChange(rows);
@@ -866,7 +886,7 @@ export function HrPayrollPanel({
                         }}
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Approve (Manager)
+                        Confirm paid (Manager)
                       </PendingButton>
                     ) : null}
                     <Button
@@ -943,8 +963,8 @@ export function HrPayrollPanel({
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-sky-500/25 bg-muted/20 px-4 py-10 text-center">
                   <CalendarRange className="h-8 w-8 text-sky-600/80" />
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    No wage windows yet. Add when each wage type may be paid
-                    (day of month → day of month).
+                    No wage windows yet. Add the minimum From–To length (days)
+                    required before that wage type can be paid.
                   </p>
                   <Button
                     type="button"

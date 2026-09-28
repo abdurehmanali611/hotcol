@@ -112,9 +112,15 @@ export function HrStatusBadge({ status }: { status: string }) {
           status === "on_leave" ||
           status === "open" ||
           status === "half_day" ||
-          status === "late"
+          status === "late" ||
+          status === "awaiting_finance" ||
+          status === "awaiting_manager" ||
+          status === "pending_generate" ||
+          status === "unpaid"
         ? "secondary"
-        : status === "closed" || status === "approved"
+        : status === "closed" ||
+            status === "approved" ||
+            status === "marked_paid"
           ? "outline"
           : "default";
   return <Badge variant={variant}>{hrStatusLabel(status)}</Badge>;
