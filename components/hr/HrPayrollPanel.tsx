@@ -224,15 +224,19 @@ export function HrPayrollPanel({
   );
   const allSlipsMarkedPaid =
     payslips.length > 0 && payslips.every(isMarkedPaidSlip);
+  /** Close when every slip is marked paid; hide only after status is closed. */
   const periodNeedsClose =
     !!selected &&
-    !selected.closedAt &&
-    selected.status !== "approved" &&
     selected.status !== "closed" &&
     selected.status !== "pending_generate" &&
-    allSlipsMarkedPaid;
+    allSlipsMarkedPaid &&
+    canApprovePayrollPayment;
   const canSelectRows =
-    !historyMode && (canRunPayroll || canApprovePayrollPayment);
+    !historyMode &&
+    (canRunPayroll || canApprovePayrollPayment) &&
+    !!selected &&
+    selected.status !== "closed" &&
+    selected.status !== "pending_generate";
   const totalNet = useMemo(
     () => payslips.reduce((sum, p) => sum + (p.netPayETB || 0), 0),
     [payslips],
@@ -876,7 +880,7 @@ export function HrPayrollPanel({
                           try {
                             await approveHrPayslipsPaymentApi(ids);
                             toast.success(
-                              "Payment confirmed — run closes when every slip is paid",
+                              "Payment confirmed — use Close payroll when every slip is marked paid",
                             );
                             setSelectedIds([]);
                             const rows = await fetchHrPayslips(selected.id);
