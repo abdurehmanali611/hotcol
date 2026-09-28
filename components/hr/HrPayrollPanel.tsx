@@ -60,6 +60,7 @@ import {
 } from "@/lib/hrPendingApproval";
 import {
   approveHrPayslipsPaymentApi,
+  closeHrPayrollPeriodApi,
   createHrPayrollPeriodApi,
   fetchHrPayrollLineRules,
   fetchHrPayslips,
@@ -197,28 +198,41 @@ export function HrPayrollPanel({
     () => payslips.filter((p) => p.paymentStatus === "unpaid").map((p) => p.id),
     [payslips],
   );
+  /** Slips waiting on Manager/Finance confirm (not final marked paid yet). */
   const markedIds = useMemo(
     () =>
       payslips
         .filter((p) => {
           const st = p.paymentStatus;
           if (st === "awaiting_finance") return true;
-          // Legacy: marked_paid before Finance confirm
           if (st === "marked_paid" && !p.managerApprovedAt) return true;
           return false;
         })
         .map((p) => p.id),
     [payslips],
   );
+  /** Final mark-paid (Finance/Manager confirmed, or legacy approved). */
+  const isMarkedPaidSlip = (p: HrPayslip) => {
+    const st = p.paymentStatus;
+    if (st === "approved") return true;
+    if (st === "marked_paid") return true;
+    return false;
+  };
   const markedPaidCount = useMemo(
-    () =>
-      payslips.filter(
-        (p) =>
-          (p.paymentStatus === "marked_paid" && p.managerApprovedAt) ||
-          p.paymentStatus === "approved",
-      ).length,
+    () => payslips.filter(isMarkedPaidSlip).length,
     [payslips],
   );
+  const allSlipsMarkedPaid =
+    payslips.length > 0 && payslips.every(isMarkedPaidSlip);
+  const periodNeedsClose =
+    !!selected &&
+    !selected.closedAt &&
+    selected.status !== "approved" &&
+    selected.status !== "closed" &&
+    selected.status !== "pending_generate" &&
+    allSlipsMarkedPaid;
+  const canSelectRows =
+    !historyMode && (canRunPayroll || canApprovePayrollPayment);
   const totalNet = useMemo(
     () => payslips.reduce((sum, p) => sum + (p.netPayETB || 0), 0),
     [payslips],
@@ -320,50 +334,40 @@ export function HrPayrollPanel({
     () => [
       {
         id: "select",
+        enableHiding: false,
+        size: 40,
         header: () => {
-          if (historyMode) return null;
-          if (canRunPayroll && unpaidIds.length) {
-            return (
-              <Checkbox
-                checked={
-                  unpaidIds.length > 0 &&
-                  unpaidIds.every((id) => selectedIds.includes(id))
-                }
-                onCheckedChange={(v) => {
-                  if (v) setSelectedIds(unpaidIds);
-                  else setSelectedIds([]);
-                }}
-                aria-label="Select unpaid"
-              />
-            );
-          }
-          if (canApprovePayrollPayment && markedIds.length) {
-            return (
-              <Checkbox
-                checked={
-                  markedIds.length > 0 &&
-                  markedIds.every((id) => selectedIds.includes(id))
-                }
-                onCheckedChange={(v) => {
-                  if (v) setSelectedIds(markedIds);
-                  else setSelectedIds([]);
-                }}
-                aria-label="Select awaiting approval"
-              />
-            );
-          }
-          return null;
+          if (!canSelectRows) return null;
+          const selectableIds = canRunPayroll
+            ? unpaidIds.length
+              ? unpaidIds
+              : canApprovePayrollPayment
+                ? payslips.map((p) => p.id)
+                : []
+            : payslips.map((p) => p.id);
+          if (!selectableIds.length) return null;
+          const allOn =
+            selectableIds.length > 0 &&
+            selectableIds.every((id) => selectedIds.includes(id));
+          return (
+            <Checkbox
+              checked={allOn}
+              onCheckedChange={(v) => {
+                if (v) setSelectedIds(selectableIds);
+                else setSelectedIds([]);
+              }}
+              aria-label="Select all payslips"
+            />
+          );
         },
         cell: ({ row }) => {
-          if (historyMode) return null;
-          const canCheck =
-            canRunPayroll && row.original.paymentStatus === "unpaid";
+          if (!canSelectRows) return null;
           const st = row.original.paymentStatus;
-          const canApproveCheck =
-            canApprovePayrollPayment &&
-            (st === "awaiting_finance" ||
-              (st === "marked_paid" && !row.original.managerApprovedAt));
-          if (!canCheck && !canApproveCheck) return null;
+          // HR: check unpaid to mark paid
+          if (canRunPayroll && !canApprovePayrollPayment) {
+            if (st !== "unpaid") return <span className="inline-block w-4" />;
+          }
+          // Manager/Admin: check any slip on an open run
           return (
             <Checkbox
               checked={selectedIds.includes(row.original.id)}
@@ -485,8 +489,10 @@ export function HrPayrollPanel({
     [
       canApprovePayrollPayment,
       canRunPayroll,
+      canSelectRows,
       historyMode,
       markedIds,
+      payslips,
       selected,
       selectedIds,
       unpaidIds,
@@ -754,7 +760,7 @@ export function HrPayrollPanel({
           <div className="space-y-4">
           <HrSectionCard
             title="Runs & payment"
-            description="Select a run, download PDFs, mark paid (HR), then Finance confirms."
+            description="Select a run, download PDFs, mark paid (HR), Finance/Manager confirm, then Close when every slip is marked paid."
             icon={
               <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             }
@@ -818,28 +824,26 @@ export function HrPayrollPanel({
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {canRunPayroll ? (
+                    {canRunPayroll && unpaidIds.length ? (
                       <PendingButton
                         pending={pending}
                         size="sm"
                         className="gap-1.5"
-                        disabled={
-                          !selectedIds.some((id) => unpaidIds.includes(id))
-                        }
                         onClick={async () => {
-                          const ids = selectedIds.filter((id) =>
+                          const ids = selectedIds.some((id) =>
                             unpaidIds.includes(id),
-                          );
-                          if (!ids.length) {
-                            toast.error("Select unpaid payslips");
-                            return;
-                          }
+                          )
+                            ? selectedIds.filter((id) =>
+                                unpaidIds.includes(id),
+                              )
+                            : unpaidIds;
                           setPending(true);
                           try {
                             await markHrPayslipsPaidApi(ids);
                             toast.success(
                               "Sent to Finance for mark-paid confirmation",
                             );
+                            setSelectedIds([]);
                             const rows = await fetchHrPayslips(selected.id);
                             onPayslipsChange(rows);
                             await onRefresh();
@@ -851,30 +855,30 @@ export function HrPayrollPanel({
                         }}
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Mark paid (HR)
+                        Mark paid (HR) ({unpaidIds.length})
                       </PendingButton>
                     ) : null}
-                    {canApprovePayrollPayment ? (
+                    {canApprovePayrollPayment && markedIds.length ? (
                       <PendingButton
                         pending={pending}
                         size="sm"
                         variant="secondary"
                         className="gap-1.5"
-                        disabled={
-                          !selectedIds.some((id) => markedIds.includes(id))
-                        }
                         onClick={async () => {
-                          const ids = selectedIds.filter((id) =>
+                          const ids = selectedIds.some((id) =>
                             markedIds.includes(id),
-                          );
-                          if (!ids.length) {
-                            toast.error("Select payslips awaiting approval");
-                            return;
-                          }
+                          )
+                            ? selectedIds.filter((id) =>
+                                markedIds.includes(id),
+                              )
+                            : markedIds;
                           setPending(true);
                           try {
                             await approveHrPayslipsPaymentApi(ids);
-                            toast.success("Payment approved");
+                            toast.success(
+                              "Payment confirmed — run closes when every slip is paid",
+                            );
+                            setSelectedIds([]);
                             const rows = await fetchHrPayslips(selected.id);
                             onPayslipsChange(rows);
                             await onRefresh();
@@ -886,7 +890,29 @@ export function HrPayrollPanel({
                         }}
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Confirm paid (Manager)
+                        Confirm paid (Manager) ({markedIds.length})
+                      </PendingButton>
+                    ) : null}
+                    {canApprovePayrollPayment && periodNeedsClose ? (
+                      <PendingButton
+                        pending={pending}
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={async () => {
+                          setPending(true);
+                          try {
+                            await closeHrPayrollPeriodApi(selected.id);
+                            toast.success("Payroll run closed");
+                            await onRefresh();
+                          } catch (e) {
+                            notifyApiFailure(e, "Could not close payroll");
+                          } finally {
+                            setPending(false);
+                          }
+                        }}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Close payroll
                       </PendingButton>
                     ) : null}
                     <Button

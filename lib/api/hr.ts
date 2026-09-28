@@ -1148,6 +1148,18 @@ export async function approveHrPayslipsPaymentApi(payslipIds: number[]) {
   return data.approveHrPayslipsPayment || [];
 }
 
+export async function closeHrPayrollPeriodApi(id: number) {
+  const data = await gql<{ closeHrPayrollPeriod: HrPayrollPeriod }>(
+    `mutation ($id: Int!) {
+      closeHrPayrollPeriod(id: $id) {
+        id status fromYmd toYmd monthName periodKey closedAt closedBy
+      }
+    }`,
+    { id },
+  );
+  return data.closeHrPayrollPeriod;
+}
+
 export async function fetchHrPayrollLineRules(): Promise<HrPayrollLineRule[]> {
   const data = await gql<{ hrPayrollLineRules: HrPayrollLineRule[] }>(`
     query {
