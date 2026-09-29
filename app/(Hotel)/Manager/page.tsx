@@ -130,6 +130,7 @@ import {
   Shield,
   Gift,
   KeyRound,
+  Briefcase,
   ShieldOff,
   GitBranch,
   type LucideIcon,
@@ -219,6 +220,7 @@ import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCr
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
 import { HrEmployeeChatCenter } from "@/components/hr/HrEmployeeChatCenter";
 import { HrChatControlPanel } from "@/components/hr/HrChatControlPanel";
+import { HrAtsOtpPanel } from "@/components/hr/HrAtsOtpPanel";
 import { subscribeCafeOrdersChanged } from "@/lib/cafeOrdersSync";
 import { PurchaseRequestStatusPanel } from "@/components/hotel/PurchaseRequestStatusPanel";
 import { HotelItemReceiptsSection } from "@/components/hotel/HotelItemReceiptsSection";
@@ -265,6 +267,7 @@ const managerSidebarIconMap: Record<
   Shield,
   Gift,
   KeyRound,
+  Briefcase,
   ShieldOff,
   GitBranch,
 };
@@ -300,7 +303,7 @@ const MANAGER_ACCESS_TAB_IDS = new Set<TabId>([
 const MANAGER_HR_NAV_TAB_IDS = new Set<TabId>([...MANAGER_HR_TAB_IDS]);
 
 const HR_TAB_TO_SECTION: Record<
-  Exclude<(typeof MANAGER_HR_TAB_IDS)[number], "hr-chat-control">,
+  Exclude<(typeof MANAGER_HR_TAB_IDS)[number], "hr-chat-control" | "hr-ats-otp">,
   HrSection
 > = {
   "hr-overview": "dashboard",
@@ -800,6 +803,7 @@ function ManagerContent() {
       "hr-approvals-payroll": "HR · Approvals · Payroll",
       "hr-manager-pending": "HR · Approvals",
       "hr-otp-reset": "HR · OTP resets",
+      "hr-ats-otp": "HR · ATS OTP",
       "hr-chat-control": "HR · Chat control",
       "hr-workflows": "HR · Approval workflows",
       "hr-leave": "HR · Leave types",
@@ -834,6 +838,8 @@ function ManagerContent() {
         "Approve or reject HR requests to terminate employees, correct attendance, or generate payroll.",
       "hr-otp-reset":
         "Approve or reject portal OTP reset requests. Approved codes stay Manager-only until first login.",
+      "hr-ats-otp":
+        "Create or rotate ATS Admin unlock codes for HR and Manager. Staff use these codes in HotCol ATS — actions are tracked by role.",
       "hr-chat-control":
         "Block employee chat paths and audit message history (read-only). Live messaging stays on the header chat icon.",
       "hr-workflows":
@@ -1899,6 +1905,13 @@ function ManagerContent() {
       case "hr-chat-control":
         return <HrChatControlPanel />;
 
+      case "hr-ats-otp":
+        return (
+          <div className="p-4 md:p-6">
+            <HrAtsOtpPanel />
+          </div>
+        );
+
       case "hr-overview":
       case "hr-approvals-terminate":
       case "hr-approvals-attendance":
@@ -1921,7 +1934,7 @@ function ManagerContent() {
               HR_TAB_TO_SECTION[
                 activeTab as Exclude<
                   (typeof MANAGER_HR_TAB_IDS)[number],
-                  "hr-chat-control"
+                  "hr-chat-control" | "hr-ats-otp"
                 >
               ]
             }
