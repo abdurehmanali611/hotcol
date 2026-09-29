@@ -359,13 +359,18 @@ export function HrAtsOtpPanel() {
                     next Admin unlock. Delete removes the role code entirely.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div
+                  className={cn(
+                    "grid w-full gap-2 sm:w-auto",
+                    selected?.hasCode ? "grid-cols-2" : "grid-cols-1",
+                  )}
+                >
                   <Button
                     type="button"
                     size="lg"
                     className={cn(
                       hrPrimaryBtnClass,
-                      "h-11 cursor-pointer px-5 sm:min-w-48",
+                      "h-11 w-full cursor-pointer px-5",
                     )}
                     disabled={busy}
                     onClick={() => void issue()}
@@ -392,7 +397,7 @@ export function HrAtsOtpPanel() {
                           type="button"
                           size="lg"
                           variant="outline"
-                          className="h-11 cursor-pointer border-rose-500/35 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
+                          className="h-11 w-full cursor-pointer border-rose-500/35 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
                           disabled={busy}
                         >
                           <Trash2 className="h-4 w-4" />
