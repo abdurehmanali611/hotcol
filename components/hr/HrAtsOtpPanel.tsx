@@ -361,7 +361,7 @@ export function HrAtsOtpPanel() {
                 </div>
                 <div
                   className={cn(
-                    "grid w-full gap-2 sm:w-auto",
+                    "grid w-full gap-2 sm:w-max sm:min-w-72",
                     selected?.hasCode ? "grid-cols-2" : "grid-cols-1",
                   )}
                 >
@@ -370,7 +370,7 @@ export function HrAtsOtpPanel() {
                     size="lg"
                     className={cn(
                       hrPrimaryBtnClass,
-                      "h-11 w-full cursor-pointer px-5",
+                      "h-11 w-full cursor-pointer whitespace-nowrap px-4",
                     )}
                     disabled={busy}
                     onClick={() => void issue()}
@@ -382,9 +382,7 @@ export function HrAtsOtpPanel() {
                     ) : (
                       <KeyRound className="h-4 w-4" />
                     )}
-                    {selected?.hasCode
-                      ? "Reset OTP (Manager)"
-                      : "Get OTP and Save"}
+                    {selected?.hasCode ? "Reset OTP" : "Get OTP and Save"}
                   </Button>
                   {selected?.hasCode ? (
                     <HrConfirmAction
@@ -397,7 +395,7 @@ export function HrAtsOtpPanel() {
                           type="button"
                           size="lg"
                           variant="outline"
-                          className="h-11 w-full cursor-pointer border-rose-500/35 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
+                          className="h-11 w-full cursor-pointer whitespace-nowrap border-rose-500/35 px-4 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
                           disabled={busy}
                         >
                           <Trash2 className="h-4 w-4" />
