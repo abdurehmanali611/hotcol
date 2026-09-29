@@ -88,6 +88,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CafeAdminCorporateCredit } from "@/components/cafe/CafeAdminCorporateCredit";
 import { HrDashboard, type HrSection } from "@/components/hr/HrDashboard";
+import { HrAtsOtpPanel } from "@/components/hr/HrAtsOtpPanel";
 import { HrEmployeeChatCenter } from "@/components/hr/HrEmployeeChatCenter";
 import { HrChatControlPanel } from "@/components/hr/HrChatControlPanel";
 import { HR_SECTION_COPY } from "@/components/hr/hrChrome";
@@ -141,7 +142,7 @@ const ADMIN_ACCESS_TAB_IDS = new Set([
 ]);
 const ADMIN_HR_TAB_IDS = new Set<string>([...HR_WORKSPACE_TAB_IDS]);
 const HR_TAB_TO_SECTION: Record<
-  Exclude<(typeof HR_WORKSPACE_TAB_IDS)[number], "hr-chat-control">,
+  Exclude<(typeof HR_WORKSPACE_TAB_IDS)[number], "hr-chat-control" | "hr-ats-otp">,
   HrSection
 > = {
     "hr-overview": "dashboard",
@@ -671,6 +672,12 @@ function AdminDashboardContent() {
         );
       case "hr-chat-control":
         return <HrChatControlPanel />;
+      case "hr-ats-otp":
+        return (
+          <div className="p-4 md:p-6">
+            <HrAtsOtpPanel />
+          </div>
+        );
       case "hr-overview":
       case "hr-employees":
       case "hr-approvals-terminate":
@@ -694,7 +701,7 @@ function AdminDashboardContent() {
               HR_TAB_TO_SECTION[
                 activeTab as Exclude<
                   (typeof HR_WORKSPACE_TAB_IDS)[number],
-                  "hr-chat-control"
+                  "hr-chat-control" | "hr-ats-otp"
                 >
               ]
             }
@@ -907,26 +914,30 @@ function AdminDashboardContent() {
                     <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
                       {activeTab === "hr-chat-control"
                         ? "Chat control"
-                        : HR_SECTION_COPY[
-                            HR_TAB_TO_SECTION[
-                              activeTab as Exclude<
-                                (typeof HR_WORKSPACE_TAB_IDS)[number],
-                                "hr-chat-control"
-                              >
-                            ]
-                          ]?.title}
+                        : activeTab === "hr-ats-otp"
+                          ? "ATS OTP"
+                          : HR_SECTION_COPY[
+                              HR_TAB_TO_SECTION[
+                                activeTab as Exclude<
+                                  (typeof HR_WORKSPACE_TAB_IDS)[number],
+                                  "hr-chat-control" | "hr-ats-otp"
+                                >
+                              ]
+                            ]?.title}
                     </h2>
                     <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
                       {activeTab === "hr-chat-control"
                         ? "Block employee chat paths and audit message history. Live messaging stays on the header chat icon."
-                        : HR_SECTION_COPY[
-                            HR_TAB_TO_SECTION[
-                              activeTab as Exclude<
-                                (typeof HR_WORKSPACE_TAB_IDS)[number],
-                                "hr-chat-control"
-                              >
-                            ]
-                          ]?.description}
+                        : activeTab === "hr-ats-otp"
+                          ? "Create or rotate HotCol ATS Admin unlock codes for HR and Manager."
+                          : HR_SECTION_COPY[
+                              HR_TAB_TO_SECTION[
+                                activeTab as Exclude<
+                                  (typeof HR_WORKSPACE_TAB_IDS)[number],
+                                  "hr-chat-control" | "hr-ats-otp"
+                                >
+                              ]
+                            ]?.description}
                     </p>
                   </div>
                   {renderContent()}
