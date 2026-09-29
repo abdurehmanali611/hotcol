@@ -910,12 +910,11 @@ function AdminDashboardContent() {
               <SubscriptionAlertBanner />
               {ADMIN_HR_TAB_IDS.has(activeTab) ? (
                 <>
-                  <div className="space-y-1.5 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
-                    <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
-                      {activeTab === "hr-chat-control"
-                        ? "Chat control"
-                        : activeTab === "hr-ats-otp"
-                          ? "ATS OTP"
+                  {activeTab === "hr-ats-otp" ? null : (
+                    <div className="space-y-1.5 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
+                      <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
+                        {activeTab === "hr-chat-control"
+                          ? "Chat control"
                           : HR_SECTION_COPY[
                               HR_TAB_TO_SECTION[
                                 activeTab as Exclude<
@@ -924,12 +923,10 @@ function AdminDashboardContent() {
                                 >
                               ]
                             ]?.title}
-                    </h2>
-                    <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                      {activeTab === "hr-chat-control"
-                        ? "Block employee chat paths and audit message history. Live messaging stays on the header chat icon."
-                        : activeTab === "hr-ats-otp"
-                          ? "Create or rotate HotCol ATS Admin unlock codes for HR and Manager."
+                      </h2>
+                      <p className="max-w-3xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                        {activeTab === "hr-chat-control"
+                          ? "Block employee chat paths and audit message history. Live messaging stays on the header chat icon."
                           : HR_SECTION_COPY[
                               HR_TAB_TO_SECTION[
                                 activeTab as Exclude<
@@ -938,8 +935,9 @@ function AdminDashboardContent() {
                                 >
                               ]
                             ]?.description}
-                    </p>
-                  </div>
+                      </p>
+                    </div>
+                  )}
                   {renderContent()}
                 </>
               ) : (

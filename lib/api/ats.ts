@@ -6,14 +6,19 @@ export type AtsAccessOtp = {
   HotelName: string;
   role: string;
   hasCode: boolean;
+  awaitingFirstUnlock: boolean;
+  mustChangeOtp: boolean;
   updatedBy: string;
   createdAt: string;
   updatedAt: string;
+  otpIssuedAt: string | null;
+  firstUnlockAt: string | null;
   otpPreview: string;
 };
 
 const OTP_FIELDS = `
-  id tinNumber HotelName role hasCode updatedBy createdAt updatedAt otpPreview
+  id tinNumber HotelName role hasCode awaitingFirstUnlock mustChangeOtp
+  updatedBy createdAt updatedAt otpIssuedAt firstUnlockAt otpPreview
 `;
 
 async function gql<T>(
@@ -44,4 +49,16 @@ export async function upsertAtsAccessOtpApi(
     { role },
   );
   return data.upsertAtsAccessOtp;
+}
+
+export async function deleteAtsAccessOtpApi(
+  role: "HR" | "Manager",
+): Promise<boolean> {
+  const data = await gql<{ deleteAtsAccessOtp: boolean }>(
+    `mutation ($role: String!) {
+      deleteAtsAccessOtp(role: $role)
+    }`,
+    { role },
+  );
+  return Boolean(data.deleteAtsAccessOtp);
 }
