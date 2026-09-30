@@ -1,13 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
@@ -25,6 +18,12 @@ import {
 } from "@/lib/lodgingActionHistoryFormat";
 import { downloadLodgingActionHistoryPdf } from "@/lib/lodgingActionHistoryPdf";
 import { exportRowsExcel } from "@/lib/hotelInventoryExcelExport";
+import {
+  LodgingSectionCard,
+  lodgingGhostBtnClass,
+  lodgingPrimaryBtnClass,
+} from "@/components/hotel/lodgingChrome";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export { formatLodgingActionDetails } from "@/lib/lodgingActionHistoryFormat";
@@ -45,6 +44,23 @@ function toExportRows(logs: LodgingActionLog[]) {
     Entity: log.entityType || "",
     "What changed": formatLodgingActionDetails(log.detailJson),
   }));
+}
+
+function actionBadgeClass(action: string) {
+  const a = String(action || "").toLowerCase();
+  if (a.includes("checkout") || a.includes("complete") || a.includes("approve")) {
+    return "border-emerald-500/20 bg-emerald-500/8 text-emerald-800 dark:text-emerald-300";
+  }
+  if (a.includes("checkin") || a.includes("check_in") || a.includes("create")) {
+    return "border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300";
+  }
+  if (a.includes("discount") || a.includes("pending") || a.includes("assign")) {
+    return "border-amber-500/20 bg-amber-500/8 text-amber-900 dark:text-amber-300";
+  }
+  if (a.includes("void") || a.includes("delete") || a.includes("reject") || a.includes("cancel")) {
+    return "border-rose-500/20 bg-rose-500/8 text-rose-800 dark:text-rose-300";
+  }
+  return "border-primary/15 bg-primary/6 text-teal-800 dark:text-teal-300";
 }
 
 export function LodgingActionHistoryPanel({
@@ -119,136 +135,136 @@ export function LodgingActionHistoryPanel({
   };
 
   return (
-    <Card className="overflow-hidden border-border/80 bg-card/95 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
-      <div className="h-1 bg-linear-to-r from-slate-500/50 via-border to-transparent" />
-      <CardHeader className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1 min-w-0">
-            <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-              <History className="h-5 w-5 shrink-0 text-primary" />
-              {title}
-            </CardTitle>
-            <CardDescription className="leading-relaxed">
-              {description}
-            </CardDescription>
+    <LodgingSectionCard
+      title={title}
+      description={description}
+      icon={<History className="h-5 w-5" />}
+      accent="bg-linear-to-r from-primary/40 via-sky-500/25 to-transparent"
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <PendingButton
+            type="button"
+            variant="outline"
+            className={cn("h-9 gap-1.5 border-primary/25", lodgingGhostBtnClass)}
+            disabled={logs.length === 0}
+            pending={exportingPdf}
+            onClick={() => void exportPdf()}
+          >
+            <FileDown className="h-4 w-4" />
+            Export PDF
+          </PendingButton>
+          <PendingButton
+            type="button"
+            variant="outline"
+            className="h-9 gap-1.5 border-sky-500/20 text-sky-800/90 hover:bg-sky-500/6 dark:text-sky-300"
+            disabled={logs.length === 0}
+            pending={exportingExcel}
+            onClick={() => void exportExcel()}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export Excel
+          </PendingButton>
+        </div>
+      }
+    >
+      {logs.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-primary/25 bg-primary/5 px-6 py-10 text-center text-sm text-muted-foreground">
+          No actions logged yet.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="overflow-x-auto overflow-hidden rounded-xl border border-primary/12 bg-background shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-primary/10 bg-primary/5 text-left text-[11px] uppercase tracking-wider text-teal-800/65 dark:text-teal-300/70">
+                  <th className="px-3 py-2.5 font-medium">When</th>
+                  <th className="px-3 py-2.5 font-medium">Action</th>
+                  <th className="px-3 py-2.5 font-medium">Actor</th>
+                  <th className="px-3 py-2.5 font-medium">Entity</th>
+                  <th className="min-w-56 px-3 py-2.5 font-medium">
+                    What changed
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-primary/10">
+                {pageLogs.map((log) => (
+                  <tr
+                    key={log.id}
+                    className="align-top transition-colors hover:bg-primary/5"
+                  >
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs tabular-nums text-muted-foreground">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "font-medium capitalize",
+                          actionBadgeClass(log.action),
+                        )}
+                      >
+                        {lodgingActionLabel(log.action)}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <p className="text-sm font-medium">
+                        {log.actorName || "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {log.actorRole || "—"}
+                      </p>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                      {log.entityType || "—"}
+                    </td>
+                    <td className="max-w-md px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+                      {formatLodgingActionDetails(log.detailJson)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <PendingButton
-              type="button"
-              variant="outline"
-              className="h-9 gap-1.5"
-              disabled={logs.length === 0}
-              pending={exportingPdf}
-              onClick={() => void exportPdf()}
-            >
-              <FileDown className="h-4 w-4" />
-              Export PDF
-            </PendingButton>
-            <PendingButton
-              type="button"
-              variant="outline"
-              className="h-9 gap-1.5"
-              disabled={logs.length === 0}
-              pending={exportingExcel}
-              onClick={() => void exportExcel()}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Export Excel
-            </PendingButton>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs tabular-nums text-muted-foreground">
+              Showing {from}–{to} of {logs.length}
+              {pageCount > 1 ? ` · Page ${safePage + 1} of ${pageCount}` : ""}
+              <span className="text-teal-800/70 dark:text-teal-300/70">
+                {" "}
+                · {size} / page
+              </span>
+            </p>
+            {pageCount > 1 ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn("h-8 gap-1 border-primary/25", lodgingGhostBtnClass)}
+                  disabled={safePage <= 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={cn("h-8 gap-1", lodgingPrimaryBtnClass)}
+                  disabled={safePage >= pageCount - 1}
+                  onClick={() =>
+                    setPage((p) => Math.min(pageCount - 1, p + 1))
+                  }
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4 pb-8">
-        {logs.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-6 py-10 text-center text-sm text-muted-foreground">
-            No actions logged yet.
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto rounded-xl border border-border/70">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/35 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2.5 font-medium">When</th>
-                    <th className="px-3 py-2.5 font-medium">Action</th>
-                    <th className="px-3 py-2.5 font-medium">Actor</th>
-                    <th className="px-3 py-2.5 font-medium">Entity</th>
-                    <th className="px-3 py-2.5 font-medium min-w-56">
-                      What changed
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {pageLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-muted/15 align-top">
-                      <td className="px-3 py-2.5 text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Badge
-                          variant="outline"
-                          className="font-normal capitalize"
-                        >
-                          {lodgingActionLabel(log.action)}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <p className="font-medium text-sm">
-                          {log.actorName || "—"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {log.actorRole || "—"}
-                        </p>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                        {log.entityType || "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground leading-relaxed max-w-md">
-                        {formatLodgingActionDetails(log.detailJson)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-muted-foreground tabular-nums">
-                Showing {from}–{to} of {logs.length}
-                {pageCount > 1 ? ` · Page ${safePage + 1} of ${pageCount}` : ""}
-              </p>
-              {pageCount > 1 ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1"
-                    disabled={safePage <= 0}
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1"
-                    disabled={safePage >= pageCount - 1}
-                    onClick={() =>
-                      setPage((p) => Math.min(pageCount - 1, p + 1))
-                    }
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </LodgingSectionCard>
   );
 }

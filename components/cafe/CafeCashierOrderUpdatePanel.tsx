@@ -998,6 +998,7 @@ export function CafeCashierOrderUpdatePanel({
                               listdisplay={waiterOptions}
                               formItemClassName="w-full"
                               inputClassName="h-fit w-full text-base"
+                              searchable={isRoomScope}
                             />
                             <CustomFormField
                               control={form.control}
@@ -1009,6 +1010,7 @@ export function CafeCashierOrderUpdatePanel({
                               isNumeric
                               formItemClassName="w-full"
                               inputClassName="h-fit w-full text-base"
+                              searchable={isRoomScope}
                             />
                           </>
                         ) : null}
@@ -1734,6 +1736,7 @@ export function CafeCashierOrderUpdatePanel({
                                   isNumeric
                                   formItemClassName="w-full"
                                   inputClassName="h-fit w-full min-w-0 text-base"
+                                  searchable={isRoomScope}
                                 />
                                 <CustomFormField
                                   control={form.control}
@@ -1744,6 +1747,7 @@ export function CafeCashierOrderUpdatePanel({
                                   listdisplay={waiterOptions}
                                   formItemClassName="w-full"
                                   inputClassName="h-fit w-full min-w-0 text-base"
+                                  searchable={isRoomScope}
                                 />
                               </>
                             ) : null}

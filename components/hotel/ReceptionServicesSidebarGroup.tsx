@@ -13,6 +13,8 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { ChevronRight, Shirt, UtensilsCrossed } from "lucide-react";
+import { lodgingNavActiveClass } from "@/components/hotel/lodgingChrome";
+import { cn } from "@/lib/utils";
 
 const FNB_ITEMS = [
   { id: "services-fnb-order", label: "Order" },
@@ -90,7 +92,7 @@ export function ReceptionServicesSidebarGroup({
               <SidebarMenuButton
                 tooltip="Food & drink"
                 size="lg"
-                className="h-10 cursor-pointer text-[13px]"
+                className={lodgingNavActiveClass}
                 isActive={fnbActive}
               >
                 <UtensilsCrossed className="opacity-80" />
@@ -105,6 +107,10 @@ export function ReceptionServicesSidebarGroup({
                     <SidebarMenuSubButton
                       asChild
                       isActive={activeSection === id}
+                      className={cn(
+                        activeSection === id &&
+                          "bg-primary/10 font-medium text-primary",
+                      )}
                     >
                       <button
                         type="button"
@@ -128,7 +134,7 @@ export function ReceptionServicesSidebarGroup({
             <SidebarMenuButton
               tooltip="Laundry"
               size="lg"
-              className="h-10 cursor-pointer text-[13px]"
+              className={lodgingNavActiveClass}
               isActive={laundryActive}
             >
               <Shirt className="opacity-80" />
@@ -140,7 +146,14 @@ export function ReceptionServicesSidebarGroup({
             <SidebarMenuSub>
               {LAUNDRY_ITEMS.map(({ id, label }) => (
                 <SidebarMenuSubItem key={id}>
-                  <SidebarMenuSubButton asChild isActive={activeSection === id}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={activeSection === id}
+                    className={cn(
+                      activeSection === id &&
+                        "bg-primary/10 font-medium text-primary",
+                    )}
+                  >
                     <button
                       type="button"
                       onClick={() => onSelect(id)}

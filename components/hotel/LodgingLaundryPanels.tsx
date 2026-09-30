@@ -3,27 +3,26 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { CldUploadButton } from "next-cloudinary";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import { Shirt, Pencil, Plus, Trash2, Upload } from "lucide-react";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { RegistrationImageUploadField } from "@/components/hotel/RegistrationImageUploadField";
+import {
+  LODGING_ACCENTS,
+  LodgingEmptyState,
+  LodgingFormSection,
+  LodgingPanelShell,
+  LodgingSectionCard,
+  lodgingDangerBtnClass,
+  lodgingFieldClass,
+  lodgingGhostBtnClass,
+  lodgingListDivideClass,
+  lodgingListFrameClass,
+  lodgingPrimaryBtnClass,
+} from "@/components/hotel/lodgingChrome";
 import {
   deleteLodgingServiceItemApi,
   fetchLodgingServiceItems,
@@ -40,6 +39,7 @@ import {
   registrationPreviewImageUrl,
 } from "@/lib/registrationImageUrl";
 import { notifyApiFailure } from "@/lib/actions";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type LaundryLine = {
@@ -128,39 +128,36 @@ export function LodgingLaundryAddPanel() {
   };
 
   return (
-    <Card className="mx-auto max-w-4xl overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
-      <div className="h-1 bg-linear-to-r from-amber-500/60 via-primary/50 to-sky-500/40" />
-      <CardHeader className="space-y-1 pb-2">
-        <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-          <Shirt className="h-5 w-5 text-primary" />
-          Add laundry items
-        </CardTitle>
-        <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-          Price laundry services charged to guest stays. Add several rows, then
-          submit once — units match store inventory (Litre, Kilogram, Piece…).
-          Optional photos help reception pick the right item.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pb-8">
-        <HotelFormSection
+    <LodgingPanelShell className="mx-auto max-w-4xl">
+      <LodgingSectionCard
+        title="Add laundry items"
+        description="Price laundry services charged to guest stays. Add several rows, then submit once — units match store inventory (Litre, Kilogram, Piece…). Optional photos help reception pick the right item."
+        icon={<Shirt className="h-5 w-5" />}
+        accent={LODGING_ACCENTS.amber}
+      >
+        <LodgingFormSection
           title="Laundry lines"
           description="One card per washable item or service."
+          tone="amber"
         >
           <div className="min-w-0 space-y-3">
             {lines.map((line, idx) => (
               <div
                 key={line.key}
-                className="min-w-0 space-y-4 rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm ring-1 ring-black/4 sm:p-5 dark:ring-white/6"
+                className="min-w-0 space-y-4 rounded-xl border border-amber-500/15 bg-linear-to-br from-amber-500/4 via-card to-card p-4 shadow-sm sm:p-5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-900/65 dark:text-amber-200/70">
                     Item {idx + 1}
                   </span>
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className={cn(
+                      "size-8 shrink-0",
+                      lodgingDangerBtnClass,
+                    )}
                     disabled={lines.length <= 1}
                     onClick={() =>
                       setLines((prev) =>
@@ -184,7 +181,7 @@ export function LodgingLaundryAddPanel() {
                         updateLine(line.key, { name: e.target.value })
                       }
                       placeholder="e.g. Shirt wash"
-                      className="h-10"
+                      className={lodgingFieldClass}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -201,28 +198,22 @@ export function LodgingLaundryAddPanel() {
                         updateLine(line.key, { unitPriceETB: e.target.value })
                       }
                       placeholder="0.00"
-                      className="h-10 tabular-nums"
+                      className={cn(lodgingFieldClass, "tabular-nums")}
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Unit</Label>
-                    <Select
+                    <LodgingOptionCombobox
                       value={line.unitLabel}
-                      onValueChange={(v) =>
+                      onChange={(v) =>
                         updateLine(line.key, { unitLabel: v })
                       }
-                    >
-                      <SelectTrigger className="h-10 w-full min-w-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {inventoryUnitSelectValues(line.unitLabel).map((u) => (
-                          <SelectItem key={u} value={u}>
-                            {u}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={inventoryUnitSelectValues(line.unitLabel).map(
+                        (u) => ({ value: u, label: u }),
+                      )}
+                      placeholder="Select unit…"
+                      searchPlaceholder="Search units…"
+                    />
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
@@ -232,7 +223,7 @@ export function LodgingLaundryAddPanel() {
                   </Label>
                   <div className="flex items-center gap-3">
                     {hasRegistrationImage(line.imageUrl) ? (
-                      <div className="relative h-12 w-12 overflow-hidden rounded-md border">
+                      <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-amber-500/15">
                         <Image
                           src={
                             registrationPreviewImageUrl(line.imageUrl) ||
@@ -254,7 +245,7 @@ export function LodgingLaundryAddPanel() {
                         const url = secureUrlFromUpload(result);
                         if (url) updateLine(line.key, { imageUrl: url });
                       }}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-muted"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-primary/15 bg-background px-3 text-xs font-medium text-teal-800/90 shadow-sm hover:bg-primary/6 dark:text-teal-200"
                     >
                       <Upload className="h-3.5 w-3.5" />
                       {hasRegistrationImage(line.imageUrl)
@@ -266,7 +257,7 @@ export function LodgingLaundryAddPanel() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-9 text-xs text-muted-foreground"
+                        className={cn("h-9 text-xs", lodgingGhostBtnClass)}
                         onClick={() => updateLine(line.key, { imageUrl: "" })}
                       >
                         Remove
@@ -282,7 +273,7 @@ export function LodgingLaundryAddPanel() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10"
+                className={cn("h-10 rounded-xl border-primary/20", lodgingGhostBtnClass)}
                 onClick={() => setLines((prev) => [...prev, emptyLine()])}
               >
                 <Plus className="h-4 w-4" />
@@ -297,7 +288,7 @@ export function LodgingLaundryAddPanel() {
             </div>
             <PendingButton
               type="button"
-              className="h-11 w-full text-base font-semibold shadow-md"
+              className={cn("h-11 w-full text-base font-semibold", lodgingPrimaryBtnClass)}
               pending={pending}
               disabled={validLines.length === 0}
               onClick={() => void onSubmit()}
@@ -306,9 +297,9 @@ export function LodgingLaundryAddPanel() {
               {validLines.length === 1 ? "" : "s"}
             </PendingButton>
           </div>
-        </HotelFormSection>
-      </CardContent>
-    </Card>
+        </LodgingFormSection>
+      </LodgingSectionCard>
+    </LodgingPanelShell>
   );
 }
 
@@ -372,28 +363,25 @@ export function LodgingLaundryItemsPanel() {
   };
 
   return (
-    <Card className="mx-auto max-w-4xl overflow-hidden border-border/80 bg-card/95 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
-      <div className="h-1 bg-linear-to-r from-amber-500/50 via-border to-transparent" />
-      <CardHeader className="space-y-1">
-        <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-          <Shirt className="h-5 w-5 text-primary" />
-          Laundry menu items
-        </CardTitle>
-        <CardDescription className="leading-relaxed">
-          Update or remove laundry catalog prices and photos used at reception.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5 pb-8">
+    <LodgingPanelShell className="mx-auto max-w-4xl">
+      <LodgingSectionCard
+        title="Laundry menu items"
+        description="Update or remove laundry catalog prices and photos used at reception."
+        icon={<Shirt className="h-5 w-5" />}
+        accent={LODGING_ACCENTS.sky}
+      >
         {editingId != null ? (
-          <HotelFormSection
+          <LodgingFormSection
             title="Edit item"
             description="Save when the name, price, unit, and image look right."
+            tone="sky"
+            className="mb-5"
           >
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="col-span-2 space-y-1.5 sm:col-span-1">
                 <Label>Name</Label>
                 <Input
-                  className="h-10"
+                  className={lodgingFieldClass}
                   value={form.name}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, name: e.target.value }))
@@ -406,7 +394,7 @@ export function LodgingLaundryItemsPanel() {
                   type="number"
                   min={0}
                   step="0.01"
-                  className="h-10 tabular-nums"
+                  className={cn(lodgingFieldClass, "tabular-nums")}
                   value={form.unitPriceETB}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, unitPriceETB: e.target.value }))
@@ -415,23 +403,17 @@ export function LodgingLaundryItemsPanel() {
               </div>
               <div className="space-y-1.5">
                 <Label>Unit</Label>
-                <Select
+                <LodgingOptionCombobox
                   value={form.unitLabel}
-                  onValueChange={(v) =>
+                  onChange={(v) =>
                     setForm((f) => ({ ...f, unitLabel: v }))
                   }
-                >
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {inventoryUnitSelectValues(form.unitLabel).map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={inventoryUnitSelectValues(form.unitLabel).map(
+                    (u) => ({ value: u, label: u }),
+                  )}
+                  placeholder="Select unit…"
+                  searchPlaceholder="Search units…"
+                />
               </div>
             </div>
             <RegistrationImageUploadField
@@ -442,37 +424,45 @@ export function LodgingLaundryItemsPanel() {
             <div className="flex flex-wrap gap-2">
               <PendingButton
                 type="button"
+                className={lodgingPrimaryBtnClass}
                 pending={pending?.startsWith("save") === true}
                 onClick={() => void onSave()}
               >
                 <Pencil className="h-4 w-4" />
                 Update
               </PendingButton>
-              <Button type="button" variant="outline" onClick={resetForm}>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn("rounded-xl border-primary/20", lodgingGhostBtnClass)}
+                onClick={resetForm}
+              >
                 Cancel
               </Button>
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground py-4">Loading…</p>
+          <p className="py-6 text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground">
-            No laundry items yet. Use Add item to create some.
-          </div>
+          <LodgingEmptyState
+            title="No laundry items yet"
+            description="Use Add item to create catalog prices shown at reception."
+            icon={<Shirt className="h-6 w-6" />}
+          />
         ) : (
-          <ul className="divide-y overflow-hidden rounded-xl border border-border/70">
+          <ul className={cn(lodgingListFrameClass, lodgingListDivideClass)}>
             {items.map((item) => {
               const preview = registrationPreviewImageUrl(item.imageUrl || "");
               const hasImg = hasRegistrationImage(item.imageUrl || "");
               return (
                 <li
                   key={item.id}
-                  className="flex flex-col gap-2 bg-card/60 p-4 transition-colors hover:bg-muted/20 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 bg-card/40 p-4 transition-colors hover:bg-primary/3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30">
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-primary/12 bg-primary/4">
                       {hasImg && preview ? (
                         <Image
                           src={preview}
@@ -483,24 +473,24 @@ export function LodgingLaundryItemsPanel() {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
-                          <Shirt className="h-5 w-5 text-muted-foreground/60" />
+                          <Shirt className="h-5 w-5 text-teal-700/55 dark:text-teal-300/60" />
                         </div>
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
                         ETB {Number(item.unitPriceETB).toLocaleString()} /{" "}
                         {item.unitLabel}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex shrink-0 gap-1">
                     <Button
                       type="button"
                       size="icon"
                       variant="ghost"
-                      className="size-8"
+                      className={cn("size-8", lodgingGhostBtnClass)}
                       onClick={() => {
                         setEditingId(item.id);
                         setForm({
@@ -517,7 +507,7 @@ export function LodgingLaundryItemsPanel() {
                       type="button"
                       size="icon"
                       variant="ghost"
-                      className="size-8 text-destructive hover:text-destructive"
+                      className={cn("size-8", lodgingDangerBtnClass)}
                       pending={pending === `del-${item.id}`}
                       onClick={async () => {
                         setPending(`del-${item.id}`);
@@ -540,7 +530,7 @@ export function LodgingLaundryItemsPanel() {
             })}
           </ul>
         )}
-      </CardContent>
-    </Card>
+      </LodgingSectionCard>
+    </LodgingPanelShell>
   );
 }

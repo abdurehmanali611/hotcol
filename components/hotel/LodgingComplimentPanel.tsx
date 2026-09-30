@@ -14,13 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PendingButton } from "@/components/ui/pending-button";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import {
   assignLodgingComplimentRoomApi,
   fetchLodgingRooms,
@@ -119,6 +113,23 @@ export function LodgingComplimentPanel({
         )
         .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber)),
     [rooms],
+  );
+
+  const assignableRoomOptions = useMemo(
+    () =>
+      assignableRooms.map((r) => {
+        const statusLabel =
+          LODGING_ROOM_STATUS_LABELS[
+            r.status as keyof typeof LODGING_ROOM_STATUS_LABELS
+          ] || r.status;
+        return {
+          value: String(r.id),
+          label: `Rm ${r.roomNumber} · ${r.roomType}${
+            r.floor ? ` · Fl ${r.floor}` : ""
+          } · ${statusLabel}`,
+        };
+      }),
+    [assignableRooms],
   );
 
   const assign = async () => {
@@ -276,26 +287,16 @@ export function LodgingComplimentPanel({
           <CardContent className="space-y-4 pb-5">
             <div className="space-y-1.5">
               <Label>Room</Label>
-              <Select
-                value={roomId || undefined}
-                onValueChange={setRoomId}
+              <LodgingOptionCombobox
+                value={roomId}
+                onChange={setRoomId}
+                options={assignableRoomOptions}
+                placeholder="Select vacant room…"
+                searchPlaceholder="Search rooms…"
+                emptyText="No vacant rooms available."
                 disabled={loading || assignableRooms.length === 0}
-              >
-                <SelectTrigger className="h-11 w-full rounded-xl">
-                  <SelectValue placeholder="Select vacant room…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignableRooms.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      Rm {r.roomNumber} · {r.roomType}
-                      {r.floor ? ` · Fl ${r.floor}` : ""} ·{" "}
-                      {LODGING_ROOM_STATUS_LABELS[
-                        r.status as keyof typeof LODGING_ROOM_STATUS_LABELS
-                      ] || r.status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="h-11"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="comp-assignee">Assigned to</Label>

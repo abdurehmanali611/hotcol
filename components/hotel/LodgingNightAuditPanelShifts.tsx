@@ -14,13 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import { DataTable } from "@/app/StoreItems/data-table";
@@ -401,8 +395,8 @@ export function LodgingNightAuditPanel({
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-primary/20 shadow-lg">
-        <div className="h-1 bg-linear-to-r from-sky-500/55 via-primary/40 to-emerald-500/40" />
+      <Card className="overflow-hidden border-primary/12 shadow-sm">
+        <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
             <UserRound className="h-5 w-5 text-primary" />
@@ -612,21 +606,19 @@ export function LodgingNightAuditPanel({
               />
               <div className="min-w-0 space-y-1.5">
                 <Label className="text-sm">Receptionist</Label>
-                <Select
-                  value={receptionistId || undefined}
-                  onValueChange={setReceptionistId}
-                >
-                  <SelectTrigger className="h-11 w-full bg-background py-0 data-[size=default]:h-11">
-                    <SelectValue placeholder="Select receptionist" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeReceptionists.map((r) => (
-                      <SelectItem key={r.id} value={String(r.id)}>
-                        {receptionistLabel(r)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <LodgingOptionCombobox
+                  value={receptionistId}
+                  onChange={setReceptionistId}
+                  options={activeReceptionists.map((r) => ({
+                    value: String(r.id),
+                    label: receptionistLabel(r),
+                  }))}
+                  placeholder="Select receptionist"
+                  searchPlaceholder="Search receptionists…"
+                  emptyText="No receptionists found."
+                  disabled={activeReceptionists.length === 0}
+                  className="h-11"
+                />
               </div>
             </div>
             <div className="flex justify-end pt-1">
@@ -646,8 +638,8 @@ export function LodgingNightAuditPanel({
       </Card>
 
       {summary && closedDay ? (
-        <Card className="overflow-hidden border-border/70 shadow-md">
-          <div className="h-1 bg-linear-to-r from-emerald-500/55 via-sky-500/40 to-amber-500/35" />
+        <Card className="overflow-hidden border-border/70 shadow-sm">
+          <div className="h-1 bg-linear-to-r from-emerald-500/40 via-sky-500/25 to-transparent" />
           <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
               <CardTitle className="text-lg tracking-tight">
@@ -757,7 +749,7 @@ export function LodgingNightAuditPanel({
                 getRowId={(r) => r.id}
                 searchPlaceholder="Search arrivals…"
                 emptyMessage="No arrivals for this receptionist in the date range."
-                pageSize={8}
+                pageSize={10}
                 hideToolbar={arrivalRows.length === 0}
               />
             </div>
@@ -772,7 +764,7 @@ export function LodgingNightAuditPanel({
                 getRowId={(r) => r.id}
                 searchPlaceholder="Search departures…"
                 emptyMessage="No departures for this receptionist in the date range."
-                pageSize={8}
+                pageSize={10}
                 hideToolbar={departureRows.length === 0}
               />
             </div>
@@ -785,7 +777,7 @@ export function LodgingNightAuditPanel({
                 getRowId={(r) => r.id}
                 searchPlaceholder="Search in-house…"
                 emptyMessage="No in-house stays for this receptionist."
-                pageSize={8}
+                pageSize={10}
                 hideToolbar={inHouseRows.length === 0}
               />
             </div>

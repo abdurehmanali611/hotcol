@@ -18,13 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -37,7 +31,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PhoneInput } from "@/components/phone-input";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+import {
+  LodgingFormSection,
+  lodgingFieldClass,
+  lodgingPrimaryBtnClass,
+} from "@/components/hotel/lodgingChrome";
 import { WORLD_COUNTRIES, statesForCountry } from "@/lib/countryStates";
 import { LODGING_ROOM_TYPES } from "@/constants/lodgingRooms";
 import {
@@ -544,13 +542,15 @@ export function ReceptionCheckInForm({
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
-      <Card className="overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
-        <div className="h-1 bg-linear-to-r from-primary/60 via-sky-500/45 to-emerald-500/40" />
-        <CardHeader className="space-y-1 pb-2">
+      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-md ring-1 ring-black/3 dark:ring-white/5">
+        <div className="h-1 bg-linear-to-r from-primary/40 via-sky-500/25 to-transparent" />
+        <CardHeader className="space-y-1 bg-muted/10 pb-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-                <UserPlus className="h-5 w-5 text-primary" />
+              <CardTitle className="flex items-center gap-2.5 text-xl tracking-tight">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+                  <UserPlus className="h-5 w-5" />
+                </span>
                 Guest check-in
               </CardTitle>
               <CardDescription className="max-w-3xl text-pretty leading-relaxed">
@@ -605,9 +605,10 @@ export function ReceptionCheckInForm({
           ) : null}
 
           {/* Returning guest finder */}
-          <HotelFormSection
+          <LodgingFormSection
             title="Returning guest"
             description="Search by phone. Selecting a match fills the guest form — you can still edit before check-in."
+            tone="sky"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="min-w-0 flex-1 space-y-1.5 max-w-md">
@@ -621,13 +622,13 @@ export function ReceptionCheckInForm({
                     setGuestSearch((v as string) || "");
                     setSearchedEmpty(false);
                   }}
-                  className="h-10"
+                  className={lodgingFieldClass}
                 />
               </div>
               <PendingButton
                 type="button"
                 variant="outline"
-                className="h-10"
+                className="h-10 border-sky-500/30 hover:bg-sky-500/10"
                 pending={pending === "guest-search"}
                 onClick={() => void searchGuests()}
               >
@@ -638,7 +639,7 @@ export function ReceptionCheckInForm({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-10"
+                  className={lodgingFieldClass}
                   onClick={clearReturningGuest}
                 >
                   Clear match
@@ -679,19 +680,20 @@ export function ReceptionCheckInForm({
                 ))}
               </ul>
             ) : null}
-          </HotelFormSection>
+          </LodgingFormSection>
 
           {/* Identity */}
-          <HotelFormSection
+          <LodgingFormSection
             title="Guest identity"
             description="Name, sex, and contact — required for the stay voucher."
+            tone="primary"
           >
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2 space-y-1.5 sm:col-span-2">
                 <Label htmlFor="ci-first">First name</Label>
                 <Input
                   id="ci-first"
-                  className="h-10"
+                  className={lodgingFieldClass}
                   value={guest.firstName}
                   onChange={(e) =>
                     setGuest((g) => ({ ...g, firstName: e.target.value }))
@@ -703,7 +705,7 @@ export function ReceptionCheckInForm({
                 <Label htmlFor="ci-last">Last name</Label>
                 <Input
                   id="ci-last"
-                  className="h-10"
+                  className={lodgingFieldClass}
                   value={guest.lastName}
                   onChange={(e) =>
                     setGuest((g) => ({ ...g, lastName: e.target.value }))
@@ -725,7 +727,7 @@ export function ReceptionCheckInForm({
                       className={cn(
                         "flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-normal transition-all",
                         guest.sex === s
-                          ? "border-primary/40 bg-primary/10 text-foreground shadow-sm"
+                          ? "border-primary/25 bg-primary/6 text-foreground shadow-sm"
                           : "border-border/70 bg-card/60 text-muted-foreground hover:bg-muted/40",
                       )}
                     >
@@ -767,7 +769,7 @@ export function ReceptionCheckInForm({
                 <Input
                   id="ci-email"
                   type="email"
-                  className="h-10"
+                  className={lodgingFieldClass}
                   value={guest.email}
                   onChange={(e) =>
                     setGuest((g) => ({ ...g, email: e.target.value }))
@@ -776,17 +778,18 @@ export function ReceptionCheckInForm({
                 />
               </div>
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
 
           {/* ID + location */}
           <div ref={identityExtrasRef} className="scroll-mt-24">
-          <HotelFormSection
+          <LodgingFormSection
             title="Identification & location"
             description={
               reservation
                 ? "Required at check-in — reservations only store name and phone."
                 : "Ethiopian guests use Fayda FCN/FIN; others use passport. Country and state only."
             }
+            tone="emerald"
           >
             <div
               className={cn(
@@ -839,7 +842,7 @@ export function ReceptionCheckInForm({
                     "h-10 font-mono tracking-wide",
                     reservation &&
                       !guest.nationalId.trim() &&
-                      "border-amber-500/50 ring-1 ring-amber-500/20",
+                      "border-amber-500/35 ring-1 ring-amber-500/12",
                   )}
                   value={guest.nationalId}
                   onChange={(e) =>
@@ -860,7 +863,7 @@ export function ReceptionCheckInForm({
                     "h-10 font-mono tracking-wide uppercase",
                     reservation &&
                       !guest.passportNumber.trim() &&
-                      "border-amber-500/50 ring-1 ring-amber-500/20",
+                      "border-amber-500/35 ring-1 ring-amber-500/12",
                   )}
                   value={guest.passportNumber}
                   onChange={(e) =>
@@ -881,9 +884,9 @@ export function ReceptionCheckInForm({
                   <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
                   Country <span className="text-destructive">*</span>
                 </Label>
-                <Select
+                <LodgingOptionCombobox
                   value={guest.country}
-                  onValueChange={(v) =>
+                  onChange={(v) =>
                     setGuest((g) => ({
                       ...g,
                       country: v,
@@ -891,51 +894,44 @@ export function ReceptionCheckInForm({
                       isEthiopian: v === "Ethiopia",
                     }))
                   }
-                >
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WORLD_COUNTRIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={WORLD_COUNTRIES.map((c) => ({
+                    value: c,
+                    label: c,
+                  }))}
+                  placeholder="Select country…"
+                  searchPlaceholder="Search countries…"
+                  className="h-10"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>
                   State / region <span className="text-destructive">*</span>
                 </Label>
-                <Select
+                <LodgingOptionCombobox
                   value={
-                    guest.stateRegion || statesForCountry(guest.country)[0]
+                    guest.stateRegion || statesForCountry(guest.country)[0] || ""
                   }
-                  onValueChange={(v) =>
+                  onChange={(v) =>
                     setGuest((g) => ({ ...g, stateRegion: v }))
                   }
-                >
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statesForCountry(guest.country).map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={statesForCountry(guest.country).map((s) => ({
+                    value: s,
+                    label: s,
+                  }))}
+                  placeholder="Select state / region…"
+                  searchPlaceholder="Search states…"
+                  className="h-10"
+                />
               </div>
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
           </div>
 
           {/* Stay timing */}
-          <HotelFormSection
+          <LodgingFormSection
             title="Stay window"
             description="Arrival is captured at check-in. Enter expected nights — expected departure is calculated from today. Actual nights are finalized at checkout."
+            tone="amber"
           >
             <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch">
               <div className="space-y-4">
@@ -982,7 +978,7 @@ export function ReceptionCheckInForm({
                       id="ci-nights"
                       type="number"
                       min={1}
-                      className="h-10 tabular-nums"
+                      className={cn(lodgingFieldClass, "tabular-nums")}
                       value={expectedNights}
                       onChange={(e) =>
                         setExpectedNights(
@@ -1007,7 +1003,7 @@ export function ReceptionCheckInForm({
                       id="ci-adults"
                       type="number"
                       min={1}
-                      className="h-10 tabular-nums"
+                      className={cn(lodgingFieldClass, "tabular-nums")}
                       value={adults}
                       onChange={(e) =>
                         setAdults(Math.max(1, Number(e.target.value) || 1))
@@ -1020,7 +1016,7 @@ export function ReceptionCheckInForm({
                       id="ci-children"
                       type="number"
                       min={0}
-                      className="h-10 tabular-nums"
+                      className={cn(lodgingFieldClass, "tabular-nums")}
                       value={children}
                       onChange={(e) =>
                         setChildren(Math.max(0, Number(e.target.value) || 0))
@@ -1028,7 +1024,7 @@ export function ReceptionCheckInForm({
                     />
                   </div>
                 </div>
-                <div className="flex min-h-[140px] flex-1 flex-col gap-1.5">
+                <div className="flex min-h-35 flex-1 flex-col gap-1.5">
                   <Label htmlFor="ci-notes" className="shrink-0">
                     Notes
                   </Label>
@@ -1068,7 +1064,7 @@ export function ReceptionCheckInForm({
                         <Label htmlFor="ci-co-name">Company name</Label>
                         <Input
                           id="ci-co-name"
-                          className="h-10"
+                          className={lodgingFieldClass}
                           value={companyName}
                           onChange={(e) => setCompanyName(e.target.value)}
                         />
@@ -1077,7 +1073,7 @@ export function ReceptionCheckInForm({
                         <Label htmlFor="ci-co-tin">Company TIN</Label>
                         <Input
                           id="ci-co-tin"
-                          className="h-10"
+                          className={lodgingFieldClass}
                           value={companyTin}
                           onChange={(e) => setCompanyTin(e.target.value)}
                         />
@@ -1087,10 +1083,10 @@ export function ReceptionCheckInForm({
                 </div>
               </div>
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
 
           {/* Rooms */}
-          <HotelFormSection
+          <LodgingFormSection
             title="Room assignment"
             description={
               assignableRooms.length === 0
@@ -1099,6 +1095,7 @@ export function ReceptionCheckInForm({
                   ? `${assignableRooms.length} room${assignableRooms.length === 1 ? "" : "s"} available for these nights (incl. future holds with a cleaning gap).`
                   : `${assignableRooms.length} room${assignableRooms.length === 1 ? "" : "s"} fit these nights.`
             }
+            tone="sky"
           >
             {assignableRooms.length === 0 ? (
               <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-5 py-8 text-center">
@@ -1152,9 +1149,9 @@ export function ReceptionCheckInForm({
                       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label>Type</Label>
-                          <Select
+                          <LodgingOptionCombobox
                             value={row.roomType}
-                            onValueChange={(v) =>
+                            onChange={(v) =>
                               setRoomAssignments((prev) =>
                                 prev.map((r) =>
                                   r.key === row.key
@@ -1163,51 +1160,39 @@ export function ReceptionCheckInForm({
                                 ),
                               )
                             }
-                          >
-                            <SelectTrigger className="h-10 w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LODGING_ROOM_TYPES.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                  {t}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={LODGING_ROOM_TYPES.map((t) => ({
+                              value: t,
+                              label: t,
+                            }))}
+                            placeholder="Select type…"
+                            searchPlaceholder="Search types…"
+                            className="h-10"
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Room</Label>
-                          <Select
-                            value={row.roomId || undefined}
-                            onValueChange={(v) =>
+                          <LodgingOptionCombobox
+                            value={row.roomId}
+                            onChange={(v) =>
                               setRoomAssignments((prev) =>
                                 prev.map((r) =>
                                   r.key === row.key ? { ...r, roomId: v } : r,
                                 ),
                               )
                             }
-                          >
-                            <SelectTrigger className="h-10 w-full">
-                              <SelectValue placeholder="Select room" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {options.length === 0 ? (
-                                <SelectItem value="__none" disabled>
-                                  None available for this type
-                                </SelectItem>
-                              ) : (
-                                options.map((r) => (
-                                  <SelectItem key={r.id} value={String(r.id)}>
-                                    {r.roomNumber}
-                                    {r.status === "reserved" ? " · held" : ""}
-                                    {r.floor ? ` · Fl. ${r.floor}` : ""} ·{" "}
-                                    {formatMoney(r.pricePerNightETB)}/night
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
+                            options={options.map((r) => ({
+                              value: String(r.id),
+                              label: `${r.roomNumber}${
+                                r.status === "reserved" ? " · held" : ""
+                              }${r.floor ? ` · Fl. ${r.floor}` : ""} · ${formatMoney(
+                                r.pricePerNightETB,
+                              )}/night`,
+                            }))}
+                            placeholder="Select room…"
+                            searchPlaceholder="Search rooms…"
+                            emptyText="None available for this type"
+                            className="h-10"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1221,7 +1206,7 @@ export function ReceptionCheckInForm({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-10"
+                  className={lodgingFieldClass}
                   disabled={assignableRooms.length === 0}
                   onClick={() =>
                     setRoomAssignments((prev) => [...prev, emptyAssign()])
@@ -1258,7 +1243,7 @@ export function ReceptionCheckInForm({
               ) : null}
               <PendingButton
                 type="button"
-                className="h-11 w-full text-base font-semibold shadow-md"
+                className={cn("h-11 w-full text-base font-semibold", lodgingPrimaryBtnClass)}
                 pending={pending === "check-in"}
                 disabled={!canSubmit}
                 onClick={() => void submitCheckIn()}
@@ -1267,7 +1252,7 @@ export function ReceptionCheckInForm({
                 Complete check-in
               </PendingButton>
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
         </CardContent>
       </Card>
 

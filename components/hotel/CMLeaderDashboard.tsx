@@ -27,23 +27,26 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { CM_LEADER_NAV_ITEMS, type CmLeaderNavId } from "@/constants";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { logoutAction, notifyApiFailure } from "@/lib/actions";
+import { cn } from "@/lib/utils";
 import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
+import {
+  LodgingPageHero,
+  LodgingPanelShell,
+  LodgingSectionCard,
+  LodgingStatusBadge,
+  lodgingNavActiveClass,
+  lodgingPrimaryBtnClass,
+  lodgingListFrameClass,
+  lodgingListDivideClass,
+} from "@/components/hotel/lodgingChrome";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import {
   completeLodgingCmAssignmentApi,
@@ -125,7 +128,7 @@ export function CMLeaderDashboard() {
         <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20">
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
@@ -152,7 +155,7 @@ export function CMLeaderDashboard() {
                       onClick={() => setActiveSection(item.id)}
                       tooltip={item.label}
                       size="lg"
-                      className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                      className={lodgingNavActiveClass}
                     >
                       <Icon className="opacity-80" />
                       <span>{item.label}</span>
@@ -175,10 +178,10 @@ export function CMLeaderDashboard() {
         </Sidebar>
 
         <div className="flex min-h-svh flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:m-2 md:ml-0 md:max-h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-3 md:h-16 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-primary/20 px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
+              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-primary/80 md:text-sm">
                 {displayName || "Property"}
               </h1>
             </div>
@@ -211,22 +214,13 @@ export function CMLeaderDashboard() {
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-            <div className="mx-auto max-w-5xl space-y-6 pb-10">
-              <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <SectionIcon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      {sectionMeta?.label}
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {sectionMeta?.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <LodgingPanelShell className="mx-auto max-w-5xl pb-10">
+              <LodgingPageHero
+                eyebrow="CM Leader"
+                title={sectionMeta?.label ?? "CM"}
+                description={sectionMeta?.description}
+                icon={<SectionIcon className="h-5 w-5" />}
+              />
 
               {activeSection === "dashboard" && (
                 <div className="space-y-6">
@@ -235,15 +229,20 @@ export function CMLeaderDashboard() {
                     includeActiveStays
                     openCmLabel="Open assignments"
                   />
-                  <Card className="border-border/80 shadow-md bg-card/95">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Recent activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                  <LodgingSectionCard
+                    title="Recent activity"
+                    icon={<History className="h-4 w-4" />}
+                  >
                       {logs.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No activity yet.</p>
                       ) : (
-                        <ul className="divide-y rounded-xl border border-border/70">
+                        <ul
+                          className={cn(
+                            lodgingListFrameClass,
+                            lodgingListDivideClass,
+                            "divide-y",
+                          )}
+                        >
                           {logs.slice(0, 10).map((log) => (
                             <li key={log.id} className="px-4 py-3 text-sm">
                               <div className="flex flex-wrap justify-between gap-2">
@@ -252,15 +251,14 @@ export function CMLeaderDashboard() {
                                   {new Date(log.createdAt).toLocaleString()}
                                 </span>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">
+                              <p className="mt-0.5 text-xs text-muted-foreground">
                                 {log.actorRole} · {log.actorName}
                               </p>
                             </li>
                           ))}
                         </ul>
                       )}
-                    </CardContent>
-                  </Card>
+                  </LodgingSectionCard>
                 </div>
               )}
 
@@ -276,20 +274,18 @@ export function CMLeaderDashboard() {
               )}
 
               {activeSection === "assignments" && (
-                <Card className="border-border/80 shadow-md bg-card/95">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Assignments</CardTitle>
-                    <CardDescription>
-                      Complete open jobs when work is finished.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                <LodgingSectionCard
+                  title="Assignments"
+                  description="Complete open jobs when work is finished."
+                  icon={<ClipboardList className="h-4 w-4" />}
+                  accent="bg-linear-to-r from-amber-500/40 via-primary/25 to-transparent"
+                >
                     {assignments.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         No assignments yet.
                       </p>
                     ) : (
-                      <ul className="divide-y rounded-xl border border-border/70">
+                      <ul className="divide-y overflow-hidden rounded-xl border border-amber-500/15 bg-linear-to-br from-amber-500/3 to-transparent">
                         {assignments.map((a) => (
                           <li
                             key={a.id}
@@ -303,17 +299,15 @@ export function CMLeaderDashboard() {
                                 {a.assigneeName}
                                 {a.notes ? ` · ${a.notes}` : ""}
                               </p>
-                              <Badge
-                                variant="outline"
-                                className="mt-1 font-normal capitalize"
-                              >
-                                {a.status}
-                              </Badge>
+                              <div className="mt-1">
+                                <LodgingStatusBadge status={a.status} />
+                              </div>
                             </div>
                             {a.status === "open" ? (
                               <PendingButton
                                 type="button"
                                 size="sm"
+                                className={lodgingPrimaryBtnClass}
                                 pending={pending === `done-${a.id}`}
                                 onClick={async () => {
                                   setPending(`done-${a.id}`);
@@ -338,8 +332,7 @@ export function CMLeaderDashboard() {
                         ))}
                       </ul>
                     )}
-                  </CardContent>
-                </Card>
+                </LodgingSectionCard>
               )}
 
               {activeSection === "history" && (
@@ -348,7 +341,7 @@ export function CMLeaderDashboard() {
                   description="Full lodging audit trail for this property."
                 />
               )}
-            </div>
+            </LodgingPanelShell>
           </main>
         </div>
       </div>

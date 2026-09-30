@@ -15,14 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import {
   LODGING_RESERVATION_SOURCES,
   LODGING_RESERVATION_SOURCE_LABELS,
@@ -357,58 +351,49 @@ export function LodgingReservationsPanel({
             </div>
             <div className="space-y-1.5 min-w-0">
               <Label>Source</Label>
-              <Select
+              <LodgingOptionCombobox
                 value={source}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   setSource(v as (typeof LODGING_RESERVATION_SOURCES)[number])
                 }
-              >
-                <SelectTrigger className="h-10 w-full bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LODGING_RESERVATION_SOURCES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {LODGING_RESERVATION_SOURCE_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={LODGING_RESERVATION_SOURCES.map((s) => ({
+                  value: s,
+                  label: LODGING_RESERVATION_SOURCE_LABELS[s],
+                }))}
+                placeholder="Select source…"
+                searchPlaceholder="Search sources…"
+                className="h-10"
+              />
             </div>
             <div className="space-y-1.5 min-w-0">
               <Label>Status</Label>
-              <Select
+              <LodgingOptionCombobox
                 value={status}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   setStatus(v as "tentative" | "confirmed")
                 }
-              >
-                <SelectTrigger className="h-10 w-full bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tentative">Tentative</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "tentative", label: "Tentative" },
+                  { value: "confirmed", label: "Confirmed" },
+                ]}
+                placeholder="Select status…"
+                searchPlaceholder="Search status…"
+                className="h-10"
+              />
             </div>
             <div className="space-y-1.5 min-w-0">
               <Label>Preferred room type</Label>
-              <Select
+              <LodgingOptionCombobox
                 value={preferredRoomType}
-                onValueChange={setPreferredRoomType}
-              >
-                <SelectTrigger className="h-10 w-full bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LODGING_ROOM_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={setPreferredRoomType}
+                options={LODGING_ROOM_TYPES.map((t) => ({
+                  value: t,
+                  label: t,
+                }))}
+                placeholder="Select room type…"
+                searchPlaceholder="Search room types…"
+                className="h-10"
+              />
             </div>
             <div className="space-y-1.5 min-w-0">
               <Label htmlFor="res-deposit">Deposit (ETB)</Label>

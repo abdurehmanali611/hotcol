@@ -20,12 +20,12 @@ export function ListPanelFilterBar({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border/70 bg-muted/20 px-4 py-3 space-y-3",
+        "space-y-3 rounded-2xl border border-primary/12 bg-linear-to-br from-primary/4 via-muted/10 to-sky-500/3 px-4 py-3.5",
         className,
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-800/60 dark:text-teal-300/65">
           {title}
         </span>
         {showClear && onClear ? (
@@ -33,7 +33,7 @@ export function ListPanelFilterBar({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 text-xs cursor-pointer"
+            className="h-7 text-xs text-teal-800/80 hover:bg-primary/8 dark:text-teal-200"
             onClick={onClear}
           >
             Clear filters
@@ -59,18 +59,18 @@ export function FilterChipGroup<T extends string>({
   return (
     <div className="space-y-1.5">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="inline-flex flex-wrap gap-1 rounded-xl border border-primary/12 bg-background/90 p-1">
         {options.map((opt) => (
           <Button
             key={opt.id}
             type="button"
             size="sm"
-            variant={value === opt.id ? "default" : "outline"}
+            variant="ghost"
             className={cn(
-              "h-8 rounded-full px-3.5 text-xs cursor-pointer transition-colors",
+              "h-8 rounded-lg px-3.5 text-xs font-medium transition-colors",
               value === opt.id
-                ? "shadow-sm"
-                : "border-border/70 bg-background/80 hover:bg-muted/50",
+                ? "bg-primary/90 text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground"
+                : "text-muted-foreground hover:bg-primary/8 hover:text-foreground",
             )}
             onClick={() => onChange(opt.id)}
           >

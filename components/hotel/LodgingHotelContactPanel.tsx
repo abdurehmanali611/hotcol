@@ -4,13 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import { PendingButton } from "@/components/ui/pending-button";
 import CustomFormField, { formFieldTypes } from "@/components/customFormField";
@@ -20,6 +13,13 @@ import {
   updateTenantHotelPhoneApi,
 } from "@/lib/api/lodgingHotelContact";
 import { notifyApiFailure } from "@/lib/actions";
+import {
+  LODGING_ACCENTS,
+  LodgingPanelShell,
+  LodgingSectionCard,
+  lodgingPrimaryBtnClass,
+} from "@/components/hotel/lodgingChrome";
+import { cn } from "@/lib/utils";
 
 const hotelContactSchema = z.object({
   hotelPhone: z
@@ -84,27 +84,17 @@ export function LodgingHotelContactPanel() {
   }
 
   return (
-    <Card className="max-w-xl overflow-hidden border-border/80 bg-card/95 shadow-md ring-1 ring-black/5 dark:ring-white/10">
-      <div className="h-1 bg-linear-to-r from-primary/60 via-sky-500/45 to-emerald-500/40" />
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Phone className="h-5 w-5 text-primary" />
-          Guest call center
-        </CardTitle>
-        <CardDescription>
-          Primary number is required. Guests dial from the HotCol Room phone
-          icon next to Exit. If you add a second line, guests choose which to
-          call.
-          {displayName ? (
-            <>
-              {" "}
-              Property:{" "}
-              <span className="font-medium text-foreground">{displayName}</span>.
-            </>
-          ) : null}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <LodgingPanelShell className="mx-auto max-w-xl">
+      <LodgingSectionCard
+        title="Guest call center"
+        description={
+          displayName
+            ? `Primary number is required. Guests dial from the HotCol Room phone icon next to Exit. If you add a second line, guests choose which to call. Property: ${displayName}.`
+            : "Primary number is required. Guests dial from the HotCol Room phone icon next to Exit. If you add a second line, guests choose which to call."
+        }
+        icon={<Phone className="h-4 w-4" />}
+        accent={LODGING_ACCENTS.primary}
+      >
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -116,7 +106,7 @@ export function LodgingHotelContactPanel() {
               <CustomFormField
                 name="hotelPhone"
                 control={form.control}
-                fieldType={formFieldTypes.PHONE_INPUT}
+                fieldType={FormFieldTypes.PHONE_INPUT}
                 label="Primary phone (required)"
                 placeholder="Front desk"
                 required
@@ -125,18 +115,22 @@ export function LodgingHotelContactPanel() {
               <CustomFormField
                 name="hotelPhoneSecondary"
                 control={form.control}
-                fieldType={formFieldTypes.PHONE_INPUT}
+                fieldType={FormFieldTypes.PHONE_INPUT}
                 label="Secondary phone (optional)"
                 placeholder="Reception / alternate"
                 inputClassName="h-fit w-full"
               />
-              <PendingButton type="submit" pending={saving}>
+              <PendingButton
+                type="submit"
+                className={cn(lodgingPrimaryBtnClass)}
+                pending={saving}
+              >
                 Save numbers
               </PendingButton>
             </form>
           </Form>
         )}
-      </CardContent>
-    </Card>
+      </LodgingSectionCard>
+    </LodgingPanelShell>
   );
 }

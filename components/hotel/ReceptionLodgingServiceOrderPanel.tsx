@@ -15,13 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PendingButton } from "@/components/ui/pending-button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BedDouble,
@@ -292,24 +286,18 @@ export function ReceptionLodgingServiceOrderPanel({
                   <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
                   Room / stay
                 </Label>
-                <Select value={stayId || undefined} onValueChange={setStayId}>
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="Select occupied room" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stays.length === 0 ? (
-                      <SelectItem value="__none" disabled>
-                        No active stays
-                      </SelectItem>
-                    ) : (
-                      stays.map((s) => (
-                        <SelectItem key={s.id} value={String(s.id)}>
-                          {stayRoomLabel(s)}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <LodgingOptionCombobox
+                  value={stayId}
+                  onChange={setStayId}
+                  options={stays.map((s) => ({
+                    value: String(s.id),
+                    label: stayRoomLabel(s),
+                  }))}
+                  placeholder="Select occupied room"
+                  searchPlaceholder="Search rooms…"
+                  emptyText="No active stays."
+                  className="h-10"
+                />
               </div>
             </div>
             {selectedItems.length > 0 ? (
@@ -398,7 +386,7 @@ export function ReceptionLodgingServiceOrderPanel({
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 md:px-6">
+      <div className="mx-auto w-full max-w-400 flex-1 px-4 py-5 md:px-6">
         {catalog.length === 0 ? (
           <Card className="border-dashed">
             <CardHeader>

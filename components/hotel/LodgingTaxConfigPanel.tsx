@@ -13,13 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import {
   Dialog,
   DialogContent,
@@ -310,23 +304,19 @@ export function LodgingTaxConfigPanel() {
                           <Label className="text-xs text-muted-foreground">
                             Applies to
                           </Label>
-                          <Select
+                          <LodgingOptionCombobox
                             value={draft.kind}
-                            onValueChange={(v) =>
+                            onChange={(v) =>
                               patchDraft(draft.key, { kind: v })
                             }
-                          >
-                            <SelectTrigger className="h-11 w-full rounded-xl bg-background py-0 data-[size=default]:h-11">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LODGING_BILL_LINE_KINDS.map((k) => (
-                                <SelectItem key={k} value={k}>
-                                  {LODGING_BILL_LINE_KIND_LABELS[k]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={LODGING_BILL_LINE_KINDS.map((k) => ({
+                              value: k,
+                              label: LODGING_BILL_LINE_KIND_LABELS[k],
+                            }))}
+                            placeholder="Applies to…"
+                            searchPlaceholder="Search bill kinds…"
+                            className="h-11"
+                          />
                         </div>
                         <div className="min-w-0 space-y-1.5">
                           <Label className="text-xs text-muted-foreground">
@@ -421,7 +411,7 @@ export function LodgingTaxConfigPanel() {
                   No taxes saved yet. Add a line on the left and save.
                 </div>
               ) : (
-                <ul className="max-h-[28rem] space-y-2.5 overflow-y-auto pr-0.5">
+                <ul className="max-h-112 space-y-2.5 overflow-y-auto pr-0.5">
                   {saved.map((row) => {
                     const isEditing = editRow?.id === row.id;
                     return (
@@ -525,18 +515,17 @@ export function LodgingTaxConfigPanel() {
               </div>
               <div className="space-y-1.5">
                 <Label>Applies to</Label>
-                <Select value={editKind} onValueChange={setEditKind}>
-                  <SelectTrigger className="h-11 w-full rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LODGING_BILL_LINE_KINDS.map((k) => (
-                      <SelectItem key={k} value={k}>
-                        {LODGING_BILL_LINE_KIND_LABELS[k]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <LodgingOptionCombobox
+                  value={editKind}
+                  onChange={setEditKind}
+                  options={LODGING_BILL_LINE_KINDS.map((k) => ({
+                    value: k,
+                    label: LODGING_BILL_LINE_KIND_LABELS[k],
+                  }))}
+                  placeholder="Applies to…"
+                  searchPlaceholder="Search bill kinds…"
+                  className="h-11"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-tax-percent">Percent</Label>

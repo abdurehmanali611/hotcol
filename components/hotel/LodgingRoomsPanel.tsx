@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import {
   Dialog,
   DialogContent,
@@ -47,9 +48,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  LodgingPageHero,
+  LodgingFormSection,
+  LodgingCountBadge,
+  lodgingRoomCardTone,
+  lodgingFieldClass,
+  lodgingPrimaryBtnClass,
+} from "@/components/hotel/lodgingChrome";
 import { Building2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { RegistrationImageUploadField } from "@/components/hotel/RegistrationImageUploadField";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
 import {
   LODGING_BED_TYPES,
   LODGING_MANAGER_ONLY_STATUSES,
@@ -162,9 +170,10 @@ function RoomFields({
 }) {
   return (
     <div className="space-y-4">
-      <HotelFormSection
+      <LodgingFormSection
         title="Basics"
         description="Number, type, floor, and rack rate."
+        tone="primary"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5 min-w-0">
@@ -174,26 +183,21 @@ function RoomFields({
               value={row.roomNumber}
               onChange={(e) => onPatch({ roomNumber: e.target.value })}
               placeholder="101"
-              className="h-10 bg-background"
+              className={lodgingFieldClass}
             />
           </div>
           <div className="space-y-1.5 min-w-0">
             <Label>Room type</Label>
-            <Select
+            <LodgingOptionCombobox
               value={row.roomType}
-              onValueChange={(v) => onPatch({ roomType: v })}
-            >
-              <SelectTrigger className="h-10 w-full bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LODGING_ROOM_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => onPatch({ roomType: v })}
+              options={LODGING_ROOM_TYPES.map((t) => ({
+                value: t,
+                label: t,
+              }))}
+              placeholder="Select room type…"
+              searchPlaceholder="Search room types…"
+            />
           </div>
           <div className="space-y-1.5 min-w-0">
             <Label htmlFor={`${idPrefix}-floor`}>Floor</Label>
@@ -204,7 +208,7 @@ function RoomFields({
               value={row.floor}
               onChange={(e) => onPatch({ floor: e.target.value })}
               placeholder="1"
-              className="h-10 tabular-nums bg-background"
+              className={cn(lodgingFieldClass, "tabular-nums")}
             />
           </div>
           <div className="space-y-1.5 min-w-0">
@@ -217,34 +221,30 @@ function RoomFields({
               value={row.pricePerNightETB}
               onChange={(e) => onPatch({ pricePerNightETB: e.target.value })}
               placeholder="0"
-              className="h-10 tabular-nums bg-background"
+              className={cn(lodgingFieldClass, "tabular-nums")}
             />
           </div>
         </div>
-      </HotelFormSection>
+      </LodgingFormSection>
 
-      <HotelFormSection
+      <LodgingFormSection
         title="Sleeping"
         description="Bed, capacity, and amenities shown on the directory."
+        tone="sky"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5 min-w-0">
             <Label>Bed type</Label>
-            <Select
+            <LodgingOptionCombobox
               value={row.bedType || LODGING_BED_TYPES[0]}
-              onValueChange={(v) => onPatch({ bedType: v })}
-            >
-              <SelectTrigger className="h-10 w-full bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LODGING_BED_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => onPatch({ bedType: v })}
+              options={LODGING_BED_TYPES.map((t) => ({
+                value: t,
+                label: t,
+              }))}
+              placeholder="Select bed type…"
+              searchPlaceholder="Search bed types…"
+            />
           </div>
           <div className="space-y-1.5 min-w-0">
             <Label htmlFor={`${idPrefix}-capacity`}>Capacity</Label>
@@ -255,7 +255,7 @@ function RoomFields({
               value={row.capacity}
               onChange={(e) => onPatch({ capacity: e.target.value })}
               placeholder="2"
-              className="h-10 tabular-nums bg-background"
+              className={cn(lodgingFieldClass, "tabular-nums")}
             />
           </div>
           <div className="space-y-1.5 min-w-0 sm:col-span-2">
@@ -265,15 +265,16 @@ function RoomFields({
               value={row.amenities}
               onChange={(e) => onPatch({ amenities: e.target.value })}
               placeholder="Wi‑Fi, TV, minibar, balcony…"
-              className="h-10 bg-background"
+              className={lodgingFieldClass}
             />
           </div>
         </div>
-      </HotelFormSection>
+      </LodgingFormSection>
 
-      <HotelFormSection
+      <LodgingFormSection
         title="Photo & notes"
         description="Optional image and manager notes."
+        tone="emerald"
       >
         <div className="space-y-3">
           <RegistrationImageUploadField
@@ -300,7 +301,7 @@ function RoomFields({
             />
           </div>
         </div>
-      </HotelFormSection>
+      </LodgingFormSection>
     </div>
   );
 }
@@ -466,28 +467,27 @@ export function LodgingRoomsPanel() {
 
   return (
     <>
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 lg:h-[calc(100svh-13.5rem)] lg:min-h-[32rem]">
-        <div className="shrink-0 space-y-1">
-          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <Building2 className="h-5 w-5 text-primary" />
-            Room inventory
-          </h2>
-          <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
-            Batch-register rooms with photos and amenities, then manage holds
-            and details from the directory.
-          </p>
-        </div>
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 lg:h-[calc(100svh-13.5rem)] lg:min-h-128">
+        <LodgingPageHero
+          eyebrow="Manager · Rooms"
+          title="Room inventory"
+          description="Batch-register rooms with photos and amenities, then manage holds and details from the directory."
+          icon={<Building2 className="h-5 w-5" />}
+          className="shrink-0"
+        />
 
         <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-2">
           <div
             ref={formPaneRef}
             className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
           >
-            <Card className="overflow-hidden border-primary/20 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
-              <div className="h-1 bg-linear-to-r from-sky-500/55 via-primary/40 to-emerald-500/40" />
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Plus className="h-4 w-4 text-primary" />
+            <Card className="overflow-hidden border-border/70 bg-card/95 shadow-md ring-1 ring-black/3 dark:ring-white/5">
+              <div className="h-1 bg-linear-to-r from-primary/40 via-sky-500/25 to-transparent" />
+              <CardHeader className="bg-muted/10 pb-3">
+                <CardTitle className="flex items-center gap-2.5 text-base">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+                    <Plus className="h-4 w-4" />
+                  </span>
                   Register rooms
                 </CardTitle>
                 <CardDescription className="text-pretty leading-relaxed">
@@ -540,7 +540,7 @@ export function LodgingRoomsPanel() {
                   </Button>
                   <PendingButton
                     type="button"
-                    className="h-10 w-full gap-1.5"
+                    className={cn("h-10 w-full gap-1.5", lodgingPrimaryBtnClass)}
                     pending={pending === "batch"}
                     disabled={validLines.length === 0}
                     onClick={() => void submitBatch()}
@@ -555,27 +555,22 @@ export function LodgingRoomsPanel() {
           </div>
 
           <div className="flex min-h-0 min-w-0 flex-col gap-3">
-            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex shrink-0 flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center justify-between gap-2 px-0.5 sm:justify-start">
-                <p className="text-sm font-medium tracking-tight">
+                <p className="text-sm font-semibold tracking-tight text-teal-900 dark:text-teal-100">
                   Room directory
                 </p>
                 {!loading ? (
-                  <Badge
-                    variant="secondary"
-                    className="tabular-nums font-normal"
-                  >
-                    {filtered.length}
-                  </Badge>
+                  <LodgingCountBadge>{filtered.length}</LodgingCountBadge>
                 ) : null}
               </div>
               <div className="relative w-full sm:max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70" />
                 <Input
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder="Filter number, type, floor…"
-                  className="h-10 pl-9 bg-background"
+                  className={cn(lodgingFieldClass, "pl-9")}
                 />
               </div>
             </div>
@@ -614,10 +609,27 @@ export function LodgingRoomsPanel() {
                   <Card
                     key={room.id}
                     className={cn(
-                      "border-border/70 shadow-sm transition-shadow hover:shadow-md",
-                      isEditing && "border-primary/40 ring-1 ring-primary/20",
+                      "overflow-hidden shadow-sm transition-shadow hover:shadow-md",
+                      lodgingRoomCardTone(room.status),
+                      isEditing && "ring-2 ring-primary/35",
                     )}
                   >
+                    <div
+                      className={cn(
+                        "h-1",
+                        status === "vacant_clean"
+                          ? "bg-emerald-500/60"
+                          : status === "vacant_dirty"
+                            ? "bg-amber-500/60"
+                            : status === "occupied"
+                              ? "bg-sky-500/60"
+                              : status === "on_maintenance"
+                                ? "bg-rose-500/60"
+                                : status === "inspected"
+                                  ? "bg-teal-500/60"
+                                  : "bg-primary/40",
+                      )}
+                    />
                     <CardContent className="flex flex-col gap-4 py-4">
                       <div className="flex gap-3">
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border/70 bg-muted/30">
@@ -703,7 +715,7 @@ export function LodgingRoomsPanel() {
                             }}
                           >
                             <SelectTrigger
-                              className="h-9 w-[10.5rem] text-xs"
+                              className="h-9 w-42 text-xs"
                               aria-label={`Hold status for room ${room.roomNumber}`}
                               disabled={pending === `status-${room.id}`}
                             >
@@ -767,7 +779,7 @@ export function LodgingRoomsPanel() {
         }}
       >
         <DialogContent className="flex max-h-[min(92vh,820px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
-          <div className="h-1 shrink-0 bg-linear-to-r from-sky-500/55 via-primary/40 to-emerald-500/40" />
+          <div className="h-1 shrink-0 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
           <DialogHeader className="shrink-0 space-y-1.5 border-b border-border/60 px-6 py-5 text-left">
             <DialogTitle className="flex items-center gap-2 text-base tracking-tight">
               <Pencil className="h-4 w-4 text-primary" />

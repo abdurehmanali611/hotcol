@@ -41,9 +41,9 @@ export function buildLodgingStatCards(
       value: stats?.vacantClean ?? 0,
       icon: BedDouble,
       accent:
-        "border-emerald-500/35 bg-linear-to-br from-emerald-500/15 via-card to-card shadow-emerald-500/10",
-      valueClass: "text-emerald-700 dark:text-emerald-400",
-      iconWrap: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+        "border-emerald-500/18 bg-linear-to-br from-emerald-500/6 via-card to-card",
+      valueClass: "text-emerald-800/90 dark:text-emerald-300",
+      iconWrap: "bg-emerald-500/8 text-emerald-800/90 dark:text-emerald-300",
     },
     {
       key: "vacantDirty",
@@ -51,9 +51,9 @@ export function buildLodgingStatCards(
       value: stats?.vacantDirty ?? 0,
       icon: Sparkles,
       accent:
-        "border-amber-500/35 bg-linear-to-br from-amber-500/15 via-card to-card shadow-amber-500/10",
-      valueClass: "text-amber-800 dark:text-amber-400",
-      iconWrap: "bg-amber-500/15 text-amber-800 dark:text-amber-400",
+        "border-amber-500/18 bg-linear-to-br from-amber-500/6 via-card to-card",
+      valueClass: "text-amber-900/90 dark:text-amber-300",
+      iconWrap: "bg-amber-500/8 text-amber-900/90 dark:text-amber-300",
     },
     {
       key: "occupied",
@@ -61,9 +61,9 @@ export function buildLodgingStatCards(
       value: stats?.occupied ?? 0,
       icon: Users,
       accent:
-        "border-sky-500/35 bg-linear-to-br from-sky-500/15 via-card to-card shadow-sky-500/10",
-      valueClass: "text-sky-700 dark:text-sky-400",
-      iconWrap: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+        "border-sky-500/18 bg-linear-to-br from-sky-500/6 via-card to-card",
+      valueClass: "text-sky-800/90 dark:text-sky-300",
+      iconWrap: "bg-sky-500/8 text-sky-800/90 dark:text-sky-300",
     },
     {
       key: "inspected",
@@ -71,9 +71,9 @@ export function buildLodgingStatCards(
       value: stats?.inspected ?? 0,
       icon: ClipboardCheck,
       accent:
-        "border-teal-500/35 bg-linear-to-br from-teal-500/15 via-card to-card shadow-teal-500/10",
-      valueClass: "text-teal-700 dark:text-teal-400",
-      iconWrap: "bg-teal-500/15 text-teal-700 dark:text-teal-400",
+        "border-teal-500/18 bg-linear-to-br from-teal-500/6 via-card to-card",
+      valueClass: "text-teal-800/90 dark:text-teal-300",
+      iconWrap: "bg-teal-500/8 text-teal-800/90 dark:text-teal-300",
     },
     {
       key: "onMaintenance",
@@ -81,9 +81,9 @@ export function buildLodgingStatCards(
       value: stats?.onMaintenance ?? 0,
       icon: Wrench,
       accent:
-        "border-rose-500/35 bg-linear-to-br from-rose-500/15 via-card to-card shadow-rose-500/10",
-      valueClass: "text-rose-700 dark:text-rose-400",
-      iconWrap: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+        "border-rose-500/18 bg-linear-to-br from-rose-500/6 via-card to-card",
+      valueClass: "text-rose-800/90 dark:text-rose-300",
+      iconWrap: "bg-rose-500/8 text-rose-800/90 dark:text-rose-300",
     },
     {
       key: "openCm",
@@ -91,9 +91,9 @@ export function buildLodgingStatCards(
       value: stats?.openCmAssignments ?? 0,
       icon: Sparkles,
       accent:
-        "border-violet-500/35 bg-linear-to-br from-violet-500/15 via-card to-card shadow-violet-500/10",
-      valueClass: "text-violet-700 dark:text-violet-400",
-      iconWrap: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+        "border-violet-500/18 bg-linear-to-br from-violet-500/6 via-card to-card",
+      valueClass: "text-violet-800/90 dark:text-violet-300",
+      iconWrap: "bg-violet-500/8 text-violet-800/90 dark:text-violet-300",
     },
   ];
 
@@ -104,9 +104,9 @@ export function buildLodgingStatCards(
       value: stats?.activeStays ?? 0,
       icon: Users,
       accent:
-        "border-primary/35 bg-linear-to-br from-primary/12 via-card to-card shadow-primary/10",
-      valueClass: "text-primary",
-      iconWrap: "bg-primary/15 text-primary",
+        "border-primary/18 bg-linear-to-br from-primary/5 via-card to-card",
+      valueClass: "text-teal-900/90 dark:text-teal-200",
+      iconWrap: "bg-primary/8 text-teal-800/90 dark:text-teal-300",
     });
   }
 
@@ -118,9 +118,9 @@ export function buildLodgingStatCards(
         value: `${Number(stats?.occupancyPercent ?? 0).toFixed(1)}%`,
         icon: Percent,
         accent:
-          "border-indigo-500/35 bg-linear-to-br from-indigo-500/15 via-card to-card shadow-indigo-500/10",
-        valueClass: "text-indigo-700 dark:text-indigo-400",
-        iconWrap: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400",
+          "border-indigo-500/18 bg-linear-to-br from-indigo-500/6 via-card to-card",
+        valueClass: "text-indigo-800/90 dark:text-indigo-300",
+        iconWrap: "bg-indigo-500/8 text-indigo-800/90 dark:text-indigo-300",
       },
       {
         key: "todayIn",
@@ -128,9 +128,9 @@ export function buildLodgingStatCards(
         value: stats?.todayCheckIns ?? 0,
         icon: CalendarCheck,
         accent:
-          "border-cyan-500/35 bg-linear-to-br from-cyan-500/15 via-card to-card shadow-cyan-500/10",
-        valueClass: "text-cyan-700 dark:text-cyan-400",
-        iconWrap: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400",
+          "border-cyan-500/18 bg-linear-to-br from-cyan-500/6 via-card to-card",
+        valueClass: "text-cyan-800/90 dark:text-cyan-300",
+        iconWrap: "bg-cyan-500/8 text-cyan-800/90 dark:text-cyan-300",
       },
       {
         key: "todayOut",
@@ -138,9 +138,9 @@ export function buildLodgingStatCards(
         value: stats?.todayCheckOuts ?? 0,
         icon: CalendarX,
         accent:
-          "border-orange-500/35 bg-linear-to-br from-orange-500/15 via-card to-card shadow-orange-500/10",
-        valueClass: "text-orange-700 dark:text-orange-400",
-        iconWrap: "bg-orange-500/15 text-orange-700 dark:text-orange-400",
+          "border-orange-500/18 bg-linear-to-br from-orange-500/6 via-card to-card",
+        valueClass: "text-orange-800/90 dark:text-orange-300",
+        iconWrap: "bg-orange-500/8 text-orange-800/90 dark:text-orange-300",
       },
       {
         key: "reservations",
@@ -148,9 +148,9 @@ export function buildLodgingStatCards(
         value: stats?.openReservations ?? 0,
         icon: CalendarCheck,
         accent:
-          "border-fuchsia-500/35 bg-linear-to-br from-fuchsia-500/15 via-card to-card shadow-fuchsia-500/10",
-        valueClass: "text-fuchsia-700 dark:text-fuchsia-400",
-        iconWrap: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-400",
+          "border-fuchsia-500/18 bg-linear-to-br from-fuchsia-500/6 via-card to-card",
+        valueClass: "text-fuchsia-800/90 dark:text-fuchsia-300",
+        iconWrap: "bg-fuchsia-500/8 text-fuchsia-800/90 dark:text-fuchsia-300",
       },
     );
   }
@@ -193,7 +193,7 @@ export function LodgingStatCardsGrid({
           <div
             key={c.key}
             className={cn(
-              "relative overflow-hidden rounded-2xl border p-4 shadow-md",
+              "relative overflow-hidden rounded-2xl border p-4 shadow-sm",
               c.accent,
             )}
           >

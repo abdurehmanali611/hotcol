@@ -31,15 +31,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import { RECEPTION_NAV_ITEMS, type ReceptionNavId } from "@/constants";
 import { ReceptionCheckInForm } from "@/components/hotel/ReceptionCheckInForm";
 import { LodgingReservationsPanel } from "@/components/hotel/LodgingReservationsPanel";
@@ -58,6 +50,18 @@ import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingReportsPanel } from "@/components/hotel/LodgingReportsPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
+import {
+  LodgingPageHero,
+  LodgingPanelShell,
+  LodgingSectionCard,
+  LodgingActionBand,
+  lodgingNavActiveClass,
+  lodgingFieldClass,
+  lodgingPrimaryBtnClass,
+  lodgingListFrameClass,
+  lodgingListDivideClass,
+  lodgingGhostBtnClass,
+} from "@/components/hotel/lodgingChrome";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import { ReceptionRoomTransferDialog } from "@/components/hotel/ReceptionRoomTransferDialog";
 import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepartureReceipt";
@@ -577,7 +581,7 @@ export function ReceptionDashboard() {
         <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-sm">
           <SidebarHeader className="h-16 shrink-0 border-b border-sidebar-border bg-sidebar-accent/25 px-4">
             <div className="flex h-full min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-1 ring-sidebar-primary/20">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20">
                 <BedDouble className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
@@ -614,7 +618,7 @@ export function ReceptionDashboard() {
                             onClick={() => setActiveSection(item.id)}
                             tooltip={item.label}
                             size="lg"
-                            className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                            className={lodgingNavActiveClass}
                           >
                             <Icon className="opacity-80" />
                             <span>{item.label}</span>
@@ -631,7 +635,7 @@ export function ReceptionDashboard() {
                       onClick={() => setActiveSection(item.id)}
                       tooltip={item.label}
                       size="lg"
-                      className="h-10 cursor-pointer text-[13px] data-[active=true]:shadow-sm"
+                      className={lodgingNavActiveClass}
                     >
                       <Icon className="opacity-80" />
                       <span>{item.label}</span>
@@ -655,10 +659,10 @@ export function ReceptionDashboard() {
 
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0 md:p-2 md:pl-0">
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
-          <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-3 md:h-16 md:px-6">
+          <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-primary/12 px-3 md:h-16 md:px-6">
             <SidebarTrigger />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground md:text-sm">
+              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-primary/80 md:text-sm">
                 {displayName || "Property"}
               </h1>
               {receptionistName ? (
@@ -693,38 +697,26 @@ export function ReceptionDashboard() {
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
-            <div className="mx-auto max-w-6xl space-y-6 pb-6">
-              <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <SectionIcon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      {sectionTitle}
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {sectionDescription}
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <LodgingPanelShell className="mx-auto max-w-6xl pb-6">
+              <LodgingPageHero
+                eyebrow="Reception desk"
+                title={sectionTitle}
+                description={sectionDescription}
+                icon={<SectionIcon className="h-5 w-5" />}
+              />
 
               {activeSection === "dashboard" && (
                 <div className="space-y-6">
                   <LodgingStatCardsGrid stats={stats} />
-                  <Card className="border-border/80 shadow-md bg-card/95">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Recent activity</CardTitle>
-                      <CardDescription>
-                        Your latest lodging actions on this property
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                  <LodgingSectionCard
+                    title="Recent activity"
+                    description="Your latest lodging actions on this property"
+                    icon={<History className="h-4 w-4" />}
+                  >
                       {logs.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No activity yet.</p>
                       ) : (
-                        <ul className="divide-y rounded-xl border border-border/70">
+                        <ul className={cn("divide-y overflow-hidden rounded-xl", lodgingListFrameClass, lodgingListDivideClass)}>
                           {logs.slice(0, 12).map((log) => (
                             <li key={log.id} className="px-4 py-3 text-sm">
                               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -741,8 +733,7 @@ export function ReceptionDashboard() {
                           ))}
                         </ul>
                       )}
-                    </CardContent>
-                  </Card>
+                  </LodgingSectionCard>
                 </div>
               )}
 
@@ -776,20 +767,18 @@ export function ReceptionDashboard() {
 
               {activeSection === "active-stays" && (
                 <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                  <Card className="border-border/80 shadow-md bg-card/95 h-fit">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Active stays</CardTitle>
-                      <CardDescription>
-                        Search by guest name, phone, Fayda, passport, room, or
-                        voucher — then select a stay.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                  <LodgingSectionCard
+                    title="Active stays"
+                    description="Search by guest name, phone, Fayda, passport, room, or voucher — then select a stay."
+                    icon={<BedDouble className="h-4 w-4" />}
+                    className="h-fit"
+                  >
+                      <div className="space-y-3">
                       <Input
                         value={staySearch}
                         onChange={(e) => setStaySearch(e.target.value)}
                         placeholder="Search name, phone, Fayda, room, voucher…"
-                        className="h-10"
+                        className={lodgingFieldClass}
                       />
                       {filteredStays.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
@@ -798,14 +787,22 @@ export function ReceptionDashboard() {
                             : "No stays match this search."}
                         </p>
                       ) : (
-                        <ul className="divide-y rounded-xl border border-border/70">
+                        <ul
+                          className={cn(
+                            lodgingListFrameClass,
+                            lodgingListDivideClass,
+                            "divide-y",
+                          )}
+                        >
                           {filteredStays.map((s) => (
                             <li key={s.id}>
                               <button
                                 type="button"
                                 className={cn(
-                                  "w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors",
-                                  selectedStayId === s.id && "bg-primary/5",
+                                  "w-full px-4 py-3 text-left transition-colors",
+                                  selectedStayId === s.id
+                                    ? "bg-primary/10"
+                                    : "hover:bg-primary/5",
                                 )}
                                 onClick={() => setSelectedStayId(s.id)}
                               >
@@ -827,15 +824,16 @@ export function ReceptionDashboard() {
                           ))}
                         </ul>
                       )}
-                    </CardContent>
-                  </Card>
+                      </div>
+                  </LodgingSectionCard>
 
                   {selectedStay ? (
                     <div className="space-y-4">
-                      <Card className="border-border/80 shadow-md bg-card/95">
-                        <CardHeader className="space-y-4">
+                      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-md ring-1 ring-black/3 dark:ring-white/5">
+                        <div className="h-1 bg-linear-to-r from-primary/40 via-sky-500/25 to-transparent" />
+                        <CardHeader className="space-y-4 bg-muted/10">
                           <div>
-                            <CardTitle className="text-lg">
+                            <CardTitle className="text-lg tracking-tight">
                               {guestName(selectedStay.guest)}
                             </CardTitle>
                             <CardDescription>
@@ -844,12 +842,15 @@ export function ReceptionDashboard() {
                             </CardDescription>
                           </div>
                           {selectedStay.status === "checked_in" ? (
-                            <div className="flex w-full items-center justify-between gap-3">
+                            <div className="flex w-full flex-wrap items-center justify-between gap-3">
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="gap-1.5"
+                                className={cn(
+                                  "gap-1.5 border-primary/25",
+                                  lodgingGhostBtnClass,
+                                )}
                                 onClick={() => handleRegistrationPrint()}
                               >
                                 <Printer className="h-4 w-4" />
@@ -859,7 +860,7 @@ export function ReceptionDashboard() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="gap-1.5"
+                                className="gap-1.5 border-sky-500/30 text-sky-800 hover:bg-sky-500/10 dark:text-sky-300"
                                 onClick={() => setRoomTransferOpen(true)}
                               >
                                 <ArrowRightLeft className="h-4 w-4" />
@@ -870,66 +871,68 @@ export function ReceptionDashboard() {
                         </CardHeader>
                         <CardContent className="space-y-5">
                           {selectedStay.status === "checked_in" ? (
-                            <div className="rounded-xl border border-sky-500/25 bg-sky-500/5 px-4 py-3">
-                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Guest room code (OTP)
-                              </p>
-                              {selectedStay.guestOtp ? (
-                                <>
-                                  <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.35em] tabular-nums">
-                                    {selectedStay.guestOtp}
-                                  </p>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    Tell the guest this code at check-in. If they
-                                    forget it later, look it up here.
-                                  </p>
-                                </>
-                              ) : (
-                                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="text-xs text-muted-foreground">
-                                    No room code yet — issue one for the guest
-                                    portal.
-                                  </p>
-                                  <PendingButton
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    pending={pending === "issue-otp"}
-                                    onClick={async () => {
-                                      setPending("issue-otp");
-                                      try {
-                                        await issueLodgingGuestOtpApi(
-                                          selectedStay.id,
-                                        );
-                                        await load(true);
-                                      } catch (e) {
-                                        notifyApiFailure(
-                                          e,
-                                          "Could not issue room code",
-                                        );
-                                      } finally {
-                                        setPending(null);
-                                      }
-                                    }}
-                                  >
-                                    Issue room code
-                                  </PendingButton>
-                                </div>
-                              )}
-                            </div>
+                            selectedStay.guestOtp ? (
+                              <div className="overflow-hidden rounded-xl border border-amber-500/15 bg-linear-to-br from-amber-500/5 via-card to-orange-500/3 p-5">
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800/75 dark:text-amber-300/80">
+                                  Guest room code (OTP)
+                                </p>
+                                <p className="mt-2 rounded-lg border border-amber-500/15 bg-background/80 px-4 py-3 text-center font-mono text-2xl tracking-[0.35em] text-amber-950/90 dark:text-amber-100">
+                                  {selectedStay.guestOtp}
+                                </p>
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                  Tell the guest this code at check-in. If they
+                                  forget it later, look it up here.
+                                </p>
+                              </div>
+                            ) : (
+                              <LodgingActionBand
+                                tone="sky"
+                                eyebrow="Guest portal"
+                                title="No room code yet"
+                                description="Issue a code so the guest can use the room portal."
+                              >
+                                <PendingButton
+                                  type="button"
+                                  className={cn("h-10", lodgingPrimaryBtnClass)}
+                                  pending={pending === "issue-otp"}
+                                  onClick={async () => {
+                                    setPending("issue-otp");
+                                    try {
+                                      await issueLodgingGuestOtpApi(
+                                        selectedStay.id,
+                                      );
+                                      await load(true);
+                                    } catch (e) {
+                                      notifyApiFailure(
+                                        e,
+                                        "Could not issue room code",
+                                      );
+                                    } finally {
+                                      setPending(null);
+                                    }
+                                  }}
+                                >
+                                  Issue room code
+                                </PendingButton>
+                              </LodgingActionBand>
+                            )
                           ) : null}
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 rounded-xl border border-primary/12 bg-primary/3 p-4 sm:grid-cols-2">
                             <div className="space-y-1.5">
-                              <Label>Checked in</Label>
-                              <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                              <Label className="text-xs font-medium text-teal-800/80 dark:text-teal-300/80">
+                                Checked in
+                              </Label>
+                              <div className="flex h-10 items-center rounded-xl border border-primary/15 bg-background/80 px-3 text-sm tabular-nums shadow-sm">
                                 {new Date(
                                   selectedStay.arrivalAt,
                                 ).toLocaleString()}
                               </div>
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Checked out</Label>
-                              <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                              <Label className="text-xs font-medium text-teal-800/80 dark:text-teal-300/80">
+                                Checked out
+                              </Label>
+                              <div className="flex h-10 items-center rounded-xl border border-primary/15 bg-background/80 px-3 text-sm tabular-nums text-muted-foreground shadow-sm">
                                 {selectedStay.status === "checked_out"
                                   ? new Date(
                                       selectedStay.departureAt,
@@ -938,8 +941,10 @@ export function ReceptionDashboard() {
                               </div>
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Nights (auto)</Label>
-                              <div className="flex h-10 items-center rounded-md border border-border/80 bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                              <Label className="text-xs font-medium text-teal-800/80 dark:text-teal-300/80">
+                                Nights (auto)
+                              </Label>
+                              <div className="flex h-10 items-center rounded-xl border border-primary/15 bg-background/80 px-3 text-sm tabular-nums text-muted-foreground shadow-sm">
                                 {nightsFromArrivalDeparture(
                                   new Date(selectedStay.arrivalAt),
                                   new Date(),
@@ -948,10 +953,15 @@ export function ReceptionDashboard() {
                               </div>
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="stay-notes">Notes</Label>
+                              <Label
+                                htmlFor="stay-notes"
+                                className="text-xs font-medium text-teal-800/80 dark:text-teal-300/80"
+                              >
+                                Notes
+                              </Label>
                               <Input
                                 id="stay-notes"
-                                className="h-10"
+                                className={lodgingFieldClass}
                                 value={editNotes}
                                 onChange={(e) => setEditNotes(e.target.value)}
                                 placeholder="Optional stay notes"
@@ -960,8 +970,10 @@ export function ReceptionDashboard() {
                           </div>
                           <PendingButton
                             type="button"
-                            variant="outline"
-                            className="w-full sm:w-auto"
+                            className={cn(
+                              "w-full sm:w-auto",
+                              lodgingPrimaryBtnClass,
+                            )}
                             pending={pending === "update-stay"}
                             onClick={async () => {
                               setPending("update-stay");
@@ -1000,7 +1012,7 @@ export function ReceptionDashboard() {
                               ) : null)}
                             </div>
                             {selectedStay.status === "checked_in" ? (
-                              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-3.5 py-3 text-sm">
+                              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/6 px-3.5 py-3 text-sm">
                                 <Checkbox
                                   checked={penaltyOpen}
                                   onCheckedChange={(v) =>
@@ -1033,21 +1045,21 @@ export function ReceptionDashboard() {
                                   return (
                                     <div
                                       key={room}
-                                      className="overflow-hidden rounded-xl border border-border/70"
+                                      className="overflow-hidden rounded-xl border border-primary/12 bg-card shadow-sm"
                                     >
-                                      <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
-                                        <p className="text-sm font-medium">
+                                      <div className="flex items-center justify-between gap-2 border-b border-primary/10 bg-primary/4 px-3 py-2">
+                                        <p className="text-sm font-medium text-teal-900/90 dark:text-teal-100">
                                           {room === "Unassigned"
                                             ? "Unassigned room"
                                             : `Room ${room}`}
                                         </p>
-                                        <p className="text-xs font-medium tabular-nums text-muted-foreground">
+                                        <p className="text-xs font-semibold tabular-nums text-teal-800/90 dark:text-teal-300">
                                           {formatMoney(roomTotal)}
                                         </p>
                                       </div>
                                       <table className="w-full text-sm">
                                         <thead>
-                                          <tr className="border-b bg-muted/20 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                                          <tr className="border-b border-primary/10 bg-sky-500/5 text-left text-[11px] uppercase tracking-wider text-teal-800/70 dark:text-teal-300/70">
                                             <th className="w-10 px-3 py-2 font-medium">
                                               <span className="sr-only">
                                                 Select for transfer
@@ -1295,7 +1307,7 @@ export function ReceptionDashboard() {
                           </div>
 
                           {selectedStay.status === "checked_in" ? (
-                            <div className="space-y-3 rounded-xl border border-border/70 p-4">
+                            <div className="space-y-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 shadow-sm">
                               <div>
                                 <p className="text-sm font-medium flex items-center gap-1.5">
                                   <BadgePercent className="h-4 w-4 text-primary" />
@@ -1368,7 +1380,7 @@ export function ReceptionDashboard() {
                             </div>
                           ) : null}
 
-                          <div className="space-y-3 rounded-xl border border-border/70 p-4">
+                          <div className="space-y-3 rounded-xl border border-sky-500/25 bg-sky-500/5 p-4 shadow-sm">
                             <div>
                               <p className="text-sm font-medium">
                                 Transfer selected lines
@@ -1384,24 +1396,18 @@ export function ReceptionDashboard() {
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                               <div className="space-y-1.5 flex-1 min-w-0">
                                 <Label>Target stay</Label>
-                                <Select
+                                <LodgingOptionCombobox
                                   value={transferToStayId}
-                                  onValueChange={setTransferToStayId}
-                                >
-                                  <SelectTrigger className="h-10 w-full">
-                                    <SelectValue placeholder="Select target stay" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {otherActiveStays.map((s) => (
-                                      <SelectItem
-                                        key={s.id}
-                                        value={String(s.id)}
-                                      >
-                                        {stayOptionLabel(s)}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                  onChange={setTransferToStayId}
+                                  options={otherActiveStays.map((s) => ({
+                                    value: String(s.id),
+                                    label: stayOptionLabel(s),
+                                  }))}
+                                  placeholder="Select target stay"
+                                  searchPlaceholder="Search stays…"
+                                  emptyText="No other active stays."
+                                  className="h-10"
+                                />
                               </div>
                               <PendingButton
                                 type="button"
@@ -1465,7 +1471,7 @@ export function ReceptionDashboard() {
                             </div>
                           </div>
 
-                          <div className="space-y-3 rounded-xl border border-border/70 p-4">
+                          <div className="space-y-3 rounded-xl border border-primary/15 bg-primary/3 p-4 shadow-sm">
                             <div>
                               <p className="text-sm font-medium">Split a line</p>
                               <p className="text-xs text-muted-foreground">
@@ -1477,51 +1483,43 @@ export function ReceptionDashboard() {
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
                               <div className="space-y-1.5 sm:col-span-2">
                                 <Label>Line</Label>
-                                <Select
+                                <LodgingOptionCombobox
                                   value={
                                     splitLineId != null
                                       ? String(splitLineId)
                                       : ""
                                   }
-                                  onValueChange={(v) =>
-                                    setSplitLineId(Number(v))
-                                  }
-                                >
-                                  <SelectTrigger className="h-10 w-full">
-                                    <SelectValue placeholder="Select line" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {groupBillLinesByRoom(
-                                      serviceUsageLines(selectedStayActiveLines).filter(
-                                        (l) =>
-                                          isFoodDrinkLineKitchenComplete(
-                                            l,
-                                            selectedStay.id,
-                                            liveCafeOrders,
-                                          ),
+                                  onChange={(v) => setSplitLineId(Number(v))}
+                                  options={serviceUsageLines(
+                                    selectedStayActiveLines,
+                                  )
+                                    .filter((l) =>
+                                      isFoodDrinkLineKitchenComplete(
+                                        l,
+                                        selectedStay.id,
+                                        liveCafeOrders,
                                       ),
-                                    ).map(([room, roomLines]) => (
-                                      <SelectGroup key={room}>
-                                        <SelectLabel>
-                                          {room === "Unassigned"
+                                    )
+                                    .map((l) => {
+                                      const room =
+                                        String(l.roomNumber || "").trim() ||
+                                        "Unassigned";
+                                      return {
+                                        value: String(l.id),
+                                        label: `${stripCafeOrderMarker(
+                                          l.description,
+                                        )} (qty ${l.quantity})`,
+                                        hint:
+                                          room === "Unassigned"
                                             ? "Unassigned"
-                                            : `Room ${room}`}
-                                        </SelectLabel>
-                                        {roomLines.map((l) => (
-                                          <SelectItem
-                                            key={l.id}
-                                            value={String(l.id)}
-                                          >
-                                            {stripCafeOrderMarker(
-                                              l.description,
-                                            )}{" "}
-                                            (qty {l.quantity})
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                            : `Room ${room}`,
+                                      };
+                                    })}
+                                  placeholder="Select line"
+                                  searchPlaceholder="Search lines…"
+                                  emptyText="No splittable lines."
+                                  className="h-10"
+                                />
                               </div>
                               <div className="space-y-1.5">
                                 <Label>Qty to move</Label>
@@ -1538,24 +1536,18 @@ export function ReceptionDashboard() {
                               </div>
                               <div className="space-y-1.5">
                                 <Label>To stay</Label>
-                                <Select
+                                <LodgingOptionCombobox
                                   value={splitToStayId}
-                                  onValueChange={setSplitToStayId}
-                                >
-                                  <SelectTrigger className="h-10 w-full">
-                                    <SelectValue placeholder="Target stay" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {otherActiveStays.map((s) => (
-                                      <SelectItem
-                                        key={s.id}
-                                        value={String(s.id)}
-                                      >
-                                        {stayOptionLabel(s)}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                  onChange={setSplitToStayId}
+                                  options={otherActiveStays.map((s) => ({
+                                    value: String(s.id),
+                                    label: stayOptionLabel(s),
+                                  }))}
+                                  placeholder="Target stay"
+                                  searchPlaceholder="Search stays…"
+                                  emptyText="No other active stays."
+                                  className="h-10"
+                                />
                               </div>
                             </div>
                             <PendingButton
@@ -1632,7 +1624,7 @@ export function ReceptionDashboard() {
                                 </p>
                               ) : null}
                             </div>
-                            <div className="flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-2 rounded-xl border border-emerald-500/18 bg-linear-to-br from-emerald-500/6 via-card to-teal-500/3 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
                                   Total of all usages
@@ -1763,7 +1755,7 @@ export function ReceptionDashboard() {
                   description="Your lodging audit trail on this property."
                 />
               )}
-            </div>
+            </LodgingPanelShell>
           </main>
         </div>
         </div>

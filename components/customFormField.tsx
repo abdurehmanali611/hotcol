@@ -36,6 +36,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { CldUploadButton } from "next-cloudinary";
 import { ITEM_REGISTRATION_MEDIA_UPLOAD_OPTIONS } from "@/lib/cloudinaryUploadOptions";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,6 +114,8 @@ interface BaseProps {
   step?: string | number;
   min?: string | number;
   max?: string | number;
+  /** Use searchable combobox instead of native Select (non-doctor lists). */
+  searchable?: boolean;
 }
 
 interface FormConnectedProps extends BaseProps {
@@ -413,25 +416,65 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
         </RadioGroup>
       );
 
-    case formFieldTypes.SELECT:
+    case formFieldTypes.SELECT: {
+      const currentValue =
+        field.value !== undefined &&
+        field.value !== null &&
+        field.value !== "" &&
+        !(props.isNumeric && Number(field.value) === -1)
+          ? String(field.value)
+          : "";
+
+      const applySelectValue = (value: string) => {
+        if (props.isNumeric) {
+          const numValue = value ? parseInt(value, 10) : undefined;
+          field.onChange(isNaN(numValue!) ? undefined : numValue);
+        } else {
+          field.onChange(value || "");
+        }
+      };
+
+      if (props.searchable && !props.isDoctorList) {
+        const options =
+          props.listdisplay?.map((item, index) => {
+            const optionValue =
+              item.realValue !== undefined
+                ? String(item.realValue)
+                : item.value !== undefined
+                  ? String(item.value)
+                  : item.name !== undefined
+                    ? String(item.name)
+                    : String(item.id ?? index);
+            const optionLabel = item.label ?? item.name ?? optionValue;
+            return {
+              value: optionValue,
+              label: String(optionLabel),
+              hint: item.subText ? String(item.subText) : undefined,
+            };
+          }) ?? [];
+
+        return (
+          <FormControl>
+            <LodgingOptionCombobox
+              value={currentValue}
+              onChange={applySelectValue}
+              options={options}
+              placeholder={props.placeholder ?? "Select…"}
+              searchPlaceholder={`Search ${String(props.label || "options").toLowerCase()}…`}
+              disabled={props.disabled}
+              className={clsx(
+                "h-10",
+                props.inputClassName,
+              )}
+            />
+          </FormControl>
+        );
+      }
+
       return (
         <Select
-          value={
-            field.value !== undefined &&
-            field.value !== null &&
-            field.value !== "" &&
-            !(props.isNumeric && Number(field.value) === -1)
-              ? String(field.value)
-              : undefined
-          }
-          onValueChange={(value) => {
-            if (props.isNumeric) {
-              const numValue = value ? parseInt(value, 10) : undefined;
-              field.onChange(isNaN(numValue!) ? undefined : numValue);
-            } else {
-              field.onChange(value || "");
-            }
-          }}
+          value={currentValue || undefined}
+          onValueChange={applySelectValue}
           disabled={props.disabled}
           required={props.required}
         >
@@ -518,6 +561,7 @@ const RenderInput = ({ field, props }: { field: any; props: customProps }) => {
           </SelectContent>
         </Select>
       );
+    }
 
     case formFieldTypes.IMAGE_UPLOADER:
       return (

@@ -671,9 +671,9 @@ export function LodgingCmQueuePanel({
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-border/80 bg-card/95 shadow-md">
-        <div className="h-1 bg-linear-to-r from-amber-500/60 via-rose-500/40 to-emerald-500/45" />
-        <CardHeader className="pb-3">
+      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
+        <div className="h-1 bg-linear-to-r from-amber-500/40 via-orange-400/25 to-transparent" />
+        <CardHeader className="bg-muted/10 pb-3">
           <CardTitle className="text-lg tracking-tight">
             Dirty & maintenance queue
           </CardTitle>
@@ -689,7 +689,7 @@ export function LodgingCmQueuePanel({
             </p>
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/15 bg-amber-500/4 px-3 py-2.5">
                 <Checkbox
                   checked={
                     selectedRoomIds.length > 0 &&
@@ -738,7 +738,7 @@ export function LodgingCmQueuePanel({
                 ) : null}
               </div>
 
-              <ul className="divide-y overflow-hidden rounded-xl border border-border/70">
+              <ul className="divide-y divide-amber-500/10 overflow-hidden rounded-xl border border-amber-500/15 bg-background shadow-sm">
                 {queue.map((room) => {
                   const status = room.status as LodgingRoomStatus;
                   const onMaintenance = status === "on_maintenance";
@@ -756,9 +756,9 @@ export function LodgingCmQueuePanel({
                       className={cn(
                         "flex flex-col gap-3 p-4 transition-colors lg:flex-row lg:items-center lg:justify-between",
                         checked && "bg-primary/5",
-                        isDirty && !checked && "bg-amber-500/[0.03]",
-                        onMaintenance && !checked && "bg-rose-500/[0.03]",
-                        isInspected && !checked && "bg-teal-500/[0.03]",
+                        isDirty && !checked && "bg-amber-500/3",
+                        onMaintenance && !checked && "bg-rose-500/3",
+                        isInspected && !checked && "bg-teal-500/3",
                       )}
                     >
                       <div className="flex min-w-0 items-start gap-3">
@@ -911,8 +911,8 @@ export function LodgingCmQueuePanel({
             className={cn(
               "h-1 shrink-0",
               isMaintForm
-                ? "bg-linear-to-r from-rose-500/70 via-amber-500/50 to-transparent"
-                : "bg-linear-to-r from-sky-500/70 via-emerald-500/45 to-transparent",
+                ? "bg-linear-to-r from-rose-500/40 via-amber-500/25 to-transparent"
+                : "bg-linear-to-r from-sky-500/40 via-emerald-500/25 to-transparent",
             )}
           />
           <DialogHeader className="shrink-0 space-y-3 border-b border-border/60 px-6 pb-4 pt-5 text-left">
@@ -921,8 +921,8 @@ export function LodgingCmQueuePanel({
                 className={cn(
                   "flex size-9 items-center justify-center rounded-xl ring-1",
                   isMaintForm
-                    ? "bg-rose-500/10 text-rose-700 ring-rose-500/20 dark:text-rose-300"
-                    : "bg-sky-500/10 text-sky-800 ring-sky-500/20 dark:text-sky-200",
+                    ? "bg-rose-500/6 text-rose-800/90 ring-rose-500/15 dark:text-rose-300"
+                    : "bg-sky-500/6 text-sky-800/90 ring-sky-500/15 dark:text-sky-200",
                 )}
               >
                 <FormIcon className="h-4 w-4" />
@@ -951,12 +951,18 @@ export function LodgingCmQueuePanel({
                 onValueChange={(v) => setPeopleLayout(v as PeopleLayout)}
                 className="w-full"
               >
-                <TabsList className="grid h-auto w-full max-w-md grid-cols-2 gap-1 bg-muted/50 p-1">
-                  <TabsTrigger value="shared" className="gap-1.5 py-2">
+                <TabsList className="grid h-auto w-full max-w-md grid-cols-2 gap-1 border border-primary/20 bg-primary/5 p-1 shadow-sm">
+                  <TabsTrigger
+                    value="shared"
+                    className="gap-1.5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
                     <Users className="h-3.5 w-3.5" />
                     Same for all
                   </TabsTrigger>
-                  <TabsTrigger value="per-room" className="gap-1.5 py-2">
+                  <TabsTrigger
+                    value="per-room"
+                    className="gap-1.5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
                     <Sparkles className="h-3.5 w-3.5" />
                     Different per room
                   </TabsTrigger>
@@ -1191,9 +1197,9 @@ export function LodgingCmQueuePanel({
         </DialogContent>
       </Dialog>
 
-      <Card className="overflow-hidden border-border/80 bg-card/95 shadow-md">
-        <div className="h-1 bg-linear-to-r from-sky-500/50 via-primary/35 to-emerald-500/45" />
-        <CardHeader className="pb-3">
+      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
+        <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
+        <CardHeader className="bg-muted/10 pb-3">
           <CardTitle className="text-lg tracking-tight">Open assignments</CardTitle>
           <CardDescription>
             Complete each person&apos;s job when finished. Edit open cleaning
@@ -1208,7 +1214,7 @@ export function LodgingCmQueuePanel({
               No open assignments.
             </p>
           ) : (
-            <ul className="divide-y overflow-hidden rounded-xl border border-border/70">
+            <ul className="divide-y divide-sky-500/10 overflow-hidden rounded-xl border border-sky-500/15 bg-background shadow-sm">
               {openAssignments.map((a) => {
                 const editable = canEditOpenAssignment(a);
                 const isFirstOfGroup =
@@ -1304,13 +1310,13 @@ export function LodgingCmQueuePanel({
             className={cn(
               "h-1 shrink-0",
               editingAssignment?.workKind === "maintenance"
-                ? "bg-linear-to-r from-rose-500/70 via-amber-500/40 to-transparent"
-                : "bg-linear-to-r from-sky-500/70 via-emerald-500/40 to-transparent",
+                ? "bg-linear-to-r from-rose-500/40 via-amber-500/25 to-transparent"
+                : "bg-linear-to-r from-sky-500/40 via-emerald-500/25 to-transparent",
             )}
           />
           <DialogHeader className="shrink-0 space-y-2 border-b border-border/60 px-6 pb-4 pt-5 text-left">
             <DialogTitle className="flex items-center gap-2 text-xl tracking-tight">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/6 text-primary ring-1 ring-primary/12">
                 <Users className="h-4 w-4" />
               </span>
               Edit people

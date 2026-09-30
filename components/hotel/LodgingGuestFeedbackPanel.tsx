@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
+import {
+  LODGING_ACCENTS,
+  LodgingEmptyState,
+  LodgingPanelShell,
+  LodgingSectionCard,
+  lodgingPrimaryBtnClass,
+} from "@/components/hotel/lodgingChrome";
 import {
   fetchLodgingGuestComplaints,
   fetchLodgingGuestRatings,
@@ -27,12 +30,12 @@ function stars(n: number | null | undefined) {
 function statusBadge(status: string) {
   const s = status.toLowerCase();
   if (s === "resolved") {
-    return "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
+    return "border-emerald-500/20 bg-emerald-500/8 text-emerald-800 dark:text-emerald-300";
   }
   if (s === "acknowledged") {
-    return "border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-300";
+    return "border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300";
   }
-  return "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-300";
+  return "border-amber-500/20 bg-amber-500/8 text-amber-900 dark:text-amber-300";
 }
 
 export function LodgingGuestFeedbackPanel({
@@ -81,174 +84,167 @@ export function LodgingGuestFeedbackPanel({
 
   if (view === "ratings") {
     return (
-      <div className="space-y-5">
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <Star className="h-5 w-5 text-primary" />
-            Guest ratings
-          </h2>
-          <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
-            Read-only ratings submitted from HotCol Room by in-house guests.
-          </p>
-        </div>
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground py-6">Loading…</p>
-        ) : ratings.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-14 text-center text-sm text-muted-foreground">
-              No guest ratings yet.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {ratings.map((r) => (
-              <Card key={r.id} className="border-border/70 shadow-sm">
-                <CardContent className="space-y-2 py-4">
+      <LodgingPanelShell>
+        <LodgingSectionCard
+          title="Guest ratings"
+          description="Read-only ratings submitted from HotCol Room by in-house guests."
+          icon={<Star className="h-5 w-5" />}
+          accent={LODGING_ACCENTS.amber}
+        >
+          {loading ? (
+            <p className="py-6 text-sm text-muted-foreground">Loading…</p>
+          ) : ratings.length === 0 ? (
+            <LodgingEmptyState
+              title="No guest ratings yet"
+              description="Ratings from HotCol Room will appear here when guests submit them."
+              icon={<Star className="h-6 w-6" />}
+            />
+          ) : (
+            <ul className="space-y-3">
+              {ratings.map((r) => (
+                <li
+                  key={r.id}
+                  className="overflow-hidden rounded-xl border border-amber-500/15 bg-linear-to-br from-amber-500/4 via-card to-card p-4 shadow-sm"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">
                         {r.guestName || "Guest"}
                         {r.voucherCode ? (
-                          <span className="text-muted-foreground font-normal">
+                          <span className="font-normal text-muted-foreground">
                             {" "}
                             · {r.voucherCode}
                           </span>
                         ) : null}
                         {r.roomNumbers ? (
-                          <span className="text-muted-foreground font-normal">
+                          <span className="font-normal text-muted-foreground">
                             {" "}
                             · Rm {r.roomNumbers}
                           </span>
                         ) : null}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {new Date(r.createdAt).toLocaleString()}
                       </p>
                     </div>
                     <p
-                      className="text-amber-600 dark:text-amber-400 tabular-nums text-sm"
+                      className="text-sm tabular-nums text-amber-800/90 dark:text-amber-300"
                       title={`Overall ${r.overall}/5`}
                     >
-                      <Star className="inline h-3.5 w-3.5 mr-1" />
+                      <Star className="mr-1 inline h-3.5 w-3.5" />
                       {stars(r.overall)}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     Cleanliness {stars(r.cleanliness)} · Service{" "}
                     {stars(r.service)}
                   </p>
                   {r.comment?.trim() ? (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">
                       {r.comment}
                     </p>
                   ) : null}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </LodgingSectionCard>
+      </LodgingPanelShell>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-1">
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-          <MessageSquareWarning className="h-5 w-5 text-primary" />
-          Guest complaints
-        </h2>
-        <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
-          Feedback submitted from HotCol Room. Acknowledge or resolve open
-          complaints.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["all", "All"],
-            ["open", "Open"],
-            ["acknowledged", "Acknowledged"],
-            ["resolved", "Resolved"],
-          ] as const
-        ).map(([id, label]) => (
-          <Button
-            key={id}
-            type="button"
-            size="sm"
-            variant={filter === id ? "default" : "outline"}
-            onClick={() => setFilter(id)}
-          >
-            {label}
-            {id === "all" && !loading ? (
-              <span className="ml-1 tabular-nums opacity-70">
-                ({complaints.length})
-              </span>
-            ) : null}
-          </Button>
-        ))}
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-muted-foreground py-6">Loading…</p>
-      ) : visible.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-14 text-center text-sm text-muted-foreground">
-            No complaints in this filter.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {visible.map((c) => (
-            <Card key={c.id} className="border-border/70 shadow-sm">
-              <CardContent className="space-y-3 py-4">
+    <LodgingPanelShell>
+      <LodgingSectionCard
+        title="Guest complaints"
+        description="Feedback submitted from HotCol Room. Acknowledge or resolve open complaints."
+        icon={<MessageSquareWarning className="h-5 w-5" />}
+        accent={LODGING_ACCENTS.rose}
+        actions={
+          <LodgingOptionCombobox
+            value={filter}
+            onChange={(v) =>
+              setFilter(v as "all" | "open" | "acknowledged" | "resolved")
+            }
+            options={[
+              {
+                value: "all",
+                label: loading ? "All" : `All (${complaints.length})`,
+              },
+              { value: "open", label: "Open" },
+              { value: "acknowledged", label: "Acknowledged" },
+              { value: "resolved", label: "Resolved" },
+            ]}
+            placeholder="Filter status…"
+            searchPlaceholder="Search status…"
+            className="h-10 w-full sm:w-52"
+            align="end"
+          />
+        }
+      >
+        {loading ? (
+          <p className="py-6 text-sm text-muted-foreground">Loading…</p>
+        ) : visible.length === 0 ? (
+          <LodgingEmptyState
+            title="No complaints in this filter"
+            description="Try another status, or wait for new guest feedback from HotCol Room."
+            icon={<MessageSquareWarning className="h-6 w-6" />}
+          />
+        ) : (
+          <ul className="space-y-3">
+            {visible.map((c) => (
+              <li
+                key={c.id}
+                className="overflow-hidden rounded-xl border border-primary/12 bg-linear-to-br from-primary/3 via-card to-card p-4 shadow-sm"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">
                       {c.guestName || "Guest"}
                       {c.voucherCode ? (
-                        <span className="text-muted-foreground font-normal">
+                        <span className="font-normal text-muted-foreground">
                           {" "}
                           · {c.voucherCode}
                         </span>
                       ) : null}
                       {c.roomNumbers ? (
-                        <span className="text-muted-foreground font-normal">
+                        <span className="font-normal text-muted-foreground">
                           {" "}
                           · Rm {c.roomNumbers}
                         </span>
                       ) : null}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+                    <p className="mt-0.5 text-xs capitalize text-muted-foreground">
                       {c.category.replace(/_/g, " ")} ·{" "}
                       {new Date(c.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {c.isCritical ? (
-                      <Badge className="bg-rose-600 text-white hover:bg-rose-600">
+                      <Badge
+                        variant="outline"
+                        className="border-rose-500/25 bg-rose-500/8 font-medium text-rose-800 dark:text-rose-300"
+                      >
                         Critical
                       </Badge>
                     ) : null}
                     <Badge
                       variant="outline"
-                      className={cn("capitalize", statusBadge(c.status))}
+                      className={cn("font-medium capitalize", statusBadge(c.status))}
                     >
                       {c.status}
                     </Badge>
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap">
                   {c.message}
                 </p>
-                <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-primary/8 pt-3">
                   {c.status.toLowerCase() === "open" ? (
                     <PendingButton
                       type="button"
                       size="sm"
-                      className="h-9"
+                      className={cn("h-9", lodgingPrimaryBtnClass)}
                       pending={pending === `ack-${c.id}`}
                       onClick={async () => {
                         setPending(`ack-${c.id}`);
@@ -273,7 +269,9 @@ export function LodgingGuestFeedbackPanel({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-9"
+                      className={cn(
+                        "h-9 rounded-xl border-emerald-500/25 text-emerald-800 hover:bg-emerald-500/8 dark:text-emerald-300",
+                      )}
                       pending={pending === `res-${c.id}`}
                       onClick={async () => {
                         setPending(`res-${c.id}`);
@@ -294,11 +292,11 @@ export function LodgingGuestFeedbackPanel({
                     </PendingButton>
                   ) : null}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </LodgingSectionCard>
+    </LodgingPanelShell>
   );
 }

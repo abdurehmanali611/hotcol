@@ -15,13 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -250,47 +244,39 @@ export function LodgingRatePlansPanel() {
             </div>
             <div className="space-y-1.5 min-w-0">
               <Label>Kind</Label>
-              <Select
+              <LodgingOptionCombobox
                 value={draft.kind}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   setDraft((d) => ({ ...d, kind: v as LodgingRatePlanKind }))
                 }
-              >
-                <SelectTrigger className="h-10 w-full bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LODGING_RATE_PLAN_KINDS.map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {LODGING_RATE_PLAN_KIND_LABELS[k]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={LODGING_RATE_PLAN_KINDS.map((k) => ({
+                  value: k,
+                  label: LODGING_RATE_PLAN_KIND_LABELS[k],
+                }))}
+                placeholder="Select kind…"
+                searchPlaceholder="Search kinds…"
+              />
             </div>
             <div className="space-y-1.5 min-w-0 sm:col-span-2">
               <Label>Room type</Label>
-              <Select
+              <LodgingOptionCombobox
                 value={draft.roomType || "__all__"}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   setDraft((d) => ({
                     ...d,
                     roomType: v === "__all__" ? "" : v,
                   }))
                 }
-              >
-                <SelectTrigger className="h-10 w-full bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All types</SelectItem>
-                  {LODGING_ROOM_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "__all__", label: "All types" },
+                  ...LODGING_ROOM_TYPES.map((t) => ({
+                    value: t,
+                    label: t,
+                  })),
+                ]}
+                placeholder="Select room type…"
+                searchPlaceholder="Search room types…"
+              />
             </div>
           </div>
         </HotelFormSection>

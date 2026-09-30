@@ -215,6 +215,7 @@ export default function OrderDetailsModal({
                   placeholder="Select"
                   listdisplay={anchorOptions}
                   isNumeric={true}
+                  searchable={roomMode}
                 />
                 {!hideWaiter ? (
                   <CustomFormField
@@ -224,6 +225,7 @@ export default function OrderDetailsModal({
                     label="Waiter"
                     placeholder="Select"
                     listdisplay={data.waiters}
+                    searchable={roomMode}
                   />
                 ) : null}
               </div>

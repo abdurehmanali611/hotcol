@@ -335,6 +335,7 @@ export default function BatchOrderModal({
                 isNumeric={true}
                 inputClassName="h-fit w-full p-2"
                 listdisplay={anchorOptions}
+                searchable={roomMode}
               />
               {!hideWaiter ? (
                 <CustomFormField
@@ -345,6 +346,7 @@ export default function BatchOrderModal({
                   placeholder="Select Waiter"
                   inputClassName="h-fit w-full p-2"
                   listdisplay={waiters.map((w) => ({ id: w.id, name: w.name }))}
+                  searchable={roomMode}
                 />
               ) : null}
             </div>

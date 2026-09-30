@@ -14,6 +14,8 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   FileDown,
   FileSpreadsheet,
   FileText,
@@ -21,7 +23,11 @@ import {
   Users,
 } from "lucide-react";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
-import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+import {
+  LodgingFormSection,
+  lodgingPrimaryBtnClass,
+  lodgingGhostBtnClass,
+} from "@/components/hotel/lodgingChrome";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
@@ -42,6 +48,8 @@ import { downloadLodgingStayPaymentsPdf } from "@/lib/lodgingReportsPdf";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const TABLE_PAGE_SIZE = 10;
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -266,6 +274,7 @@ export function LodgingReportsPanel({
   const [perf, setPerf] = useState<LodgingPerformanceReport | null>(null);
   const [loadingPerf, setLoadingPerf] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [staysPage, setStaysPage] = useState(0);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -409,6 +418,7 @@ export function LodgingReportsPanel({
       const rows = await fetchLodgingStaysByDate(range.from, range.to);
       // Never show in-house payment totals — only checked-out stays.
       setStays(rows.filter((s) => s.status === "checked_out"));
+      setStaysPage(0);
     } catch (e) {
       notifyApiFailure(e, "Could not load stays for range");
     } finally {
@@ -571,6 +581,19 @@ export function LodgingReportsPanel({
     );
   }, [paymentTotals.taxesByName]);
 
+  const staysPageCount = Math.max(1, Math.ceil(stays.length / TABLE_PAGE_SIZE));
+  const safeStaysPage = Math.min(staysPage, staysPageCount - 1);
+  const pageStays = useMemo(() => {
+    const start = safeStaysPage * TABLE_PAGE_SIZE;
+    return stays.slice(start, start + TABLE_PAGE_SIZE);
+  }, [stays, safeStaysPage]);
+  const staysFrom =
+    stays.length === 0 ? 0 : safeStaysPage * TABLE_PAGE_SIZE + 1;
+  const staysTo = Math.min(
+    (safeStaysPage + 1) * TABLE_PAGE_SIZE,
+    stays.length,
+  );
+
   const exportStaysPdf = async () => {
     if (stays.length === 0) {
       toast.error("Generate stay payments first");
@@ -596,12 +619,14 @@ export function LodgingReportsPanel({
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <Card className="overflow-hidden border-primary/20 bg-card/95 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
-        <div className="h-1 bg-linear-to-r from-primary/60 via-sky-500/45 to-emerald-500/40" />
-        <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm ring-1 ring-black/3 dark:ring-white/5">
+        <div className="h-1 bg-linear-to-r from-primary/40 via-sky-500/25 to-transparent" />
+        <CardHeader className="flex flex-col gap-3 bg-muted/10 pb-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-              <FileText className="h-5 w-5 text-primary" />
+            <CardTitle className="flex items-center gap-2.5 text-xl tracking-tight">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+                <FileText className="h-5 w-5" />
+              </span>
               Room management reports
             </CardTitle>
             <CardDescription className="max-w-3xl text-pretty leading-relaxed">
@@ -610,11 +635,11 @@ export function LodgingReportsPanel({
               In-house guests appear in payment totals only after checkout.
             </CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <PendingButton
               type="button"
               variant="outline"
-              className="h-9 gap-1.5"
+              className={cn("h-9 gap-1.5 border-primary/25", lodgingGhostBtnClass)}
               pending={exportingPdf}
               disabled={stays.length === 0}
               onClick={() => void exportStaysPdf()}
@@ -625,7 +650,7 @@ export function LodgingReportsPanel({
             <Button
               type="button"
               variant="outline"
-              className="h-9 gap-1.5"
+              className="h-9 gap-1.5 border-sky-500/30 text-sky-800 hover:bg-sky-500/10 dark:text-sky-300"
               disabled={stays.length === 0}
               onClick={() => void exportStaysExcel()}
             >
@@ -635,9 +660,10 @@ export function LodgingReportsPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-8 pb-8">
-          <HotelFormSection
+          <LodgingFormSection
             title="Occupancy snapshot"
             description="Current room status counts across the property."
+            tone="primary"
           >
             {loading ? (
               <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
@@ -647,11 +673,12 @@ export function LodgingReportsPanel({
             ) : (
               <LodgingStatCardsGrid stats={stats} />
             )}
-          </HotelFormSection>
+          </LodgingFormSection>
 
-          <HotelFormSection
+          <LodgingFormSection
             title="Report period"
             description="Shared date range for ADR / RevPAR and stay payment reports."
+            tone="sky"
           >
             <div className="flex flex-wrap items-end gap-3">
               <HotelDayPicker label="From" value={from} onChange={setFrom} />
@@ -659,7 +686,7 @@ export function LodgingReportsPanel({
               <PendingButton
                 type="button"
                 variant="outline"
-                className="h-10 gap-1.5"
+                className={cn("h-10 gap-1.5 border-sky-500/30", lodgingGhostBtnClass)}
                 pending={loadingPerf}
                 onClick={() => void loadPerf()}
               >
@@ -668,18 +695,19 @@ export function LodgingReportsPanel({
               </PendingButton>
               <PendingButton
                 type="button"
-                className="h-10"
+                className={cn("h-10", lodgingPrimaryBtnClass)}
                 pending={loadingStays}
                 onClick={() => void loadStays()}
               >
                 Generate payments
               </PendingButton>
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
 
-          <HotelFormSection
+          <LodgingFormSection
             title="ADR · RevPAR · occupancy"
             description="Sellable inventory KPIs for the selected range. Complimentary holds are excluded from available nights and listed as company cost below."
+            tone="emerald"
           >
             {loadingPerf && !perf ? (
               <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
@@ -715,9 +743,9 @@ export function LodgingReportsPanel({
                   ).map((kpi) => (
                     <div
                       key={kpi.label}
-                      className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3"
+                      className="rounded-xl border border-primary/12 bg-linear-to-br from-primary/4 via-card to-sky-500/2 px-4 py-3"
                     >
-                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-teal-800/60 dark:text-teal-300/65">
                         {kpi.label}
                       </p>
                       <p className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight">
@@ -730,9 +758,9 @@ export function LodgingReportsPanel({
                   ))}
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-violet-500/25 bg-linear-to-br from-violet-500/[0.08] via-transparent to-amber-500/[0.06]">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-500/15 px-4 py-2.5">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-violet-950/80 dark:text-violet-200/90">
+                <div className="overflow-hidden rounded-xl border border-amber-500/15 bg-linear-to-br from-amber-500/4 via-transparent to-orange-500/2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/10 px-4 py-2.5">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-amber-900/75 dark:text-amber-200/80">
                       Complimentary · company cost
                     </p>
                     <p className="text-[11px] text-muted-foreground">
@@ -740,7 +768,7 @@ export function LodgingReportsPanel({
                     </p>
                   </div>
                   <div className="grid gap-0 sm:grid-cols-2">
-                    <div className="px-4 py-3 sm:border-r sm:border-violet-500/15">
+                    <div className="px-4 py-3 sm:border-r sm:border-amber-500/15">
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                         Nights held
                       </p>
@@ -786,7 +814,7 @@ export function LodgingReportsPanel({
                   ).map((chip) => (
                     <div
                       key={chip.label}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/15 px-2.5 py-1 text-xs tabular-nums"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary/12 bg-primary/4 px-2.5 py-1 text-xs tabular-nums"
                     >
                       <span className="text-muted-foreground">{chip.label}</span>
                       <span className="font-medium text-foreground">
@@ -858,11 +886,12 @@ export function LodgingReportsPanel({
                 No performance data for this range.
               </p>
             )}
-          </HotelFormSection>
+          </LodgingFormSection>
 
-          <HotelFormSection
+          <LodgingFormSection
             title="Stay payments"
             description="Checked-out guests only (by checkout / departure date). Generate for the period above, then export PDF or Excel."
+            tone="amber"
           >
             {stays.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -913,7 +942,7 @@ export function LodgingReportsPanel({
                       ) : null}
                     </div>
                   ))}
-                  <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
+                  <div className="rounded-xl border border-primary/15 bg-primary/3 px-4 py-3">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                       Stay total
                     </p>
@@ -927,11 +956,11 @@ export function LodgingReportsPanel({
                   </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-border/70 shadow-sm">
-                  <div className="max-h-[28rem] overflow-auto">
-                    <table className="w-full min-w-[56rem] border-collapse text-sm">
+                <div className="overflow-hidden rounded-xl border border-primary/12 bg-background shadow-sm">
+                  <div className="max-h-112 overflow-auto">
+                    <table className="w-full min-w-4xl border-collapse text-sm">
                       <thead className="sticky top-0 z-10">
-                        <tr className="border-b border-border/70 bg-muted/90 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur supports-backdrop-filter:bg-muted/80">
+                        <tr className="border-b border-primary/10 bg-primary/5 text-left text-[11px] uppercase tracking-wider text-teal-800/65 backdrop-blur dark:text-teal-300/70 supports-backdrop-filter:bg-primary/8">
                           <th className="px-3 py-2.5 font-medium">Voucher</th>
                           <th className="px-3 py-2.5 font-medium">Guest</th>
                           <th className="px-3 py-2.5 font-medium">Rooms</th>
@@ -965,15 +994,15 @@ export function LodgingReportsPanel({
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border/50">
-                        {stays.map((s, idx) => {
+                      <tbody className="divide-y divide-primary/10">
+                        {pageStays.map((s, idx) => {
                           const b = stayPaymentBreakdown(s);
                           return (
                             <tr
                               key={s.id}
                               className={cn(
-                                "transition-colors hover:bg-muted/30",
-                                idx % 2 === 1 && "bg-muted/10",
+                                "transition-colors hover:bg-primary/5",
+                                idx % 2 === 1 && "bg-sky-500/5",
                               )}
                             >
                               <td className="px-3 py-2.5 font-mono text-xs tabular-nums">
@@ -1052,7 +1081,7 @@ export function LodgingReportsPanel({
                         })}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                        <tr className="border-t-2 border-primary/12 bg-primary/4 font-semibold">
                           <td className="px-3 py-2.5" colSpan={6}>
                             Total ({stays.length} stay
                             {stays.length === 1 ? "" : "s"})
@@ -1090,10 +1119,57 @@ export function LodgingReportsPanel({
                   </div>
                 </div>
 
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs tabular-nums text-muted-foreground">
+                    Showing {staysFrom}–{staysTo} of {stays.length}
+                    {staysPageCount > 1
+                      ? ` · Page ${safeStaysPage + 1} of ${staysPageCount}`
+                      : ""}
+                    <span className="text-teal-800/70 dark:text-teal-300/70">
+                      {" "}
+                      · {TABLE_PAGE_SIZE} / page
+                    </span>
+                  </p>
+                  {staysPageCount > 1 ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "h-8 gap-1 border-primary/25",
+                          lodgingGhostBtnClass,
+                        )}
+                        disabled={safeStaysPage <= 0}
+                        onClick={() =>
+                          setStaysPage((p) => Math.max(0, p - 1))
+                        }
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className={cn("h-8 gap-1", lodgingPrimaryBtnClass)}
+                        disabled={safeStaysPage >= staysPageCount - 1}
+                        onClick={() =>
+                          setStaysPage((p) =>
+                            Math.min(staysPageCount - 1, p + 1),
+                          )
+                        }
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <PendingButton
                     type="button"
-                    className="h-9 gap-1.5"
+                    className={cn("h-9 gap-1.5", lodgingPrimaryBtnClass)}
                     pending={exportingPdf}
                     onClick={() => void exportStaysPdf()}
                   >
@@ -1112,11 +1188,12 @@ export function LodgingReportsPanel({
                 </div>
               </div>
             )}
-          </HotelFormSection>
+          </LodgingFormSection>
 
-          <HotelFormSection
+          <LodgingFormSection
             title="Past guests"
             description="Guest registry with latest check-in and check-out — search by name, phone, email, national ID, or passport."
+            tone="sky"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1148,7 +1225,7 @@ export function LodgingReportsPanel({
               </div>
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-xl border border-border/70">
+            <div className="mt-3 overflow-hidden rounded-xl border border-primary/12 bg-background shadow-sm">
               <DataTable
                 columns={guestColumns}
                 data={guests}
@@ -1156,10 +1233,10 @@ export function LodgingReportsPanel({
                 searchColumnId="guest"
                 searchPlaceholder="Search name, phone, email, ID, passport…"
                 emptyMessage="No past guests yet for this property."
-                pageSize={10}
+                pageSize={TABLE_PAGE_SIZE}
               />
             </div>
-          </HotelFormSection>
+          </LodgingFormSection>
         </CardContent>
       </Card>
 
@@ -1168,6 +1245,7 @@ export function LodgingReportsPanel({
           logs={logs}
           title="Recent actions"
           description="Audit trail of room, stay, bill, and CM activity — including what changed."
+          pageSize={TABLE_PAGE_SIZE}
         />
       ) : null}
     </div>
@@ -1185,17 +1263,27 @@ function ReportMiniTable({
   rows: string[][];
   alignRight?: boolean[];
 }) {
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = rows.slice(
+    safePage * TABLE_PAGE_SIZE,
+    (safePage + 1) * TABLE_PAGE_SIZE,
+  );
+  const from = rows.length === 0 ? 0 : safePage * TABLE_PAGE_SIZE + 1;
+  const to = Math.min((safePage + 1) * TABLE_PAGE_SIZE, rows.length);
+
   return (
-    <div className="overflow-hidden rounded-xl border border-border/70">
-      <div className="border-b border-border/60 bg-muted/25 px-3 py-2">
-        <p className="text-xs font-medium tracking-tight text-foreground">
+    <div className="overflow-hidden rounded-xl border border-primary/12 bg-background shadow-sm">
+      <div className="border-b border-primary/10 bg-primary/4 px-3 py-2">
+        <p className="text-xs font-semibold tracking-tight text-teal-900/90 dark:text-teal-100">
           {title}
         </p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-muted/20 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+            <tr className="border-b border-primary/10 bg-sky-500/5 text-left text-[11px] uppercase tracking-wider text-teal-800/70 dark:text-teal-300/70">
               {headers.map((h, i) => (
                 <th
                   key={h}
@@ -1209,11 +1297,14 @@ function ReportMiniTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/50">
-            {rows.map((row, ri) => (
+          <tbody className="divide-y divide-primary/10">
+            {pageRows.map((row, ri) => (
               <tr
-                key={`${title}-${ri}`}
-                className={cn(ri % 2 === 1 && "bg-muted/10")}
+                key={`${title}-${safePage}-${ri}`}
+                className={cn(
+                  "hover:bg-primary/5",
+                  ri % 2 === 1 && "bg-sky-500/5",
+                )}
               >
                 {row.map((cell, ci) => (
                   <td
@@ -1233,6 +1324,36 @@ function ReportMiniTable({
           </tbody>
         </table>
       </div>
+      {rows.length > TABLE_PAGE_SIZE ? (
+        <div className="flex flex-col gap-2 border-t border-primary/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs tabular-nums text-muted-foreground">
+            Showing {from}–{to} of {rows.length} · {TABLE_PAGE_SIZE} / page
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn("h-8 gap-1 border-primary/25", lodgingGhostBtnClass)}
+              disabled={safePage <= 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className={cn("h-8 gap-1", lodgingPrimaryBtnClass)}
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
