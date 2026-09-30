@@ -106,7 +106,7 @@ export function LodgingHotelContactPanel() {
               <CustomFormField
                 name="hotelPhone"
                 control={form.control}
-                fieldType={FormFieldTypes.PHONE_INPUT}
+                fieldType={formFieldTypes.PHONE_INPUT}
                 label="Primary phone (required)"
                 placeholder="Front desk"
                 required
@@ -115,7 +115,7 @@ export function LodgingHotelContactPanel() {
               <CustomFormField
                 name="hotelPhoneSecondary"
                 control={form.control}
-                fieldType={FormFieldTypes.PHONE_INPUT}
+                fieldType={formFieldTypes.PHONE_INPUT}
                 label="Secondary phone (optional)"
                 placeholder="Reception / alternate"
                 inputClassName="h-fit w-full"
