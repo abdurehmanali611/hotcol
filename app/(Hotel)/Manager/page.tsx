@@ -2034,20 +2034,22 @@ function ManagerContent() {
                 </SidebarMenuItem>
               ) : null}
 
-              <ManagerCollapsibleSidebarGroup
-                label="Inventory"
-                icon={Store}
-                items={inventorySidebarItems}
-                activeSection={activeTab}
-                isGroupActive={inventoryGroupActive}
-                onSelect={(id) => setActiveTab(id as TabId)}
-                layout="flat"
-              >
-                <HotelInventoryPaymentSidebarGroup
+              {tenantHasModule(tenantModules, "Inventory") ? (
+                <ManagerCollapsibleSidebarGroup
+                  label="Inventory"
+                  icon={Store}
+                  items={inventorySidebarItems}
                   activeSection={activeTab}
+                  isGroupActive={inventoryGroupActive}
                   onSelect={(id) => setActiveTab(id as TabId)}
-                />
-              </ManagerCollapsibleSidebarGroup>
+                  layout="flat"
+                >
+                  <HotelInventoryPaymentSidebarGroup
+                    activeSection={activeTab}
+                    onSelect={(id) => setActiveTab(id as TabId)}
+                  />
+                </ManagerCollapsibleSidebarGroup>
+              ) : null}
 
               {serviceSidebarItems.length > 0 &&
               tenantHasServiceModuleGroup(tenantModules) ? (

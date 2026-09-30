@@ -334,8 +334,9 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-incidents": "HR Module",
   "hr-departments": "HR Module",
   "hr-workforce": "HR Module",
-  "inventory-payment-vat": "Financial Management",
+  "inventory-payment-vat": "Inventory",
   "cc-profiles": "Financial Management",
+  "department-leaders": "Inventory",
   "lodging-rooms": "Room Management",
   "lodging-reports": "Room Management",
   "lodging-police-report": "Room Management",
@@ -345,6 +346,11 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "lodging-laundry-items": "Room Management",
   "lodging-guest-complaints": "Room Management",
   "lodging-guest-ratings": "Room Management",
+  "lodging-tax": "Room Management",
+  "lodging-rate-plans": "Room Management",
+  "lodging-discounts": "Room Management",
+  "lodging-voids": "Room Management",
+  "lodging-night-audit": "Room Management",
   /** @deprecated legacy flat tab */
   "lodging-service-prices": "Room Management",
 };

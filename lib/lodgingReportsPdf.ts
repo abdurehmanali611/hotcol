@@ -474,8 +474,8 @@ export async function downloadLodgingStayPaymentsPdf(input: {
     y += 4;
     const kpiLegend = [
       "Occupancy — how full sellable inventory was (sold ÷ available × 100)",
-      "ADR — how much you charged when sold (revenue ÷ sold nights)",
-      "RevPAR — how much each sellable room earned (revenue ÷ available nights)",
+      "ADR — room revenue incl. room tax ÷ sold nights",
+      "RevPAR — room revenue incl. room tax ÷ available nights",
       "Complimentary cost — company cost = complimentary nights × rack rate",
     ];
     for (const line of kpiLegend) {

@@ -709,7 +709,7 @@ export function LodgingReportsPanel({
                       {
                         label: "Room revenue",
                         value: formatEtb(perf.roomRevenueETB),
-                        hint: "Room folio charges",
+                        hint: "Room folio + room tax",
                       },
                     ] as const
                   ).map((kpi) => (
