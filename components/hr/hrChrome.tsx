@@ -460,7 +460,7 @@ export function HrFormSection({
   return (
     <div
       className={cn(
-        "space-y-4 rounded-xl border border-border/70 bg-muted/15 p-4 shadow-sm sm:p-5",
+        "flex flex-col space-y-4 rounded-xl border border-border/70 bg-card/50 p-4 shadow-sm sm:p-5",
         className,
       )}
     >
@@ -474,7 +474,7 @@ export function HrFormSection({
           </p>
         ) : null}
       </div>
-      {children}
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
 }

@@ -251,22 +251,34 @@ export function HrEmployeesPanel({
     fullName: "",
     department: "",
     jobTitle: "",
-    wageType: "monthly",
+    orgPosition: "employee" as "employee" | "leader",
+    teamId: null as number | null,
+    wageType: "monthly" as "monthly" | "weekly",
     baseSalaryETB: "",
+    hireDate: todayYmd(),
     gender: "",
     education: "",
     yearsExperience: "",
+    personalTin: "",
+    bankName: "",
+    accountNumber: "",
+    medicalNote: "",
+    phone: "",
+    email: "",
   });
 
-  const [batchOpen, setBatchOpen] = useState(false);
-  const [batchPending, setBatchPending] = useState(false);
-  const [batchRows, setBatchRows] = useState([emptyBatchRow()]);
+  const [extraLines, setExtraLines] = useState<
+    ReturnType<typeof emptyBatchRow>[]
+  >([]);
   const [pending, setPending] = useState(false);
   const [issuedOtp, setIssuedOtp] = useState<{ name: string; otp: string } | null>(
     null,
   );
   const [hrDepartments, setHrDepartments] = useState<HrDepartment[]>([]);
   const [teams, setTeams] = useState<HrTeam[]>([]);
+  const [teamsByDeptId, setTeamsByDeptId] = useState<Record<number, HrTeam[]>>(
+    {},
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -330,7 +342,9 @@ export function HrEmployeesPanel({
       try {
         const rows = await fetchHrTeamsApi(selectedDeptId);
         if (cancelled) return;
-        setTeams(rows.filter((t) => t.active));
+        const active = rows.filter((t) => t.active);
+        setTeams(active);
+        setTeamsByDeptId((prev) => ({ ...prev, [selectedDeptId]: active }));
       } catch (e) {
         notifyApiFailure(e, "Could not load teams");
       }
@@ -340,6 +354,44 @@ export function HrEmployeesPanel({
       cancelled = true;
     };
   }, [selectedDeptId]);
+
+  const extraDeptIdsKey = useMemo(() => {
+    const ids = new Set<number>();
+    for (const row of extraLines) {
+      const id = hrDepartments.find((d) => d.code === row.department)?.id;
+      if (id != null) ids.add(id);
+    }
+    return [...ids].sort((a, b) => a - b).join(",");
+  }, [extraLines, hrDepartments]);
+
+  useEffect(() => {
+    if (!extraDeptIdsKey) return;
+    let cancelled = false;
+    const ids = extraDeptIdsKey.split(",").map(Number);
+    const load = async () => {
+      await Promise.all(
+        ids.map(async (deptId) => {
+          if (teamsByDeptId[deptId]) return;
+          try {
+            const rows = await fetchHrTeamsApi(deptId);
+            if (cancelled) return;
+            setTeamsByDeptId((prev) => ({
+              ...prev,
+              [deptId]: rows.filter((t) => t.active),
+            }));
+          } catch (e) {
+            notifyApiFailure(e, "Could not load teams");
+          }
+        }),
+      );
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // teamsByDeptId intentionally omitted — only fetch missing dept ids
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extraDeptIdsKey]);
 
   const filtered = useMemo(
     () =>
@@ -398,6 +450,7 @@ export function HrEmployeesPanel({
       yearsExperience: 0,
       medicalNote: "",
     });
+    setExtraLines([]);
     setOpen(true);
   };
 
@@ -467,8 +520,87 @@ export function HrEmployeesPanel({
         await updateHrEmployeeApi(editing.id, payload);
         toast.success("Employee updated");
       } else {
-        await createHrEmployeeApi(payload);
-        toast.success("Employee added");
+        const parsedExtras: HrEmployeeFormValues[] = [];
+        for (let i = 0; i < extraLines.length; i++) {
+          const r = extraLines[i];
+          const blank =
+            !r.fullName.trim() &&
+            !r.department.trim() &&
+            !r.jobTitle.trim() &&
+            !r.phone.trim() &&
+            !r.email.trim() &&
+            !String(r.baseSalaryETB).trim() &&
+            !r.bankName.trim() &&
+            !r.accountNumber.trim() &&
+            !r.personalTin.trim() &&
+            !r.medicalNote.trim() &&
+            !r.education.trim() &&
+            !r.gender.trim() &&
+            !String(r.yearsExperience).trim();
+          if (blank) continue;
+
+          const candidate = {
+            fullName: r.fullName,
+            phone: r.phone || "",
+            email: r.email || "",
+            department: r.department,
+            jobTitle: r.jobTitle || "",
+            orgPosition: r.orgPosition === "leader" ? "leader" : "employee",
+            teamId: r.teamId,
+            wageType: r.wageType,
+            baseSalaryETB:
+              r.baseSalaryETB === "" ? Number.NaN : Number(r.baseSalaryETB),
+            bankName: r.bankName || "",
+            accountNumber: r.accountNumber || "",
+            hireDate: r.hireDate || "",
+            notes: "",
+            gender:
+              r.gender === "male" || r.gender === "female" ? r.gender : "",
+            education: r.education || "",
+            personalTin: r.personalTin || "",
+            yearsExperience:
+              r.yearsExperience === "" ? 0 : Number(r.yearsExperience),
+            medicalNote: r.medicalNote || "",
+          };
+          const result = hrEmployeeFormSchema.safeParse(candidate);
+          if (!result.success) {
+            const msg =
+              result.error.issues[0]?.message || "Invalid employee details";
+            toast.error(`Extra employee ${i + 1}: ${msg}`);
+            setPending(false);
+            return;
+          }
+          parsedExtras.push(result.data);
+        }
+
+        const extrasPayload = parsedExtras.map((v) => ({
+          fullName: v.fullName,
+          phone: v.phone || undefined,
+          email: v.email || undefined,
+          department: v.department,
+          jobTitle: v.jobTitle || "",
+          orgPosition: v.orgPosition,
+          teamId: v.teamId || null,
+          wageType: v.wageType,
+          baseSalaryETB: v.baseSalaryETB,
+          hireDate: v.hireDate,
+          gender: v.gender || "",
+          education: v.education || "",
+          yearsExperience: Number(v.yearsExperience) || 0,
+          personalTin: v.personalTin || "",
+          bankName: v.bankName || "",
+          accountNumber: v.accountNumber || "",
+          medicalNote: v.medicalNote || "",
+        }));
+
+        if (extrasPayload.length) {
+          await createHrEmployeesBatchApi([payload, ...extrasPayload]);
+          toast.success(`Created ${1 + extrasPayload.length} employee(s)`);
+        } else {
+          await createHrEmployeeApi(payload);
+          toast.success("Employee added");
+        }
+        setExtraLines([]);
       }
       setOpen(false);
       await onRefresh();
@@ -744,226 +876,16 @@ export function HrEmployeesPanel({
         description="Search, filter, and maintain employment records. Salary and hire details feed system payroll when a period is closed."
         icon={<Users className="size-5" />}
         actions={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 rounded-xl"
-              onClick={() => {
-                if (!hrDepartments.length) {
-                  toast.error("Register departments in HR → Departments first");
-                  return;
-                }
-                setBatchRows([emptyBatchRow()]);
-                setBatchOpen(true);
-              }}
-            >
-              Batch add
-            </Button>
-            <Button
-              onClick={openCreate}
-              className={cn("h-11 rounded-xl", hrPrimaryBtnClass)}
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add employee
-            </Button>
-          </>
+          <Button
+            onClick={openCreate}
+            className={cn("h-11 rounded-xl", hrPrimaryBtnClass)}
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add employee
+          </Button>
         }
         stats={directoryStats}
       />
-
-      <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
-        <DialogContent className={hrEmployeeFormDialogClassName}>
-          <HrDialogHeader
-            title="Batch add employees"
-            description="Add multiple employees at once — same Add line pattern as hotel store item registration. Empty name rows are skipped."
-          />
-          <div className="space-y-3">
-            {batchRows.map((row, index) => (
-              <div
-                key={index}
-                className="grid gap-2 rounded-xl border border-border/60 bg-muted/20 p-3 sm:grid-cols-2 lg:grid-cols-4"
-              >
-                <Input
-                  placeholder="Full name *"
-                  value={row.fullName}
-                  onChange={(e) =>
-                    setBatchRows((prev) =>
-                      prev.map((r, i) =>
-                        i === index ? { ...r, fullName: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-                <HrOptionCombobox
-                  value={row.department}
-                  onChange={(v) =>
-                    setBatchRows((prev) =>
-                      prev.map((r, i) =>
-                        i === index ? { ...r, department: v } : r,
-                      ),
-                    )
-                  }
-                  options={hrDepartments.map((d) => ({
-                    value: d.code,
-                    label: d.label,
-                  }))}
-                  placeholder="Department"
-                  emptyText="No departments."
-                />
-                <Input
-                  placeholder="Job title"
-                  value={row.jobTitle}
-                  onChange={(e) =>
-                    setBatchRows((prev) =>
-                      prev.map((r, i) =>
-                        i === index ? { ...r, jobTitle: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-                <Input
-                  placeholder="Salary ETB"
-                  type="number"
-                  value={row.baseSalaryETB}
-                  onChange={(e) =>
-                    setBatchRows((prev) =>
-                      prev.map((r, i) =>
-                        i === index
-                          ? { ...r, baseSalaryETB: e.target.value }
-                          : r,
-                      ),
-                    )
-                  }
-                />
-                <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-                  <RadioGroup
-                    value={row.gender}
-                    onValueChange={(v) =>
-                      setBatchRows((prev) =>
-                        prev.map((r, i) =>
-                          i === index ? { ...r, gender: v } : r,
-                        ),
-                      )
-                    }
-                    className="flex gap-4"
-                  >
-                    {HR_GENDER_OPTIONS.map((opt) => (
-                      <div key={opt.value} className="flex items-center gap-2">
-                        <RadioGroupItem
-                          value={opt.value}
-                          id={`batch-gender-${index}-${opt.value}`}
-                        />
-                        <Label
-                          htmlFor={`batch-gender-${index}-${opt.value}`}
-                          className="font-normal"
-                        >
-                          {opt.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                </div>
-                <HrOptionCombobox
-                  value={row.education}
-                  onChange={(v) =>
-                    setBatchRows((prev) =>
-                      prev.map((r, i) =>
-                        i === index ? { ...r, education: v } : r,
-                      ),
-                    )
-                  }
-                  options={HR_EDUCATION_LEVELS.map((o) => ({
-                    value: o.value,
-                    label: o.label,
-                  }))}
-                  placeholder="Education"
-                  emptyText="No education level found."
-                />
-                <Input
-                  placeholder="Years of experience"
-                  type="number"
-                  min={0}
-                  max={80}
-                  value={row.yearsExperience}
-                  onChange={(e) =>
-                    setBatchRows((prev) =>
-                      prev.map((r, i) =>
-                        i === index
-                          ? { ...r, yearsExperience: e.target.value }
-                          : r,
-                      ),
-                    )
-                  }
-                />
-                <div className="flex items-center justify-end lg:col-span-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={batchRows.length <= 1}
-                    onClick={() =>
-                      setBatchRows((prev) =>
-                        prev.filter((_, i) => i !== index),
-                      )
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2 font-medium"
-              onClick={() =>
-                setBatchRows((prev) => [...prev, emptyBatchRow()])
-              }
-            >
-              <Plus className="h-4 w-4" />
-              Add line
-            </Button>
-            <PendingButton
-              pending={batchPending}
-              className={cn("h-11 w-full", hrPrimaryBtnClass)}
-              onClick={async () => {
-                setBatchPending(true);
-                try {
-                  const employees = batchRows
-                    .filter((r) => r.fullName.trim())
-                    .map((r) => ({
-                      fullName: r.fullName.trim(),
-                      department: r.department.trim() || defaultDepartment,
-                      jobTitle: r.jobTitle.trim(),
-                      wageType: r.wageType || "monthly",
-                      baseSalaryETB: Number(r.baseSalaryETB) || 0,
-                      gender: r.gender || "",
-                      education: r.education || "",
-                      yearsExperience: Number(r.yearsExperience) || 0,
-                    }));
-                  if (!employees.length) {
-                    toast.error("Add at least one name");
-                    return;
-                  }
-                  await createHrEmployeesBatchApi(employees);
-                  toast.success(`Created ${employees.length} employee(s)`);
-                  setBatchOpen(false);
-                  setBatchRows([emptyBatchRow()]);
-                  await onRefresh();
-                } catch (e) {
-                  notifyApiFailure(e, "Batch create failed");
-                } finally {
-                  setBatchPending(false);
-                }
-              }}
-            >
-              Save batch
-            </PendingButton>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <div className="space-y-4">
         <div className="flex justify-end">
@@ -1016,11 +938,20 @@ export function HrEmployeesPanel({
         <DialogContent className={hrEmployeeFormDialogClassName}>
           <HrDialogHeader
             title={editing ? "Edit employee" : "Add employee"}
-            description="Employment master data for this property. Salary and hire date feed system payroll when a period is closed."
+            description={
+              editing
+                ? "Update employment master data for this property."
+                : "Fill the cards below. Use Add line to register more employees in the same save."
+            }
           />
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <HrFormSection title="Identity" description="Legal name and optional contact.">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid items-stretch gap-4 lg:grid-cols-2">
+              <HrFormSection
+                className="h-full"
+                title="Identity"
+                description="Name, contact, and gender."
+              >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -1068,9 +999,49 @@ export function HrEmployeesPanel({
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Gender</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            className="grid grid-cols-2 gap-2"
+                          >
+                            {HR_GENDER_OPTIONS.map((opt) => (
+                              <Label
+                                key={opt.value}
+                                htmlFor={`emp-gender-${opt.value}`}
+                                className={cn(
+                                  "flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-normal transition-colors",
+                                  field.value === opt.value
+                                    ? "border-violet-500/35 bg-violet-500/[0.07]"
+                                    : "border-border/70 bg-background hover:bg-muted/40",
+                                )}
+                              >
+                                <RadioGroupItem
+                                  value={opt.value}
+                                  id={`emp-gender-${opt.value}`}
+                                />
+                                {opt.label}
+                              </Label>
+                            ))}
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </HrFormSection>
-              <HrFormSection title="Role & pay" description="Department, title, wage type, and hire date.">
+              <HrFormSection
+                className="h-full"
+                title="Role"
+                description="Department, title, and position."
+              >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -1153,7 +1124,7 @@ export function HrEmployeesPanel({
                           <RadioGroup
                             value={field.value}
                             onValueChange={field.onChange}
-                            className="grid grid-cols-2 gap-2 sm:max-w-md"
+                            className="grid grid-cols-2 gap-2"
                           >
                             {(
                               [
@@ -1201,31 +1172,43 @@ export function HrEmployeesPanel({
                           ? String(field.value)
                           : "none";
                       return (
-                      <FormItem className={roleFieldClass}>
-                        <FormLabel>Team (optional)</FormLabel>
-                        <FormControl>
-                          <OptionCombobox
-                            value={current}
-                            onChange={(v) =>
-                              field.onChange(v === "none" ? null : Number(v))
-                            }
-                            options={options}
-                            disabled={!selectedDeptId}
-                            placeholder={
-                              selectedDeptId
-                                ? teams.length
-                                  ? "Search team…"
-                                  : "No teams in department"
-                                : "Pick department first"
-                            }
-                            emptyText="No teams found."
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                        <div className="sm:col-span-2 flex justify-center">
+                          <FormItem className={cn(roleFieldClass, "w-full sm:w-[calc(50%-0.5rem)]")}>
+                            <FormLabel>Team (optional)</FormLabel>
+                            <FormControl>
+                              <OptionCombobox
+                                value={current}
+                                onChange={(v) =>
+                                  field.onChange(
+                                    v === "none" ? null : Number(v),
+                                  )
+                                }
+                                options={options}
+                                disabled={!selectedDeptId}
+                                placeholder={
+                                  selectedDeptId
+                                    ? teams.length
+                                      ? "Search team…"
+                                      : "No teams in department"
+                                    : "Pick department first"
+                                }
+                                emptyText="No teams found."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        </div>
                       );
                     }}
                   />
+                </div>
+              </HrFormSection>
+              <HrFormSection
+                className="h-full"
+                title="Pay"
+                description="Wage type, salary, and hire date."
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="wageType"
@@ -1269,6 +1252,34 @@ export function HrEmployeesPanel({
                   />
                   <FormField
                     control={form.control}
+                    name="hireDate"
+                    render={({ field }) => (
+                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
+                        <FormLabel>Hire date</FormLabel>
+                        <FormControl>
+                          <HotelDayPicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            buttonClassName={cn(
+                              roleInputClass,
+                              "justify-start font-normal",
+                            )}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </HrFormSection>
+              <HrFormSection
+                className="h-full"
+                title="Banking"
+                description="Payroll bank details."
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
                     name="bankName"
                     render={({ field }) => {
                       const options: ComboboxOption[] = [
@@ -1291,7 +1302,7 @@ export function HrEmployeesPanel({
                         });
                       }
                       return (
-                      <FormItem className={roleFieldClass}>
+                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
                         <FormLabel>Bank name</FormLabel>
                         <FormControl>
                           <OptionCombobox
@@ -1311,7 +1322,7 @@ export function HrEmployeesPanel({
                     control={form.control}
                     name="accountNumber"
                     render={({ field }) => (
-                      <FormItem className={roleFieldClass}>
+                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
                         <FormLabel>Account number</FormLabel>
                         <FormControl>
                           <Input
@@ -1324,61 +1335,14 @@ export function HrEmployeesPanel({
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="hireDate"
-                    render={({ field }) => (
-                      <FormItem className={roleFieldClass}>
-                        <FormLabel>Hire date</FormLabel>
-                        <FormControl>
-                          <HotelDayPicker
-                            value={field.value}
-                            onChange={field.onChange}
-                            buttonClassName={cn(
-                              roleInputClass,
-                              "justify-start font-normal",
-                            )}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="gender"
-                    render={({ field }) => (
-                      <FormItem className={roleFieldClass}>
-                        <FormLabel>Gender</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                            className="flex flex-wrap gap-4 pt-1"
-                          >
-                            {HR_GENDER_OPTIONS.map((opt) => (
-                              <div
-                                key={opt.value}
-                                className="flex items-center gap-2"
-                              >
-                                <RadioGroupItem
-                                  value={opt.value}
-                                  id={`emp-gender-${opt.value}`}
-                                />
-                                <Label
-                                  htmlFor={`emp-gender-${opt.value}`}
-                                  className="font-normal"
-                                >
-                                  {opt.label}
-                                </Label>
-                              </div>
-                            ))}
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                </div>
+              </HrFormSection>
+              <HrFormSection
+                className="h-full"
+                title="Background"
+                description="Education, experience, and TIN."
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="education"
@@ -1446,7 +1410,7 @@ export function HrEmployeesPanel({
                     control={form.control}
                     name="personalTin"
                     render={({ field }) => (
-                      <FormItem className={roleFieldClass}>
+                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
                         <FormLabel>Personal TIN</FormLabel>
                         <FormControl>
                           <Input className={roleInputClass} {...field} />
@@ -1455,31 +1419,528 @@ export function HrEmployeesPanel({
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="medicalNote"
-                    render={({ field }) => (
-                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
-                        <FormLabel>Medical note</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            className="min-h-24 rounded-xl border-border/80 bg-background/80"
-                            placeholder="Allergies, restrictions, or other medical notes"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
               </HrFormSection>
+              <HrFormSection
+                className="h-full"
+                title="Medical"
+                description="Optional medical notes."
+              >
+                <FormField
+                  control={form.control}
+                  name="medicalNote"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Medical note</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          className="min-h-28 rounded-xl border-border/80 bg-background/80"
+                          placeholder="Allergies, restrictions, or other medical notes"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </HrFormSection>
+              </div>
+
+              {!editing ? (
+                <div className="space-y-3">
+                  {extraLines.map((row, index) => (
+                    <div
+                      key={index}
+                      className="space-y-3 rounded-xl border border-dashed border-border/80 bg-muted/10 p-3 sm:p-4"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          Extra employee {index + 1}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setExtraLines((prev) =>
+                              prev.filter((_, i) => i !== index),
+                            )
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <HrFormSection className="h-full" title="Identity">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-sm">Full name *</Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Full name"
+                                value={row.fullName}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? { ...r, fullName: e.target.value }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-1.5">
+                              <Label className="text-sm">Phone</Label>
+                              <PhoneInput
+                                defaultCountry="ET"
+                                countryCallingCodeEditable
+                                international
+                                value={row.phone || undefined}
+                                onChange={(value) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? { ...r, phone: value || "" }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                                className="w-full min-w-0"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Email</Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Email"
+                                type="email"
+                                value={row.email}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? { ...r, email: e.target.value }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-sm">Gender</Label>
+                              <RadioGroup
+                                value={row.gender}
+                                onValueChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index ? { ...r, gender: v } : r,
+                                    ),
+                                  )
+                                }
+                                className="grid grid-cols-2 gap-2"
+                              >
+                                {HR_GENDER_OPTIONS.map((opt) => (
+                                  <Label
+                                    key={opt.value}
+                                    htmlFor={`extra-gender-${index}-${opt.value}`}
+                                    className={cn(
+                                      "flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-normal transition-colors",
+                                      row.gender === opt.value
+                                        ? "border-violet-500/35 bg-violet-500/[0.07]"
+                                        : "border-border/70 bg-background hover:bg-muted/40",
+                                    )}
+                                  >
+                                    <RadioGroupItem
+                                      value={opt.value}
+                                      id={`extra-gender-${index}-${opt.value}`}
+                                    />
+                                    {opt.label}
+                                  </Label>
+                                ))}
+                              </RadioGroup>
+                            </div>
+                          </div>
+                        </HrFormSection>
+                        <HrFormSection className="h-full" title="Role">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Department *</Label>
+                              <HrOptionCombobox
+                                value={row.department}
+                                onChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? { ...r, department: v, teamId: null }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                                options={hrDepartments.map((d) => ({
+                                  value: d.code,
+                                  label: d.label,
+                                }))}
+                                placeholder="Department"
+                                emptyText="No departments."
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Specific role</Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Skill / professional name"
+                                value={row.jobTitle}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? { ...r, jobTitle: e.target.value }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-sm">Position</Label>
+                              <RadioGroup
+                                value={row.orgPosition}
+                                onValueChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            orgPosition:
+                                              v === "leader"
+                                                ? "leader"
+                                                : "employee",
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                                className="grid grid-cols-2 gap-2"
+                              >
+                                {(
+                                  [
+                                    { id: "employee", label: "Employee" },
+                                    { id: "leader", label: "Leader" },
+                                  ] as const
+                                ).map((opt) => (
+                                  <Label
+                                    key={opt.id}
+                                    htmlFor={`extra-pos-${index}-${opt.id}`}
+                                    className={cn(
+                                      "flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-normal transition-colors",
+                                      row.orgPosition === opt.id
+                                        ? "border-violet-500/35 bg-violet-500/[0.07]"
+                                        : "border-border/70 bg-background hover:bg-muted/40",
+                                    )}
+                                  >
+                                    <RadioGroupItem
+                                      value={opt.id}
+                                      id={`extra-pos-${index}-${opt.id}`}
+                                    />
+                                    {opt.label}
+                                  </Label>
+                                ))}
+                              </RadioGroup>
+                            </div>
+                            <div className="sm:col-span-2 flex justify-center">
+                              <div className="w-full space-y-1.5 sm:w-[calc(50%-0.5rem)]">
+                                <Label className="text-sm">Team (optional)</Label>
+                                {(() => {
+                                  const deptId =
+                                    hrDepartments.find(
+                                      (d) => d.code === row.department,
+                                    )?.id ?? null;
+                                  const deptTeams =
+                                    deptId != null
+                                      ? teamsByDeptId[deptId] || []
+                                      : [];
+                                  return (
+                                    <HrOptionCombobox
+                                      value={
+                                        row.teamId != null && row.teamId > 0
+                                          ? String(row.teamId)
+                                          : "none"
+                                      }
+                                      onChange={(v) =>
+                                        setExtraLines((prev) =>
+                                          prev.map((r, i) =>
+                                            i === index
+                                              ? {
+                                                  ...r,
+                                                  teamId:
+                                                    v === "none"
+                                                      ? null
+                                                      : Number(v),
+                                                }
+                                              : r,
+                                          ),
+                                        )
+                                      }
+                                      options={[
+                                        { value: "none", label: "No team" },
+                                        ...deptTeams.map((t) => ({
+                                          value: String(t.id),
+                                          label: t.label,
+                                          hint: t.code,
+                                        })),
+                                      ]}
+                                      disabled={deptId == null}
+                                      placeholder={
+                                        deptId == null
+                                          ? "Pick department first"
+                                          : deptTeams.length
+                                            ? "Search team…"
+                                            : "No teams in department"
+                                      }
+                                      emptyText="No teams found."
+                                    />
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </HrFormSection>
+                        <HrFormSection className="h-full" title="Pay">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Wage type *</Label>
+                              <HrOptionCombobox
+                                value={row.wageType}
+                                onChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            wageType:
+                                              v === "weekly"
+                                                ? "weekly"
+                                                : "monthly",
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                                options={HR_WAGE_TYPES.map((w) => ({
+                                  value: w,
+                                  label: HR_WAGE_LABELS[w],
+                                }))}
+                                placeholder="Wage type"
+                                emptyText="No wage types."
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Gross salary *</Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Salary ETB"
+                                type="number"
+                                min={0}
+                                value={row.baseSalaryETB}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            baseSalaryETB: e.target.value,
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-sm">Hire date *</Label>
+                              <HotelDayPicker
+                                value={row.hireDate}
+                                onChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index ? { ...r, hireDate: v } : r,
+                                    ),
+                                  )
+                                }
+                                buttonClassName={cn(
+                                  hrFieldClass,
+                                  "justify-start font-normal",
+                                )}
+                              />
+                            </div>
+                          </div>
+                        </HrFormSection>
+                        <HrFormSection className="h-full" title="Banking">
+                          <div className="grid gap-3">
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Bank name</Label>
+                              <HrOptionCombobox
+                                value={row.bankName}
+                                onChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index ? { ...r, bankName: v } : r,
+                                    ),
+                                  )
+                                }
+                                options={ETHIOPIAN_BANKS.map((name) => ({
+                                  value: name,
+                                  label: name,
+                                }))}
+                                placeholder="Bank name"
+                                emptyText="No banks found."
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Account number</Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Account number"
+                                value={row.accountNumber}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            accountNumber: e.target.value,
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        </HrFormSection>
+                        <HrFormSection className="h-full" title="Background">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">Education</Label>
+                              <HrOptionCombobox
+                                value={row.education}
+                                onChange={(v) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index ? { ...r, education: v } : r,
+                                    ),
+                                  )
+                                }
+                                options={HR_EDUCATION_LEVELS.map((o) => ({
+                                  value: o.value,
+                                  label: o.label,
+                                }))}
+                                placeholder="Education"
+                                emptyText="No education level found."
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-sm">
+                                Years of experience
+                              </Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Years"
+                                type="number"
+                                min={0}
+                                max={80}
+                                value={row.yearsExperience}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            yearsExperience: e.target.value,
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-sm">Personal TIN</Label>
+                              <Input
+                                className={hrFieldClass}
+                                placeholder="Personal TIN"
+                                value={row.personalTin}
+                                onChange={(e) =>
+                                  setExtraLines((prev) =>
+                                    prev.map((r, i) =>
+                                      i === index
+                                        ? {
+                                            ...r,
+                                            personalTin: e.target.value,
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        </HrFormSection>
+                        <HrFormSection className="h-full" title="Medical">
+                          <div className="space-y-1.5">
+                            <Label className="text-sm">Medical note</Label>
+                            <Textarea
+                              className="min-h-28 rounded-xl border-border/80 bg-background/80"
+                              placeholder="Allergies, restrictions, or other medical notes"
+                              value={row.medicalNote}
+                              onChange={(e) =>
+                                setExtraLines((prev) =>
+                                  prev.map((r, i) =>
+                                    i === index
+                                      ? { ...r, medicalNote: e.target.value }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                        </HrFormSection>
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 font-medium"
+                    onClick={() =>
+                      setExtraLines((prev) => [
+                        ...prev,
+                        {
+                          ...emptyBatchRow(),
+                          department: defaultDepartment,
+                          hireDate: todayYmd(),
+                        },
+                      ])
+                    }
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add line
+                  </Button>
+                </div>
+              ) : null}
+
               <PendingButton
                 type="submit"
                 pending={pending}
                 className={cn("h-11 w-full", hrPrimaryBtnClass)}
               >
-                {editing ? "Save changes" : "Save employee"}
+                {editing
+                  ? "Save changes"
+                  : extraLines.length
+                    ? `Save ${1 + extraLines.length} employees`
+                    : "Save employee"}
               </PendingButton>
             </form>
           </Form>

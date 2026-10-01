@@ -1457,6 +1457,8 @@ export async function createHrEmployeesBatchApi(
     email?: string;
     department?: string;
     jobTitle?: string;
+    orgPosition?: string;
+    teamId?: number | null;
     wageType?: string;
     baseSalaryETB?: number;
     hireDate?: string;
