@@ -281,6 +281,11 @@ export const ADMIN_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-incidents": "HR Module",
   "hr-departments": "HR Module",
   "hr-workforce": "HR Module",
+  "hr-library": "HR Module",
+  "hr-shift-templates": "HR Module",
+  "hr-checklists": "HR Module",
+  "hr-compensation": "HR Module",
+  "hr-people-ops": "HR Module",
 };
 
 /** Manager café / restaurant + credit tabs (no inventory / receipts — those stay in lodging Inventory). */
@@ -334,6 +339,11 @@ export const MANAGER_TAB_MODULES: Partial<Record<string, ModuleOption>> = {
   "hr-incidents": "HR Module",
   "hr-departments": "HR Module",
   "hr-workforce": "HR Module",
+  "hr-library": "HR Module",
+  "hr-shift-templates": "HR Module",
+  "hr-checklists": "HR Module",
+  "hr-compensation": "HR Module",
+  "hr-people-ops": "HR Module",
   "inventory-payment-vat": "Inventory",
   "cc-profiles": "Financial Management",
   "department-leaders": "Inventory",

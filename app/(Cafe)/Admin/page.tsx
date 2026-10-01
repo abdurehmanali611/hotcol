@@ -412,6 +412,12 @@ function AdminDashboardContent() {
   const tenantModules = useTenantModules();
   const analog = isAnalogCafeOrderMode(useCafeOrderMode());
 
+  useEffect(() => {
+    if (!ADMIN_HR_TAB_IDS.has(activeTab)) return;
+    if (tenantHasModule(tenantModules, "HR Module")) return;
+    setActiveTab("reports");
+  }, [activeTab, tenantModules]);
+
   const sidebarItems = ADMIN_SIDEBAR_ITEMS.filter((item) =>
     filterAdminTabId(item.id, tenantModules),
   )
@@ -803,8 +809,7 @@ function AdminDashboardContent() {
                   />
                 </ManagerCollapsibleSidebarGroup>
               ) : null}
-              {hrSidebarItems.length > 0 ||
-              tenantHasModule(tenantModules, "HR Module") ? (
+              {tenantHasModule(tenantModules, "HR Module") ? (
                 <ManagerCollapsibleSidebarGroup
                   label="HR"
                   icon={Users}

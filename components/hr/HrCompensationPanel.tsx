@@ -413,8 +413,8 @@ export function HrCompensationPanel({
           title="Advances"
           description={
             canDecide && !canRequest
-              ? "Approve or reject pending salary advances."
-              : "Request an advance against salary. Pending Manager decision."
+              ? "Approve or reject salary advances. Approved advances add to the next payroll earnings, then mark as paid."
+              : "Request a salary advance. After Manager approval it increases earnings on the next payroll generate."
           }
           icon={<HandCoins className="h-5 w-5" />}
         >
@@ -540,8 +540,8 @@ export function HrCompensationPanel({
           title="Loans"
           description={
             canDecide && !canRequest
-              ? "Approve or reject staff loan requests."
-              : "Request a loan with principal and installment amount."
+              ? "Approve or reject staff loans. Active loans deduct the installment each payroll until principal is cleared."
+              : "Request a loan with principal and installment. After approval, each payroll deducts the installment until remaining hits zero."
           }
           icon={<Wallet className="h-5 w-5" />}
         >
@@ -658,7 +658,7 @@ export function HrCompensationPanel({
                     <CompRow
                       key={row.id}
                       title={empName(row.employeeId)}
-                      meta={`Principal ${formatEtb(row.principalETB)}${
+                      meta={`Principal ${formatEtb(row.principalETB)} · Remaining ${formatEtb(row.remainingETB)}${
                         row.installmentETB
                           ? ` · Installment ${formatEtb(row.installmentETB)}`
                           : ""
@@ -690,8 +690,8 @@ export function HrCompensationPanel({
           title="Bonuses"
           description={
             canDecide && !canRequest
-              ? "Approve or reject one-off bonus requests."
-              : "Request a one-off bonus with a clear label and amount."
+              ? "Approve or reject one-off bonus requests. Approved bonuses add to the next payroll earnings, then mark as paid."
+              : "Request a one-off bonus. After Manager approval it increases earnings on the next payroll generate."
           }
           icon={<Gift className="h-5 w-5" />}
         >
@@ -820,8 +820,8 @@ export function HrCompensationPanel({
           title="Overtime"
           description={
             canDecide && !canRequest
-              ? "Approve overtime hours and amount."
-              : "Log overtime hours and amount for Manager approval."
+              ? "Approve overtime. Approved rows in the pay range add to earnings on generate, then mark as paid."
+              : "Log overtime for a work date. After Manager approval it increases earnings when that date falls in the payroll From–To."
           }
           icon={<Clock3 className="h-5 w-5" />}
         >

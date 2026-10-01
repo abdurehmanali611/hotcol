@@ -571,12 +571,12 @@ export const HR_SECTION_COPY: Record<
   compensation: {
     title: "HR · Compensation",
     description:
-      "Salary change requests, advances, loans, bonuses, and overtime — HR submits; Manager decides.",
+      "Salary changes, advances, loans, bonuses, and overtime. Approved advances, bonuses, and overtime increase payroll; active loans deduct installments until principal is cleared. Benefits stay outside payroll.",
   },
   "people-ops": {
     title: "HR · People ops",
     description:
-      "Promotion/transfer, discipline, performance, training, benefits, and asset issue/return.",
+      "Promotion/transfer, discipline, performance, training, benefits, and asset issue/return. Benefits are recorded only — they do not change payroll.",
   },
   payroll: {
     title: "HR · Payroll",
