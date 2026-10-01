@@ -596,9 +596,9 @@ export function HrEmployeesPanel({
         if (extrasPayload.length) {
           await createHrEmployeesBatchApi([payload, ...extrasPayload]);
           toast.success(`Created ${1 + extrasPayload.length} employee(s)`);
-        } else {
-          await createHrEmployeeApi(payload);
-          toast.success("Employee added");
+      } else {
+        await createHrEmployeeApi(payload);
+        toast.success("Employee added");
         }
         setExtraLines([]);
       }
@@ -648,7 +648,7 @@ export function HrEmployeesPanel({
                     Needs pay details
                   </Badge>
                 ) : null}
-              </div>
+          </div>
             </div>
           );
         },
@@ -801,33 +801,33 @@ export function HrEmployeesPanel({
                     Request reset
                   </Button>
                 ) : null}
-                <HrConfirmAction
-                  destructive
+              <HrConfirmAction
+                destructive
                   title={`Terminate ${emp.fullName}?`}
-                  description="Marks this employee terminated from today. History stays on file."
-                  confirmLabel="Terminate"
-                  trigger={
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Terminate
-                    </Button>
-                  }
-                  onConfirm={async () => {
-                    try {
+                description="Marks this employee terminated from today. History stays on file."
+                confirmLabel="Terminate"
+                trigger={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Terminate
+                  </Button>
+                }
+                onConfirm={async () => {
+                  try {
                       await terminateHrEmployeeApi(emp.id, todayYmd());
-                      toast.success("Employee terminated");
-                      await onRefresh();
-                    } catch (e) {
+                    toast.success("Employee terminated");
+                    await onRefresh();
+                  } catch (e) {
                       if (isPendingManagerApprovalError(e)) {
                         toast.success(pendingManagerApprovalMessage(e));
                         await onRefresh();
                         return;
                       }
-                      notifyApiFailure(e, "Terminate failed");
+                    notifyApiFailure(e, "Terminate failed");
                     }
                   }}
                 />
@@ -887,7 +887,7 @@ export function HrEmployeesPanel({
         stats={directoryStats}
       />
 
-      <div className="space-y-4">
+        <div className="space-y-4">
         <div className="flex justify-end">
           <div className="w-full max-w-56 space-y-1.5">
             <Label
@@ -913,7 +913,7 @@ export function HrEmployeesPanel({
             />
           </div>
         </div>
-        {filtered.length ? (
+          {filtered.length ? (
           <HrTableFrame>
             <DataTable
               embedded
@@ -925,14 +925,14 @@ export function HrEmployeesPanel({
               pageSize={8}
             />
           </HrTableFrame>
-        ) : (
-          <HrEmptyState
-            title="No employees in this view"
-            description="Add the first employee or clear filters to see the full directory."
+          ) : (
+            <HrEmptyState
+              title="No employees in this view"
+              description="Add the first employee or clear filters to see the full directory."
             icon={<Users className="h-6 w-6" />}
-          />
-        )}
-      </div>
+            />
+          )}
+        </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className={hrEmployeeFormDialogClassName}>
@@ -1069,7 +1069,7 @@ export function HrEmployeesPanel({
                       return (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Department</FormLabel>
-                        <FormControl>
+                          <FormControl>
                           <OptionCombobox
                             value={field.value || ""}
                             onChange={(v) => {
@@ -1078,14 +1078,14 @@ export function HrEmployeesPanel({
                             }}
                             options={options}
                             disabled={!hrDepartments.length && !orphan}
-                            placeholder={
-                              hrDepartments.length
+                                placeholder={
+                                  hrDepartments.length
                                 ? "Search department…"
-                                : "Register departments first"
-                            }
+                                    : "Register departments first"
+                                }
                             emptyText="No departments found."
-                          />
-                        </FormControl>
+                              />
+                          </FormControl>
                         {!hrDepartments.length ? (
                           <p className="text-[11px] text-muted-foreground">
                             Add departments under HR → Departments, then pick
@@ -1215,7 +1215,7 @@ export function HrEmployeesPanel({
                     render={({ field }) => (
                       <FormItem className={roleFieldClass}>
                         <FormLabel>Wage type</FormLabel>
-                        <FormControl>
+                          <FormControl>
                           <OptionCombobox
                             value={field.value}
                             onChange={field.onChange}
@@ -1226,7 +1226,7 @@ export function HrEmployeesPanel({
                             placeholder="Search wage type…"
                             emptyText="No wage types."
                           />
-                        </FormControl>
+                          </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1437,14 +1437,14 @@ export function HrEmployeesPanel({
                           className="min-h-28 rounded-xl border-border/80 bg-background/80"
                           placeholder="Allergies, restrictions, or other medical notes"
                           {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
               </HrFormSection>
-              </div>
+                </div>
 
               {!editing ? (
                 <div className="space-y-3">

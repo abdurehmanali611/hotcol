@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
@@ -82,6 +81,42 @@ function addDaysYmd(ymd: string, days: number) {
   return toYmdLocal(d);
 }
 
+function nowHm(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function normalizeHm(raw: string | null | undefined): string {
+  const s = String(raw || "").trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return "";
+  const h = Math.min(23, Math.max(0, Number(m[1])));
+  const min = Math.min(59, Math.max(0, Number(m[2])));
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+/** True when local HH:mm falls in the shift window (supports overnight). */
+function shiftCoversMoment(
+  shift: Pick<HrShift, "workDate" | "startTime" | "endTime">,
+  workDate: string,
+  hm: string,
+  yesterdayYmd: string,
+): boolean {
+  const start = normalizeHm(shift.startTime);
+  const end = normalizeHm(shift.endTime);
+  if (!start || !end || !hm) return false;
+  const overnight = end < start;
+
+  if (shift.workDate === workDate) {
+    if (overnight) return hm >= start;
+    return hm >= start && hm <= end;
+  }
+  if (overnight && shift.workDate === yesterdayYmd) {
+    return hm <= end;
+  }
+  return false;
+}
+
 function formatClockTime(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString([], {
@@ -104,7 +139,61 @@ export function HrAttendancePanel({
   /** HR/Admin clock and schedule; Manager sees reports only. */
   canManageTime?: boolean;
 }) {
-  const clockEmployees = employees.filter((e) => e.status === "active");
+  const today = todayYmd();
+  const yesterday = addDaysYmd(today, -1);
+  const currentHm = nowHm();
+
+  const openClockInIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const row of attendance) {
+      if (row.workDate === today && row.clockInAt && !row.clockOutAt) {
+        ids.add(row.employeeId);
+      }
+    }
+    return ids;
+  }, [attendance, today]);
+
+  /** Employees who have a shift scheduled for today (or overnight from yesterday). */
+  const employeesScheduledToday = useMemo(() => {
+    const ids = new Set<number>();
+    for (const s of shifts) {
+      if (s.workDate === today) {
+        ids.add(s.employeeId);
+        continue;
+      }
+      // Overnight shift that started yesterday may still be active today.
+      const start = normalizeHm(s.startTime);
+      const end = normalizeHm(s.endTime);
+      if (s.workDate === yesterday && start && end && end < start) {
+        ids.add(s.employeeId);
+      }
+    }
+    return ids;
+  }, [shifts, today, yesterday]);
+
+  const onShiftNowIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const s of shifts) {
+      if (shiftCoversMoment(s, today, currentHm, yesterday)) {
+        ids.add(s.employeeId);
+      }
+    }
+    return ids;
+  }, [shifts, today, yesterday, currentHm]);
+
+  /**
+   * No shift today → always list for clock.
+   * Has a shift today → only list while that shift covers now (or open punch to clock out).
+   */
+  const clockEmployees = useMemo(
+    () =>
+      employees.filter((e) => {
+        if (e.status !== "active") return false;
+        if (!employeesScheduledToday.has(e.id)) return true;
+        return onShiftNowIds.has(e.id) || openClockInIds.has(e.id);
+      }),
+    [employees, employeesScheduledToday, onShiftNowIds, openClockInIds],
+  );
   const rosterEmployees = employees.filter(
     (e) => e.status === "active" || e.status === "on_leave",
   );
@@ -150,6 +239,14 @@ export function HrAttendancePanel({
     };
   }, [canManageTime]);
 
+  useEffect(() => {
+    const allowed = new Set(clockEmployees.map((e) => e.id));
+    setClockEmployeeIds((prev) => {
+      const next = prev.filter((id) => allowed.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [clockEmployees]);
+
   const filteredClockEmployees = useMemo(() => {
     const q = clockSearch.trim().toLowerCase();
     if (!q) return clockEmployees;
@@ -186,6 +283,9 @@ export function HrAttendancePanel({
   const allFilteredSelected =
     filteredClockEmployees.length > 0 &&
     filteredClockEmployees.every((e) => clockEmployeeIds.includes(e.id));
+  const someFilteredSelected =
+    !allFilteredSelected &&
+    filteredClockEmployees.some((e) => clockEmployeeIds.includes(e.id));
 
   const selectedClockEmployees = useMemo(
     () => clockEmployees.filter((e) => clockEmployeeIds.includes(e.id)),
@@ -354,31 +454,17 @@ export function HrAttendancePanel({
             <HrFormSection
               className="flex h-full flex-col"
               title="Record clock"
-              description="Check one or more employees, then clock them in or out for today. Staff do not clock themselves here."
+              description="Employees with no shift today always appear. If they have a shift today, they only appear while that shift covers the current time (or they still need to clock out)."
             >
               <div className={cn("flex flex-1 flex-col gap-3", fieldClass)}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label>Employees</Label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
-                    >
-                      {clockEmployeeIds.length} selected
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-xs text-violet-800 hover:bg-violet-500/15 dark:text-violet-200"
-                      disabled={
-                        !filteredClockEmployees.length || clocking !== null
-                      }
-                      onClick={() => toggleAllFiltered(!allFilteredSelected)}
-                    >
-                      {allFilteredSelected ? "Clear list" : "Select all"}
-                    </Button>
-                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
+                  >
+                    {clockEmployeeIds.length} selected
+                  </Badge>
                 </div>
 
                 <div className="relative">
@@ -392,60 +478,102 @@ export function HrAttendancePanel({
                   />
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-violet-500/20 bg-background shadow-sm ring-1 ring-violet-500/10">
-                  <ScrollArea className="h-full max-h-[min(280px,40vh)]">
+                <div className="overflow-hidden rounded-xl border border-violet-500/20 bg-background shadow-sm ring-1 ring-violet-500/10">
+                  <div className="h-[min(280px,45vh)] overflow-y-auto overscroll-contain">
                     <ul className="divide-y divide-violet-500/10 p-1">
                       {filteredClockEmployees.length ? (
-                        filteredClockEmployees.map((e) => {
-                          const checked = clockEmployeeIds.includes(e.id);
-                          const rowId = `hr-clock-emp-${e.id}`;
-                          return (
-                            <li key={e.id}>
-                              <label
-                                htmlFor={rowId}
-                                className={cn(
-                                  "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
-                                  checked
-                                    ? "bg-violet-500/10"
-                                    : "hover:bg-violet-500/5",
-                                  clocking !== null &&
-                                    "pointer-events-none opacity-60",
-                                )}
-                              >
-                                <Checkbox
-                                  id={rowId}
-                                  checked={checked}
-                                  disabled={clocking !== null}
-                                  onCheckedChange={(v) =>
-                                    toggleClockEmployee(e.id, v === true)
-                                  }
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-medium">
-                                    {e.fullName}
-                                  </span>
-                                  {e.department ? (
-                                    <span className="block truncate text-xs text-muted-foreground">
-                                      {e.department}
+                        <>
+                          <li className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
+                            <label
+                              htmlFor="hr-clock-emp-all"
+                              className={cn(
+                                "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
+                                allFilteredSelected
+                                  ? "bg-violet-500/10"
+                                  : "hover:bg-violet-500/5",
+                                clocking !== null &&
+                                  "pointer-events-none opacity-60",
+                              )}
+                            >
+                              <Checkbox
+                                id="hr-clock-emp-all"
+                                checked={
+                                  allFilteredSelected
+                                    ? true
+                                    : someFilteredSelected
+                                      ? "indeterminate"
+                                      : false
+                                }
+                                disabled={
+                                  clocking !== null ||
+                                  !filteredClockEmployees.length
+                                }
+                                onCheckedChange={(v) =>
+                                  toggleAllFiltered(v === true)
+                                }
+                              />
+                              <span className="min-w-0 flex-1 text-sm font-medium">
+                                Select all
+                                {clockSearch.trim()
+                                  ? " matching"
+                                  : ""}
+                              </span>
+                              <span className="text-xs tabular-nums text-muted-foreground">
+                                {filteredClockEmployees.length}
+                              </span>
+                            </label>
+                          </li>
+                          {filteredClockEmployees.map((e) => {
+                            const checked = clockEmployeeIds.includes(e.id);
+                            const rowId = `hr-clock-emp-${e.id}`;
+                            return (
+                              <li key={e.id}>
+                                <label
+                                  htmlFor={rowId}
+                                  className={cn(
+                                    "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
+                                    checked
+                                      ? "bg-violet-500/10"
+                                      : "hover:bg-violet-500/5",
+                                    clocking !== null &&
+                                      "pointer-events-none opacity-60",
+                                  )}
+                                >
+                                  <Checkbox
+                                    id={rowId}
+                                    checked={checked}
+                                    disabled={clocking !== null}
+                                    onCheckedChange={(v) =>
+                                      toggleClockEmployee(e.id, v === true)
+                                    }
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium">
+                                      {e.fullName}
                                     </span>
+                                    {e.department ? (
+                                      <span className="block truncate text-xs text-muted-foreground">
+                                        {e.department}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                  {checked ? (
+                                    <Check className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
                                   ) : null}
-                                </span>
-                                {checked ? (
-                                  <Check className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
-                                ) : null}
-                              </label>
-                            </li>
-                          );
-                        })
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </>
                       ) : (
                         <li className="px-3 py-8 text-center text-sm text-muted-foreground">
                           {clockEmployees.length
                             ? "No employees match this search."
-                            : "No active employees to clock (on-leave staff are excluded)."}
+                            : "No active employees to clock right now."}
                         </li>
                       )}
                     </ul>
-                  </ScrollArea>
+                  </div>
                 </div>
 
                 {selectedClockEmployees.length ? (
