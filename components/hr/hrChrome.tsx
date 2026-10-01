@@ -551,7 +551,7 @@ export const HR_SECTION_COPY: Record<
   attendance: {
     title: "HR · Attendance",
     description:
-      "HR records clock in/out and schedules shifts. Employees on approved leave show as On leave (not absent) and cannot clock. Absence days can drive payroll when an incident type is linked to attendance.",
+      "HR records clock in/out and applies manager shift templates to employee schedules. Employees on approved leave show as On leave (not absent) and cannot clock. Absence days can drive payroll when an incident type is linked to attendance.",
   },
   documents: {
     title: "HR · Documents",
@@ -561,7 +561,7 @@ export const HR_SECTION_COPY: Record<
   "shift-templates": {
     title: "HR · Shift templates",
     description:
-      "Reusable weekday patterns. Manager saves templates and applies them to employee schedules for a date range.",
+      "Reusable weekday patterns. Manager saves templates; HR applies them to schedules from Attendance.",
   },
   checklists: {
     title: "HR · Checklists",

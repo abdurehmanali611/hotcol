@@ -707,6 +707,11 @@ function AdminDashboardContent() {
       case "hr-payroll-history":
       case "hr-incidents":
       case "hr-departments":
+      case "hr-library":
+      case "hr-shift-templates":
+      case "hr-checklists":
+      case "hr-compensation":
+      case "hr-people-ops":
         return (
           <HrDashboard
             embedded

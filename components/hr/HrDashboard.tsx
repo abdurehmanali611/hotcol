@@ -439,7 +439,6 @@ export function HrDashboard({
       ) : null}
       {section === "shift-templates" ? (
         <HrShiftTemplatesPanel
-          employees={employees}
           canManage={actorRole === "Manager" || actorRole === "Admin"}
         />
       ) : null}

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import {
-  CalendarClock,
   Check,
   ClipboardList,
   Clock3,
@@ -12,7 +11,7 @@ import {
   LogOut,
   Search,
   Trash2,
-  X,
+  CalendarClock,
 } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
-import { HotelMultiDayPicker } from "@/components/hotel/HotelMultiDayPicker";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
 import {
@@ -39,23 +37,21 @@ import {
   hrStatusFilterTriggerClass,
 } from "@/components/hr/hrChrome";
 import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
-import { hrShiftFormSchema, parseHrConstraint } from "@/lib/hrConstraints";
-import {
-  activeHrDepartments,
-  type HrDepartmentSetting,
-} from "@/lib/hrDepartments";
 import { parseYmdToDate, toYmdLocal } from "@/lib/hotelDateYmd";
 import { notifyApiFailure } from "@/lib/actions";
 import {
   clockHrAttendanceApi,
-  createHrShiftApi,
   deleteHrShiftApi,
-  fetchHrDepartments,
   upsertHrAttendanceApi,
   type HrAttendance,
   type HrEmployee,
   type HrShift,
 } from "@/lib/api/hr";
+import {
+  applyHrShiftTemplateApi,
+  fetchHrShiftTemplates,
+  type HrShiftTemplate,
+} from "@/lib/api/hrPhaseB";
 import {
   isPendingManagerApprovalError,
   pendingManagerApprovalMessage,
@@ -74,16 +70,6 @@ const fieldClass = "min-w-0";
 const triggerClass = cn(hrFieldClass, "justify-between");
 const inputClass = hrFieldClass;
 
-const WEEKDAY_OPTIONS = [
-  { id: 1, label: "Mon" },
-  { id: 2, label: "Tue" },
-  { id: 3, label: "Wed" },
-  { id: 4, label: "Thu" },
-  { id: 5, label: "Fri" },
-  { id: 6, label: "Sat" },
-  { id: 0, label: "Sun" },
-] as const;
-
 function todayYmd() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -94,29 +80,6 @@ function addDaysYmd(ymd: string, days: number) {
   if (!d) return ymd;
   d.setDate(d.getDate() + days);
   return toYmdLocal(d);
-}
-
-/** Expand weekdays (0=Sun…6=Sat) within an inclusive YMD range. */
-function ymdsForWeekdaysInRange(
-  fromYmd: string,
-  toYmd: string,
-  weekdayIds: number[],
-): string[] {
-  const from = parseYmdToDate(fromYmd);
-  const to = parseYmdToDate(toYmd);
-  if (!from || !to || from > to || !weekdayIds.length) return [];
-  const want = new Set(weekdayIds);
-  const out: string[] = [];
-  const cursor = new Date(from);
-  while (cursor <= to) {
-    if (want.has(cursor.getDay())) out.push(toYmdLocal(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return out;
-}
-
-function mergeYmds(a: string[], b: string[]) {
-  return [...new Set([...a, ...b])].sort();
 }
 
 function formatClockTime(iso: string | null | undefined) {
@@ -155,19 +118,13 @@ export function HrAttendancePanel({
     status: "present",
     notes: "",
   });
-  const [shiftForm, setShiftForm] = useState({
-    employeeId: "",
-    workDates: [todayYmd()] as string[],
-    department: "",
-    startTime: "08:00",
-    endTime: "17:00",
-    weekdayIds: [] as number[],
-    patternFrom: todayYmd(),
-    patternTo: addDaysYmd(todayYmd(), 13),
+  const [applyForm, setApplyForm] = useState({
+    templateId: "",
+    employeeIds: [] as number[],
+    fromYmd: todayYmd(),
+    toYmd: addDaysYmd(todayYmd(), 13),
   });
-  const [hrDepartments, setHrDepartments] = useState<HrDepartmentSetting[]>(
-    [],
-  );
+  const [shiftTemplates, setShiftTemplates] = useState<HrShiftTemplate[]>([]);
   const [filterFrom, setFilterFrom] = useState(() =>
     addDaysYmd(todayYmd(), -13),
   );
@@ -176,28 +133,22 @@ export function HrAttendancePanel({
   const [filterEmployeeId, setFilterEmployeeId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!canManageTime) return;
     let cancelled = false;
     const load = async () => {
       try {
-        const rows = await fetchHrDepartments();
+        const rows = await fetchHrShiftTemplates();
         if (cancelled) return;
-        setHrDepartments(activeHrDepartments(rows));
+        setShiftTemplates(rows.filter((t) => t.active !== false));
       } catch (e) {
-        notifyApiFailure(e, "Could not load departments");
+        notifyApiFailure(e, "Could not load shift templates");
       }
     };
     void load();
-    const onChange = () => void load();
-    window.addEventListener("hotcol-hr-departments", onChange);
     return () => {
       cancelled = true;
-      window.removeEventListener("hotcol-hr-departments", onChange);
     };
-  }, []);
-
-  const overnight =
-    Boolean(shiftForm.startTime && shiftForm.endTime) &&
-    shiftForm.endTime < shiftForm.startTime;
+  }, [canManageTime]);
 
   const filteredClockEmployees = useMemo(() => {
     const q = clockSearch.trim().toLowerCase();
@@ -393,7 +344,7 @@ export function HrAttendancePanel({
         <>
         <HrSectionCard
           title="Clock and schedule"
-          description="HR marks arrival and departure for today until attendance devices (e.g. ZKTeco) are connected. Scheduling plans coverage for a chosen date, including overnight shifts."
+          description="HR marks arrival and departure for today until attendance devices (e.g. ZKTeco) are connected. Apply manager shift templates to build the roster for a date range."
           icon={
             <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
           }
@@ -550,332 +501,147 @@ export function HrAttendancePanel({
 
             <HrFormSection
               className="flex h-full flex-col"
-              title="Schedule"
-              description="Pick multiple calendar days and/or weekdays in a range. Department comes from the manager’s registry."
+              title="Apply shift template"
+              description="Pick a manager template, one or more employees, and a date range. Matching weekdays become scheduled shifts."
             >
               <div className="flex flex-1 flex-col gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className={cn("space-y-1.5 sm:col-span-2", fieldClass)}>
-                    <Label htmlFor="hr-shift-employee">Employee</Label>
-                    <HrOptionCombobox
-                      id="hr-shift-employee"
-                      value={shiftForm.employeeId}
-                      onChange={(v) => {
-                        const emp = rosterEmployees.find(
-                          (e) => String(e.id) === v,
-                        );
-                        const deptCode =
-                          hrDepartments.find(
-                            (d) =>
-                              d.label.toLowerCase() ===
-                                (emp?.department || "").toLowerCase() ||
-                              d.code === emp?.department,
-                          )?.code || shiftForm.department;
-                        setShiftForm((f) => ({
-                          ...f,
-                          employeeId: v,
-                          department: deptCode || f.department,
-                        }));
-                      }}
-                      options={rosterEmployees.map((e) => ({
-                        value: String(e.id),
-                        label: `${e.fullName}${e.status === "on_leave" ? " (on leave)" : ""}`,
-                        hint: e.department || undefined,
-                      }))}
-                      placeholder="Who is scheduled?"
-                      emptyText="No employees found."
-                      className={triggerClass}
-                    />
-                  </div>
-
-                  <div className={cn("space-y-1.5 sm:col-span-2", fieldClass)}>
-                    <Label htmlFor="hr-shift-department">Department</Label>
-                    <HrOptionCombobox
-                      id="hr-shift-department"
-                      value={shiftForm.department}
-                      onChange={(v) =>
-                        setShiftForm((f) => ({ ...f, department: v }))
-                      }
-                      options={hrDepartments.map((d) => ({
-                        value: d.code,
-                        label: d.label,
-                      }))}
-                      placeholder={
-                        hrDepartments.length
-                          ? "Select department"
-                          : "Register departments first"
-                      }
-                      emptyText="No departments found."
-                      disabled={!hrDepartments.length}
-                      className={triggerClass}
-                    />
-                    {!hrDepartments.length ? (
-                      <p className="text-xs text-muted-foreground">
-                        Manager (hotel) or Admin (café) registers departments
-                        under HR → Departments.
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className={cn("space-y-1.5", fieldClass)}>
-                    <Label htmlFor="hr-shift-start">Start</Label>
-                    <Input
-                      id="hr-shift-start"
-                      type="time"
-                      className={inputClass}
-                      value={shiftForm.startTime}
-                      onChange={(e) =>
-                        setShiftForm((f) => ({
-                          ...f,
-                          startTime: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-
-                  <div className={cn("space-y-1.5", fieldClass)}>
-                    <Label htmlFor="hr-shift-end">End</Label>
-                    <Input
-                      id="hr-shift-end"
-                      type="time"
-                      className={inputClass}
-                      value={shiftForm.endTime}
-                      onChange={(e) =>
-                        setShiftForm((f) => ({
-                          ...f,
-                          endTime: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
-                  <HotelMultiDayPicker
-                    label="Shift dates"
-                    values={shiftForm.workDates}
-                    onChange={(workDates) =>
-                      setShiftForm((f) => ({ ...f, workDates }))
+                <div className={cn("space-y-1.5", fieldClass)}>
+                  <Label>Template</Label>
+                  <HrOptionCombobox
+                    value={applyForm.templateId}
+                    onChange={(v) =>
+                      setApplyForm((f) => ({ ...f, templateId: v }))
                     }
-                    placeholder="Pick one or more days"
-                    buttonClassName={cn(inputClass, "justify-start font-normal")}
+                    options={shiftTemplates.map((t) => ({
+                      value: String(t.id),
+                      label: t.name,
+                      hint: `${t.code} · ${t.startTime}–${t.endTime}`,
+                    }))}
+                    placeholder={
+                      shiftTemplates.length
+                        ? "Select template"
+                        : "No templates yet — ask Manager"
+                    }
+                    emptyText="No templates found."
+                    disabled={!shiftTemplates.length}
+                    className={triggerClass}
                   />
-                  {shiftForm.workDates.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {shiftForm.workDates.map((ymd) => (
-                        <Badge
-                          key={ymd}
-                          variant="secondary"
-                          className="gap-1 border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
-                        >
-                          {ymd}
-                          <button
-                            type="button"
-                            className="rounded-sm opacity-70 hover:opacity-100"
-                            aria-label={`Remove ${ymd}`}
-                            onClick={() =>
-                              setShiftForm((f) => ({
-                                ...f,
-                                workDates: f.workDates.filter((d) => d !== ymd),
-                              }))
-                            }
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs text-violet-800 hover:bg-violet-500/15"
-                        onClick={() =>
-                          setShiftForm((f) => ({ ...f, workDates: [] }))
-                        }
-                      >
-                        Clear dates
-                      </Button>
-                    </div>
-                  ) : null}
                 </div>
 
-                <div className="space-y-3 rounded-xl border border-violet-500/20 bg-indigo-500/5 p-3">
-                  <div className="space-y-1.5">
-                    <Label>Weekdays in range</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Choose weekdays and a from/to window, then apply to add
-                      those days to the shift list.
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {WEEKDAY_OPTIONS.map((day) => {
-                        const on = shiftForm.weekdayIds.includes(day.id);
-                        return (
-                          <Button
-                            key={day.id}
-                            type="button"
-                            size="sm"
-                            variant={on ? "default" : "outline"}
-                            className={cn(
-                              "h-8 min-w-11 rounded-full px-2",
-                              on
-                                ? "border-violet-600 bg-violet-600 text-white shadow-sm shadow-violet-600/25 hover:bg-violet-600/90"
-                                : "border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/10",
-                            )}
-                            onClick={() =>
-                              setShiftForm((f) => ({
-                                ...f,
-                                weekdayIds: on
-                                  ? f.weekdayIds.filter((id) => id !== day.id)
-                                  : [...f.weekdayIds, day.id],
-                              }))
-                            }
-                          >
-                            {day.label}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <HotelDayPicker
-                      label="From"
-                      value={shiftForm.patternFrom}
-                      onChange={(patternFrom) =>
-                        setShiftForm((f) => ({ ...f, patternFrom }))
-                      }
-                      compact
-                      buttonClassName={cn(
-                        inputClass,
-                        "justify-start font-normal",
-                      )}
-                    />
-                    <HotelDayPicker
-                      label="To"
-                      value={shiftForm.patternTo}
-                      onChange={(patternTo) =>
-                        setShiftForm((f) => ({ ...f, patternTo }))
-                      }
-                      disabledDays={(date) => {
-                        const from = parseYmdToDate(shiftForm.patternFrom);
-                        return from ? date < from : false;
-                      }}
-                      compact
-                      buttonClassName={cn(
-                        inputClass,
-                        "justify-start font-normal",
-                      )}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full border-violet-500/25 bg-violet-500/10 text-violet-900 hover:bg-violet-500/15 dark:text-violet-100 sm:w-auto"
-                    disabled={!shiftForm.weekdayIds.length}
-                    onClick={() => {
-                      const added = ymdsForWeekdaysInRange(
-                        shiftForm.patternFrom,
-                        shiftForm.patternTo,
-                        shiftForm.weekdayIds,
-                      );
-                      if (!added.length) {
-                        toast.error("No matching weekdays in that range");
-                        return;
-                      }
-                      setShiftForm((f) => ({
-                        ...f,
-                        workDates: mergeYmds(f.workDates, added),
-                      }));
-                      toast.success(
-                        `Added ${added.length} day${added.length === 1 ? "" : "s"}`,
-                      );
-                    }}
-                  >
-                    Apply weekdays to dates
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-violet-500/15 pt-4">
-                <div className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <CalendarClock className="h-4 w-4 shrink-0 text-violet-600" />
-                  <span className="tabular-nums">
-                    {shiftForm.startTime || "—"} – {shiftForm.endTime || "—"}
-                  </span>
-                  <Badge
-                    variant="secondary"
-                    className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
-                  >
-                    {shiftForm.workDates.length} day
-                    {shiftForm.workDates.length === 1 ? "" : "s"}
-                  </Badge>
-                  {overnight ? (
+                <div className={cn("space-y-1.5", fieldClass)}>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Employees</Label>
                     <Badge
                       variant="secondary"
-                      className="border-indigo-500/20 bg-indigo-500/10 font-normal text-indigo-900 dark:text-indigo-200"
+                      className="border-violet-500/20 bg-violet-500/10 font-normal tabular-nums text-violet-900 dark:text-violet-200"
                     >
-                      Overnight
+                      {applyForm.employeeIds.length} selected
                     </Badge>
-                  ) : null}
+                  </div>
+                  <HrEmployeeCombobox
+                    multiple
+                    employees={rosterEmployees}
+                    valueIds={applyForm.employeeIds}
+                    onChange={(ids) =>
+                      setApplyForm((f) => ({ ...f, employeeIds: ids }))
+                    }
+                    placeholder="Select employees…"
+                    emptyText="No employees found."
+                    triggerClassName={triggerClass}
+                  />
                 </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className={cn("space-y-1.5", fieldClass)}>
+                    <Label>From</Label>
+                    <HotelDayPicker
+                      value={applyForm.fromYmd}
+                      onChange={(fromYmd) =>
+                        setApplyForm((f) => ({
+                          ...f,
+                          fromYmd: fromYmd || f.fromYmd,
+                        }))
+                      }
+                      buttonClassName={cn(
+                        inputClass,
+                        "justify-start font-normal",
+                      )}
+                    />
+                  </div>
+                  <div className={cn("space-y-1.5", fieldClass)}>
+                    <Label>To</Label>
+                    <HotelDayPicker
+                      value={applyForm.toYmd}
+                      onChange={(toYmd) =>
+                        setApplyForm((f) => ({
+                          ...f,
+                          toYmd: toYmd || f.toYmd,
+                        }))
+                      }
+                      disabledDays={(date) => {
+                        const from = parseYmdToDate(applyForm.fromYmd);
+                        return from ? date < from : false;
+                      }}
+                      buttonClassName={cn(
+                        inputClass,
+                        "justify-start font-normal",
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {applyForm.templateId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Template weekdays and hours are applied for each selected
+                    employee across the date range.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-auto border-t border-violet-500/15 pt-4">
                 <PendingButton
                   pending={pending}
-                  className={cn("min-w-36", hrPrimaryBtnClass)}
+                  className={cn("w-full", hrPrimaryBtnClass)}
+                  disabled={!shiftTemplates.length}
                   onClick={async () => {
-                    if (!shiftForm.workDates.length) {
-                      toast.error("Select at least one shift date");
+                    if (!applyForm.templateId) {
+                      toast.error("Select a shift template");
                       return;
                     }
-                    if (!hrDepartments.length || !shiftForm.department) {
-                      toast.error("Select a registered department");
+                    if (!applyForm.employeeIds.length) {
+                      toast.error("Select at least one employee");
                       return;
                     }
-                    const sample = parseHrConstraint(hrShiftFormSchema, {
-                      employeeId: Number(shiftForm.employeeId || 0),
-                      workDate: shiftForm.workDates[0],
-                      department: shiftForm.department,
-                      startTime: shiftForm.startTime,
-                      endTime: shiftForm.endTime,
-                    });
-                    if (!sample.ok) {
-                      toast.error(sample.message);
+                    if (!applyForm.fromYmd || !applyForm.toYmd) {
+                      toast.error("Select a from and to date");
+                      return;
+                    }
+                    if (applyForm.toYmd < applyForm.fromYmd) {
+                      toast.error("To date must be on or after From");
                       return;
                     }
                     setPending(true);
-                    let ok = 0;
-                    let failed = 0;
                     try {
-                      for (const workDate of shiftForm.workDates) {
-                        try {
-                          await createHrShiftApi({
-                            employeeId: sample.data.employeeId,
-                            workDate,
-                            department: sample.data.department,
-                            startTime: sample.data.startTime,
-                            endTime: sample.data.endTime,
-                          });
-                          ok += 1;
-                        } catch {
-                          failed += 1;
-                        }
-                      }
-                      if (ok && !failed) {
-                        toast.success(
-                          `Scheduled ${ok} shift${ok === 1 ? "" : "s"}`,
-                        );
-                      } else if (ok && failed) {
-                        toast.warning(`${ok} created, ${failed} failed`);
-                      } else {
-                        toast.error("Could not add shifts");
-                      }
+                      const count = await applyHrShiftTemplateApi({
+                        templateId: Number(applyForm.templateId),
+                        employeeIds: applyForm.employeeIds,
+                        fromYmd: applyForm.fromYmd,
+                        toYmd: applyForm.toYmd,
+                      });
+                      toast.success(
+                        `Created ${count} shift${count === 1 ? "" : "s"}`,
+                      );
                       await onRefresh();
+                    } catch (e) {
+                      notifyApiFailure(e, "Could not apply template");
                     } finally {
                       setPending(false);
                     }
                   }}
                 >
-                  Add shift
-                  {shiftForm.workDates.length > 1
-                    ? `s (${shiftForm.workDates.length})`
+                  Apply to schedule
+                  {applyForm.employeeIds.length > 1
+                    ? ` (${applyForm.employeeIds.length})`
                     : ""}
                 </PendingButton>
               </div>
