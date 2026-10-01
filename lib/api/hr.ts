@@ -29,6 +29,7 @@ export type HrEmployee = {
   gender?: string;
   education?: string;
   personalTin?: string;
+  yearsExperience?: number;
   medicalNote?: string;
   createdAt: string;
   updatedAt: string;
@@ -311,7 +312,7 @@ const EMP_FIELDS = `
   hireDate endDate wageType baseSalaryETB bankName accountNumber
   credentialUserId credentialUserName notes
   portalOtpPreview portalOtpViewer mustChangeOtp portalOtpIssuedAt portalFirstLoginAt
-  profileImageUrl gender education personalTin medicalNote createdAt updatedAt
+  profileImageUrl gender education personalTin yearsExperience medicalNote createdAt updatedAt
 `;
 
 const PAYSLIP_FIELDS = `
@@ -365,6 +366,7 @@ export async function createHrEmployeeApi(input: {
   gender?: string;
   education?: string;
   personalTin?: string;
+  yearsExperience?: number;
   medicalNote?: string;
 }): Promise<HrEmployee> {
   const data = await gql<{ createHrEmployee: HrEmployee }>(
@@ -385,6 +387,7 @@ export async function createHrEmployeeApi(input: {
       $gender: String
       $education: String
       $personalTin: String
+      $yearsExperience: Int
       $medicalNote: String
     ) {
       createHrEmployee(
@@ -404,6 +407,7 @@ export async function createHrEmployeeApi(input: {
         gender: $gender
         education: $education
         personalTin: $personalTin
+        yearsExperience: $yearsExperience
         medicalNote: $medicalNote
       ) { ${EMP_FIELDS} }
     }`,
@@ -639,6 +643,7 @@ export async function updateHrEmployeeApi(
       $gender: String
       $education: String
       $personalTin: String
+      $yearsExperience: Int
       $medicalNote: String
     ) {
       updateHrEmployee(
@@ -662,6 +667,7 @@ export async function updateHrEmployeeApi(
         gender: $gender
         education: $education
         personalTin: $personalTin
+        yearsExperience: $yearsExperience
         medicalNote: $medicalNote
       ) { ${EMP_FIELDS} }
     }`,
@@ -1457,9 +1463,11 @@ export async function createHrEmployeesBatchApi(
     gender?: string;
     education?: string;
     personalTin?: string;
+    yearsExperience?: number;
     bankName?: string;
     accountNumber?: string;
     notes?: string;
+    medicalNote?: string;
   }>,
 ): Promise<HrEmployee[]> {
   const data = await gql<{ createHrEmployeesBatch: HrEmployee[] }>(

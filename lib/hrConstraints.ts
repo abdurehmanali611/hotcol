@@ -87,11 +87,32 @@ const hrEmployeeBaseFields = z.object({
     .or(z.literal("")),
   hireDate: ymdSchema,
   notes: z.string().max(500, "Notes are too long").optional().or(z.literal("")),
-  gender: z.string().trim().max(40).optional().or(z.literal("")),
+  gender: z.enum(["male", "female"]).optional().or(z.literal("")),
   education: z.string().trim().max(80).optional().or(z.literal("")),
   personalTin: z.string().trim().max(40).optional().or(z.literal("")),
-  medicalNote: z.string().max(1000).optional().or(z.literal("")),
+  yearsExperience: z.coerce
+    .number({ message: "Enter years of experience" })
+    .int("Use a whole number")
+    .min(0, "Cannot be negative")
+    .max(80, "Too high")
+    .default(0),
+  medicalNote: z.string().max(4000).optional().or(z.literal("")),
 });
+
+/** Align with hotcol-ats candidate Apply form. */
+export const HR_EDUCATION_LEVELS = [
+  { value: "high_school", label: "High school" },
+  { value: "certificate", label: "Certificate / vocational" },
+  { value: "diploma", label: "Diploma" },
+  { value: "bachelor", label: "Bachelor’s degree" },
+  { value: "master", label: "Master’s or higher" },
+  { value: "other", label: "Other" },
+] as const;
+
+export const HR_GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+] as const;
 
 export const hrEmployeeFormSchema = hrEmployeeBaseFields;
 export const hrEmployeeCreateFormSchema = hrEmployeeFormSchema;
