@@ -1032,6 +1032,51 @@ export async function createHrShiftApi(input: {
   return data.createHrShift;
 }
 
+export async function updateHrShiftApi(input: {
+  id: number;
+  employeeId?: number;
+  workDate?: string;
+  department?: string;
+  startTime?: string;
+  endTime?: string;
+  notes?: string;
+}) {
+  const data = await gql<{ updateHrShift: HrShift }>(
+    `mutation (
+      $id: Int!
+      $employeeId: Int
+      $workDate: String
+      $department: String
+      $startTime: String
+      $endTime: String
+      $notes: String
+    ) {
+      updateHrShift(
+        id: $id
+        employeeId: $employeeId
+        workDate: $workDate
+        department: $department
+        startTime: $startTime
+        endTime: $endTime
+        notes: $notes
+      ) {
+        id employeeId workDate department startTime endTime notes
+        employee { id fullName }
+      }
+    }`,
+    {
+      id: input.id,
+      employeeId: input.employeeId ?? null,
+      workDate: input.workDate ?? null,
+      department: input.department ?? null,
+      startTime: input.startTime ?? null,
+      endTime: input.endTime ?? null,
+      notes: input.notes ?? null,
+    },
+  );
+  return data.updateHrShift;
+}
+
 export async function deleteHrShiftApi(id: number) {
   await gql(`mutation ($id: Int!) { deleteHrShift(id: $id) }`, { id });
 }

@@ -9,6 +9,7 @@ import {
   Clock3,
   LogIn,
   LogOut,
+  Pencil,
   Search,
   Trash2,
   CalendarClock,
@@ -20,10 +21,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
+import { HrTimeField } from "@/components/hr/HrTimeField";
 import {
+  HrDialogHeader,
   HrEmptyState,
   HrFormSection,
   HrPanelShell,
@@ -41,6 +48,7 @@ import { notifyApiFailure } from "@/lib/actions";
 import {
   clockHrAttendanceApi,
   deleteHrShiftApi,
+  updateHrShiftApi,
   upsertHrAttendanceApi,
   type HrAttendance,
   type HrEmployee,
@@ -201,6 +209,15 @@ export function HrAttendancePanel({
   const [clocking, setClocking] = useState<"in" | "out" | null>(null);
   const [clockEmployeeIds, setClockEmployeeIds] = useState<number[]>([]);
   const [clockSearch, setClockSearch] = useState("");
+  const [editingShift, setEditingShift] = useState<HrShift | null>(null);
+  const [editForm, setEditForm] = useState({
+    employeeId: "",
+    workDate: todayYmd(),
+    department: "",
+    startTime: "08:00",
+    endTime: "17:00",
+    notes: "",
+  });
   const [correctForm, setCorrectForm] = useState({
     employeeId: "",
     workDate: todayYmd(),
@@ -315,6 +332,53 @@ export function HrAttendancePanel({
     });
   };
 
+  const openEditShift = (shift: HrShift) => {
+    setEditingShift(shift);
+    setEditForm({
+      employeeId: String(shift.employeeId),
+      workDate: shift.workDate || todayYmd(),
+      department: shift.department || "",
+      startTime: shift.startTime || "08:00",
+      endTime: shift.endTime || "17:00",
+      notes: shift.notes || "",
+    });
+  };
+
+  const saveEditShift = async () => {
+    if (!editingShift) return;
+    if (!editForm.employeeId) {
+      toast.error("Select an employee");
+      return;
+    }
+    if (!editForm.workDate) {
+      toast.error("Select a work date");
+      return;
+    }
+    if (!editForm.startTime || !editForm.endTime) {
+      toast.error("Start and end time are required");
+      return;
+    }
+    setPending(true);
+    try {
+      await updateHrShiftApi({
+        id: editingShift.id,
+        employeeId: Number(editForm.employeeId),
+        workDate: editForm.workDate,
+        department: editForm.department.trim(),
+        startTime: editForm.startTime,
+        endTime: editForm.endTime,
+        notes: editForm.notes.trim(),
+      });
+      toast.success("Shift updated");
+      setEditingShift(null);
+      await onRefresh();
+    } catch (e) {
+      notifyApiFailure(e, "Could not update shift");
+    } finally {
+      setPending(false);
+    }
+  };
+
   const attendanceColumns = useMemo<ColumnDef<HrAttendance>[]>(
     () => [
       {
@@ -365,11 +429,26 @@ export function HrAttendancePanel({
         ),
       },
       {
+        accessorKey: "department",
+        header: "Department",
+        cell: ({ row }) => row.original.department || "—",
+      },
+      {
         id: "actions",
         header: "",
         cell: ({ row }) =>
           canManageTime ? (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => openEditShift(row.original)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
               <HrConfirmAction
                 destructive
                 title="Delete this shift?"
@@ -1086,6 +1165,113 @@ export function HrAttendancePanel({
           )}
         </HrSectionCard>
       </div>
+
+      <Dialog
+        open={Boolean(editingShift)}
+        onOpenChange={(open) => {
+          if (!open) setEditingShift(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <HrDialogHeader
+            title="Edit shift"
+            description="Update who is scheduled, the date, and the time window."
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Employee</Label>
+              <HrEmployeeCombobox
+                employees={rosterEmployees}
+                valueIds={
+                  editForm.employeeId ? [Number(editForm.employeeId)] : []
+                }
+                onChange={(ids) => {
+                  const emp = rosterEmployees.find((e) => e.id === ids[0]);
+                  setEditForm((f) => ({
+                    ...f,
+                    employeeId: ids[0] != null ? String(ids[0]) : "",
+                    department: emp?.department || f.department,
+                  }));
+                }}
+                placeholder="Select employee…"
+                emptyText="No employees found."
+                triggerClassName={triggerClass}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Work date</Label>
+              <HotelDayPicker
+                value={editForm.workDate}
+                onChange={(workDate) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    workDate: workDate || f.workDate,
+                  }))
+                }
+                buttonClassName={cn(inputClass, "justify-start font-normal")}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Start</Label>
+              <HrTimeField
+                value={editForm.startTime}
+                onChange={(startTime) =>
+                  setEditForm((f) => ({ ...f, startTime }))
+                }
+                minuteStep={1}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>End</Label>
+              <HrTimeField
+                value={editForm.endTime}
+                onChange={(endTime) =>
+                  setEditForm((f) => ({ ...f, endTime }))
+                }
+                minuteStep={1}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Department</Label>
+              <Input
+                className={inputClass}
+                value={editForm.department}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, department: e.target.value }))
+                }
+                placeholder="Department"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Notes</Label>
+              <Input
+                className={inputClass}
+                value={editForm.notes}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, notes: e.target.value }))
+                }
+                placeholder="Optional notes"
+              />
+            </div>
+          </div>
+          <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditingShift(null)}
+            >
+              Cancel
+            </Button>
+            <PendingButton
+              pending={pending}
+              className={hrPrimaryBtnClass}
+              onClick={() => void saveEditShift()}
+            >
+              Save changes
+            </PendingButton>
+          </div>
+        </DialogContent>
+      </Dialog>
     </HrPanelShell>
   );
 }
