@@ -6,9 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Toaster, toast } from "sonner";
 import {
   AlertTriangle,
+  Banknote,
+  Briefcase,
   Building2,
   CalendarDays,
+  CalendarRange,
+  CheckSquare,
   ClipboardList,
+  FileText,
   GitBranch,
   KeyRound,
   LayoutDashboard,
@@ -46,6 +51,10 @@ import { HrEmployeesPanel } from "@/components/hr/HrEmployeesPanel";
 import { HrLeavePanel } from "@/components/hr/HrLeavePanel";
 import { HrAttendancePanel } from "@/components/hr/HrAttendancePanel";
 import { HrDocumentsPanel } from "@/components/hr/HrDocumentsPanel";
+import { HrShiftTemplatesPanel } from "@/components/hr/HrShiftTemplatesPanel";
+import { HrChecklistsPanel } from "@/components/hr/HrChecklistsPanel";
+import { HrCompensationPanel } from "@/components/hr/HrCompensationPanel";
+import { HrPeopleOpsPanel } from "@/components/hr/HrPeopleOpsPanel";
 import { HrPayrollPanel } from "@/components/hr/HrPayrollPanel";
 import {
   HrPayrollSidebarGroup,
@@ -69,19 +78,19 @@ import {
 import {
   fetchHrAttendance,
   fetchHrDashboardStats,
-  fetchHrDocuments,
   fetchHrEmployees,
   fetchHrIncidents,
   fetchHrLeaveRequests,
+  fetchHrLibraryDocuments,
   fetchHrPayrollPeriods,
   fetchHrPayslips,
   fetchHrShifts,
   type HrAttendance,
   type HrDashboardStats,
-  type HrDocument,
   type HrEmployee,
   type HrIncident,
   type HrLeaveRequest,
+  type HrLibraryDocument,
   type HrPayrollPeriod,
   type HrPayslip,
   type HrShift,
@@ -93,6 +102,10 @@ export type HrSection =
   | "leave"
   | "attendance"
   | "documents"
+  | "shift-templates"
+  | "checklists"
+  | "compensation"
+  | "people-ops"
   | "payroll-generate"
   | "payroll-runs"
   | "payroll-settings"
@@ -165,6 +178,11 @@ const NAV: { id: HrSection; label: string; icon: LucideIcon }[] = [
   { id: "workflows", label: "Workflows", icon: GitBranch },
   { id: "leave", label: "Leave", icon: CalendarDays },
   { id: "attendance", label: "Attendance", icon: ClipboardList },
+  { id: "shift-templates", label: "Shift templates", icon: CalendarRange },
+  { id: "checklists", label: "Checklists", icon: CheckSquare },
+  { id: "compensation", label: "Compensation", icon: Banknote },
+  { id: "people-ops", label: "People ops", icon: Briefcase },
+  { id: "documents", label: "Documents", icon: FileText },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
   { id: "departments", label: "Departments", icon: Building2 },
 ];
@@ -240,7 +258,7 @@ export function HrDashboard({
   const [leave, setLeave] = useState<HrLeaveRequest[]>([]);
   const [attendance, setAttendance] = useState<HrAttendance[]>([]);
   const [shifts, setShifts] = useState<HrShift[]>([]);
-  const [docs, setDocs] = useState<HrDocument[]>([]);
+  const [docs, setDocs] = useState<HrLibraryDocument[]>([]);
   const [periods, setPeriods] = useState<HrPayrollPeriod[]>([]);
   const [payslips, setPayslips] = useState<HrPayslip[]>([]);
   const [incidents, setIncidents] = useState<HrIncident[]>([]);
@@ -270,6 +288,10 @@ export function HrDashboard({
       "leave",
       "attendance",
       "documents",
+      "shift-templates",
+      "checklists",
+      "compensation",
+      "people-ops",
       "payroll-generate",
       "payroll-runs",
       "payroll-settings",
@@ -319,7 +341,7 @@ export function HrDashboard({
         fetchHrLeaveRequests(),
         fetchHrAttendance(),
         fetchHrShifts(),
-        fetchHrDocuments(),
+        fetchHrLibraryDocuments(),
         fetchHrPayrollPeriods(),
         fetchHrIncidents(),
       ]);
@@ -410,9 +432,36 @@ export function HrDashboard({
       ) : null}
       {section === "documents" ? (
         <HrDocumentsPanel
-          employees={employees}
           documents={docs}
+          canUpload={caps.canManageEmployees || actorRole === "HR"}
           onRefresh={() => loadAll(true)}
+        />
+      ) : null}
+      {section === "shift-templates" ? (
+        <HrShiftTemplatesPanel
+          employees={employees}
+          canManage={actorRole === "Manager" || actorRole === "Admin"}
+        />
+      ) : null}
+      {section === "checklists" ? (
+        <HrChecklistsPanel
+          employees={employees}
+          canManageTemplates={actorRole === "Manager" || actorRole === "Admin"}
+          canApproveExit={actorRole === "Manager" || actorRole === "Admin"}
+        />
+      ) : null}
+      {section === "compensation" ? (
+        <HrCompensationPanel
+          employees={employees}
+          canRequest={caps.canManageEmployees || actorRole === "HR"}
+          canDecide={actorRole === "Manager" || actorRole === "Admin"}
+        />
+      ) : null}
+      {section === "people-ops" ? (
+        <HrPeopleOpsPanel
+          employees={employees}
+          canRequest={caps.canManageEmployees || actorRole === "HR"}
+          canDecide={actorRole === "Manager" || actorRole === "Admin"}
         />
       ) : null}
       {isHrPayrollSection(section) && caps.canViewPayrollReport ? (

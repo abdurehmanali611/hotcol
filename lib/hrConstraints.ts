@@ -87,6 +87,10 @@ const hrEmployeeBaseFields = z.object({
     .or(z.literal("")),
   hireDate: ymdSchema,
   notes: z.string().max(500, "Notes are too long").optional().or(z.literal("")),
+  gender: z.string().trim().max(40).optional().or(z.literal("")),
+  education: z.string().trim().max(80).optional().or(z.literal("")),
+  personalTin: z.string().trim().max(40).optional().or(z.literal("")),
+  medicalNote: z.string().max(1000).optional().or(z.literal("")),
 });
 
 export const hrEmployeeFormSchema = hrEmployeeBaseFields;

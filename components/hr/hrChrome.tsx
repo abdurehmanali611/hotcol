@@ -556,7 +556,27 @@ export const HR_SECTION_COPY: Record<
   documents: {
     title: "HR · Documents",
     description:
-      "Keep contract, ID, and certificate metadata on file. Upload the file elsewhere and store the link here.",
+      "Tenant documentation library — title, description, and Cloudinary file. HR uploads; HR and Manager can open and delete.",
+  },
+  "shift-templates": {
+    title: "HR · Shift templates",
+    description:
+      "Reusable weekday patterns. Manager saves templates and applies them to employee schedules for a date range.",
+  },
+  checklists: {
+    title: "HR · Checklists",
+    description:
+      "Onboarding and exit checklist templates and runs. Exit completion requires Manager approval.",
+  },
+  compensation: {
+    title: "HR · Compensation",
+    description:
+      "Salary change requests, advances, loans, bonuses, and overtime — HR submits; Manager decides.",
+  },
+  "people-ops": {
+    title: "HR · People ops",
+    description:
+      "Promotion/transfer, discipline, performance, training, benefits, and asset issue/return.",
   },
   payroll: {
     title: "HR · Payroll",
@@ -576,7 +596,7 @@ export const HR_SECTION_COPY: Record<
   "payroll-settings": {
     title: "HR · Payroll · Settings",
     description:
-      "Configure common deductions/increases and wage-type pay windows used when HR generates payslips.",
+      "Wage windows and common deductions/increases (% of salary). Day range uses calendars; customized lines apply only inside an optional salary band.",
   },
   "payroll-history": {
     title: "HR · Payroll · History",

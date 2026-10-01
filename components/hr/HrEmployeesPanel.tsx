@@ -70,6 +70,7 @@ import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import {
   createHrEmployeeApi,
+  createHrEmployeesBatchApi,
   fetchHrDepartments,
   fetchHrTeamsApi,
   terminateHrEmployeeApi,
@@ -242,6 +243,11 @@ export function HrEmployeesPanel({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HrEmployee | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchPending, setBatchPending] = useState(false);
+  const [batchRows, setBatchRows] = useState([
+    { fullName: "", department: "", jobTitle: "", wageType: "monthly", baseSalaryETB: "" },
+  ]);
   const [pending, setPending] = useState(false);
   const [issuedOtp, setIssuedOtp] = useState<{ name: string; otp: string } | null>(
     null,
@@ -287,6 +293,10 @@ export function HrEmployeesPanel({
       accountNumber: "",
       hireDate: todayYmd(),
       notes: "",
+      gender: "",
+      education: "",
+      personalTin: "",
+      medicalNote: "",
     },
   });
 
@@ -368,6 +378,10 @@ export function HrEmployeesPanel({
       accountNumber: "",
       hireDate: todayYmd(),
       notes: "",
+      gender: "",
+      education: "",
+      personalTin: "",
+      medicalNote: "",
     });
     setOpen(true);
   };
@@ -398,6 +412,10 @@ export function HrEmployeesPanel({
         accountNumber: row.accountNumber || "",
         hireDate: row.hireDate || todayYmd(),
         notes: row.notes || "",
+        gender: row.gender || "",
+        education: row.education || "",
+        personalTin: row.personalTin || "",
+        medicalNote: row.medicalNote || "",
       });
       setOpen(true);
     },
@@ -421,6 +439,10 @@ export function HrEmployeesPanel({
         accountNumber: values.accountNumber || "",
         hireDate: values.hireDate,
         notes: values.notes,
+        gender: values.gender || "",
+        education: values.education || "",
+        personalTin: values.personalTin || "",
+        medicalNote: values.medicalNote || "",
       };
 
       if (editing) {
@@ -695,16 +717,156 @@ export function HrEmployeesPanel({
         description="Search, filter, and maintain employment records. Salary and hire details feed system payroll when a period is closed."
         icon={<Users className="size-5" />}
         actions={
-          <Button
-            onClick={openCreate}
-            className={cn("h-11 rounded-xl", hrPrimaryBtnClass)}
-          >
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add employee
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl"
+              onClick={() => {
+                setBatchOpen((v) => !v);
+              }}
+            >
+              Batch add
+            </Button>
+            <Button
+              onClick={openCreate}
+              className={cn("h-11 rounded-xl", hrPrimaryBtnClass)}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add employee
+            </Button>
+          </>
         }
         stats={directoryStats}
       />
+
+      {batchOpen ? (
+        <div className="space-y-3 rounded-2xl border border-border/70 bg-card/50 p-4">
+          <p className="text-sm text-muted-foreground">
+            Add multiple employees at once. Empty name rows are skipped.
+          </p>
+          {batchRows.map((row, index) => (
+            <div key={index} className="grid gap-2 sm:grid-cols-5">
+              <Input
+                placeholder="Full name"
+                value={row.fullName}
+                onChange={(e) =>
+                  setBatchRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index ? { ...r, fullName: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+              <Input
+                placeholder="Department"
+                value={row.department}
+                onChange={(e) =>
+                  setBatchRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index ? { ...r, department: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+              <Input
+                placeholder="Job title"
+                value={row.jobTitle}
+                onChange={(e) =>
+                  setBatchRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index ? { ...r, jobTitle: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+              <Input
+                placeholder="Salary ETB"
+                type="number"
+                value={row.baseSalaryETB}
+                onChange={(e) =>
+                  setBatchRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index ? { ...r, baseSalaryETB: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setBatchRows((prev) => prev.filter((_, i) => i !== index))
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setBatchRows((prev) => [
+                  ...prev,
+                  {
+                    fullName: "",
+                    department: "",
+                    jobTitle: "",
+                    wageType: "monthly",
+                    baseSalaryETB: "",
+                  },
+                ])
+              }
+            >
+              Add line
+            </Button>
+            <PendingButton
+              pending={batchPending}
+              className={hrPrimaryBtnClass}
+              onClick={async () => {
+                setBatchPending(true);
+                try {
+                  const employees = batchRows
+                    .filter((r) => r.fullName.trim())
+                    .map((r) => ({
+                      fullName: r.fullName.trim(),
+                      department: r.department.trim(),
+                      jobTitle: r.jobTitle.trim(),
+                      wageType: r.wageType || "monthly",
+                      baseSalaryETB: Number(r.baseSalaryETB) || 0,
+                    }));
+                  if (!employees.length) {
+                    toast.error("Add at least one name");
+                    return;
+                  }
+                  await createHrEmployeesBatchApi(employees);
+                  toast.success(`Created ${employees.length} employee(s)`);
+                  setBatchOpen(false);
+                  setBatchRows([
+                    {
+                      fullName: "",
+                      department: "",
+                      jobTitle: "",
+                      wageType: "monthly",
+                      baseSalaryETB: "",
+                    },
+                  ]);
+                  await onRefresh();
+                } catch (e) {
+                  notifyApiFailure(e, "Batch create failed");
+                } finally {
+                  setBatchPending(false);
+                }
+              }}
+            >
+              Save batch
+            </PendingButton>
+          </div>
+        </div>
+      ) : null}
 
       <div className="space-y-4">
         <div className="flex justify-end">
@@ -1080,6 +1242,58 @@ export function HrEmployeesPanel({
                               "justify-start font-normal",
                             )}
                           />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Gender</FormLabel>
+                        <FormControl>
+                          <Input className={roleInputClass} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="education"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Education</FormLabel>
+                        <FormControl>
+                          <Input className={roleInputClass} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="personalTin"
+                    render={({ field }) => (
+                      <FormItem className={roleFieldClass}>
+                        <FormLabel>Personal TIN</FormLabel>
+                        <FormControl>
+                          <Input className={roleInputClass} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="medicalNote"
+                    render={({ field }) => (
+                      <FormItem className={cn(roleFieldClass, "sm:col-span-2")}>
+                        <FormLabel>Medical note</FormLabel>
+                        <FormControl>
+                          <Input className={roleInputClass} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

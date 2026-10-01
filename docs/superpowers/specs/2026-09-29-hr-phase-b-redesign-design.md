@@ -74,9 +74,16 @@ Profile field extensions (gender, education, TIN, medical note, etc.) may ship w
 
 If templates unused, scheduling behaves exactly as Phase A.
 
-### 2.4 Document vault (ex-F35 / B6)
+### 2.4 HR documentation library (ex-F35 / B6)
 
-**Deferred.** No implementation until product owner reopens. Expiry-only without vault is also out until then. (ATS CV storage is **not** the HR document vault — see §2.6.)
+**Shipped (product lock):** Tenant library — **title**, **description**, Cloudinary **file** upload (same raw preset pattern as ATS CVs). **Not** per-employee vault.
+
+| Role | Capability |
+|------|------------|
+| HR | Upload, list, download, delete |
+| Manager | List, download, delete (no upload) |
+
+Model: `hr_library_document`. Employee `hr_document` metadata API remains for legacy/employee-linked notes if needed.
 
 ### 2.5 Onboarding / exit checklists (ex-F36–F37 / B7)
 

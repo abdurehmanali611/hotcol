@@ -26,6 +26,10 @@ export type HrEmployee = {
   portalOtpIssuedAt: string | null;
   portalFirstLoginAt: string | null;
   profileImageUrl: string;
+  gender?: string;
+  education?: string;
+  personalTin?: string;
+  medicalNote?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -260,6 +264,11 @@ export type HrPayrollLineRule = {
   whenMode: string;
   fromDay: number | null;
   toDay: number | null;
+  fromYmd: string;
+  toYmd: string;
+  customized: boolean;
+  fromAmountETB: number;
+  toAmountETB: number | null;
   active: boolean;
   sortOrder: number;
 };
@@ -302,7 +311,7 @@ const EMP_FIELDS = `
   hireDate endDate wageType baseSalaryETB bankName accountNumber
   credentialUserId credentialUserName notes
   portalOtpPreview portalOtpViewer mustChangeOtp portalOtpIssuedAt portalFirstLoginAt
-  profileImageUrl createdAt updatedAt
+  profileImageUrl gender education personalTin medicalNote createdAt updatedAt
 `;
 
 const PAYSLIP_FIELDS = `
@@ -353,6 +362,10 @@ export async function createHrEmployeeApi(input: {
   bankName?: string;
   accountNumber?: string;
   notes?: string;
+  gender?: string;
+  education?: string;
+  personalTin?: string;
+  medicalNote?: string;
 }): Promise<HrEmployee> {
   const data = await gql<{ createHrEmployee: HrEmployee }>(
     `mutation (
@@ -369,6 +382,10 @@ export async function createHrEmployeeApi(input: {
       $bankName: String
       $accountNumber: String
       $notes: String
+      $gender: String
+      $education: String
+      $personalTin: String
+      $medicalNote: String
     ) {
       createHrEmployee(
         fullName: $fullName
@@ -384,6 +401,10 @@ export async function createHrEmployeeApi(input: {
         bankName: $bankName
         accountNumber: $accountNumber
         notes: $notes
+        gender: $gender
+        education: $education
+        personalTin: $personalTin
+        medicalNote: $medicalNote
       ) { ${EMP_FIELDS} }
     }`,
     { ...input, teamId: input.teamId ?? null },
@@ -615,6 +636,10 @@ export async function updateHrEmployeeApi(
       $credentialUserId: Int
       $credentialUserName: String
       $notes: String
+      $gender: String
+      $education: String
+      $personalTin: String
+      $medicalNote: String
     ) {
       updateHrEmployee(
         id: $id
@@ -634,6 +659,10 @@ export async function updateHrEmployeeApi(
         credentialUserId: $credentialUserId
         credentialUserName: $credentialUserName
         notes: $notes
+        gender: $gender
+        education: $education
+        personalTin: $personalTin
+        medicalNote: $medicalNote
       ) { ${EMP_FIELDS} }
     }`,
     { id, ...input },
@@ -1164,7 +1193,9 @@ export async function fetchHrPayrollLineRules(): Promise<HrPayrollLineRule[]> {
   const data = await gql<{ hrPayrollLineRules: HrPayrollLineRule[] }>(`
     query {
       hrPayrollLineRules {
-        id HotelName kind label percentOfSalary amountETB whenMode fromDay toDay active sortOrder
+        id HotelName kind label percentOfSalary amountETB whenMode
+        fromDay toDay fromYmd toYmd customized fromAmountETB toAmountETB
+        active sortOrder
       }
     }
   `);
@@ -1180,13 +1211,20 @@ export async function replaceHrPayrollLineRulesApi(
     whenMode?: string;
     fromDay?: number | null;
     toDay?: number | null;
+    fromYmd?: string;
+    toYmd?: string;
+    customized?: boolean;
+    fromAmountETB?: number;
+    toAmountETB?: number | null;
     active?: boolean;
   }>,
 ): Promise<HrPayrollLineRule[]> {
   const data = await gql<{ replaceHrPayrollLineRules: HrPayrollLineRule[] }>(
     `mutation ($rules: [HrPayrollLineRuleInput!]!) {
       replaceHrPayrollLineRules(rules: $rules) {
-        id HotelName kind label percentOfSalary amountETB whenMode fromDay toDay active sortOrder
+        id HotelName kind label percentOfSalary amountETB whenMode
+        fromDay toDay fromYmd toYmd customized fromAmountETB toAmountETB
+        active sortOrder
       }
     }`,
     { rules },
@@ -1277,4 +1315,174 @@ export async function createHrIncidentApi(input: {
 
 export async function deleteHrIncidentApi(id: number) {
   await gql(`mutation ($id: Int!) { deleteHrIncident(id: $id) }`, { id });
+}
+
+export type HrPayrollStatBand = {
+  id: number;
+  HotelName: string;
+  kind: string;
+  label: string;
+  ratePercent: number;
+  fromETB: number;
+  toETB: number | null;
+  effectiveMode: string;
+  fromYmd: string;
+  toYmd: string;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type HrLibraryDocument = {
+  id: number;
+  HotelName: string;
+  title: string;
+  description: string;
+  fileSecureUrl: string;
+  filePublicId: string;
+  fileBytes: number;
+  fileFormat: string;
+  fileOriginalName: string;
+  uploadedBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HrBankExportRow = {
+  payslipId: number;
+  employeeId: number;
+  employeeName: string;
+  bankName: string;
+  accountNumber: string;
+  netPayETB: number;
+  payslipNumber: string;
+};
+
+const STAT_BAND_FIELDS = `
+  id HotelName kind label ratePercent fromETB toETB effectiveMode fromYmd toYmd active sortOrder
+`;
+
+const LIBRARY_DOC_FIELDS = `
+  id HotelName title description fileSecureUrl filePublicId fileBytes fileFormat fileOriginalName uploadedBy createdAt updatedAt
+`;
+
+export async function fetchHrPayrollStatBands(): Promise<HrPayrollStatBand[]> {
+  const data = await gql<{ hrPayrollStatBands: HrPayrollStatBand[] }>(
+    `query { hrPayrollStatBands { ${STAT_BAND_FIELDS} } }`,
+  );
+  return data.hrPayrollStatBands ?? [];
+}
+
+export async function replaceHrPayrollStatBandsApi(
+  bands: Array<{
+    kind: string;
+    label?: string;
+    ratePercent: number;
+    fromETB: number;
+    toETB?: number | null;
+    effectiveMode?: string;
+    fromYmd?: string;
+    toYmd?: string;
+    active?: boolean;
+    sortOrder?: number;
+  }>,
+): Promise<HrPayrollStatBand[]> {
+  const data = await gql<{ replaceHrPayrollStatBands: HrPayrollStatBand[] }>(
+    `mutation ($bands: [HrPayrollStatBandInput!]!) {
+      replaceHrPayrollStatBands(bands: $bands) { ${STAT_BAND_FIELDS} }
+    }`,
+    { bands },
+  );
+  return data.replaceHrPayrollStatBands ?? [];
+}
+
+export async function fetchHrLibraryDocuments(): Promise<HrLibraryDocument[]> {
+  const data = await gql<{ hrLibraryDocuments: HrLibraryDocument[] }>(
+    `query { hrLibraryDocuments { ${LIBRARY_DOC_FIELDS} } }`,
+  );
+  return data.hrLibraryDocuments ?? [];
+}
+
+export async function createHrLibraryDocumentApi(input: {
+  title: string;
+  description?: string;
+  fileSecureUrl: string;
+  filePublicId?: string;
+  fileBytes?: number;
+  fileFormat?: string;
+  fileOriginalName?: string;
+}): Promise<HrLibraryDocument> {
+  const data = await gql<{ createHrLibraryDocument: HrLibraryDocument }>(
+    `mutation (
+      $title: String!
+      $description: String
+      $fileSecureUrl: String!
+      $filePublicId: String
+      $fileBytes: Int
+      $fileFormat: String
+      $fileOriginalName: String
+    ) {
+      createHrLibraryDocument(
+        title: $title
+        description: $description
+        fileSecureUrl: $fileSecureUrl
+        filePublicId: $filePublicId
+        fileBytes: $fileBytes
+        fileFormat: $fileFormat
+        fileOriginalName: $fileOriginalName
+      ) { ${LIBRARY_DOC_FIELDS} }
+    }`,
+    input,
+  );
+  return data.createHrLibraryDocument;
+}
+
+export async function deleteHrLibraryDocumentApi(id: number): Promise<boolean> {
+  const data = await gql<{ deleteHrLibraryDocument: boolean }>(
+    `mutation ($id: Int!) { deleteHrLibraryDocument(id: $id) }`,
+    { id },
+  );
+  return Boolean(data.deleteHrLibraryDocument);
+}
+
+export async function createHrEmployeesBatchApi(
+  employees: Array<{
+    fullName: string;
+    phone?: string;
+    email?: string;
+    department?: string;
+    jobTitle?: string;
+    wageType?: string;
+    baseSalaryETB?: number;
+    hireDate?: string;
+    gender?: string;
+    education?: string;
+    personalTin?: string;
+    bankName?: string;
+    accountNumber?: string;
+    notes?: string;
+  }>,
+): Promise<HrEmployee[]> {
+  const data = await gql<{ createHrEmployeesBatch: HrEmployee[] }>(
+    `mutation ($employees: [HrEmployeeBatchInput!]!) {
+      createHrEmployeesBatch(employees: $employees) {
+        id fullName department jobTitle wageType baseSalaryETB status
+      }
+    }`,
+    { employees },
+  );
+  return data.createHrEmployeesBatch ?? [];
+}
+
+export async function fetchHrPayrollBankExportApi(
+  periodId: number,
+): Promise<HrBankExportRow[]> {
+  const data = await gql<{ hrPayrollBankExport: HrBankExportRow[] }>(
+    `query ($periodId: Int!) {
+      hrPayrollBankExport(periodId: $periodId) {
+        payslipId employeeId employeeName bankName accountNumber netPayETB payslipNumber
+      }
+    }`,
+    { periodId },
+  );
+  return data.hrPayrollBankExport ?? [];
 }

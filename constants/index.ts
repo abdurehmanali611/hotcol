@@ -81,6 +81,11 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-incidents", label: "Incidents", icon: "AlertTriangle" },
   { id: "hr-departments", label: "Departments", icon: "Building2" },
+  { id: "hr-library", label: "Documents", icon: "FileText" },
+  { id: "hr-shift-templates", label: "Shift templates", icon: "CalendarRange" },
+  { id: "hr-checklists", label: "Checklists", icon: "CheckSquare" },
+  { id: "hr-compensation", label: "Compensation", icon: "Banknote" },
+  { id: "hr-people-ops", label: "People ops", icon: "Briefcase" },
 ] as const;
 
 /** Café cashier terminal — sidebar section keys. */
@@ -187,6 +192,11 @@ export const MANAGER_SIDEBAR_ITEMS = [
   { id: "hr-attendance", label: "Attendance", icon: "ClipboardList" },
   { id: "hr-incidents", label: "Incident types", icon: "AlertTriangle" },
   { id: "hr-departments", label: "Departments", icon: "Building2" },
+  { id: "hr-library", label: "Documents", icon: "FileText" },
+  { id: "hr-shift-templates", label: "Shift templates", icon: "CalendarRange" },
+  { id: "hr-checklists", label: "Checklists", icon: "CheckSquare" },
+  { id: "hr-compensation", label: "Compensation", icon: "Banknote" },
+  { id: "hr-people-ops", label: "People ops", icon: "Briefcase" },
   {
     id: "inventory-payment-vat",
     label: "Inventory payment & tax",
@@ -303,6 +313,11 @@ export const MANAGER_HR_TAB_IDS = [
   ...HR_PAYROLL_NAV_ITEMS.map((item) => item.id),
   "hr-incidents",
   "hr-departments",
+  "hr-library",
+  "hr-shift-templates",
+  "hr-checklists",
+  "hr-compensation",
+  "hr-people-ops",
 ] as const;
 
 /** Full HR workspace (standalone HR terminal + Admin oversight). */
@@ -320,6 +335,11 @@ export const HR_WORKSPACE_TAB_IDS = [
   ...HR_PAYROLL_NAV_ITEMS.map((item) => item.id),
   "hr-incidents",
   "hr-departments",
+  "hr-library",
+  "hr-shift-templates",
+  "hr-checklists",
+  "hr-compensation",
+  "hr-people-ops",
 ] as const;
 
 export type ManagerHrTabId = (typeof MANAGER_HR_TAB_IDS)[number];

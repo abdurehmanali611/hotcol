@@ -3,24 +3,16 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { FileText } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 import { DataTable } from "@/app/StoreItems/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { PendingButton } from "@/components/ui/pending-button";
 import { HrConfirmAction } from "@/components/hr/HrConfirmAction";
 import {
   HrEmptyState,
-  HrFilterBar,
-  HrFilterChips,
   HrPanelShell,
   HrSectionCard,
   HrTableFrame,
@@ -28,233 +20,198 @@ import {
   hrPrimaryBtnClass,
 } from "@/components/hr/hrChrome";
 import { cn } from "@/lib/utils";
-import {
-  HR_DOC_LABELS,
-  HR_DOC_TYPES,
-  hrDocumentFormSchema,
-  parseHrConstraint,
-} from "@/lib/hrConstraints";
 import { notifyApiFailure } from "@/lib/actions";
 import {
-  createHrDocumentApi,
-  deleteHrDocumentApi,
-  type HrDocument,
-  type HrEmployee,
+  createHrLibraryDocumentApi,
+  deleteHrLibraryDocumentApi,
+  type HrLibraryDocument,
 } from "@/lib/api/hr";
-
-type DocFilter = "all" | (typeof HR_DOC_TYPES)[number];
+import {
+  isCloudinaryFileConfigured,
+  uploadFileToCloudinary,
+} from "@/lib/cloudinary";
 
 export function HrDocumentsPanel({
-  employees,
   documents,
+  canUpload,
   onRefresh,
 }: {
-  employees: HrEmployee[];
-  documents: HrDocument[];
+  documents: HrLibraryDocument[];
+  canUpload: boolean;
   onRefresh: () => Promise<void>;
 }) {
-  const [filter, setFilter] = useState<DocFilter>("all");
   const [pending, setPending] = useState(false);
-  const [form, setForm] = useState({
-    employeeId: "",
-    title: "",
-    docType: "contract",
-    fileUrl: "",
-  });
+  const [form, setForm] = useState({ title: "", description: "" });
+  const [file, setFile] = useState<File | null>(null);
 
-  const filtered = useMemo(
-    () => documents.filter((d) => (filter === "all" ? true : d.docType === filter)),
-    [documents, filter],
-  );
-
-  const columns = useMemo<ColumnDef<HrDocument>[]>(
+  const columns = useMemo<ColumnDef<HrLibraryDocument>[]>(
     () => [
-      {
-        accessorKey: "employee",
-        header: "Employee",
-        cell: ({ row }) => row.original.employee?.fullName || `#${row.original.employeeId}`,
-      },
       { accessorKey: "title", header: "Title" },
       {
-        accessorKey: "docType",
-        header: "Type",
-        cell: ({ row }) =>
-          HR_DOC_LABELS[row.original.docType as keyof typeof HR_DOC_LABELS] ||
-          row.original.docType,
+        accessorKey: "description",
+        header: "Description",
+        cell: ({ row }) => (
+          <span className="line-clamp-2 max-w-xs text-muted-foreground">
+            {row.original.description || "—"}
+          </span>
+        ),
       },
       {
-        accessorKey: "fileUrl",
+        accessorKey: "fileOriginalName",
         header: "File",
         cell: ({ row }) =>
-          row.original.fileUrl ? (
+          row.original.fileSecureUrl ? (
             <a
-              href={row.original.fileUrl}
+              href={row.original.fileSecureUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-primary underline-offset-2 hover:underline"
+              className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
             >
-              Open
+              {row.original.fileOriginalName || "Open"}
             </a>
           ) : (
             "—"
           ),
       },
+      { accessorKey: "uploadedBy", header: "Uploaded by" },
       {
         id: "actions",
         header: "",
         cell: ({ row }) => (
-          <div className="flex justify-end">
-            <HrConfirmAction
-              destructive
-              title="Delete this document record?"
-              description="Only the metadata row is removed. External files are not deleted."
-              confirmLabel="Delete"
-              trigger={
-                <Button size="sm" variant="ghost">
-                  Delete
-                </Button>
+          <HrConfirmAction
+            destructive
+            title="Delete document?"
+            description="This removes the library entry. The Cloudinary file is not deleted."
+            confirmLabel="Delete"
+            trigger={
+              <Button type="button" size="sm" variant="outline" className="text-destructive">
+                Delete
+              </Button>
+            }
+            onConfirm={async () => {
+              try {
+                await deleteHrLibraryDocumentApi(row.original.id);
+                toast.success("Document deleted");
+                await onRefresh();
+              } catch (e) {
+                notifyApiFailure(e, "Could not delete document");
               }
-              onConfirm={async () => {
-                try {
-                  await deleteHrDocumentApi(row.original.id);
-                  toast.success("Document deleted");
-                  await onRefresh();
-                } catch (e) {
-                  notifyApiFailure(e, "Delete failed");
-                }
-              }}
-            />
-          </div>
+            }}
+          />
         ),
       },
     ],
     [onRefresh],
   );
 
+  const submit = async () => {
+    if (!canUpload) {
+      toast.error("Only HR Manager can upload documents");
+      return;
+    }
+    const title = form.title.trim();
+    if (!title) {
+      toast.error("Title is required");
+      return;
+    }
+    if (!file) {
+      toast.error("Choose a PDF or Word file");
+      return;
+    }
+    if (!isCloudinaryFileConfigured()) {
+      toast.error("Cloudinary file preset is not configured");
+      return;
+    }
+    setPending(true);
+    try {
+      const uploaded = await uploadFileToCloudinary(file, {
+        folder: "hotcol-hr-library",
+      });
+      await createHrLibraryDocumentApi({
+        title,
+        description: form.description.trim(),
+        fileSecureUrl: uploaded.secureUrl,
+        filePublicId: uploaded.publicId,
+        fileBytes: uploaded.bytes,
+        fileFormat: uploaded.format,
+        fileOriginalName: uploaded.originalFilename,
+      });
+      toast.success("Document uploaded");
+      setForm({ title: "", description: "" });
+      setFile(null);
+      await onRefresh();
+    } catch (e) {
+      notifyApiFailure(e, "Could not upload document");
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <HrPanelShell>
       <HrSectionCard
-        title="Add document"
-        description="Store title, type, and an optional file link on the employee file."
+        title="HR documentation"
+        description="Tenant document library — title, description, and file. HR uploads; HR and Manager can open and delete."
         icon={<FileText className="h-5 w-5" />}
-        accent="bg-linear-to-r from-indigo-500 via-violet-400 to-indigo-400/70"
+        accent="bg-linear-to-r from-sky-500 via-indigo-500 to-violet-500/80"
       >
-        <div className="grid gap-3 rounded-xl border border-violet-500/15 bg-linear-to-br from-violet-500/5 to-indigo-500/5 p-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Employee</Label>
-            <Select
-              value={form.employeeId}
-              onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}
-            >
-              <SelectTrigger className={hrFieldClass}>
-                <SelectValue placeholder="Select employee" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>
-                    {e.fullName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <Select
-              value={form.docType}
-              onValueChange={(v) => setForm((f) => ({ ...f, docType: v }))}
-            >
-              <SelectTrigger className={hrFieldClass}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {HR_DOC_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {HR_DOC_LABELS[t]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Title</Label>
-            <Input
-              className={hrFieldClass}
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>File URL</Label>
-            <Input
-              className={hrFieldClass}
-              placeholder="https://…"
-              value={form.fileUrl}
-              onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))}
-            />
-          </div>
-          <PendingButton
-            pending={pending}
-            className={cn("sm:col-span-2", hrPrimaryBtnClass)}
-            onClick={async () => {
-              const parsed = parseHrConstraint(hrDocumentFormSchema, {
-                ...form,
-                employeeId: Number(form.employeeId || 0),
-              });
-              if (!parsed.ok) {
-                toast.error(parsed.message);
-                return;
-              }
-              setPending(true);
-              try {
-                await createHrDocumentApi({
-                  ...parsed.data,
-                  fileUrl: parsed.data.fileUrl || undefined,
-                });
-                toast.success("Document saved");
-                setForm({ employeeId: "", title: "", docType: "contract", fileUrl: "" });
-                await onRefresh();
-              } catch (e) {
-                notifyApiFailure(e, "Could not save document");
-              } finally {
-                setPending(false);
-              }
-            }}
-          >
-            Save document
-          </PendingButton>
-        </div>
-      </HrSectionCard>
-
-      <HrSectionCard title="Document file" description="Filter by type and open linked files.">
-        <div className="space-y-4">
-          <HrFilterBar showClear={filter !== "all"} onClear={() => setFilter("all")}>
-            <HrFilterChips
-              label="Type"
-              value={filter}
-              onChange={setFilter}
-              options={[
-                { id: "all", label: "All" },
-                ...HR_DOC_TYPES.map((t) => ({ id: t, label: HR_DOC_LABELS[t] })),
-              ]}
-            />
-          </HrFilterBar>
-          {filtered.length ? (
-            <HrTableFrame>
-              <DataTable
-                embedded columns={columns}
-                data={filtered}
-                searchPlaceholder="Search documents…"
-                pageSize={8}
+        {canUpload ? (
+          <div className="mb-6 grid gap-3 rounded-2xl border border-border/70 bg-card/60 p-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Title</Label>
+              <Input
+                className={hrFieldClass}
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Staff handbook 2026"
               />
-            </HrTableFrame>
-          ) : (
-            <HrEmptyState
-              title="No documents in this view"
-              description="Add a contract, ID, or certificate record to start the file."
-            />
-          )}
-        </div>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Description</Label>
+              <Textarea
+                className={cn(hrFieldClass, "min-h-20")}
+                value={form.description}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
+                placeholder="Short note for Managers reviewing the file"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>File (PDF / DOC / DOCX)</Label>
+              <Input
+                type="file"
+                accept=".pdf,.doc,.docx,application/pdf"
+                className={hrFieldClass}
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <PendingButton
+              type="button"
+              pending={pending}
+              className={cn(hrPrimaryBtnClass, "sm:col-span-2")}
+              onClick={() => void submit()}
+            >
+              <Upload className="h-4 w-4" />
+              Upload document
+            </PendingButton>
+          </div>
+        ) : (
+          <p className="mb-4 text-sm text-muted-foreground">
+            You can open and delete documents. Uploads are limited to HR Manager.
+          </p>
+        )}
+
+        {documents.length === 0 ? (
+          <HrEmptyState
+            title="No documents yet"
+            description="HR Manager can upload the first policy or handbook file here."
+          />
+        ) : (
+          <HrTableFrame>
+            <DataTable columns={columns} data={documents} />
+          </HrTableFrame>
+        )}
       </HrSectionCard>
     </HrPanelShell>
   );

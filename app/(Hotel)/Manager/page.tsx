@@ -121,6 +121,9 @@ import {
   Phone,
   CalendarDays,
   CalendarCheck,
+  CalendarRange,
+  CheckSquare,
+  Banknote,
   Percent,
   BadgePercent,
   Tags,
@@ -258,6 +261,9 @@ const managerSidebarIconMap: Record<
   Phone,
   CalendarDays,
   CalendarCheck,
+  CalendarRange,
+  CheckSquare,
+  Banknote,
   Percent,
   BadgePercent,
   Tags,
@@ -321,6 +327,11 @@ const HR_TAB_TO_SECTION: Record<
   "hr-payroll-history": "payroll-history",
   "hr-incidents": "incidents",
   "hr-departments": "departments",
+  "hr-library": "documents",
+  "hr-shift-templates": "shift-templates",
+  "hr-checklists": "checklists",
+  "hr-compensation": "compensation",
+  "hr-people-ops": "people-ops",
 };
 
 /** Map HR shell / notification section keys → Manager sidebar tab ids. */
@@ -340,6 +351,11 @@ const HR_SECTION_TO_MANAGER_TAB: Record<string, TabId> = {
   "payroll-history": "hr-payroll-history",
   incidents: "hr-incidents",
   departments: "hr-departments",
+  documents: "hr-library",
+  "shift-templates": "hr-shift-templates",
+  checklists: "hr-checklists",
+  compensation: "hr-compensation",
+  "people-ops": "hr-people-ops",
 };
 
 const MANAGER_LODGING_TAB_IDS = new Set<TabId | string>([

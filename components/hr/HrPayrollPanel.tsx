@@ -69,6 +69,7 @@ import {
   createHrPayrollPeriodApi,
   fetchHrPayrollLineRules,
   fetchHrPayslips,
+  fetchHrPayrollBankExportApi,
   fetchHrWagePayWindows,
   markHrPayslipsPaidApi,
   replaceHrPayrollLineRulesApi,
@@ -105,8 +106,11 @@ type LineDraft = {
   percentOfSalary: number;
   percentText: string;
   whenMode: "always" | "day_range";
-  fromDay: number;
-  toDay: number;
+  fromYmd: string;
+  toYmd: string;
+  customized: boolean;
+  fromAmountETB: string;
+  toAmountETB: string;
 };
 
 function formatPercentText(n: number): string {
@@ -303,8 +307,15 @@ export function HrPayrollPanel({
               percentOfSalary: pct,
               percentText: formatPercentText(pct),
               whenMode: r.whenMode === "day_range" ? "day_range" : "always",
-              fromDay: r.fromDay || 1,
-              toDay: r.toDay || 31,
+              fromYmd: r.fromYmd || "",
+              toYmd: r.toYmd || "",
+              customized: Boolean(r.customized),
+              fromAmountETB:
+                r.fromAmountETB != null && Number(r.fromAmountETB) > 0
+                  ? String(r.fromAmountETB)
+                  : "",
+              toAmountETB:
+                r.toAmountETB == null ? "" : String(r.toAmountETB),
             };
           }),
         );
@@ -626,8 +637,16 @@ export function HrPayrollPanel({
               percentOfSalary: r.percentOfSalary,
               amountETB: 0,
               whenMode: r.whenMode,
-              fromDay: r.whenMode === "day_range" ? r.fromDay : null,
-              toDay: r.whenMode === "day_range" ? r.toDay : null,
+              fromYmd: r.whenMode === "day_range" ? r.fromYmd : "",
+              toYmd: r.whenMode === "day_range" ? r.toYmd : "",
+              customized: r.customized,
+              fromAmountETB: r.customized
+                ? Number(r.fromAmountETB) || 0
+                : 0,
+              toAmountETB:
+                r.customized && r.toAmountETB.trim() !== ""
+                  ? Number(r.toAmountETB)
+                  : null,
               active: true,
             })),
         ),
@@ -923,6 +942,41 @@ export function HrPayrollPanel({
                       {payslips.length} payslip
                       {payslips.length === 1 ? "" : "s"}
                     </Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (!selected) return;
+                        try {
+                          const rows = await fetchHrPayrollBankExportApi(selected.id);
+                          if (!rows.length) {
+                            toast.error("No payslips to export");
+                            return;
+                          }
+                          const { exportRowsExcel } = await import(
+                            "@/lib/hotelInventoryExcelExport"
+                          );
+                          await exportRowsExcel(
+                            `payroll-bank-${selected.fromYmd}_${selected.toYmd}`,
+                            "Bank",
+                            rows.map((r) => ({
+                              Employee: r.employeeName,
+                              Bank: r.bankName,
+                              Account: r.accountNumber,
+                              NetPayETB: r.netPayETB,
+                              Payslip: r.payslipNumber,
+                            })),
+                          );
+                          toast.success("Bank export downloaded");
+                        } catch (e) {
+                          notifyApiFailure(e, "Bank export failed");
+                        }
+                      }}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Bank export
+                    </Button>
                     {selectedIds.length ? (
                       <Badge className="border-emerald-500/30 bg-violet-500/10 font-normal text-emerald-800 dark:text-emerald-300">
                         {selectedIds.length} selected
@@ -1291,7 +1345,7 @@ export function HrPayrollPanel({
 
             <HrSectionCard
               title="Common deductions & increases"
-              description="Each line is a percent of the employee’s base salary (decimals allowed). Increases join Gross under Earnings; deductions list on the left."
+              description="Percent of base salary. Day range uses calendar dates. Customized salary band (initial → optional final) limits which employees the % applies to."
               icon={
                 <Banknote className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               }
@@ -1301,8 +1355,8 @@ export function HrPayrollPanel({
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-amber-500/25 bg-muted/20 px-4 py-10 text-center">
                   <Banknote className="h-8 w-8 text-amber-600/80" />
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    Start empty. Add pension, transport, or bonuses as a % of
-                    salary and when they apply.
+                    Start empty. Add pension, tax, transport, or bonuses as a % of
+                    salary — with optional date window and salary band.
                   </p>
                   <Button
                     type="button"
@@ -1315,8 +1369,11 @@ export function HrPayrollPanel({
                           percentOfSalary: 0,
                           percentText: "",
                           whenMode: "always",
-                          fromDay: 1,
-                          toDay: 31,
+                          fromYmd: "",
+                          toYmd: "",
+                          customized: false,
+                          fromAmountETB: "",
+                          toAmountETB: "",
                         },
                       ])
                     }
@@ -1327,7 +1384,7 @@ export function HrPayrollPanel({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <ScrollArea className="h-[min(42vh,420px)]">
+                  <ScrollArea className="h-[min(56vh,560px)]">
                     <div className="space-y-3 pr-3">
                       {lineDrafts.map((row, index) => (
                         <article
@@ -1358,173 +1415,254 @@ export function HrPayrollPanel({
                                     : "New deduction")}
                               </span>
                             </div>
-                            <Badge
-                              variant="secondary"
-                              className="shrink-0 font-semibold tabular-nums"
-                            >
-                              {row.percentOfSalary || 0}% of salary
-                            </Badge>
-                          </div>
-                          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[120px_minmax(0,1.2fr)_110px_120px_70px_70px_40px] lg:items-end">
-                            <Select
-                              value={row.kind}
-                              onValueChange={(
-                                kind: "deduction" | "increase",
-                              ) =>
-                                setLineDrafts((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index ? { ...r, kind } : r,
-                                  ),
-                                )
-                              }
-                            >
-                              <SelectTrigger className={triggerClass}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="deduction">
-                                  Deduction
-                                </SelectItem>
-                                <SelectItem value="increase">
-                                  Increase
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              className={inputClass}
-                              value={row.label}
-                              placeholder="Label"
-                              onChange={(e) =>
-                                setLineDrafts((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index
-                                      ? { ...r, label: e.target.value }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                            <div className="space-y-1">
-                              <Label className="text-xs text-muted-foreground lg:sr-only">
-                                % of salary
-                              </Label>
-                              <Input
-                                type="text"
-                                inputMode="decimal"
-                                autoComplete="off"
-                                className={cn(
-                                  inputClass,
-                                  "text-center tabular-nums",
-                                )}
-                                value={row.percentText}
-                                placeholder="0"
-                                onChange={(e) => {
-                                  const parsed = parsePercentInput(
-                                    e.target.value,
-                                  );
-                                  if (!parsed) return;
+                            <div className="flex shrink-0 items-center gap-2">
+                              <Badge
+                                variant="secondary"
+                                className="font-semibold tabular-nums"
+                              >
+                                {row.percentOfSalary || 0}% of salary
+                              </Badge>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() =>
                                   setLineDrafts((prev) =>
-                                    prev.map((r, i) =>
-                                      i === index
-                                        ? {
-                                            ...r,
-                                            percentText: parsed.text,
-                                            percentOfSalary: parsed.value,
-                                          }
-                                        : r,
-                                    ),
-                                  );
-                                }}
-                              />
+                                    prev.filter((_, i) => i !== index),
+                                  )
+                                }
+                                aria-label={`Remove line ${index + 1}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <Select
-                              value={row.whenMode}
-                              onValueChange={(
-                                whenMode: "always" | "day_range",
-                              ) =>
-                                setLineDrafts((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index ? { ...r, whenMode } : r,
-                                  ),
-                                )
-                              }
-                            >
-                              <SelectTrigger className={triggerClass}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="always">Always</SelectItem>
-                                <SelectItem value="day_range">
-                                  Day range
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={31}
-                              disabled={row.whenMode !== "day_range"}
-                              className={cn(inputClass, "text-center")}
-                              value={row.fromDay}
-                              onChange={(e) =>
-                                setLineDrafts((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index
-                                      ? {
-                                          ...r,
-                                          fromDay: Math.min(
-                                            31,
-                                            Math.max(
-                                              1,
-                                              Number(e.target.value) || 1,
-                                            ),
+                          </div>
+                          <div className="space-y-3 p-4">
+                            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(7.5rem,0.9fr)_minmax(0,1.6fr)_minmax(5.5rem,0.7fr)_minmax(7.5rem,0.9fr)] lg:items-end">
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">
+                                  Type
+                                </Label>
+                                <Select
+                                  value={row.kind}
+                                  onValueChange={(
+                                    kind: "deduction" | "increase",
+                                  ) =>
+                                    setLineDrafts((prev) =>
+                                      prev.map((r, i) =>
+                                        i === index ? { ...r, kind } : r,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className={triggerClass}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="deduction">
+                                      Deduction
+                                    </SelectItem>
+                                    <SelectItem value="increase">
+                                      Increase
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">
+                                  Label
+                                </Label>
+                                <Input
+                                  className={inputClass}
+                                  value={row.label}
+                                  placeholder="e.g. Income tax, Pension, Transport"
+                                  onChange={(e) =>
+                                    setLineDrafts((prev) =>
+                                      prev.map((r, i) =>
+                                        i === index
+                                          ? { ...r, label: e.target.value }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">
+                                  % of salary
+                                </Label>
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  autoComplete="off"
+                                  className={cn(
+                                    inputClass,
+                                    "tabular-nums",
+                                  )}
+                                  value={row.percentText}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const parsed = parsePercentInput(
+                                      e.target.value,
+                                    );
+                                    if (!parsed) return;
+                                    setLineDrafts((prev) =>
+                                      prev.map((r, i) =>
+                                        i === index
+                                          ? {
+                                              ...r,
+                                              percentText: parsed.text,
+                                              percentOfSalary: parsed.value,
+                                            }
+                                          : r,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">
+                                  When
+                                </Label>
+                                <Select
+                                  value={row.whenMode}
+                                  onValueChange={(
+                                    whenMode: "always" | "day_range",
+                                  ) =>
+                                    setLineDrafts((prev) =>
+                                      prev.map((r, i) =>
+                                        i === index ? { ...r, whenMode } : r,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className={triggerClass}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="always">
+                                      Always
+                                    </SelectItem>
+                                    <SelectItem value="day_range">
+                                      Day range
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {row.whenMode === "day_range" ? (
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">
+                                      Initial date
+                                    </Label>
+                                    <HotelDayPicker
+                                      value={row.fromYmd}
+                                      onChange={(v) =>
+                                        setLineDrafts((prev) =>
+                                          prev.map((r, i) =>
+                                            i === index
+                                              ? { ...r, fromYmd: v }
+                                              : r,
                                           ),
-                                        }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                            <Input
-                              type="number"
-                              min={1}
-                              max={31}
-                              disabled={row.whenMode !== "day_range"}
-                              className={cn(inputClass, "text-center")}
-                              value={row.toDay}
-                              onChange={(e) =>
-                                setLineDrafts((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index
-                                      ? {
-                                          ...r,
-                                          toDay: Math.min(
-                                            31,
-                                            Math.max(
-                                              1,
-                                              Number(e.target.value) || 1,
-                                            ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">
+                                      Final date
+                                    </Label>
+                                    <HotelDayPicker
+                                      value={row.toYmd}
+                                      onChange={(v) =>
+                                        setLineDrafts((prev) =>
+                                          prev.map((r, i) =>
+                                            i === index
+                                              ? { ...r, toYmd: v }
+                                              : r,
                                           ),
-                                        }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-10 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() =>
-                                setLineDrafts((prev) =>
-                                  prev.filter((_, i) => i !== index),
-                                )
-                              }
-                              aria-label={`Remove line ${index + 1}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                                        )
+                                      }
+                                    />
+                                  </div>
+                              </div>
+                            ) : null}
+
+                            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-3">
+                              <label className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={row.customized}
+                                  onCheckedChange={(checked) =>
+                                    setLineDrafts((prev) =>
+                                      prev.map((r, i) =>
+                                        i === index
+                                          ? {
+                                              ...r,
+                                              customized: Boolean(checked),
+                                            }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                                Customized {row.kind} (salary band)
+                              </label>
+                              {row.customized ? (
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">
+                                      Initial amount (ETB)
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className={inputClass}
+                                      value={row.fromAmountETB}
+                                      placeholder="From salary"
+                                      onChange={(e) =>
+                                        setLineDrafts((prev) =>
+                                          prev.map((r, i) =>
+                                            i === index
+                                              ? {
+                                                  ...r,
+                                                  fromAmountETB: e.target.value,
+                                                }
+                                              : r,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">
+                                      Final amount (ETB, optional)
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className={inputClass}
+                                      value={row.toAmountETB}
+                                      placeholder="No upper bound"
+                                      onChange={(e) =>
+                                        setLineDrafts((prev) =>
+                                          prev.map((r, i) =>
+                                            i === index
+                                              ? {
+                                                  ...r,
+                                                  toAmountETB: e.target.value,
+                                                }
+                                              : r,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </article>
                       ))}
@@ -1545,8 +1683,11 @@ export function HrPayrollPanel({
                             percentOfSalary: 0,
                             percentText: "",
                             whenMode: "always",
-                            fromDay: 1,
-                            toDay: 31,
+                            fromYmd: "",
+                            toYmd: "",
+                            customized: false,
+                            fromAmountETB: "",
+                            toAmountETB: "",
                           },
                         ])
                       }
