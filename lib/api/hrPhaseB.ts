@@ -126,6 +126,7 @@ export type HrCareerAction = {
   toDept: string;
   fromTitle: string;
   toTitle: string;
+  toOrgPosition: string;
   status: string;
   createdBy: string;
   createdAt: string;
@@ -579,7 +580,7 @@ export async function fetchHrCareerActions(status?: string) {
   const data = await gql<{ hrCareerActions: HrCareerAction[] }>(
     `query ($status: String) {
       hrCareerActions(status: $status) {
-        id employeeId kind detail fromDept toDept fromTitle toTitle status createdBy createdAt
+        id employeeId kind detail fromDept toDept fromTitle toTitle toOrgPosition status createdBy createdAt
       }
     }`,
     { status: status ?? null },
@@ -595,6 +596,7 @@ export async function createHrCareerActionApi(input: {
   toDept?: string;
   fromTitle?: string;
   toTitle?: string;
+  toOrgPosition?: string;
 }) {
   const data = await gql<{ createHrCareerAction: HrCareerAction }>(
     `mutation (
@@ -605,6 +607,7 @@ export async function createHrCareerActionApi(input: {
       $toDept: String
       $fromTitle: String
       $toTitle: String
+      $toOrgPosition: String
     ) {
       createHrCareerAction(
         employeeId: $employeeId
@@ -614,6 +617,7 @@ export async function createHrCareerActionApi(input: {
         toDept: $toDept
         fromTitle: $fromTitle
         toTitle: $toTitle
+        toOrgPosition: $toOrgPosition
       ) { id status }
     }`,
     input,

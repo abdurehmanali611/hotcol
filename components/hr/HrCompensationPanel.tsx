@@ -1,15 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Banknote } from "lucide-react";
+import {
+  Banknote,
+  Clock3,
+  Gift,
+  HandCoins,
+  Scale,
+  Wallet,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PendingButton } from "@/components/ui/pending-button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import {
+  HrEmptyState,
+  HrFormSection,
   HrPanelShell,
   HrSectionCard,
   hrFieldClass,
@@ -41,6 +51,33 @@ import {
   type HrSalaryHistory,
 } from "@/lib/api/hrPhaseB";
 
+function statusTone(status: string) {
+  const s = status.toLowerCase();
+  if (s === "pending") {
+    return "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200";
+  }
+  if (s === "approved" || s === "applied") {
+    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200";
+  }
+  if (s === "rejected") {
+    return "border-border/70 bg-muted/40 text-muted-foreground";
+  }
+  return "border-border/70 bg-muted/30 text-muted-foreground";
+}
+
+function StatusPill({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+        statusTone(status),
+      )}
+    >
+      {status.replaceAll("_", " ")}
+    </span>
+  );
+}
+
 function DecideButtons({
   show,
   onDecide,
@@ -50,7 +87,7 @@ function DecideButtons({
 }) {
   if (!show) return null;
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <Button type="button" size="sm" onClick={() => void onDecide(true)}>
         Approve
       </Button>
@@ -64,6 +101,98 @@ function DecideButtons({
       </Button>
     </div>
   );
+}
+
+function CompRow({
+  title,
+  meta,
+  status,
+  actions,
+}: {
+  title: string;
+  meta?: string;
+  status?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-background/80 px-3 py-3 transition-colors hover:border-violet-500/20">
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate font-medium tracking-tight">{title}</p>
+          {status ? <StatusPill status={status} /> : null}
+        </div>
+        {meta ? (
+          <p className="text-xs leading-relaxed text-muted-foreground">{meta}</p>
+        ) : null}
+      </div>
+      {actions ? <div className="shrink-0">{actions}</div> : null}
+    </div>
+  );
+}
+
+function CompSplit({
+  canRequest,
+  formTitle,
+  formDescription,
+  form,
+  listTitle,
+  listDescription,
+  list,
+}: {
+  canRequest: boolean;
+  formTitle: string;
+  formDescription: string;
+  form: ReactNode;
+  listTitle: string;
+  listDescription: string;
+  list: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid items-stretch gap-4",
+        canRequest ? "lg:grid-cols-2" : "grid-cols-1",
+      )}
+    >
+      {canRequest ? (
+        <HrFormSection
+          className="h-full"
+          title={formTitle}
+          description={formDescription}
+        >
+          {form}
+        </HrFormSection>
+      ) : null}
+      <HrFormSection
+        className="h-full"
+        title={listTitle}
+        description={listDescription}
+      >
+        {list}
+      </HrFormSection>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function formatEtb(n: number) {
+  return `${Number(n || 0).toLocaleString()} ETB`;
 }
 
 export function HrCompensationPanel({
@@ -136,357 +265,717 @@ export function HrCompensationPanel({
     void load();
   }, [load]);
 
+  const listShell = (children: ReactNode) => (
+    <div className="max-h-[min(28rem,60vh)] space-y-2 overflow-y-auto pr-1">
+      {children}
+    </div>
+  );
+
   return (
     <HrPanelShell>
-      <div className="space-y-4">
+      <div className="space-y-6">
         <HrSectionCard
           title="Salary changes"
-          description="HR requests; Manager approves before base salary updates."
+          description={
+            canDecide && !canRequest
+              ? "Approve pending base-salary changes to apply them to the employee."
+              : "Request a new base salary. Manager approval applies the change."
+          }
           icon={<Banknote className="h-5 w-5" />}
         >
-          {canRequest ? (
-            <div className="mb-4 grid gap-2 sm:grid-cols-4">
-              <HrEmployeeCombobox
-                employees={employees}
-                valueIds={salaryForm.employeeId ? [Number(salaryForm.employeeId)] : []}
-                onChange={(ids) => setSalaryForm((f) => ({ ...f, employeeId: ids[0] ? String(ids[0]) : "" }))}
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="New ETB"
-                value={salaryForm.newETB}
-                onChange={(e) =>
-                  setSalaryForm((f) => ({ ...f, newETB: e.target.value }))
-                }
-              />
-              <Input
-                className={hrFieldClass}
-                placeholder="Reason"
-                value={salaryForm.reason}
-                onChange={(e) =>
-                  setSalaryForm((f) => ({ ...f, reason: e.target.value }))
-                }
-              />
-              <PendingButton
-                pending={pending}
-                className={hrPrimaryBtnClass}
-                onClick={async () => {
-                  setPending(true);
-                  try {
-                    await requestHrSalaryChangeApi({
-                      employeeId: Number(salaryForm.employeeId),
-                      newETB: Number(salaryForm.newETB) || 0,
-                      reason: salaryForm.reason,
-                    });
-                    toast.success("Salary change submitted");
-                    await load();
-                  } catch (e) {
-                    notifyApiFailure(e, "Request failed");
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                Request
-              </PendingButton>
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            {salary.slice(0, 12).map((row) => (
-              <div
-                key={row.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
-              >
-                <span>
-                  {empName(row.employeeId)} · {row.previousETB} → {row.newETB} ·{" "}
-                  {row.status}
-                </span>
-                <DecideButtons
-                  show={canDecide && row.status === "pending"}
-                  onDecide={async (approve) => {
-                    await decideHrSalaryChangeApi(row.id, approve);
-                    toast.success(approve ? "Applied" : "Rejected");
-                    await load();
+          <CompSplit
+            canRequest={canRequest}
+            formTitle="New request"
+            formDescription="Employee, new amount, and a short reason."
+            form={
+              <div className="space-y-4">
+                <Field label="Employee">
+                  <HrEmployeeCombobox
+                    employees={employees}
+                    valueIds={
+                      salaryForm.employeeId
+                        ? [Number(salaryForm.employeeId)]
+                        : []
+                    }
+                    onChange={(ids) =>
+                      setSalaryForm((f) => ({
+                        ...f,
+                        employeeId: ids[0] ? String(ids[0]) : "",
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="New salary (ETB)">
+                  <Input
+                    className={hrFieldClass}
+                    type="number"
+                    placeholder="0"
+                    value={salaryForm.newETB}
+                    onChange={(e) =>
+                      setSalaryForm((f) => ({ ...f, newETB: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field label="Reason">
+                  <Textarea
+                    className={cn(hrFieldClass, "min-h-20")}
+                    placeholder="Why is this change needed?"
+                    value={salaryForm.reason}
+                    onChange={(e) =>
+                      setSalaryForm((f) => ({ ...f, reason: e.target.value }))
+                    }
+                  />
+                </Field>
+                <PendingButton
+                  pending={pending}
+                  className={cn(hrPrimaryBtnClass, "w-full")}
+                  onClick={async () => {
+                    if (!salaryForm.employeeId) {
+                      toast.error("Select an employee");
+                      return;
+                    }
+                    setPending(true);
+                    try {
+                      await requestHrSalaryChangeApi({
+                        employeeId: Number(salaryForm.employeeId),
+                        newETB: Number(salaryForm.newETB) || 0,
+                        reason: salaryForm.reason,
+                      });
+                      toast.success("Salary change submitted");
+                      setSalaryForm({
+                        employeeId: "",
+                        newETB: "",
+                        reason: "",
+                      });
+                      await load();
+                    } catch (e) {
+                      notifyApiFailure(e, "Request failed");
+                    } finally {
+                      setPending(false);
+                    }
                   }}
-                />
+                >
+                  Submit request
+                </PendingButton>
               </div>
-            ))}
-          </div>
+            }
+            listTitle={canDecide ? "Queue & history" : "Recent requests"}
+            listDescription={
+              canDecide
+                ? "Approve to update the employee base salary."
+                : "Submitted salary change requests."
+            }
+            list={
+              salary.length === 0 ? (
+                <HrEmptyState
+                  title="No salary changes"
+                  description={
+                    canRequest
+                      ? "Submit the first salary change on the left."
+                      : "Nothing waiting for approval yet."
+                  }
+                />
+              ) : (
+                listShell(
+                  salary.slice(0, 20).map((row) => (
+                    <CompRow
+                      key={row.id}
+                      title={empName(row.employeeId)}
+                      meta={`${formatEtb(row.previousETB)} → ${formatEtb(row.newETB)}${
+                        row.reason ? ` · ${row.reason}` : ""
+                      }`}
+                      status={row.status}
+                      actions={
+                        <DecideButtons
+                          show={canDecide && row.status === "pending"}
+                          onDecide={async (approve) => {
+                            try {
+                              await decideHrSalaryChangeApi(row.id, approve);
+                              toast.success(
+                                approve ? "Salary applied" : "Rejected",
+                              );
+                              await load();
+                            } catch (e) {
+                              notifyApiFailure(e, "Decision failed");
+                            }
+                          }}
+                        />
+                      }
+                    />
+                  )),
+                )
+              )
+            }
+          />
         </HrSectionCard>
 
-        <HrSectionCard title="Advances" description="Pending Manager decision.">
-          {canRequest ? (
-            <div className="mb-4 grid gap-2 sm:grid-cols-4">
-              <HrEmployeeCombobox
-                employees={employees}
-                valueIds={advForm.employeeId ? [Number(advForm.employeeId)] : []}
-                onChange={(ids) => setAdvForm((f) => ({ ...f, employeeId: ids[0] ? String(ids[0]) : "" }))}
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="Amount"
-                value={advForm.amountETB}
-                onChange={(e) =>
-                  setAdvForm((f) => ({ ...f, amountETB: e.target.value }))
-                }
-              />
-              <Input
-                className={hrFieldClass}
-                placeholder="Reason"
-                value={advForm.reason}
-                onChange={(e) =>
-                  setAdvForm((f) => ({ ...f, reason: e.target.value }))
-                }
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await createHrAdvanceRequestApi({
-                      employeeId: Number(advForm.employeeId),
-                      amountETB: Number(advForm.amountETB) || 0,
-                      reason: advForm.reason,
-                    });
-                    toast.success("Advance submitted");
-                    await load();
-                  } catch (e) {
-                    notifyApiFailure(e, "Failed");
+        <HrSectionCard
+          title="Advances"
+          description={
+            canDecide && !canRequest
+              ? "Approve or reject pending salary advances."
+              : "Request an advance against salary. Pending Manager decision."
+          }
+          icon={<HandCoins className="h-5 w-5" />}
+        >
+          <CompSplit
+            canRequest={canRequest}
+            formTitle="New advance"
+            formDescription="Employee, amount, and reason."
+            form={
+              <div className="space-y-4">
+                <Field label="Employee">
+                  <HrEmployeeCombobox
+                    employees={employees}
+                    valueIds={
+                      advForm.employeeId ? [Number(advForm.employeeId)] : []
+                    }
+                    onChange={(ids) =>
+                      setAdvForm((f) => ({
+                        ...f,
+                        employeeId: ids[0] ? String(ids[0]) : "",
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Amount (ETB)">
+                  <Input
+                    className={hrFieldClass}
+                    type="number"
+                    placeholder="0"
+                    value={advForm.amountETB}
+                    onChange={(e) =>
+                      setAdvForm((f) => ({ ...f, amountETB: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field label="Reason">
+                  <Textarea
+                    className={cn(hrFieldClass, "min-h-20")}
+                    placeholder="Why is this advance needed?"
+                    value={advForm.reason}
+                    onChange={(e) =>
+                      setAdvForm((f) => ({ ...f, reason: e.target.value }))
+                    }
+                  />
+                </Field>
+                <PendingButton
+                  pending={pending}
+                  className={cn(hrPrimaryBtnClass, "w-full")}
+                  onClick={async () => {
+                    if (!advForm.employeeId) {
+                      toast.error("Select an employee");
+                      return;
+                    }
+                    setPending(true);
+                    try {
+                      await createHrAdvanceRequestApi({
+                        employeeId: Number(advForm.employeeId),
+                        amountETB: Number(advForm.amountETB) || 0,
+                        reason: advForm.reason,
+                      });
+                      toast.success("Advance submitted");
+                      setAdvForm({
+                        employeeId: "",
+                        amountETB: "",
+                        reason: "",
+                      });
+                      await load();
+                    } catch (e) {
+                      notifyApiFailure(e, "Could not submit advance");
+                    } finally {
+                      setPending(false);
+                    }
+                  }}
+                >
+                  Submit advance
+                </PendingButton>
+              </div>
+            }
+            listTitle={canDecide ? "Queue & history" : "Recent advances"}
+            listDescription="Pending advances wait for Manager."
+            list={
+              advances.length === 0 ? (
+                <HrEmptyState
+                  title="No advances"
+                  description={
+                    canRequest
+                      ? "Submit the first advance on the left."
+                      : "No advances awaiting review."
                   }
-                }}
-              >
-                Submit
-              </Button>
-            </div>
-          ) : null}
-          {advances.slice(0, 10).map((row) => (
-            <div
-              key={row.id}
-              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
-            >
-              <span>
-                {empName(row.employeeId)} · {row.amountETB} · {row.status}
-              </span>
-              <DecideButtons
-                show={canDecide && row.status === "pending"}
-                onDecide={async (approve) => {
-                  await decideHrAdvanceRequestApi(row.id, approve);
-                  await load();
-                }}
-              />
-            </div>
-          ))}
+                />
+              ) : (
+                listShell(
+                  advances.slice(0, 20).map((row) => (
+                    <CompRow
+                      key={row.id}
+                      title={empName(row.employeeId)}
+                      meta={`${formatEtb(row.amountETB)}${
+                        row.reason ? ` · ${row.reason}` : ""
+                      }`}
+                      status={row.status}
+                      actions={
+                        <DecideButtons
+                          show={canDecide && row.status === "pending"}
+                          onDecide={async (approve) => {
+                            try {
+                              await decideHrAdvanceRequestApi(row.id, approve);
+                              toast.success(approve ? "Approved" : "Rejected");
+                              await load();
+                            } catch (e) {
+                              notifyApiFailure(e, "Decision failed");
+                            }
+                          }}
+                        />
+                      }
+                    />
+                  )),
+                )
+              )
+            }
+          />
         </HrSectionCard>
 
-        <HrSectionCard title="Loans" description="Principal + installment.">
-          {canRequest ? (
-            <div className="mb-4 grid gap-2 sm:grid-cols-5">
-              <HrEmployeeCombobox
-                employees={employees}
-                valueIds={loanForm.employeeId ? [Number(loanForm.employeeId)] : []}
-                onChange={(ids) => setLoanForm((f) => ({ ...f, employeeId: ids[0] ? String(ids[0]) : "" }))}
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="Principal"
-                value={loanForm.principalETB}
-                onChange={(e) =>
-                  setLoanForm((f) => ({ ...f, principalETB: e.target.value }))
-                }
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="Installment"
-                value={loanForm.installmentETB}
-                onChange={(e) =>
-                  setLoanForm((f) => ({ ...f, installmentETB: e.target.value }))
-                }
-              />
-              <Input
-                className={hrFieldClass}
-                placeholder="Reason"
-                value={loanForm.reason}
-                onChange={(e) =>
-                  setLoanForm((f) => ({ ...f, reason: e.target.value }))
-                }
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await createHrLoanApi({
-                      employeeId: Number(loanForm.employeeId),
-                      principalETB: Number(loanForm.principalETB) || 0,
-                      installmentETB: Number(loanForm.installmentETB) || 0,
-                      reason: loanForm.reason,
-                    });
-                    toast.success("Loan submitted");
-                    await load();
-                  } catch (e) {
-                    notifyApiFailure(e, "Failed");
+        <HrSectionCard
+          title="Loans"
+          description={
+            canDecide && !canRequest
+              ? "Approve or reject staff loan requests."
+              : "Request a loan with principal and installment amount."
+          }
+          icon={<Wallet className="h-5 w-5" />}
+        >
+          <CompSplit
+            canRequest={canRequest}
+            formTitle="New loan"
+            formDescription="Principal, installment, and reason."
+            form={
+              <div className="space-y-4">
+                <Field label="Employee">
+                  <HrEmployeeCombobox
+                    employees={employees}
+                    valueIds={
+                      loanForm.employeeId ? [Number(loanForm.employeeId)] : []
+                    }
+                    onChange={(ids) =>
+                      setLoanForm((f) => ({
+                        ...f,
+                        employeeId: ids[0] ? String(ids[0]) : "",
+                      }))
+                    }
+                  />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Principal (ETB)">
+                    <Input
+                      className={hrFieldClass}
+                      type="number"
+                      placeholder="0"
+                      value={loanForm.principalETB}
+                      onChange={(e) =>
+                        setLoanForm((f) => ({
+                          ...f,
+                          principalETB: e.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Installment (ETB)">
+                    <Input
+                      className={hrFieldClass}
+                      type="number"
+                      placeholder="0"
+                      value={loanForm.installmentETB}
+                      onChange={(e) =>
+                        setLoanForm((f) => ({
+                          ...f,
+                          installmentETB: e.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <Field label="Reason">
+                  <Textarea
+                    className={cn(hrFieldClass, "min-h-20")}
+                    placeholder="Optional notes"
+                    value={loanForm.reason}
+                    onChange={(e) =>
+                      setLoanForm((f) => ({ ...f, reason: e.target.value }))
+                    }
+                  />
+                </Field>
+                <PendingButton
+                  pending={pending}
+                  className={cn(hrPrimaryBtnClass, "w-full")}
+                  onClick={async () => {
+                    if (!loanForm.employeeId) {
+                      toast.error("Select an employee");
+                      return;
+                    }
+                    setPending(true);
+                    try {
+                      await createHrLoanApi({
+                        employeeId: Number(loanForm.employeeId),
+                        principalETB: Number(loanForm.principalETB) || 0,
+                        installmentETB: Number(loanForm.installmentETB) || 0,
+                        reason: loanForm.reason,
+                      });
+                      toast.success("Loan submitted");
+                      setLoanForm({
+                        employeeId: "",
+                        principalETB: "",
+                        installmentETB: "",
+                        reason: "",
+                      });
+                      await load();
+                    } catch (e) {
+                      notifyApiFailure(e, "Could not submit loan");
+                    } finally {
+                      setPending(false);
+                    }
+                  }}
+                >
+                  Submit loan
+                </PendingButton>
+              </div>
+            }
+            listTitle={canDecide ? "Queue & history" : "Recent loans"}
+            listDescription="Pending loans wait for Manager."
+            list={
+              loans.length === 0 ? (
+                <HrEmptyState
+                  title="No loans"
+                  description={
+                    canRequest
+                      ? "Submit the first loan on the left."
+                      : "No loans awaiting review."
                   }
-                }}
-              >
-                Submit
-              </Button>
-            </div>
-          ) : null}
-          {loans.slice(0, 10).map((row) => (
-            <div
-              key={row.id}
-              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
-            >
-              <span>
-                {empName(row.employeeId)} · {row.principalETB} · {row.status}
-              </span>
-              <DecideButtons
-                show={canDecide && row.status === "pending"}
-                onDecide={async (approve) => {
-                  await decideHrLoanApi(row.id, approve);
-                  await load();
-                }}
-              />
-            </div>
-          ))}
+                />
+              ) : (
+                listShell(
+                  loans.slice(0, 20).map((row) => (
+                    <CompRow
+                      key={row.id}
+                      title={empName(row.employeeId)}
+                      meta={`Principal ${formatEtb(row.principalETB)}${
+                        row.installmentETB
+                          ? ` · Installment ${formatEtb(row.installmentETB)}`
+                          : ""
+                      }`}
+                      status={row.status}
+                      actions={
+                        <DecideButtons
+                          show={canDecide && row.status === "pending"}
+                          onDecide={async (approve) => {
+                            try {
+                              await decideHrLoanApi(row.id, approve);
+                              toast.success(approve ? "Approved" : "Rejected");
+                              await load();
+                            } catch (e) {
+                              notifyApiFailure(e, "Decision failed");
+                            }
+                          }}
+                        />
+                      }
+                    />
+                  )),
+                )
+              )
+            }
+          />
         </HrSectionCard>
 
-        <HrSectionCard title="Bonuses" description="One-off bonus requests.">
-          {canRequest ? (
-            <div className="mb-4 grid gap-2 sm:grid-cols-4">
-              <HrEmployeeCombobox
-                employees={employees}
-                valueIds={bonusForm.employeeId ? [Number(bonusForm.employeeId)] : []}
-                onChange={(ids) => setBonusForm((f) => ({ ...f, employeeId: ids[0] ? String(ids[0]) : "" }))}
-              />
-              <Input
-                className={hrFieldClass}
-                placeholder="Label"
-                value={bonusForm.label}
-                onChange={(e) =>
-                  setBonusForm((f) => ({ ...f, label: e.target.value }))
-                }
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="Amount"
-                value={bonusForm.amountETB}
-                onChange={(e) =>
-                  setBonusForm((f) => ({ ...f, amountETB: e.target.value }))
-                }
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await createHrBonusApi({
-                      employeeId: Number(bonusForm.employeeId),
-                      label: bonusForm.label.trim(),
-                      amountETB: Number(bonusForm.amountETB) || 0,
-                    });
-                    toast.success("Bonus submitted");
-                    await load();
-                  } catch (e) {
-                    notifyApiFailure(e, "Failed");
+        <HrSectionCard
+          title="Bonuses"
+          description={
+            canDecide && !canRequest
+              ? "Approve or reject one-off bonus requests."
+              : "Request a one-off bonus with a clear label and amount."
+          }
+          icon={<Gift className="h-5 w-5" />}
+        >
+          <CompSplit
+            canRequest={canRequest}
+            formTitle="New bonus"
+            formDescription="Label and amount for the bonus."
+            form={
+              <div className="space-y-4">
+                <Field label="Employee">
+                  <HrEmployeeCombobox
+                    employees={employees}
+                    valueIds={
+                      bonusForm.employeeId
+                        ? [Number(bonusForm.employeeId)]
+                        : []
+                    }
+                    onChange={(ids) =>
+                      setBonusForm((f) => ({
+                        ...f,
+                        employeeId: ids[0] ? String(ids[0]) : "",
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Label">
+                  <Input
+                    className={hrFieldClass}
+                    placeholder="e.g. Ramadan bonus"
+                    value={bonusForm.label}
+                    onChange={(e) =>
+                      setBonusForm((f) => ({ ...f, label: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field label="Amount (ETB)">
+                  <Input
+                    className={hrFieldClass}
+                    type="number"
+                    placeholder="0"
+                    value={bonusForm.amountETB}
+                    onChange={(e) =>
+                      setBonusForm((f) => ({
+                        ...f,
+                        amountETB: e.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <PendingButton
+                  pending={pending}
+                  className={cn(hrPrimaryBtnClass, "w-full")}
+                  onClick={async () => {
+                    if (!bonusForm.employeeId || !bonusForm.label.trim()) {
+                      toast.error("Employee and label are required");
+                      return;
+                    }
+                    setPending(true);
+                    try {
+                      await createHrBonusApi({
+                        employeeId: Number(bonusForm.employeeId),
+                        label: bonusForm.label.trim(),
+                        amountETB: Number(bonusForm.amountETB) || 0,
+                      });
+                      toast.success("Bonus submitted");
+                      setBonusForm({
+                        employeeId: "",
+                        label: "",
+                        amountETB: "",
+                      });
+                      await load();
+                    } catch (e) {
+                      notifyApiFailure(e, "Could not submit bonus");
+                    } finally {
+                      setPending(false);
+                    }
+                  }}
+                >
+                  Submit bonus
+                </PendingButton>
+              </div>
+            }
+            listTitle={canDecide ? "Queue & history" : "Recent bonuses"}
+            listDescription="Pending bonuses wait for Manager."
+            list={
+              bonuses.length === 0 ? (
+                <HrEmptyState
+                  title="No bonuses"
+                  description={
+                    canRequest
+                      ? "Submit the first bonus on the left."
+                      : "No bonuses awaiting review."
                   }
-                }}
-              >
-                Submit
-              </Button>
-            </div>
-          ) : null}
-          {bonuses.slice(0, 10).map((row) => (
-            <div
-              key={row.id}
-              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
-            >
-              <span>
-                {empName(row.employeeId)} · {row.label} · {row.amountETB} ·{" "}
-                {row.status}
-              </span>
-              <DecideButtons
-                show={canDecide && row.status === "pending"}
-                onDecide={async (approve) => {
-                  await decideHrBonusApi(row.id, approve);
-                  await load();
-                }}
-              />
-            </div>
-          ))}
+                />
+              ) : (
+                listShell(
+                  bonuses.slice(0, 20).map((row) => (
+                    <CompRow
+                      key={row.id}
+                      title={`${empName(row.employeeId)} · ${row.label}`}
+                      meta={formatEtb(row.amountETB)}
+                      status={row.status}
+                      actions={
+                        <DecideButtons
+                          show={canDecide && row.status === "pending"}
+                          onDecide={async (approve) => {
+                            try {
+                              await decideHrBonusApi(row.id, approve);
+                              toast.success(approve ? "Approved" : "Rejected");
+                              await load();
+                            } catch (e) {
+                              notifyApiFailure(e, "Decision failed");
+                            }
+                          }}
+                        />
+                      }
+                    />
+                  )),
+                )
+              )
+            }
+          />
         </HrSectionCard>
 
-        <HrSectionCard title="Overtime" description="Hours + amount for approval.">
-          {canRequest ? (
-            <div className="mb-4 grid gap-2 sm:grid-cols-5">
-              <HrEmployeeCombobox
-                employees={employees}
-                valueIds={otForm.employeeId ? [Number(otForm.employeeId)] : []}
-                onChange={(ids) => setOtForm((f) => ({ ...f, employeeId: ids[0] ? String(ids[0]) : "" }))}
-              />
-              <HotelDayPicker
-                value={otForm.workYmd}
-                onChange={(v) => setOtForm((f) => ({ ...f, workYmd: v }))}
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="Hours"
-                value={otForm.hours}
-                onChange={(e) => setOtForm((f) => ({ ...f, hours: e.target.value }))}
-              />
-              <Input
-                className={hrFieldClass}
-                type="number"
-                placeholder="Amount"
-                value={otForm.amountETB}
-                onChange={(e) =>
-                  setOtForm((f) => ({ ...f, amountETB: e.target.value }))
-                }
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await createHrOvertimeRequestApi({
-                      employeeId: Number(otForm.employeeId),
-                      workYmd: otForm.workYmd,
-                      hours: Number(otForm.hours) || 0,
-                      amountETB: Number(otForm.amountETB) || 0,
-                      reason: otForm.reason,
-                    });
-                    toast.success("OT submitted");
-                    await load();
-                  } catch (e) {
-                    notifyApiFailure(e, "Failed");
+        <HrSectionCard
+          title="Overtime"
+          description={
+            canDecide && !canRequest
+              ? "Approve overtime hours and amount."
+              : "Log overtime hours and amount for Manager approval."
+          }
+          icon={<Clock3 className="h-5 w-5" />}
+        >
+          <CompSplit
+            canRequest={canRequest}
+            formTitle="New overtime"
+            formDescription="Work date, hours, amount, and optional reason."
+            form={
+              <div className="space-y-4">
+                <Field label="Employee">
+                  <HrEmployeeCombobox
+                    employees={employees}
+                    valueIds={
+                      otForm.employeeId ? [Number(otForm.employeeId)] : []
+                    }
+                    onChange={(ids) =>
+                      setOtForm((f) => ({
+                        ...f,
+                        employeeId: ids[0] ? String(ids[0]) : "",
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Work date">
+                  <HotelDayPicker
+                    value={otForm.workYmd}
+                    onChange={(v) => setOtForm((f) => ({ ...f, workYmd: v }))}
+                  />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Hours">
+                    <Input
+                      className={hrFieldClass}
+                      type="number"
+                      placeholder="0"
+                      value={otForm.hours}
+                      onChange={(e) =>
+                        setOtForm((f) => ({ ...f, hours: e.target.value }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Amount (ETB)">
+                    <Input
+                      className={hrFieldClass}
+                      type="number"
+                      placeholder="0"
+                      value={otForm.amountETB}
+                      onChange={(e) =>
+                        setOtForm((f) => ({
+                          ...f,
+                          amountETB: e.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <Field label="Reason">
+                  <Textarea
+                    className={cn(hrFieldClass, "min-h-20")}
+                    placeholder="Optional notes"
+                    value={otForm.reason}
+                    onChange={(e) =>
+                      setOtForm((f) => ({ ...f, reason: e.target.value }))
+                    }
+                  />
+                </Field>
+                <PendingButton
+                  pending={pending}
+                  className={cn(hrPrimaryBtnClass, "w-full")}
+                  onClick={async () => {
+                    if (!otForm.employeeId || !otForm.workYmd) {
+                      toast.error("Employee and work date are required");
+                      return;
+                    }
+                    setPending(true);
+                    try {
+                      await createHrOvertimeRequestApi({
+                        employeeId: Number(otForm.employeeId),
+                        workYmd: otForm.workYmd,
+                        hours: Number(otForm.hours) || 0,
+                        amountETB: Number(otForm.amountETB) || 0,
+                        reason: otForm.reason,
+                      });
+                      toast.success("Overtime submitted");
+                      setOtForm({
+                        employeeId: "",
+                        workYmd: "",
+                        hours: "",
+                        amountETB: "",
+                        reason: "",
+                      });
+                      await load();
+                    } catch (e) {
+                      notifyApiFailure(e, "Could not submit overtime");
+                    } finally {
+                      setPending(false);
+                    }
+                  }}
+                >
+                  Submit overtime
+                </PendingButton>
+              </div>
+            }
+            listTitle={canDecide ? "Queue & history" : "Recent overtime"}
+            listDescription="Pending overtime waits for Manager."
+            list={
+              ot.length === 0 ? (
+                <HrEmptyState
+                  title="No overtime"
+                  description={
+                    canRequest
+                      ? "Submit the first overtime entry on the left."
+                      : "No overtime awaiting review."
                   }
-                }}
-              >
-                Submit
-              </Button>
-            </div>
-          ) : null}
-          {ot.slice(0, 10).map((row) => (
-            <div
-              key={row.id}
-              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
-            >
-              <span>
-                {empName(row.employeeId)} · {row.workYmd} · {row.hours}h ·{" "}
-                {row.status}
-              </span>
-              <DecideButtons
-                show={canDecide && row.status === "pending"}
-                onDecide={async (approve) => {
-                  await decideHrOvertimeRequestApi(row.id, approve);
-                  await load();
-                }}
-              />
-            </div>
-          ))}
+                />
+              ) : (
+                listShell(
+                  ot.slice(0, 20).map((row) => (
+                    <CompRow
+                      key={row.id}
+                      title={empName(row.employeeId)}
+                      meta={`${row.workYmd} · ${row.hours}h · ${formatEtb(row.amountETB)}${
+                        row.reason ? ` · ${row.reason}` : ""
+                      }`}
+                      status={row.status}
+                      actions={
+                        <DecideButtons
+                          show={canDecide && row.status === "pending"}
+                          onDecide={async (approve) => {
+                            try {
+                              await decideHrOvertimeRequestApi(row.id, approve);
+                              toast.success(approve ? "Approved" : "Rejected");
+                              await load();
+                            } catch (e) {
+                              notifyApiFailure(e, "Decision failed");
+                            }
+                          }}
+                        />
+                      }
+                    />
+                  )),
+                )
+              )
+            }
+          />
         </HrSectionCard>
+
+        {canDecide && !canRequest ? (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Scale className="h-3.5 w-3.5" />
+            Manager view — approve or reject pending compensation requests. HR
+            submits new items.
+          </p>
+        ) : null}
       </div>
     </HrPanelShell>
   );

@@ -1487,6 +1487,43 @@ export async function createHrLibraryDocumentApi(input: {
   return data.createHrLibraryDocument;
 }
 
+export async function updateHrLibraryDocumentApi(input: {
+  id: number;
+  title: string;
+  description?: string;
+  fileSecureUrl?: string;
+  filePublicId?: string;
+  fileBytes?: number;
+  fileFormat?: string;
+  fileOriginalName?: string;
+}): Promise<HrLibraryDocument> {
+  const data = await gql<{ updateHrLibraryDocument: HrLibraryDocument }>(
+    `mutation (
+      $id: Int!
+      $title: String!
+      $description: String
+      $fileSecureUrl: String
+      $filePublicId: String
+      $fileBytes: Int
+      $fileFormat: String
+      $fileOriginalName: String
+    ) {
+      updateHrLibraryDocument(
+        id: $id
+        title: $title
+        description: $description
+        fileSecureUrl: $fileSecureUrl
+        filePublicId: $filePublicId
+        fileBytes: $fileBytes
+        fileFormat: $fileFormat
+        fileOriginalName: $fileOriginalName
+      ) { ${LIBRARY_DOC_FIELDS} }
+    }`,
+    input,
+  );
+  return data.updateHrLibraryDocument;
+}
+
 export async function deleteHrLibraryDocumentApi(id: number): Promise<boolean> {
   const data = await gql<{ deleteHrLibraryDocument: boolean }>(
     `mutation ($id: Int!) { deleteHrLibraryDocument(id: $id) }`,

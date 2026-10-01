@@ -594,7 +594,11 @@ export function HrDashboard({
                   .filter((item) =>
                     item.id === "workflows" ||
                     item.id === "leave" ||
-                    item.id === "attendance",
+                    item.id === "attendance" ||
+                    item.id === "checklists" ||
+                    item.id === "compensation" ||
+                    item.id === "people-ops" ||
+                    item.id === "documents",
                   )
                   .map((item) => {
                     const Icon = item.icon;

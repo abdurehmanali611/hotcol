@@ -28,7 +28,6 @@ import {
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
-import { HrTimeField } from "@/components/hr/HrTimeField";
 import {
   HrDialogHeader,
   HrEmptyState,
@@ -48,7 +47,6 @@ import { notifyApiFailure } from "@/lib/actions";
 import {
   clockHrAttendanceApi,
   deleteHrShiftApi,
-  updateHrShiftApi,
   upsertHrAttendanceApi,
   type HrAttendance,
   type HrEmployee,
@@ -212,11 +210,9 @@ export function HrAttendancePanel({
   const [editingShift, setEditingShift] = useState<HrShift | null>(null);
   const [editForm, setEditForm] = useState({
     employeeId: "",
-    workDate: todayYmd(),
-    department: "",
-    startTime: "08:00",
-    endTime: "17:00",
-    notes: "",
+    templateId: "",
+    fromYmd: todayYmd(),
+    toYmd: todayYmd(),
   });
   const [correctForm, setCorrectForm] = useState({
     employeeId: "",
@@ -333,14 +329,29 @@ export function HrAttendancePanel({
   };
 
   const openEditShift = (shift: HrShift) => {
+    const note = String(shift.notes || "");
+    const codeMatch = note.match(/template:([^\s]+)/i);
+    const code = codeMatch?.[1]?.trim() || "";
+    const matchedTpl =
+      (code
+        ? shiftTemplates.find(
+            (t) => t.code.toLowerCase() === code.toLowerCase(),
+          )
+        : null) ||
+      shiftTemplates.find(
+        (t) =>
+          t.startTime === shift.startTime &&
+          t.endTime === shift.endTime &&
+          (t.department || "") === (shift.department || ""),
+      ) ||
+      null;
+
     setEditingShift(shift);
     setEditForm({
       employeeId: String(shift.employeeId),
-      workDate: shift.workDate || todayYmd(),
-      department: shift.department || "",
-      startTime: shift.startTime || "08:00",
-      endTime: shift.endTime || "17:00",
-      notes: shift.notes || "",
+      templateId: matchedTpl ? String(matchedTpl.id) : "",
+      fromYmd: shift.workDate || todayYmd(),
+      toYmd: shift.workDate || todayYmd(),
     });
   };
 
@@ -350,26 +361,41 @@ export function HrAttendancePanel({
       toast.error("Select an employee");
       return;
     }
-    if (!editForm.workDate) {
-      toast.error("Select a work date");
+    if (!editForm.templateId) {
+      toast.error("Select a shift template");
       return;
     }
-    if (!editForm.startTime || !editForm.endTime) {
-      toast.error("Start and end time are required");
+    if (!editForm.fromYmd || !editForm.toYmd) {
+      toast.error("Select from and to dates");
       return;
     }
+    if (editForm.toYmd < editForm.fromYmd) {
+      toast.error("To date must be on or after From");
+      return;
+    }
+    const employeeId = Number(editForm.employeeId);
     setPending(true);
     try {
-      await updateHrShiftApi({
-        id: editingShift.id,
-        employeeId: Number(editForm.employeeId),
-        workDate: editForm.workDate,
-        department: editForm.department.trim(),
-        startTime: editForm.startTime,
-        endTime: editForm.endTime,
-        notes: editForm.notes.trim(),
+      const toReplace = shifts.filter(
+        (s) =>
+          s.employeeId === employeeId &&
+          s.workDate >= editForm.fromYmd &&
+          s.workDate <= editForm.toYmd,
+      );
+      for (const s of toReplace) {
+        await deleteHrShiftApi(s.id);
+      }
+      const count = await applyHrShiftTemplateApi({
+        templateId: Number(editForm.templateId),
+        employeeIds: [employeeId],
+        fromYmd: editForm.fromYmd,
+        toYmd: editForm.toYmd,
       });
-      toast.success("Shift updated");
+      toast.success(
+        count
+          ? `Updated schedule · ${count} shift${count === 1 ? "" : "s"}`
+          : "No shifts matched the template weekdays in that range",
+      );
       setEditingShift(null);
       await onRefresh();
     } catch (e) {
@@ -1174,8 +1200,8 @@ export function HrAttendancePanel({
       >
         <DialogContent className="max-w-lg">
           <HrDialogHeader
-            title="Edit shift"
-            description="Update who is scheduled, the date, and the time window."
+            title="Edit shift schedule"
+            description="Replace this employee’s shifts in the date range with a selected template."
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
@@ -1185,75 +1211,74 @@ export function HrAttendancePanel({
                 valueIds={
                   editForm.employeeId ? [Number(editForm.employeeId)] : []
                 }
-                onChange={(ids) => {
-                  const emp = rosterEmployees.find((e) => e.id === ids[0]);
+                onChange={(ids) =>
                   setEditForm((f) => ({
                     ...f,
                     employeeId: ids[0] != null ? String(ids[0]) : "",
-                    department: emp?.department || f.department,
-                  }));
-                }}
+                  }))
+                }
                 placeholder="Select employee…"
                 emptyText="No employees found."
                 triggerClassName={triggerClass}
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Work date</Label>
+            <div className="space-y-1.5">
+              <Label>From</Label>
               <HotelDayPicker
-                value={editForm.workDate}
-                onChange={(workDate) =>
+                value={editForm.fromYmd}
+                onChange={(fromYmd) =>
                   setEditForm((f) => ({
                     ...f,
-                    workDate: workDate || f.workDate,
+                    fromYmd: fromYmd || f.fromYmd,
                   }))
                 }
                 buttonClassName={cn(inputClass, "justify-start font-normal")}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Start</Label>
-              <HrTimeField
-                value={editForm.startTime}
-                onChange={(startTime) =>
-                  setEditForm((f) => ({ ...f, startTime }))
+              <Label>To</Label>
+              <HotelDayPicker
+                value={editForm.toYmd}
+                onChange={(toYmd) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    toYmd: toYmd || f.toYmd,
+                  }))
                 }
-                minuteStep={1}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>End</Label>
-              <HrTimeField
-                value={editForm.endTime}
-                onChange={(endTime) =>
-                  setEditForm((f) => ({ ...f, endTime }))
-                }
-                minuteStep={1}
+                disabledDays={(date) => {
+                  const from = parseYmdToDate(editForm.fromYmd);
+                  return from ? date < from : false;
+                }}
+                buttonClassName={cn(inputClass, "justify-start font-normal")}
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>Department</Label>
-              <Input
-                className={inputClass}
-                value={editForm.department}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, department: e.target.value }))
+              <Label>Template</Label>
+              <HrOptionCombobox
+                value={editForm.templateId}
+                onChange={(v) =>
+                  setEditForm((f) => ({ ...f, templateId: v }))
                 }
-                placeholder="Department"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Notes</Label>
-              <Input
-                className={inputClass}
-                value={editForm.notes}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, notes: e.target.value }))
+                options={shiftTemplates.map((t) => ({
+                  value: String(t.id),
+                  label: t.name,
+                  hint: `${t.code} · ${t.startTime}–${t.endTime}`,
+                }))}
+                placeholder={
+                  shiftTemplates.length
+                    ? "Select template"
+                    : "No templates yet — ask Manager"
                 }
-                placeholder="Optional notes"
+                emptyText="No templates found."
+                disabled={!shiftTemplates.length}
+                className={triggerClass}
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Existing shifts for this employee between From and To are replaced
+            by the template’s weekday pattern.
+          </p>
           <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
@@ -1265,6 +1290,7 @@ export function HrAttendancePanel({
             <PendingButton
               pending={pending}
               className={hrPrimaryBtnClass}
+              disabled={!shiftTemplates.length}
               onClick={() => void saveEditShift()}
             >
               Save changes
