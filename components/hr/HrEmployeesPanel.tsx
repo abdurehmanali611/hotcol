@@ -64,6 +64,7 @@ import {
   hrDepartmentLabel,
 } from "@/lib/hrDepartments";
 import { ETHIOPIAN_BANKS } from "@/lib/hrEthiopianBanks";
+import { isHrEmployeePayrollReady } from "@/lib/hrPayrollReady";
 import { formatETB } from "@/lib/subscriptionModules";
 import { responsiveFormDialogClassName } from "@/lib/responsiveDialog";
 import { notifyApiFailure } from "@/lib/actions";
@@ -489,6 +490,15 @@ export function HrEmployeesPanel({
                     ? ` · ${HR_WAGE_LABELS[emp.wageType as keyof typeof HR_WAGE_LABELS] || emp.wageType}`
                     : ""}
                 </p>
+                {!isHrEmployeePayrollReady(emp) &&
+                emp.status !== "terminated" ? (
+                  <Badge
+                    variant="outline"
+                    className="mt-1 border-amber-500/40 bg-amber-500/10 font-normal text-amber-900 dark:text-amber-200"
+                  >
+                    Needs pay details
+                  </Badge>
+                ) : null}
               </div>
             </div>
           );
@@ -870,7 +880,7 @@ export function HrEmployeesPanel({
 
       <div className="space-y-4">
         <div className="flex justify-end">
-          <div className="w-full max-w-[14rem] space-y-1.5">
+          <div className="w-full max-w-56 space-y-1.5">
             <Label
               className={cn(
                 "text-xs font-medium",

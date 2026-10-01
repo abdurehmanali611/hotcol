@@ -49,6 +49,7 @@ import {
   hrPrimaryBtnClass,
 } from "@/components/hr/hrChrome";
 import { HR_WAGE_LABELS, HR_WAGE_TYPES, hrStatusLabel } from "@/lib/hrConstraints";
+import { isHrEmployeePayrollReady } from "@/lib/hrPayrollReady";
 import {
   formatPayrollWeeksLabel,
   inclusiveDayCount,
@@ -765,10 +766,16 @@ export function HrPayrollPanel({
                         ...activeEmployees.map((e) => ({
                           value: String(e.id),
                           label: e.fullName,
-                          hint:
+                          hint: [
                             HR_WAGE_LABELS[
                               e.wageType as keyof typeof HR_WAGE_LABELS
                             ] || e.wageType,
+                            !isHrEmployeePayrollReady(e)
+                              ? "needs pay details"
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · "),
                         })),
                       ]}
                       placeholder="Select scope"
@@ -821,6 +828,9 @@ export function HrPayrollPanel({
                         toast.success(
                           `Generated payslips for ${period.fromYmd} → ${period.toYmd} (${period.monthName})`,
                         );
+                        if (/Skipped \d+ employee/i.test(period.notes || "")) {
+                          toast.warning(period.notes);
+                        }
                         await onRefresh();
                         onSelectedPeriodChange(period.id);
                         const rows = await fetchHrPayslips(period.id);
@@ -951,9 +961,13 @@ export function HrPayrollPanel({
                         try {
                           const rows = await fetchHrPayrollBankExportApi(selected.id);
                           if (!rows.length) {
-                            toast.error("No payslips to export");
+                            toast.error(
+                              "No bank-ready payslips (need bank name and account)",
+                            );
                             return;
                           }
+                          const skipped =
+                            payslips.length - rows.length;
                           const { exportRowsExcel } = await import(
                             "@/lib/hotelInventoryExcelExport"
                           );
@@ -968,7 +982,13 @@ export function HrPayrollPanel({
                               Payslip: r.payslipNumber,
                             })),
                           );
-                          toast.success("Bank export downloaded");
+                          if (skipped > 0) {
+                            toast.success(
+                              `Bank export downloaded (${skipped} skipped — missing bank details)`,
+                            );
+                          } else {
+                            toast.success("Bank export downloaded");
+                          }
                         } catch (e) {
                           notifyApiFailure(e, "Bank export failed");
                         }
