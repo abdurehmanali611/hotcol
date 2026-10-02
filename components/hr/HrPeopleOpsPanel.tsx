@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import {
   Award,
@@ -21,7 +22,10 @@ import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
 import {
-  HrEmptyState,
+  HrRequestDataTable,
+  HrStatusPill,
+} from "@/components/hr/HrRequestDataTable";
+import {
   HrFormSection,
   HrPanelShell,
   HrSectionCard,
@@ -76,42 +80,6 @@ const BENEFIT_KIND_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-function statusTone(status: string) {
-  const s = status.toLowerCase();
-  if (s === "pending" || s === "awaiting_manager") {
-    return "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200";
-  }
-  if (
-    s === "approved" ||
-    s === "applied" ||
-    s === "finalized" ||
-    s === "available" ||
-    s === "completed"
-  ) {
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200";
-  }
-  if (s === "issued") {
-    return "border-sky-500/30 bg-sky-500/10 text-sky-900 dark:text-sky-200";
-  }
-  if (s === "rejected" || s === "returned") {
-    return "border-border/70 bg-muted/40 text-muted-foreground";
-  }
-  return "border-border/70 bg-muted/30 text-muted-foreground";
-}
-
-function StatusPill({ status }: { status: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-        statusTone(status),
-      )}
-    >
-      {status.replaceAll("_", " ")}
-    </span>
-  );
-}
-
 function Decide({
   show,
   onDecide,
@@ -133,33 +101,6 @@ function Decide({
       >
         Reject
       </Button>
-    </div>
-  );
-}
-
-function OpsRow({
-  title,
-  meta,
-  status,
-  actions,
-}: {
-  title: string;
-  meta?: string;
-  status?: string;
-  actions?: ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-background/80 px-3 py-3 transition-colors hover:border-violet-500/20">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate font-medium tracking-tight">{title}</p>
-          {status ? <StatusPill status={status} /> : null}
-        </div>
-        {meta ? (
-          <p className="text-xs leading-relaxed text-muted-foreground">{meta}</p>
-        ) : null}
-      </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>
   );
 }
@@ -333,10 +274,339 @@ export function HrPeopleOpsPanel({
     void load();
   }, [load]);
 
-  const listShell = (children: ReactNode) => (
-    <div className="max-h-[min(28rem,60vh)] space-y-2 overflow-y-auto pr-1">
-      {children}
-    </div>
+  const careerColumns = useMemo<ColumnDef<HrCareerAction>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "kind",
+        header: "Kind",
+      },
+      {
+        id: "target",
+        header: "Target",
+        cell: ({ row }) => {
+          const r = row.original;
+          const parts = [
+            r.toTitle || r.toDept
+              ? [r.toTitle, r.toDept].filter(Boolean).join(" · ")
+              : null,
+            r.toOrgPosition ? `Position: ${r.toOrgPosition}` : null,
+          ].filter(Boolean);
+          return parts.length ? parts.join(" · ") : "—";
+        },
+      },
+      {
+        accessorKey: "detail",
+        header: "Detail",
+        cell: ({ row }) => row.original.detail || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <Decide
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (ok) => {
+              try {
+                await decideHrCareerActionApi(row.original.id, ok);
+                toast.success(ok ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, employees, load],
+  );
+
+  const disciplineColumns = useMemo<ColumnDef<HrDisciplinaryAction>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "title",
+        header: "Title",
+      },
+      {
+        accessorKey: "detail",
+        header: "Detail",
+        cell: ({ row }) => row.original.detail || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <Decide
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (ok) => {
+              try {
+                await decideHrDisciplinaryActionApi(row.original.id, ok);
+                toast.success(ok ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, employees, load],
+  );
+
+  const perfColumns = useMemo<ColumnDef<HrPerformanceReview>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "periodLabel",
+        header: "Period",
+      },
+      {
+        accessorKey: "rating",
+        header: "Rating",
+        cell: ({ row }) => row.original.rating || "—",
+      },
+      {
+        accessorKey: "summary",
+        header: "Summary",
+        cell: ({ row }) => row.original.summary || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <Decide
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (ok) => {
+              try {
+                await finalizeHrPerformanceReviewApi(row.original.id, ok);
+                toast.success(ok ? "Finalized" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, employees, load],
+  );
+
+  const trainingColumns = useMemo<ColumnDef<HrTrainingAssignment>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "title",
+        header: "Title",
+      },
+      {
+        id: "due",
+        accessorKey: "dueYmd",
+        header: "Due",
+        cell: ({ row }) => row.original.dueYmd || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <Decide
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (ok) => {
+              try {
+                await decideHrTrainingAssignmentApi(row.original.id, ok);
+                toast.success(ok ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, employees, load],
+  );
+
+  const benefitsColumns = useMemo<ColumnDef<HrBenefitAssignment>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "kind",
+        header: "Kind",
+      },
+      {
+        accessorKey: "label",
+        header: "Label",
+        cell: ({ row }) => row.original.label || "—",
+      },
+      {
+        id: "amount",
+        accessorKey: "amountETB",
+        header: "Amount",
+        cell: ({ row }) =>
+          row.original.amountETB != null
+            ? `${row.original.amountETB} ETB`
+            : "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <Decide
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (ok) => {
+              try {
+                await decideHrBenefitAssignmentApi(row.original.id, ok);
+                toast.success(ok ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, employees, load],
+  );
+
+  const inventoryAssets = useMemo(
+    () => assets.filter((a) => a.status !== "issued"),
+    [assets],
+  );
+  const issuedAssets = useMemo(
+    () => assets.filter((a) => a.status === "issued"),
+    [assets],
+  );
+
+  const inventoryColumns = useMemo<ColumnDef<HrAsset>[]>(
+    () => [
+      {
+        id: "label",
+        accessorKey: "label",
+        header: "Label",
+      },
+      {
+        id: "serial",
+        accessorKey: "serialNo",
+        header: "Serial",
+        cell: ({ row }) => row.original.serialNo || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "notes",
+        accessorKey: "notes",
+        header: "Notes",
+        cell: ({ row }) => row.original.notes || "—",
+      },
+    ],
+    [],
+  );
+
+  const issuedColumns = useMemo<ColumnDef<HrAsset>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "label",
+        header: "Asset",
+      },
+      {
+        id: "serial",
+        accessorKey: "serialNo",
+        header: "Serial",
+        cell: ({ row }) => row.original.serialNo || "—",
+      },
+      {
+        id: "issuedYmd",
+        accessorKey: "issuedYmd",
+        header: "Issued",
+        cell: ({ row }) => row.original.issuedYmd || "—",
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) =>
+          canRequest ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const ymd = new Date().toISOString().slice(0, 10);
+                  await returnHrAssetApi({
+                    id: row.original.id,
+                    returnedYmd: ymd,
+                  });
+                  toast.success("Asset returned");
+                  await load();
+                } catch (e) {
+                  notifyApiFailure(e, "Could not return asset");
+                }
+              }}
+            >
+              Return
+            </Button>
+          ) : null,
+      },
+    ],
+    [canRequest, employees, load],
   );
 
   return (
@@ -512,51 +782,21 @@ export function HrPeopleOpsPanel({
                 : "Submitted career moves for this property."
             }
             list={
-              career.length === 0 ? (
-                <HrEmptyState
-                  title="No career requests"
-                  description={
-                    canRequest
-                      ? "Submit the first promotion or transfer on the left."
-                      : "Nothing waiting for approval yet."
-                  }
-                />
-              ) : (
-                listShell(
-                  career.slice(0, 20).map((row) => (
-                    <OpsRow
-                      key={row.id}
-                      title={`${empName(row.employeeId)} · ${row.kind}`}
-                      meta={[
-                        row.toTitle || row.toDept
-                          ? `→ ${[row.toTitle, row.toDept].filter(Boolean).join(" · ")}`
-                          : null,
-                        row.toOrgPosition
-                          ? `Position: ${row.toOrgPosition}`
-                          : null,
-                        row.detail || null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      status={row.status}
-                      actions={
-                        <Decide
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (ok) => {
-                            try {
-                              await decideHrCareerActionApi(row.id, ok);
-                              toast.success(ok ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={career}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No career requests"
+                emptyDescription={
+                  canRequest
+                    ? "Submit the first promotion or transfer on the left."
+                    : "Nothing waiting for approval yet."
+                }
+                columns={careerColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -642,41 +882,21 @@ export function HrPeopleOpsPanel({
             listTitle={canDecide ? "Queue & history" : "Recent cases"}
             listDescription="Pending cases wait for Manager decision."
             list={
-              discipline.length === 0 ? (
-                <HrEmptyState
-                  title="No discipline records"
-                  description={
-                    canRequest
-                      ? "Submit a case from the form on the left."
-                      : "No cases awaiting review."
-                  }
-                />
-              ) : (
-                listShell(
-                  discipline.slice(0, 20).map((row) => (
-                    <OpsRow
-                      key={row.id}
-                      title={`${empName(row.employeeId)} · ${row.title}`}
-                      meta={row.detail || undefined}
-                      status={row.status}
-                      actions={
-                        <Decide
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (ok) => {
-                            try {
-                              await decideHrDisciplinaryActionApi(row.id, ok);
-                              toast.success(ok ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={discipline}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No discipline records"
+                emptyDescription={
+                  canRequest
+                    ? "Submit a case from the form on the left."
+                    : "No cases awaiting review."
+                }
+                columns={disciplineColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -786,41 +1006,21 @@ export function HrPeopleOpsPanel({
             listTitle={canDecide ? "Queue & history" : "Recent reviews"}
             listDescription="Pending reviews need Manager finalize."
             list={
-              perf.length === 0 ? (
-                <HrEmptyState
-                  title="No performance reviews"
-                  description={
-                    canRequest
-                      ? "Create the first review on the left."
-                      : "No reviews waiting to finalize."
-                  }
-                />
-              ) : (
-                listShell(
-                  perf.slice(0, 20).map((row) => (
-                    <OpsRow
-                      key={row.id}
-                      title={`${empName(row.employeeId)} · ${row.periodLabel}`}
-                      meta={[row.rating, row.summary].filter(Boolean).join(" · ")}
-                      status={row.status}
-                      actions={
-                        <Decide
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (ok) => {
-                            try {
-                              await finalizeHrPerformanceReviewApi(row.id, ok);
-                              toast.success(ok ? "Finalized" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={perf}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No performance reviews"
+                emptyDescription={
+                  canRequest
+                    ? "Create the first review on the left."
+                    : "No reviews waiting to finalize."
+                }
+                columns={perfColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -918,41 +1118,21 @@ export function HrPeopleOpsPanel({
             listTitle={canDecide ? "Queue & history" : "Recent assignments"}
             listDescription="Pending assignments wait for Manager."
             list={
-              training.length === 0 ? (
-                <HrEmptyState
-                  title="No training assignments"
-                  description={
-                    canRequest
-                      ? "Assign the first course on the left."
-                      : "No training waiting for approval."
-                  }
-                />
-              ) : (
-                listShell(
-                  training.slice(0, 20).map((row) => (
-                    <OpsRow
-                      key={row.id}
-                      title={`${empName(row.employeeId)} · ${row.title}`}
-                      meta={row.dueYmd ? `Due ${row.dueYmd}` : undefined}
-                      status={row.status}
-                      actions={
-                        <Decide
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (ok) => {
-                            try {
-                              await decideHrTrainingAssignmentApi(row.id, ok);
-                              toast.success(ok ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={training}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No training assignments"
+                emptyDescription={
+                  canRequest
+                    ? "Assign the first course on the left."
+                    : "No training waiting for approval."
+                }
+                columns={trainingColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -1061,48 +1241,21 @@ export function HrPeopleOpsPanel({
             listTitle={canDecide ? "Queue & history" : "Recent benefits"}
             listDescription="Pending benefits wait for Manager approval."
             list={
-              benefits.length === 0 ? (
-                <HrEmptyState
-                  title="No benefits"
-                  description={
-                    canRequest
-                      ? "Request the first benefit on the left."
-                      : "No benefit requests waiting."
-                  }
-                />
-              ) : (
-                listShell(
-                  benefits.slice(0, 20).map((row) => (
-                    <OpsRow
-                      key={row.id}
-                      title={`${empName(row.employeeId)} · ${row.kind}`}
-                      meta={[
-                        row.label || null,
-                        row.amountETB != null
-                          ? `${row.amountETB} ETB`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      status={row.status}
-                      actions={
-                        <Decide
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (ok) => {
-                            try {
-                              await decideHrBenefitAssignmentApi(row.id, ok);
-                              toast.success(ok ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={benefits}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No benefits"
+                emptyDescription={
+                  canRequest
+                    ? "Request the first benefit on the left."
+                    : "No benefit requests waiting."
+                }
+                columns={benefitsColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -1248,62 +1401,61 @@ export function HrPeopleOpsPanel({
                 </div>
               </div>
             }
-            listTitle="Inventory"
-            listDescription="Available, issued, and returned assets."
+            listTitle="Asset lists"
+            listDescription="Inventory of unissued assets, and assets currently with employees."
             list={
-              assets.length === 0 ? (
-                <HrEmptyState
-                  title="No assets yet"
-                  description={
-                    canRequest
-                      ? "Register the first asset on the left."
-                      : "No assets recorded for this property."
-                  }
-                />
-              ) : (
-                listShell(
-                  assets.slice(0, 30).map((row) => (
-                    <OpsRow
-                      key={row.id}
-                      title={row.label}
-                      meta={[
-                        row.serialNo ? `SN ${row.serialNo}` : null,
-                        row.employeeId ? empName(row.employeeId) : null,
-                        row.issuedYmd ? `Issued ${row.issuedYmd}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      status={row.status}
-                      actions={
-                        canRequest && row.status === "issued" ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              try {
-                                const ymd = new Date()
-                                  .toISOString()
-                                  .slice(0, 10);
-                                await returnHrAssetApi({
-                                  id: row.id,
-                                  returnedYmd: ymd,
-                                });
-                                toast.success("Asset returned");
-                                await load();
-                              } catch (e) {
-                                notifyApiFailure(e, "Could not return asset");
-                              }
-                            }}
-                          >
-                            Return
-                          </Button>
-                        ) : null
-                      }
-                    />
-                  )),
-                )
-              )
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm font-medium tracking-tight">
+                      Asset inventory
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Available and returned assets (not currently issued).
+                    </p>
+                  </div>
+                  <HrRequestDataTable
+                    data={inventoryAssets}
+                    employees={employees}
+                    enableEmployeeFilter={false}
+                    searchColumnId="label"
+                    searchPlaceholder="Search assets…"
+                    emptyTitle="No assets in inventory"
+                    emptyDescription={
+                      canRequest
+                        ? "Register assets on the left. Issued items appear in the table below."
+                        : "No available or returned assets."
+                    }
+                    columns={inventoryColumns}
+                  />
+                </div>
+                <div className="space-y-2 border-t border-border/60 pt-5">
+                  <div>
+                    <p className="text-sm font-medium tracking-tight">
+                      Issued to employees
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Assets currently assigned to staff. Filter by employee above
+                      the table.
+                    </p>
+                  </div>
+                  <HrRequestDataTable
+                    data={issuedAssets}
+                    employees={employees}
+                    getEmployeeId={(row) => row.employeeId}
+                    enableEmployeeFilter
+                    searchColumnId="employee"
+                    searchPlaceholder="Search issued assets…"
+                    emptyTitle="No issued assets"
+                    emptyDescription={
+                      canRequest
+                        ? "Issue an available asset to an employee from the form."
+                        : "Nothing is currently issued."
+                    }
+                    columns={issuedColumns}
+                  />
+                </div>
+              </div>
             }
           />
         </HrSectionCard>

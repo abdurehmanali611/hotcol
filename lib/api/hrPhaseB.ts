@@ -300,6 +300,16 @@ export async function saveHrChecklistTemplateApi(input: {
   return data.saveHrChecklistTemplate;
 }
 
+export async function deleteHrChecklistTemplateApi(id: number): Promise<boolean> {
+  const data = await gql<{ deleteHrChecklistTemplate: boolean }>(
+    `mutation ($id: Int!) {
+      deleteHrChecklistTemplate(id: $id)
+    }`,
+    { id },
+  );
+  return Boolean(data.deleteHrChecklistTemplate);
+}
+
 export async function fetchHrChecklistRuns(input?: {
   employeeId?: number;
   kind?: string;

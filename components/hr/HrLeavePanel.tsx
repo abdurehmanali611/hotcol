@@ -490,7 +490,7 @@ export function HrLeavePanel({
       >
         <div className="space-y-4">
           <div className="flex justify-end">
-            <div className="w-full max-w-[14rem] space-y-1.5">
+            <div className="w-full max-w-56 space-y-1.5">
               <Label
                 className={cn(
                   "text-xs font-medium",
@@ -646,7 +646,7 @@ export function HrLeavePanel({
                     control={form.control}
                     name="days"
                     render={({ field }) => (
-                      <FormItem className="sm:col-span-2 mx-auto w-full max-w-[10rem] text-center">
+                      <FormItem className="sm:col-span-2 mx-auto w-full max-w-40 text-center">
                         <FormLabel>Days</FormLabel>
                         <FormControl>
                           <Input

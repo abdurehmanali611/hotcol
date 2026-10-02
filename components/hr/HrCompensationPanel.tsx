@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import {
   Banknote,
@@ -18,7 +19,10 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import {
-  HrEmptyState,
+  HrRequestDataTable,
+  HrStatusPill,
+} from "@/components/hr/HrRequestDataTable";
+import {
   HrFormSection,
   HrPanelShell,
   HrSectionCard,
@@ -51,33 +55,6 @@ import {
   type HrSalaryHistory,
 } from "@/lib/api/hrPhaseB";
 
-function statusTone(status: string) {
-  const s = status.toLowerCase();
-  if (s === "pending") {
-    return "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200";
-  }
-  if (s === "approved" || s === "applied") {
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200";
-  }
-  if (s === "rejected") {
-    return "border-border/70 bg-muted/40 text-muted-foreground";
-  }
-  return "border-border/70 bg-muted/30 text-muted-foreground";
-}
-
-function StatusPill({ status }: { status: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-        statusTone(status),
-      )}
-    >
-      {status.replaceAll("_", " ")}
-    </span>
-  );
-}
-
 function DecideButtons({
   show,
   onDecide,
@@ -99,33 +76,6 @@ function DecideButtons({
       >
         Reject
       </Button>
-    </div>
-  );
-}
-
-function CompRow({
-  title,
-  meta,
-  status,
-  actions,
-}: {
-  title: string;
-  meta?: string;
-  status?: string;
-  actions?: ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-background/80 px-3 py-3 transition-colors hover:border-violet-500/20">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate font-medium tracking-tight">{title}</p>
-          {status ? <StatusPill status={status} /> : null}
-        </div>
-        {meta ? (
-          <p className="text-xs leading-relaxed text-muted-foreground">{meta}</p>
-        ) : null}
-      </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>
   );
 }
@@ -239,8 +189,10 @@ export function HrCompensationPanel({
     reason: "",
   });
 
-  const empName = (id: number) =>
-    employees.find((e) => e.id === id)?.fullName || `#${id}`;
+  const empName = useCallback(
+    (id: number) => employees.find((e) => e.id === id)?.fullName || `#${id}`,
+    [employees],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -265,10 +217,242 @@ export function HrCompensationPanel({
     void load();
   }, [load]);
 
-  const listShell = (children: ReactNode) => (
-    <div className="max-h-[min(28rem,60vh)] space-y-2 overflow-y-auto pr-1">
-      {children}
-    </div>
+  const salaryColumns = useMemo<ColumnDef<HrSalaryHistory, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        id: "change",
+        header: "Change",
+        cell: ({ row }) =>
+          `${formatEtb(row.original.previousETB)} → ${formatEtb(row.original.newETB)}`,
+      },
+      {
+        accessorKey: "reason",
+        header: "Reason",
+        cell: ({ row }) => row.original.reason || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DecideButtons
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (approve) => {
+              try {
+                await decideHrSalaryChangeApi(row.original.id, approve);
+                toast.success(approve ? "Salary applied" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, empName, load],
+  );
+
+  const advanceColumns = useMemo<ColumnDef<HrAdvanceRequest, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "amountETB",
+        header: "Amount",
+        cell: ({ row }) => formatEtb(row.original.amountETB),
+      },
+      {
+        accessorKey: "reason",
+        header: "Reason",
+        cell: ({ row }) => row.original.reason || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DecideButtons
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (approve) => {
+              try {
+                await decideHrAdvanceRequestApi(row.original.id, approve);
+                toast.success(approve ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, empName, load],
+  );
+
+  const loanColumns = useMemo<ColumnDef<HrLoan, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "principalETB",
+        header: "Principal",
+        cell: ({ row }) => formatEtb(row.original.principalETB),
+      },
+      {
+        accessorKey: "remainingETB",
+        header: "Remaining",
+        cell: ({ row }) => formatEtb(row.original.remainingETB),
+      },
+      {
+        accessorKey: "installmentETB",
+        header: "Installment",
+        cell: ({ row }) => formatEtb(row.original.installmentETB),
+      },
+      {
+        accessorKey: "reason",
+        header: "Reason",
+        cell: ({ row }) => row.original.reason || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DecideButtons
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (approve) => {
+              try {
+                await decideHrLoanApi(row.original.id, approve);
+                toast.success(approve ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, empName, load],
+  );
+
+  const bonusColumns = useMemo<ColumnDef<HrBonus, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "label",
+        header: "Label",
+      },
+      {
+        accessorKey: "amountETB",
+        header: "Amount",
+        cell: ({ row }) => formatEtb(row.original.amountETB),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DecideButtons
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (approve) => {
+              try {
+                await decideHrBonusApi(row.original.id, approve);
+                toast.success(approve ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, empName, load],
+  );
+
+  const otColumns = useMemo<ColumnDef<HrOvertimeRequest, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => empName(row.employeeId),
+        header: "Employee",
+      },
+      {
+        accessorKey: "workYmd",
+        header: "Work date",
+      },
+      {
+        accessorKey: "hours",
+        header: "Hours",
+      },
+      {
+        accessorKey: "amountETB",
+        header: "Amount",
+        cell: ({ row }) => formatEtb(row.original.amountETB),
+      },
+      {
+        accessorKey: "reason",
+        header: "Reason",
+        cell: ({ row }) => row.original.reason || "—",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <HrStatusPill status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DecideButtons
+            show={canDecide && row.original.status === "pending"}
+            onDecide={async (approve) => {
+              try {
+                await decideHrOvertimeRequestApi(row.original.id, approve);
+                toast.success(approve ? "Approved" : "Rejected");
+                await load();
+              } catch (e) {
+                notifyApiFailure(e, "Decision failed");
+              }
+            }}
+          />
+        ),
+      },
+    ],
+    [canDecide, empName, load],
   );
 
   return (
@@ -366,45 +550,21 @@ export function HrCompensationPanel({
                 : "Submitted salary change requests."
             }
             list={
-              salary.length === 0 ? (
-                <HrEmptyState
-                  title="No salary changes"
-                  description={
-                    canRequest
-                      ? "Submit the first salary change on the left."
-                      : "Nothing waiting for approval yet."
-                  }
-                />
-              ) : (
-                listShell(
-                  salary.slice(0, 20).map((row) => (
-                    <CompRow
-                      key={row.id}
-                      title={empName(row.employeeId)}
-                      meta={`${formatEtb(row.previousETB)} → ${formatEtb(row.newETB)}${
-                        row.reason ? ` · ${row.reason}` : ""
-                      }`}
-                      status={row.status}
-                      actions={
-                        <DecideButtons
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (approve) => {
-                            try {
-                              await decideHrSalaryChangeApi(row.id, approve);
-                              toast.success(
-                                approve ? "Salary applied" : "Rejected",
-                              );
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={salary}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No salary changes"
+                emptyDescription={
+                  canRequest
+                    ? "Submit the first salary change on the left."
+                    : "Nothing waiting for approval yet."
+                }
+                columns={salaryColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -495,43 +655,21 @@ export function HrCompensationPanel({
             listTitle={canDecide ? "Queue & history" : "Recent advances"}
             listDescription="Pending advances wait for Manager."
             list={
-              advances.length === 0 ? (
-                <HrEmptyState
-                  title="No advances"
-                  description={
-                    canRequest
-                      ? "Submit the first advance on the left."
-                      : "No advances awaiting review."
-                  }
-                />
-              ) : (
-                listShell(
-                  advances.slice(0, 20).map((row) => (
-                    <CompRow
-                      key={row.id}
-                      title={empName(row.employeeId)}
-                      meta={`${formatEtb(row.amountETB)}${
-                        row.reason ? ` · ${row.reason}` : ""
-                      }`}
-                      status={row.status}
-                      actions={
-                        <DecideButtons
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (approve) => {
-                            try {
-                              await decideHrAdvanceRequestApi(row.id, approve);
-                              toast.success(approve ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={advances}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No advances"
+                emptyDescription={
+                  canRequest
+                    ? "Submit the first advance on the left."
+                    : "No advances awaiting review."
+                }
+                columns={advanceColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -643,45 +781,21 @@ export function HrCompensationPanel({
             listTitle={canDecide ? "Queue & history" : "Recent loans"}
             listDescription="Pending loans wait for Manager."
             list={
-              loans.length === 0 ? (
-                <HrEmptyState
-                  title="No loans"
-                  description={
-                    canRequest
-                      ? "Submit the first loan on the left."
-                      : "No loans awaiting review."
-                  }
-                />
-              ) : (
-                listShell(
-                  loans.slice(0, 20).map((row) => (
-                    <CompRow
-                      key={row.id}
-                      title={empName(row.employeeId)}
-                      meta={`Principal ${formatEtb(row.principalETB)} · Remaining ${formatEtb(row.remainingETB)}${
-                        row.installmentETB
-                          ? ` · Installment ${formatEtb(row.installmentETB)}`
-                          : ""
-                      }`}
-                      status={row.status}
-                      actions={
-                        <DecideButtons
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (approve) => {
-                            try {
-                              await decideHrLoanApi(row.id, approve);
-                              toast.success(approve ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={loans}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No loans"
+                emptyDescription={
+                  canRequest
+                    ? "Submit the first loan on the left."
+                    : "No loans awaiting review."
+                }
+                columns={loanColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -777,41 +891,21 @@ export function HrCompensationPanel({
             listTitle={canDecide ? "Queue & history" : "Recent bonuses"}
             listDescription="Pending bonuses wait for Manager."
             list={
-              bonuses.length === 0 ? (
-                <HrEmptyState
-                  title="No bonuses"
-                  description={
-                    canRequest
-                      ? "Submit the first bonus on the left."
-                      : "No bonuses awaiting review."
-                  }
-                />
-              ) : (
-                listShell(
-                  bonuses.slice(0, 20).map((row) => (
-                    <CompRow
-                      key={row.id}
-                      title={`${empName(row.employeeId)} · ${row.label}`}
-                      meta={formatEtb(row.amountETB)}
-                      status={row.status}
-                      actions={
-                        <DecideButtons
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (approve) => {
-                            try {
-                              await decideHrBonusApi(row.id, approve);
-                              toast.success(approve ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={bonuses}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No bonuses"
+                emptyDescription={
+                  canRequest
+                    ? "Submit the first bonus on the left."
+                    : "No bonuses awaiting review."
+                }
+                columns={bonusColumns}
+              />
             }
           />
         </HrSectionCard>
@@ -928,43 +1022,21 @@ export function HrCompensationPanel({
             listTitle={canDecide ? "Queue & history" : "Recent overtime"}
             listDescription="Pending overtime waits for Manager."
             list={
-              ot.length === 0 ? (
-                <HrEmptyState
-                  title="No overtime"
-                  description={
-                    canRequest
-                      ? "Submit the first overtime entry on the left."
-                      : "No overtime awaiting review."
-                  }
-                />
-              ) : (
-                listShell(
-                  ot.slice(0, 20).map((row) => (
-                    <CompRow
-                      key={row.id}
-                      title={empName(row.employeeId)}
-                      meta={`${row.workYmd} · ${row.hours}h · ${formatEtb(row.amountETB)}${
-                        row.reason ? ` · ${row.reason}` : ""
-                      }`}
-                      status={row.status}
-                      actions={
-                        <DecideButtons
-                          show={canDecide && row.status === "pending"}
-                          onDecide={async (approve) => {
-                            try {
-                              await decideHrOvertimeRequestApi(row.id, approve);
-                              toast.success(approve ? "Approved" : "Rejected");
-                              await load();
-                            } catch (e) {
-                              notifyApiFailure(e, "Decision failed");
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  )),
-                )
-              )
+              <HrRequestDataTable
+                data={ot}
+                employees={employees}
+                getEmployeeId={(row) => row.employeeId}
+                enableEmployeeFilter
+                searchColumnId="employee"
+                searchPlaceholder="Search…"
+                emptyTitle="No overtime"
+                emptyDescription={
+                  canRequest
+                    ? "Submit the first overtime entry on the left."
+                    : "No overtime awaiting review."
+                }
+                columns={otColumns}
+              />
             }
           />
         </HrSectionCard>

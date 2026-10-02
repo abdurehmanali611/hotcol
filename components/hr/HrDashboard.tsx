@@ -447,6 +447,7 @@ export function HrDashboard({
           employees={employees}
           canManageTemplates={actorRole === "Manager" || actorRole === "Admin"}
           canApproveExit={actorRole === "Manager" || actorRole === "Admin"}
+          canRunChecklists={actorRole === "HR" || actorRole === "Admin"}
         />
       ) : null}
       {section === "compensation" ? (
