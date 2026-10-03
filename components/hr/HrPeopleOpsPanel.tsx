@@ -170,10 +170,13 @@ export function HrPeopleOpsPanel({
   employees,
   canRequest,
   canDecide,
+  canManageAssets = false,
 }: {
   employees: HrEmployee[];
   canRequest: boolean;
   canDecide: boolean;
+  /** Manager/Admin — register new assets (HR issues/returns only). */
+  canManageAssets?: boolean;
 }) {
   const [career, setCareer] = useState<HrCareerAction[]>([]);
   const [discipline, setDiscipline] = useState<HrDisciplinaryAction[]>([]);
@@ -1263,18 +1266,33 @@ export function HrPeopleOpsPanel({
         <HrSectionCard
           title="Assets"
           description={
-            canRequest
-              ? "Register property assets, issue them to staff, and record returns."
-              : "View issued and available assets for this property."
+            canManageAssets
+              ? "Register property assets. HR (or you) can issue them to staff and record returns."
+              : canRequest
+                ? "Issue available assets to staff and record returns. Manager registers new assets."
+                : "View issued and available assets for this property."
           }
           icon={<Package className="h-5 w-5" />}
         >
           <OpsSplit
-            canRequest={canRequest}
-            formTitle="Register & issue"
-            formDescription="Add a new asset, then issue available ones to employees."
+            canRequest={canRequest || canManageAssets}
+            formTitle={
+              canManageAssets && canRequest
+                ? "Register & issue"
+                : canManageAssets
+                  ? "Register asset"
+                  : "Issue & return"
+            }
+            formDescription={
+              canManageAssets && canRequest
+                ? "Add a new asset, then issue available ones to employees."
+                : canManageAssets
+                  ? "Only Manager/Admin can add assets to inventory."
+                  : "Issue available assets to employees. Manager adds new inventory."
+            }
             form={
               <div className="space-y-5">
+                {canManageAssets ? (
                 <div className="space-y-3 rounded-xl border border-dashed border-border/80 bg-muted/10 p-3 sm:p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Register asset
@@ -1326,7 +1344,9 @@ export function HrPeopleOpsPanel({
                     Add asset
                   </PendingButton>
                 </div>
+                ) : null}
 
+                {canRequest ? (
                 <div className="space-y-3 rounded-xl border border-border/70 bg-card/40 p-3 sm:p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Issue to employee
@@ -1399,6 +1419,7 @@ export function HrPeopleOpsPanel({
                     Issue asset
                   </PendingButton>
                 </div>
+                ) : null}
               </div>
             }
             listTitle="Asset lists"

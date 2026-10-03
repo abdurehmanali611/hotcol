@@ -1347,7 +1347,7 @@ export function HrEmployeesPanel({
                     control={form.control}
                     name="education"
                     render={({ field }) => {
-                      const options = [
+                      const options: ComboboxOption[] = [
                         ...HR_EDUCATION_LEVELS.map((o) => ({
                           value: o.value,
                           label: o.label,

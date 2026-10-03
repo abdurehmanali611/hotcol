@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { PendingButton } from "@/components/ui/pending-button";
 import { HrEmployeeCombobox } from "@/components/hr/HrEmployeeCombobox";
 import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
@@ -25,7 +26,14 @@ import {
 } from "@/components/hr/HrRequestDataTable";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
-import type { HrEmployee } from "@/lib/api/hr";
+import { hrDepartmentLabel } from "@/lib/hrDepartments";
+import {
+  fetchHrDepartments,
+  fetchHrTeamsApi,
+  type HrDepartment,
+  type HrEmployee,
+  type HrTeam,
+} from "@/lib/api/hr";
 import {
   approveHrChecklistRunApi,
   completeHrChecklistRunApi,
@@ -76,10 +84,17 @@ export function HrChecklistsPanel({
   const [runs, setRuns] = useState<HrChecklistRun[]>([]);
   const [pending, setPending] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [departments, setDepartments] = useState<HrDepartment[]>([]);
+  const [teams, setTeams] = useState<HrTeam[]>([]);
   const [tplForm, setTplForm] = useState({
     kind: "onboarding",
     name: "",
+    required: true,
+    department: "",
+    jobTitle: "",
+    teamId: "" as string,
     itemLabel: "",
+    itemRequired: true,
     items: [] as Array<{ label: string; required: boolean; defaultOwner: string }>,
   });
   const [startForm, setStartForm] = useState({
@@ -89,12 +104,16 @@ export function HrChecklistsPanel({
 
   const load = useCallback(async () => {
     try {
-      const [t, r] = await Promise.all([
+      const [t, r, deps, teamRows] = await Promise.all([
         fetchHrChecklistTemplates(),
         fetchHrChecklistRuns(),
+        fetchHrDepartments().catch(() => [] as HrDepartment[]),
+        fetchHrTeamsApi().catch(() => [] as HrTeam[]),
       ]);
       setTemplates(t);
       setRuns(r);
+      setDepartments(deps);
+      setTeams(teamRows);
     } catch (e) {
       notifyApiFailure(e, "Could not load checklists");
     }
@@ -109,12 +128,65 @@ export function HrChecklistsPanel({
     [employees],
   );
 
+  const departmentOptions = useMemo(
+    () => [
+      { value: "", label: "All departments" },
+      ...departments
+        .filter((d) => d.active !== false)
+        .map((d) => ({
+          value: d.code,
+          label: d.label || hrDepartmentLabel(d.code, departments),
+          hint: d.code,
+        })),
+    ],
+    [departments],
+  );
+
+  const selectedDeptId = useMemo(() => {
+    const code = String(tplForm.department || "").trim();
+    if (!code) return null;
+    return departments.find((d) => d.code === code)?.id ?? null;
+  }, [tplForm.department, departments]);
+
+  const teamOptions = useMemo(() => {
+    const scoped = teams.filter((t) =>
+      selectedDeptId == null ? true : t.departmentId === selectedDeptId,
+    );
+    return [
+      { value: "", label: "Any team (optional)" },
+      ...scoped
+        .filter((t) => t.active !== false)
+        .map((t) => ({
+          value: String(t.id),
+          label: t.label || t.code,
+          hint: t.code,
+        })),
+    ];
+  }, [teams, selectedDeptId]);
+
+  const jobTitleOptions = useMemo(() => {
+    const titles = new Set<string>();
+    for (const e of employees) {
+      const t = String(e.jobTitle || "").trim();
+      if (t) titles.add(t);
+    }
+    return [
+      { value: "", label: "All positions" },
+      ...[...titles].sort().map((t) => ({ value: t, label: t })),
+    ];
+  }, [employees]);
+
   const resetTplForm = () => {
     setEditingId(null);
     setTplForm({
       kind: "onboarding",
       name: "",
+      required: true,
+      department: "",
+      jobTitle: "",
+      teamId: "",
       itemLabel: "",
+      itemRequired: true,
       items: [],
     });
   };
@@ -124,7 +196,12 @@ export function HrChecklistsPanel({
     setTplForm({
       kind: t.kind,
       name: t.name,
+      required: t.required !== false,
+      department: t.department || "",
+      jobTitle: t.jobTitle || "",
+      teamId: t.teamId != null && t.teamId > 0 ? String(t.teamId) : "",
       itemLabel: "",
+      itemRequired: true,
       items: t.items.map((it) => ({
         label: it.label,
         required: it.required !== false,
@@ -139,8 +216,32 @@ export function HrChecklistsPanel({
     setTplForm((f) => ({
       ...f,
       itemLabel: "",
-      items: [...f.items, { label, required: true, defaultOwner: "HR" }],
+      items: [
+        ...f.items,
+        {
+          label,
+          required: f.itemRequired,
+          defaultOwner: "HR",
+        },
+      ],
     }));
+  };
+
+  const scopeLabel = (t: HrChecklistTemplate) => {
+    const parts: string[] = [];
+    if (t.department) {
+      parts.push(
+        hrDepartmentLabel(t.department, departments) || t.department,
+      );
+    } else {
+      parts.push("All depts");
+    }
+    parts.push(t.jobTitle || "All positions");
+    if (t.teamId != null && t.teamId > 0) {
+      const team = teams.find((x) => x.id === t.teamId);
+      parts.push(team?.label || team?.code || `Team #${t.teamId}`);
+    }
+    return parts.join(" · ");
   };
 
   const managerRunColumns = useMemo<ColumnDef<HrChecklistRun, unknown>[]>(
@@ -243,8 +344,8 @@ export function HrChecklistsPanel({
           title="Checklist templates"
           description={
             canManageTemplates
-              ? "Create, edit, or delete onboarding and exit templates. Exit completion requires Manager approval."
-              : "Templates configured by Manager. HR starts runs from these kinds below."
+              ? "Create templates scoped by department, position, and optional team. Required flag marks mandatory checklists. Exit completion needs Manager approval."
+              : "Templates configured by Manager. Starting a run matches the employee’s department, position, and team."
           }
           icon={<ListChecks className="h-5 w-5" />}
         >
@@ -260,8 +361,8 @@ export function HrChecklistsPanel({
                 title={editingId ? "Edit template" : "New template"}
                 description={
                   editingId
-                    ? "Update name, kind, or items, then save."
-                    : "Name the template, add checklist items, then save."
+                    ? "Update scope, required flag, or items, then save."
+                    : "Scope by department, position, and optional team. HR matches these when starting a run."
                 }
               >
                 <div className="space-y-4">
@@ -289,8 +390,69 @@ export function HrChecklistsPanel({
                     </Field>
                   </div>
 
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Required checklist</p>
+                      <p className="text-xs text-muted-foreground">
+                        Mark when matching employees must complete this template.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={tplForm.required}
+                      onCheckedChange={(checked) =>
+                        setTplForm((f) => ({ ...f, required: Boolean(checked) }))
+                      }
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Department">
+                      <HrOptionCombobox
+                        value={tplForm.department}
+                        onChange={(value) =>
+                          setTplForm((f) => ({
+                            ...f,
+                            department: value,
+                            teamId: "",
+                          }))
+                        }
+                        options={departmentOptions}
+                        placeholder="All departments"
+                        searchPlaceholder="Search department…"
+                      />
+                    </Field>
+                    <Field label="Position">
+                      <HrOptionCombobox
+                        value={tplForm.jobTitle}
+                        onChange={(value) =>
+                          setTplForm((f) => ({ ...f, jobTitle: value }))
+                        }
+                        options={jobTitleOptions}
+                        placeholder="All positions"
+                        searchPlaceholder="Search position…"
+                        emptyText="No job titles yet — type via employee records."
+                      />
+                    </Field>
+                    <Field label="Team (optional)" className="sm:col-span-2">
+                      <HrOptionCombobox
+                        value={tplForm.teamId}
+                        onChange={(value) =>
+                          setTplForm((f) => ({ ...f, teamId: value }))
+                        }
+                        options={teamOptions}
+                        placeholder="Any team"
+                        searchPlaceholder="Search team…"
+                        emptyText={
+                          tplForm.department
+                            ? "No teams in this department."
+                            : "Pick a department to narrow teams, or leave any."
+                        }
+                      />
+                    </Field>
+                  </div>
+
                   <Field label="Checklist items">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         className={hrFieldClass}
                         placeholder="Item label"
@@ -307,14 +469,30 @@ export function HrChecklistsPanel({
                           addItem();
                         }}
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="shrink-0"
-                        onClick={addItem}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 rounded-lg border border-border/60 px-2.5 py-2">
+                          <Switch
+                            checked={tplForm.itemRequired}
+                            onCheckedChange={(checked) =>
+                              setTplForm((f) => ({
+                                ...f,
+                                itemRequired: Boolean(checked),
+                              }))
+                            }
+                          />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            Item required
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={addItem}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     {tplForm.items.length > 0 ? (
                       <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-border/60 bg-muted/10 p-2.5">
@@ -323,7 +501,14 @@ export function HrChecklistsPanel({
                             key={`${it.label}-${i}`}
                             className="flex items-center justify-between gap-2 rounded-lg bg-background/80 px-2.5 py-1.5 text-sm"
                           >
-                            <span className="min-w-0 truncate">{it.label}</span>
+                            <span className="min-w-0 truncate">
+                              {it.label}
+                              {it.required ? (
+                                <span className="ml-1 text-[10px] uppercase text-muted-foreground">
+                                  required
+                                </span>
+                              ) : null}
+                            </span>
                             <Button
                               type="button"
                               size="sm"
@@ -363,6 +548,12 @@ export function HrChecklistsPanel({
                             id: editingId ?? undefined,
                             kind: tplForm.kind,
                             name: tplForm.name.trim() || tplForm.kind,
+                            required: tplForm.required,
+                            department: tplForm.department,
+                            jobTitle: tplForm.jobTitle,
+                            teamId: tplForm.teamId
+                              ? Number(tplForm.teamId)
+                              : null,
                             items: tplForm.items.map((it, i) => ({
                               ...it,
                               sortOrder: i,
@@ -425,6 +616,9 @@ export function HrChecklistsPanel({
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {t.items.length} item
                             {t.items.length === 1 ? "" : "s"}
+                            {" · "}
+                            {scopeLabel(t)}
+                            {t.required === false ? " · optional" : " · required"}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
@@ -524,7 +718,7 @@ export function HrChecklistsPanel({
                 <HrFormSection
                   className="h-full"
                   title="Start run"
-                  description="Pick employees and checklist kind to open new runs."
+                  description="Pick employees and kind. The matching template for each employee’s department, position, and team is used automatically."
                 >
                   <div className="space-y-4">
                     <Field label="Employees">

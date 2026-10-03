@@ -462,6 +462,7 @@ export function HrDashboard({
           employees={employees}
           canRequest={caps.canManageEmployees || actorRole === "HR"}
           canDecide={actorRole === "Manager" || actorRole === "Admin"}
+          canManageAssets={actorRole === "Manager" || actorRole === "Admin"}
         />
       ) : null}
       {isHrPayrollSection(section) && caps.canViewPayrollReport ? (

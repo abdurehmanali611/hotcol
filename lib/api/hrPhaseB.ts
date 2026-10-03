@@ -35,6 +35,10 @@ export type HrChecklistTemplate = {
   kind: string;
   name: string;
   active: boolean;
+  required: boolean;
+  department: string;
+  jobTitle: string;
+  teamId: number | null;
   items: HrChecklistTemplateItem[];
 };
 
@@ -255,7 +259,7 @@ export async function fetchHrChecklistTemplates(
   const data = await gql<{ hrChecklistTemplates: HrChecklistTemplate[] }>(
     `query ($kind: String) {
       hrChecklistTemplates(kind: $kind) {
-        id HotelName kind name active
+        id HotelName kind name active required department jobTitle teamId
         items { id label required defaultOwner sortOrder }
       }
     }`,
@@ -269,6 +273,10 @@ export async function saveHrChecklistTemplateApi(input: {
   kind: string;
   name: string;
   active?: boolean;
+  required?: boolean;
+  department?: string;
+  jobTitle?: string;
+  teamId?: number | null;
   items: Array<{
     label: string;
     required?: boolean;
@@ -282,6 +290,10 @@ export async function saveHrChecklistTemplateApi(input: {
       $kind: String!
       $name: String!
       $active: Boolean
+      $required: Boolean
+      $department: String
+      $jobTitle: String
+      $teamId: Int
       $items: [HrChecklistTemplateItemInput!]!
     ) {
       saveHrChecklistTemplate(
@@ -289,13 +301,20 @@ export async function saveHrChecklistTemplateApi(input: {
         kind: $kind
         name: $name
         active: $active
+        required: $required
+        department: $department
+        jobTitle: $jobTitle
+        teamId: $teamId
         items: $items
       ) {
-        id kind name active
+        id kind name active required department jobTitle teamId
         items { id label required defaultOwner sortOrder }
       }
     }`,
-    input,
+    {
+      ...input,
+      teamId: input.teamId == null || input.teamId <= 0 ? null : input.teamId,
+    },
   );
   return data.saveHrChecklistTemplate;
 }
