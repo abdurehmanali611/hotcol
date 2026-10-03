@@ -297,7 +297,7 @@ export function LodgingStayDepartureReceipt({
                 alt={APEX_SOLUTION.name}
                 width={140}
                 height={48}
-                className="h-10 w-auto max-w-[140px] shrink-0 object-contain print:h-9"
+                className="h-10 w-auto max-w-35 shrink-0 object-contain print:h-9"
               />
               <div className="min-w-0 leading-tight">
                 <p className="text-sm font-semibold">{APEX_SOLUTION.name}</p>
