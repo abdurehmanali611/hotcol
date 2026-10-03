@@ -42,39 +42,21 @@ export type StayPaymentSplit = {
 export function LodgingStayDepartureReceipt({
   stay,
   payment,
-  hotelName,
+  propertyName,
+  propertyTin,
   logoUrl,
-  tinNumber,
   className,
 }: {
   stay: LodgingStay;
   payment?: StayPaymentSplit | null;
-  hotelName?: string;
+  propertyName?: string;
+  propertyTin?: string | null;
   logoUrl?: string | null;
-  tinNumber?: string | null;
   className?: string;
 }) {
-  const propertyName =
-    hotelName?.trim() ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("hotel_display_name")?.trim() ||
-        localStorage.getItem("hotel_name")?.trim()
-      : "") ||
-    stay.HotelName?.trim() ||
-    "Hotel";
-
-  const propertyLogo =
-    (logoUrl != null ? logoUrl.trim() : "") ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("logo_url")?.trim() || ""
-      : "");
-
-  const propertyTin =
-    (tinNumber != null ? tinNumber.trim() : "") ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("tin_number")?.trim() || ""
-      : "");
-
+  const property = (propertyName || stay.HotelName || "Property").trim() || "Property";
+  const propertyTIN = (propertyTin || "").trim();
+  const propertyLogo = (logoUrl || "").trim();
   const allLines: LodgingBillLine[] = stay.bill?.lines ?? [];
   const activeLines = allLines.filter((l) => billLineGrossAmount(l) !== 0);
   const lineSum = billTotalFromLines(allLines);
@@ -97,52 +79,38 @@ export function LodgingStayDepartureReceipt({
       )}
     >
       <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm print:shadow-none print:border-zinc-300">
-        {/* Tenant-branded header for receipt */}
-        <div className="bg-linear-to-r from-emerald-800 via-emerald-700 to-teal-700 px-8 py-6 text-white print:bg-emerald-800 print:px-6 print:py-5">
+        <div className="bg-linear-to-r from-emerald-700 via-emerald-600 to-teal-600 px-8 py-6 text-white print:px-6 print:py-5">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {propertyLogo ? (
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/30 bg-white p-1 shadow-sm sm:h-20 sm:w-20">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={propertyLogo}
-                    alt={`${propertyName} logo`}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/40 bg-white/15 text-2xl font-bold tracking-wider text-white shadow-sm sm:h-20 sm:w-20">
-                  {propertyName.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
-                  Guest checkout receipt
-                </p>
-                <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-white sm:text-3xl print:text-3xl">
-                  {propertyName}
-                </h1>
-                {propertyTin ? (
-                  <p className="mt-1 text-sm font-medium text-emerald-100">
-                    TIN: <span className="font-mono tracking-wide">{propertyTin}</span>
-                  </p>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="text-right">
-              <span className="inline-block rounded-md bg-white/20 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white">
-                Departure Receipt
-              </span>
-              <p className="mt-2 text-xs text-emerald-100">
-                Voucher: <span className="font-mono font-bold text-white">{stay.voucherCode}</span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-200/90">
+                Departure receipt
               </p>
-              {stay.bill?.receiptNumber ? (
-                <p className="mt-0.5 text-xs text-emerald-100">
-                  Receipt: <span className="font-mono font-medium text-white">{stay.bill.receiptNumber}</span>
-                </p>
-              ) : null}
+              <h1 className="mt-1 text-3xl font-bold tracking-tight print:text-4xl">
+                {property}
+              </h1>
+              <p className="mt-1 text-base tabular-nums text-emerald-50">
+                TIN {propertyTIN || "—"}
+              </p>
+              <p className="mt-2 text-sm text-emerald-100/80">
+                Guest checkout summary
+              </p>
             </div>
+            {propertyLogo ? (
+              <div className="shrink-0 rounded-lg bg-white/95 px-2.5 py-2 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={propertyLogo}
+                  alt={`${property} logo`}
+                  width={56}
+                  height={56}
+                  className="h-12 w-12 object-contain"
+                />
+              </div>
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white/95 text-lg font-bold text-emerald-800 shadow-sm">
+                {property.slice(0, 2).toUpperCase()}
+              </div>
+            )}
           </div>
         </div>
 

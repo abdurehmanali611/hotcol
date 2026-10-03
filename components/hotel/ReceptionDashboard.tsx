@@ -1891,13 +1891,9 @@ export function ReceptionDashboard() {
               <LodgingStayDepartureReceipt
                 stay={printStay}
                 payment={printPayment}
-                hotelName={displayName}
+                propertyName={displayName}
+                propertyTin={tenantScope}
                 logoUrl={logoUrl}
-                tinNumber={
-                  typeof window !== "undefined"
-                    ? localStorage.getItem("tin_number")?.trim() || ""
-                    : ""
-                }
               />
             </div>
           </div>
