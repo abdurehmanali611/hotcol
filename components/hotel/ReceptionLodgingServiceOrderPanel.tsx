@@ -268,13 +268,20 @@ export function ReceptionLodgingServiceOrderPanel({
   };
 
   return (
-    <div className="relative flex min-h-full flex-col bg-linear-to-b from-background to-muted/20 rounded-xl border border-border/70 overflow-hidden">
+    <div className="relative flex min-h-full flex-col overflow-hidden rounded-xl border border-border/70 bg-linear-to-b from-background to-muted/20">
+      <div className="h-1 shrink-0 bg-linear-to-r from-primary/45 via-sky-500/30 to-transparent" />
       <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
         <div className="space-y-4 px-4 py-4 md:px-6 md:py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3 min-w-0 flex-1 max-w-md">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight">
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-700/55 dark:text-teal-300/65">
+                  {mode === "laundry" ? "In-room laundry" : "Room service"}
+                </p>
+                <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+                    <ShoppingBag className="h-4.5 w-4.5" />
+                  </span>
                   {mode === "laundry" ? "Laundry items" : "Menu"}
                 </h2>
                 <p className="text-sm text-muted-foreground">

@@ -7,8 +7,6 @@ import {
   Check,
   ClipboardList,
   Clock3,
-  FileDown,
-  FileSpreadsheet,
   LogIn,
   LogOut,
   Pencil,
@@ -63,10 +61,6 @@ import {
   isPendingManagerApprovalError,
   pendingManagerApprovalMessage,
 } from "@/lib/hrPendingApproval";
-import {
-  downloadHrTablePdf,
-  type HrPdfColumn,
-} from "@/lib/hrTableExportPdf";
 import { cn } from "@/lib/utils";
 
 const ATTENDANCE_STATUS_OPTIONS = [
@@ -80,37 +74,6 @@ const ATTENDANCE_STATUS_OPTIONS = [
 const fieldClass = "min-w-0";
 const triggerClass = cn(hrFieldClass, "justify-between");
 const inputClass = hrFieldClass;
-
-type ExportKey =
-  | "attendance-pdf"
-  | "attendance-xlsx"
-  | "shifts-pdf"
-  | "shifts-xlsx";
-
-function attendanceStatusLabel(status: string) {
-  return (
-    ATTENDANCE_STATUS_OPTIONS.find((o) => o.value === status)?.label ||
-    status ||
-    "—"
-  );
-}
-
-const ATTENDANCE_PDF_COLUMNS: HrPdfColumn[] = [
-  { header: "Employee", weight: 3 },
-  { header: "Date", weight: 2 },
-  { header: "Clock in", weight: 1.6 },
-  { header: "Clock out", weight: 1.6 },
-  { header: "Status", weight: 1.8 },
-  { header: "Department", weight: 2.4 },
-];
-
-const SHIFT_PDF_COLUMNS: HrPdfColumn[] = [
-  { header: "Employee", weight: 3 },
-  { header: "Date", weight: 2 },
-  { header: "Shift", weight: 2.4 },
-  { header: "Overnight", weight: 1.4 },
-  { header: "Department", weight: 2.6 },
-];
 
 function todayYmd() {
   const d = new Date();
@@ -270,7 +233,6 @@ export function HrAttendancePanel({
   const [filterTo, setFilterTo] = useState(() => todayYmd());
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterEmployeeId, setFilterEmployeeId] = useState<number | null>(null);
-  const [exporting, setExporting] = useState<ExportKey | null>(null);
 
   useEffect(() => {
     if (!canManageTime) return;
@@ -580,143 +542,6 @@ export function HrAttendancePanel({
       setClocking(null);
     }
   }
-
-  const activeEmployeeName =
-    filterEmployeeId != null
-      ? employees.find((e) => e.id === filterEmployeeId)?.fullName ||
-        `#${filterEmployeeId}`
-      : "";
-
-  const dateRangeLabel =
-    filterFrom || filterTo ? `${filterFrom || "…"} → ${filterTo || "…"}` : "";
-
-  const attendanceFilterSummary = [
-    dateRangeLabel,
-    filterStatus !== "all" ? `Type: ${attendanceStatusLabel(filterStatus)}` : "",
-    activeEmployeeName ? `Employee: ${activeEmployeeName}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  const shiftsFilterSummary = [dateRangeLabel, activeEmployeeName ? `Employee: ${activeEmployeeName}` : ""]
-    .filter(Boolean)
-    .join(" · ");
-
-  const attendanceExportRows = filteredAttendance.map((row) => ({
-    Employee: row.employee?.fullName || `#${row.employeeId}`,
-    Date: row.workDate,
-    "Clock in": formatClockTime(row.clockInAt),
-    "Clock out": formatClockTime(row.clockOutAt),
-    Status: attendanceStatusLabel(row.status),
-    Department: row.employee?.department || "",
-  }));
-
-  const shiftExportRows = filteredShifts.map((row) => ({
-    Employee: row.employee?.fullName || `#${row.employeeId}`,
-    Date: row.workDate,
-    Start: row.startTime,
-    End: row.endTime,
-    Overnight: row.endTime < row.startTime ? "Yes" : "No",
-    Department: row.department || "",
-  }));
-
-  const exportFileName = (kind: "attendance" | "shifts") =>
-    `hr-${kind}-${filterFrom || "start"}_${filterTo || "today"}`;
-
-  /** Exports exactly the rows the current date / status / employee filters show. */
-  const exportTable = async (
-    kind: "attendance" | "shifts",
-    format: "pdf" | "xlsx",
-  ) => {
-    const isAttendance = kind === "attendance";
-    const rows = isAttendance ? filteredAttendance : filteredShifts;
-    if (!rows.length) {
-      toast.error(
-        `No ${isAttendance ? "attendance" : "shifts"} rows to export`,
-      );
-      return;
-    }
-    setExporting(`${kind}-${format}` as ExportKey);
-    try {
-      if (format === "pdf") {
-        await downloadHrTablePdf({
-          title: isAttendance ? "Attendance" : "Shifts",
-          subtitle: isAttendance
-            ? attendanceFilterSummary
-            : shiftsFilterSummary,
-          fileName: exportFileName(kind),
-          columns: isAttendance ? ATTENDANCE_PDF_COLUMNS : SHIFT_PDF_COLUMNS,
-          rows: isAttendance
-            ? filteredAttendance.map((row) => [
-                row.employee?.fullName || `#${row.employeeId}`,
-                row.workDate,
-                formatClockTime(row.clockInAt),
-                formatClockTime(row.clockOutAt),
-                attendanceStatusLabel(row.status),
-                row.employee?.department || "—",
-              ])
-            : filteredShifts.map((row) => [
-                row.employee?.fullName || `#${row.employeeId}`,
-                row.workDate,
-                `${row.startTime}–${row.endTime}`,
-                row.endTime < row.startTime ? "Yes" : "No",
-                row.department || "—",
-              ]),
-          emptyText: "Nothing matches the current filters.",
-        });
-        toast.success("PDF downloaded");
-      } else {
-        const { exportRowsExcel } = await import(
-          "@/lib/hotelInventoryExcelExport"
-        );
-        const ok = await exportRowsExcel(
-          exportFileName(kind),
-          isAttendance ? "Attendance" : "Shifts",
-          isAttendance ? attendanceExportRows : shiftExportRows,
-        );
-        if (ok) toast.success("Excel downloaded");
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error(
-        format === "pdf" ? "Could not export PDF" : "Could not export Excel",
-      );
-    } finally {
-      setExporting(null);
-    }
-  };
-
-  const exportActions = (kind: "attendance" | "shifts") => {
-    const empty =
-      (kind === "attendance" ? filteredAttendance : filteredShifts).length ===
-      0;
-    return (
-      <div className="flex flex-wrap gap-2">
-        <PendingButton
-          type="button"
-          variant="outline"
-          className="h-9 gap-1.5 border-violet-500/30 text-violet-800 hover:bg-violet-500/10 dark:text-violet-300"
-          disabled={empty}
-          pending={exporting === `${kind}-pdf`}
-          onClick={() => void exportTable(kind, "pdf")}
-        >
-          <FileDown className="h-4 w-4" />
-          Export PDF
-        </PendingButton>
-        <PendingButton
-          type="button"
-          variant="outline"
-          className="h-9 gap-1.5 border-sky-500/25 text-sky-800 hover:bg-sky-500/10 dark:text-sky-300"
-          disabled={empty}
-          pending={exporting === `${kind}-xlsx`}
-          onClick={() => void exportTable(kind, "xlsx")}
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Export Excel
-        </PendingButton>
-      </div>
-    );
-  };
 
   return (
     <HrPanelShell>
@@ -1281,7 +1106,6 @@ export function HrAttendancePanel({
           description="Clock records HR entered (or devices will record later)."
           icon={<Clock3 className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
           accent="bg-linear-to-r from-sky-500 via-cyan-400 to-indigo-400/80"
-          actions={exportActions("attendance")}
         >
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge
@@ -1332,7 +1156,6 @@ export function HrAttendancePanel({
             <CalendarClock className="h-5 w-5 text-violet-600 dark:text-violet-400" />
           }
           accent="bg-linear-to-r from-violet-500 via-indigo-400 to-sky-400/80"
-          actions={exportActions("shifts")}
         >
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge

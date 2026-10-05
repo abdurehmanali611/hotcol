@@ -37,10 +37,8 @@ import { cn } from "@/lib/utils";
 import { hrDepartmentLabel } from "@/lib/hrDepartments";
 import {
   fetchHrDepartments,
-  fetchHrTeamsApi,
   type HrDepartment,
   type HrEmployee,
-  type HrTeam,
 } from "@/lib/api/hr";
 import {
   createHrAssetApi,
@@ -188,12 +186,10 @@ export function HrPeopleOpsPanel({
   const [assets, setAssets] = useState<HrAsset[]>([]);
   const [pending, setPending] = useState(false);
   const [departments, setDepartments] = useState<HrDepartment[]>([]);
-  const [teams, setTeams] = useState<HrTeam[]>([]);
   const [careerForm, setCareerForm] = useState({
     employeeId: "",
     kind: "promotion",
     toDept: "",
-    toTeamId: "",
     toTitle: "",
     toOrgPosition: "employee" as "employee" | "leader",
     detail: "",
@@ -242,25 +238,6 @@ export function HrPeopleOpsPanel({
     [departments],
   );
 
-  /** Teams for the chosen target department (every active team when none picked). */
-  const teamOptions = useMemo(() => {
-    const deptCode = String(careerForm.toDept || "").trim();
-    const deptId = deptCode
-      ? departments.find((d) => d.code === deptCode)?.id ?? null
-      : null;
-    return [
-      { value: "", label: "Keep current team" },
-      ...teams
-        .filter((t) => t.active !== false)
-        .filter((t) => deptId == null || t.departmentId === deptId)
-        .map((t) => ({
-          value: String(t.id),
-          label: t.label,
-          hint: t.code || undefined,
-        })),
-    ];
-  }, [teams, departments, careerForm.toDept]);
-
   const availableAssetOptions = useMemo(
     () =>
       assets
@@ -275,7 +252,7 @@ export function HrPeopleOpsPanel({
 
   const load = useCallback(async () => {
     try {
-      const [c, d, p, t, b, a, deps, tms] = await Promise.all([
+      const [c, d, p, t, b, a, deps] = await Promise.all([
         fetchHrCareerActions(),
         fetchHrDisciplinaryActions(),
         fetchHrPerformanceReviews(),
@@ -283,7 +260,6 @@ export function HrPeopleOpsPanel({
         fetchHrBenefitAssignments(),
         fetchHrAssets(),
         fetchHrDepartments().catch(() => [] as HrDepartment[]),
-        fetchHrTeamsApi().catch(() => [] as HrTeam[]),
       ]);
       setCareer(c);
       setDiscipline(d);
@@ -292,7 +268,6 @@ export function HrPeopleOpsPanel({
       setBenefits(b);
       setAssets(a);
       setDepartments(deps);
-      setTeams(tms.filter((row) => row.active !== false));
     } catch (e) {
       notifyApiFailure(e, "Could not load people ops");
     }
@@ -318,14 +293,10 @@ export function HrPeopleOpsPanel({
         header: "Target",
         cell: ({ row }) => {
           const r = row.original;
-          const team = r.toTeamId
-            ? teams.find((t) => t.id === r.toTeamId)?.label || `#${r.toTeamId}`
-            : null;
           const parts = [
             r.toTitle || r.toDept
               ? [r.toTitle, r.toDept].filter(Boolean).join(" · ")
               : null,
-            team ? `Team: ${team}` : null,
             r.toOrgPosition ? `Position: ${r.toOrgPosition}` : null,
           ].filter(Boolean);
           return parts.length ? parts.join(" · ") : "—";
@@ -360,7 +331,7 @@ export function HrPeopleOpsPanel({
         ),
       },
     ],
-    [canDecide, employees, teams, load],
+    [canDecide, employees, load],
   );
 
   const disciplineColumns = useMemo<ColumnDef<HrDisciplinaryAction>[]>(
@@ -656,7 +627,7 @@ export function HrPeopleOpsPanel({
           <OpsSplit
             canRequest={canRequest}
             formTitle="New request"
-            formDescription="Choose the employee, move type, target department / team, and role."
+            formDescription="Choose the employee, move type, and target role."
             form={
               <div className="space-y-4">
                 <Field label="Employee">
@@ -697,20 +668,6 @@ export function HrPeopleOpsPanel({
                       placeholder="Select department"
                       searchPlaceholder="Search departments…"
                       emptyText="No departments registered."
-                    />
-                  </Field>
-                  <Field label="To team">
-                    <HrOptionCombobox
-                      value={careerForm.toTeamId}
-                      onChange={(value) =>
-                        setCareerForm((f) => ({ ...f, toTeamId: value }))
-                      }
-                      options={teamOptions}
-                      placeholder={
-                        careerForm.toDept ? "Select team…" : "Search team…"
-                      }
-                      searchPlaceholder="Search teams…"
-                      emptyText="No teams in this department."
                     />
                   </Field>
                   <Field label="To title" className="sm:col-span-2">
@@ -797,9 +754,6 @@ export function HrPeopleOpsPanel({
                         fromTitle: emp?.jobTitle,
                         toDept: careerForm.toDept,
                         toTitle: careerForm.toTitle,
-                        toTeamId: careerForm.toTeamId
-                          ? Number(careerForm.toTeamId)
-                          : null,
                         toOrgPosition: careerForm.toOrgPosition,
                         detail: careerForm.detail,
                       });
@@ -808,7 +762,6 @@ export function HrPeopleOpsPanel({
                         employeeId: "",
                         kind: "promotion",
                         toDept: "",
-                        toTeamId: "",
                         toTitle: "",
                         toOrgPosition: "employee",
                         detail: "",

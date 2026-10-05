@@ -398,8 +398,10 @@ export function LodgingNightAuditPanel({
       <Card className="overflow-hidden border-primary/12 shadow-sm">
         <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-            <UserRound className="h-5 w-5 text-primary" />
+          <CardTitle className="flex items-center gap-2.5 text-xl tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+              <UserRound className="h-4.5 w-4.5" />
+            </span>
             Reception users
           </CardTitle>
           <CardDescription className="max-w-2xl text-pretty leading-relaxed">
@@ -574,8 +576,10 @@ export function LodgingNightAuditPanel({
       <Card className="overflow-hidden border-primary/20 shadow-lg">
         <div className="h-1 bg-linear-to-r from-amber-500/60 via-orange-500/45 to-rose-500/40" />
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-            <CalendarCheck className="h-5 w-5 text-primary" />
+          <CardTitle className="flex items-center gap-2.5 text-xl tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/8 text-amber-800 dark:text-amber-300">
+              <CalendarCheck className="h-4.5 w-4.5" />
+            </span>
             Night audit — close business day
           </CardTitle>
           <CardDescription className="max-w-2xl text-pretty leading-relaxed">
@@ -642,7 +646,10 @@ export function LodgingNightAuditPanel({
           <div className="h-1 bg-linear-to-r from-emerald-500/40 via-sky-500/25 to-transparent" />
           <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <CardTitle className="text-lg tracking-tight">
+              <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/8 text-emerald-800 dark:text-emerald-300">
+                  <BedDouble className="h-4.5 w-4.5" />
+                </span>
                 Receptionist room report
               </CardTitle>
               <CardDescription>
@@ -802,8 +809,12 @@ export function LodgingNightAuditPanel({
 
       {closedHistory.length > 0 ? (
         <Card className="overflow-hidden border-border/70 shadow-sm">
+          <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
           <CardHeader className="pb-3">
-            <CardTitle className="text-base tracking-tight">
+            <CardTitle className="flex items-center gap-2.5 text-base tracking-tight">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
+                <Lock className="h-4.5 w-4.5" />
+              </span>
               Recent closed days
             </CardTitle>
             <CardDescription>

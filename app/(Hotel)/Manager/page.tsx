@@ -100,6 +100,7 @@ import { useLoadCoordinator } from "@/hooks/useLoadCoordinator";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { RefreshIconButton } from "@/components/ui/refresh-icon-button";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   LogOut,
@@ -137,6 +138,7 @@ import {
   ShieldOff,
   GitBranch,
   type LucideIcon,
+  BedDouble,
 } from "lucide-react";
 import { DepartmentLeadersPanel } from "@/components/hotel/DepartmentLeadersPanel";
 import { LodgingRoomsPanel } from "@/components/hotel/LodgingRoomsPanel";
@@ -2231,11 +2233,46 @@ function ManagerContent() {
           <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-6">
             <div className="mx-auto max-w-6xl space-y-8 pb-10">
               <SubscriptionAlertBanner />
-              <div className="rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/6 p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6 space-y-4">
-                <div className="space-y-1.5">
-                  <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
-                    {activeNavLabel}
-                  </h2>
+              <div
+                className={cn(
+                  "relative overflow-hidden rounded-2xl p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10 md:p-6 space-y-4",
+                  lodgingGroupActive
+                    ? "border border-primary/12 bg-linear-to-br from-primary/5 via-card to-sky-500/4"
+                    : "border border-border/70 bg-linear-to-br from-card via-card to-primary/6",
+                )}
+              >
+                <div
+                  aria-hidden
+                  className={cn(
+                    "pointer-events-none absolute -right-16 -top-20 size-48 rounded-full blur-3xl",
+                    lodgingGroupActive ? "bg-primary/12" : "bg-primary/6",
+                  )}
+                />
+                {lodgingGroupActive ? (
+                  <div className="relative h-1 bg-linear-to-r from-primary/45 via-sky-500/30 to-transparent" />
+                ) : null}
+                <div className="relative space-y-1.5">
+                  {lodgingGroupActive ? (
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+                        {allNavItems.find((i) => i.id === activeTab)?.icon ?? (
+                          <BedDouble className="h-4.5 w-4.5" />
+                        )}
+                      </span>
+                      <div className="min-w-0 space-y-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-700/55 dark:text-teal-300/65">
+                          Rooming workspace
+                        </p>
+                        <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
+                          {activeNavLabel}
+                        </h2>
+                      </div>
+                    </div>
+                  ) : (
+                    <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
+                      {activeNavLabel}
+                    </h2>
+                  )}
                   <p className="max-w-3xl text-sm text-muted-foreground leading-relaxed text-pretty">
                     {activeNavDescription}
                   </p>

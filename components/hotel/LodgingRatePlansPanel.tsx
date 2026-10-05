@@ -43,7 +43,18 @@ import {
 } from "@/lib/api/lodgingRooms";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
-import { Pencil, Plus, Tags, Trash2, X } from "lucide-react";
+import {
+  LodgingEmptyState,
+  LodgingMetricCard,
+} from "@/components/hotel/lodgingChrome";
+import {
+  BadgeDollarSign,
+  Pencil,
+  Plus,
+  Tags,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 type Draft = {
@@ -432,9 +443,11 @@ export function LodgingRatePlansPanel() {
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <Tags className="h-5 w-5 text-primary" />
+        <div className="space-y-1.5">
+          <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+              <Tags className="h-4.5 w-4.5" />
+            </span>
             Rate plans
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
@@ -460,6 +473,40 @@ export function LodgingRatePlansPanel() {
         </Button>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <LodgingMetricCard
+          label="Active plans"
+          value={
+            loading
+              ? "—"
+              : rows.filter((p) => p.isActive !== false).length
+          }
+          icon={<Tags className="h-4 w-4" />}
+          tone="emerald"
+          hint="Plans that can override rack rates at check-in."
+        />
+        <LodgingMetricCard
+          label="Total plans"
+          value={loading ? "—" : rows.length}
+          icon={<BadgeDollarSign className="h-4 w-4" />}
+          tone="primary"
+          hint="Includes paused and seasonal plans on file."
+        />
+        <LodgingMetricCard
+          label="Lowest nightly rate"
+          value={
+            loading || rows.length === 0
+              ? "—"
+              : `ETB ${Math.min(
+                  ...rows.map((p) => Number(p.pricePerNightETB) || 0),
+                ).toLocaleString()}`
+          }
+          icon={<BadgeDollarSign className="h-4 w-4" />}
+          tone="sky"
+          hint="Cheapest configured plan per night, before tax."
+        />
+      </div>
+
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <div className={cn("min-w-0", showForm ? "block" : "hidden lg:block")}>
           {formPanel}
@@ -478,12 +525,11 @@ export function LodgingRatePlansPanel() {
           {loading ? (
             <p className="py-8 text-sm text-muted-foreground">Loading…</p>
           ) : rows.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-14 text-center text-sm text-muted-foreground">
-                No rate plans yet. Use the form to add rack, corporate, or promo
-                rates — room rack prices apply until then.
-              </CardContent>
-            </Card>
+            <LodgingEmptyState
+              title="No rate plans yet"
+              description="Use the form to add rack, corporate, or promo rates — room rack prices apply until then."
+              icon={<Tags className="h-6 w-6" />}
+            />
           ) : (
             rows.map((p) => {
               const startLabel = formatPlanDate(p.startDate);
@@ -493,10 +539,11 @@ export function LodgingRatePlansPanel() {
                 <Card
                   key={p.id}
                   className={cn(
-                    "border-border/70 shadow-sm transition-shadow hover:shadow-md",
+                    "overflow-hidden border-border/70 shadow-sm transition-shadow hover:shadow-md",
                     isEditing && "border-primary/40 ring-1 ring-primary/20",
                   )}
                 >
+                  <div className="h-1 bg-linear-to-r from-primary/45 via-sky-500/30 to-transparent" />
                   <CardContent className="flex flex-col gap-4 py-4">
                     <div className="min-w-0 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
@@ -515,9 +562,14 @@ export function LodgingRatePlansPanel() {
                           ] || p.kind}
                         </Badge>
                         {p.isActive === false ? (
-                          <Badge variant="outline">Inactive</Badge>
+                          <Badge
+                            variant="outline"
+                            className="border-rose-500/30 bg-rose-500/10 font-medium text-rose-800 dark:text-rose-300"
+                          >
+                            Inactive
+                          </Badge>
                         ) : (
-                          <Badge className="bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-200 border-emerald-500/25">
+                          <Badge className="border-emerald-500/25 bg-emerald-500/15 font-medium text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-200">
                             Active
                           </Badge>
                         )}

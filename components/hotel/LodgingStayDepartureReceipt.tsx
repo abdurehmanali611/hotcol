@@ -10,6 +10,7 @@ import {
   stripCafeOrderMarker,
 } from "@/lib/lodgingRoomService";
 import { cn } from "@/lib/utils";
+import { Phone, ReceiptText } from "lucide-react";
 
 function guestName(stay: LodgingStay) {
   const g = stay.guest;
@@ -45,6 +46,7 @@ export function LodgingStayDepartureReceipt({
   propertyName,
   propertyTin,
   logoUrl,
+  hotelContact,
   className,
 }: {
   stay: LodgingStay;
@@ -52,11 +54,20 @@ export function LodgingStayDepartureReceipt({
   propertyName?: string;
   propertyTin?: string | null;
   logoUrl?: string | null;
+  /** Tenant guest-call numbers (Manager → Rooming → Guest call). */
+  hotelContact?: {
+    hotelPhone?: string | null;
+    hotelPhoneSecondary?: string | null;
+  } | null;
   className?: string;
 }) {
   const property = (propertyName || stay.HotelName || "Property").trim() || "Property";
   const propertyTIN = (propertyTin || "").trim();
   const propertyLogo = (logoUrl || "").trim();
+  const guestCallPhones = [
+    (hotelContact?.hotelPhone || "").trim(),
+    (hotelContact?.hotelPhoneSecondary || "").trim(),
+  ].filter(Boolean);
   const allLines: LodgingBillLine[] = stay.bill?.lines ?? [];
   const activeLines = allLines.filter((l) => billLineGrossAmount(l) !== 0);
   const lineSum = billTotalFromLines(allLines);
@@ -79,24 +90,40 @@ export function LodgingStayDepartureReceipt({
       )}
     >
       <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm print:shadow-none print:border-zinc-300">
-        <div className="bg-linear-to-r from-emerald-700 via-emerald-600 to-teal-600 px-8 py-6 text-white print:px-6 print:py-5">
-          <div className="flex items-start justify-between gap-4">
+        <div className="relative overflow-hidden bg-linear-to-r from-emerald-700 via-emerald-600 to-teal-600 px-8 py-6 text-white print:px-6 print:py-5">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-14 -top-16 size-48 rounded-full bg-white/12 blur-3xl print:hidden"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-20 left-1/4 size-52 rounded-full bg-teal-300/25 blur-3xl print:hidden"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-white/55 to-transparent"
+          />
+
+          <div className="relative flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-200/90">
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-50 shadow-sm">
+                <ReceiptText className="size-3.5" />
                 Departure receipt
               </p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight print:text-4xl">
+              <h1 className="mt-2.5 text-3xl font-bold tracking-tight print:text-4xl">
                 {property}
               </h1>
-              <p className="mt-1 text-base tabular-nums text-emerald-50">
-                TIN {propertyTIN || "—"}
-              </p>
-              <p className="mt-2 text-sm text-emerald-100/80">
-                Guest checkout summary
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-lg border border-white/25 bg-white/15 px-2.5 py-1 text-sm font-semibold tabular-nums text-emerald-50">
+                  TIN {propertyTIN || "—"}
+                </span>
+                <span className="text-sm text-emerald-100/85">
+                  Guest checkout summary
+                </span>
+              </div>
             </div>
             {propertyLogo ? (
-              <div className="shrink-0 rounded-lg bg-white/95 px-2.5 py-2 shadow-sm">
+              <div className="shrink-0 rounded-xl border border-white/25 bg-white/95 p-2 shadow-sm ring-1 ring-white/40">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={propertyLogo}
@@ -107,11 +134,32 @@ export function LodgingStayDepartureReceipt({
                 />
               </div>
             ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white/95 text-lg font-bold text-emerald-800 shadow-sm">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/95 text-lg font-bold text-emerald-800 shadow-sm ring-1 ring-white/40">
                 {property.slice(0, 2).toUpperCase()}
               </div>
             )}
           </div>
+
+          {guestCallPhones.length > 0 ? (
+            <div className="relative mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/25 bg-white/12 px-3 py-2.5 shadow-sm print:bg-white/15">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                <Phone className="size-3" />
+                Guest call
+              </span>
+              {guestCallPhones.map((phone, idx) => (
+                <span
+                  key={`${phone}-${idx}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/15 px-2.5 py-1 text-sm font-semibold tabular-nums text-white"
+                >
+                  <Phone className="size-3.5 opacity-90" aria-hidden />
+                  {phone}
+                </span>
+              ))}
+              <span className="text-xs text-emerald-100/80">
+                Dial for room service, housekeeping, or front desk
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-6 px-8 py-6 print:space-y-5 print:px-6 print:py-5">

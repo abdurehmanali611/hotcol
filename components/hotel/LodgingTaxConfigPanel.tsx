@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Button } from "@/components/ui/button";
 import { LodgingOptionCombobox } from "@/components/hotel/LodgingOptionCombobox";
+import { LodgingEmptyState } from "@/components/hotel/lodgingChrome";
 import {
   Dialog,
   DialogContent,
@@ -206,9 +207,11 @@ export function LodgingTaxConfigPanel() {
   return (
     <>
       <div className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <Percent className="h-5 w-5 text-primary" />
+        <div className="space-y-1.5">
+          <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+              <Percent className="h-4.5 w-4.5" />
+            </span>
             Named lodging taxes
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -383,13 +386,18 @@ export function LodgingTaxConfigPanel() {
             <div className="h-1 bg-linear-to-r from-emerald-500/60 via-primary/35 to-transparent" />
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1.5">
-                  <CardTitle className="text-base tracking-tight">
-                    Saved taxes
-                  </CardTitle>
-                  <CardDescription>
-                    Active folio taxes for this property.
-                  </CardDescription>
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/8 text-emerald-800 dark:text-emerald-300">
+                    <Percent className="h-4.5 w-4.5" />
+                  </span>
+                  <div className="space-y-1.5">
+                    <CardTitle className="text-base tracking-tight">
+                      Saved taxes
+                    </CardTitle>
+                    <CardDescription>
+                      Active folio taxes for this property.
+                    </CardDescription>
+                  </div>
                 </div>
                 {!loading ? (
                   <Badge
@@ -407,9 +415,11 @@ export function LodgingTaxConfigPanel() {
                   Loading…
                 </p>
               ) : saved.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 px-4 py-14 text-center text-sm text-muted-foreground">
-                  No taxes saved yet. Add a line on the left and save.
-                </div>
+                <LodgingEmptyState
+                  title="No taxes saved yet"
+                  description="Add a line on the left and save — same-kind taxes stack on each folio charge."
+                  icon={<Percent className="h-6 w-6" />}
+                />
               ) : (
                 <ul className="max-h-112 space-y-2.5 overflow-y-auto pr-0.5">
                   {saved.map((row) => {

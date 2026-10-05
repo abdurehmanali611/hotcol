@@ -38,9 +38,21 @@ import {
   type LodgingReservation,
   type LodgingRoom,
 } from "@/lib/api/lodgingRooms";
+import {
+  LodgingEmptyState,
+  LodgingMetricCard,
+} from "@/components/hotel/lodgingChrome";
 import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
-import { CalendarRange, CheckCircle2, Plus, UserX, XCircle } from "lucide-react";
+import {
+  Banknote,
+  BedDouble,
+  CalendarRange,
+  CheckCircle2,
+  Plus,
+  UserX,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 function todayYmd() {
@@ -50,6 +62,24 @@ function todayYmd() {
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+}
+
+/** Soft status tint for reservation badges (mirrors HR status badge semantics). */
+function reservationStatusClass(status: string) {
+  const s = String(status || "").toLowerCase();
+  if (s === "cancelled" || s === "no_show") {
+    return "border-rose-500/30 bg-rose-500/12 text-rose-800 dark:text-rose-300";
+  }
+  if (s === "tentative" || s === "pending") {
+    return "border-amber-500/30 bg-amber-500/12 text-amber-900 dark:text-amber-300";
+  }
+  if (s === "checked_in") {
+    return "border-sky-500/25 bg-sky-500/10 text-sky-800 dark:text-sky-300";
+  }
+  if (s === "confirmed") {
+    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
+  }
+  return "border-primary/20 bg-primary/8 text-teal-800 dark:text-teal-300";
 }
 
 /** Vacant-clean stock plus this booking's own reserved holds. */
@@ -263,6 +293,21 @@ export function LodgingReservationsPanel({
       setPending(null);
     }
   };
+
+  const metric = useMemo(() => {
+    const heldRooms = new Set(
+      rows
+        .flatMap((r) => r.rooms || [])
+        .map((rr) => rr.roomId ?? rr.room?.id)
+        .filter((id): id is number => id != null),
+    ).size;
+    const deposits = rows.reduce((sum, r) => sum + Number(r.depositETB || 0), 0);
+    const arrivalsSoon = rows.filter((r) => {
+      const t = new Date(r.arrivalAt).getTime();
+      return Number.isFinite(t) && t - Date.now() <= 48 * 60 * 60 * 1000;
+    }).length;
+    return { heldRooms, deposits, arrivalsSoon };
+  }, [rows]);
 
   const formPanel = (
     <Card className="overflow-hidden border-primary/20 shadow-lg ring-1 ring-black/5 dark:ring-white/10 lg:sticky lg:top-4">
@@ -584,9 +629,11 @@ export function LodgingReservationsPanel({
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <CalendarRange className="h-5 w-5 text-primary" />
+        <div className="space-y-1.5">
+          <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+              <CalendarRange className="h-4.5 w-4.5" />
+            </span>
             Reservations
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground text-pretty leading-relaxed">
@@ -604,6 +651,32 @@ export function LodgingReservationsPanel({
         </Button>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <LodgingMetricCard
+          label="Open holds"
+          value={loading ? "—" : rows.length}
+          icon={<CalendarRange className="h-4 w-4" />}
+          tone="primary"
+          hint="Bookings waiting to arrive at this property."
+        />
+        <LodgingMetricCard
+          label="Rooms held"
+          value={loading ? "—" : metric.heldRooms}
+          icon={<BedDouble className="h-4 w-4" />}
+          tone="sky"
+          hint="Rooms blocked out of sale for a future arrival."
+        />
+        <LodgingMetricCard
+          label="Deposits held"
+          value={
+            loading ? "—" : `ETB ${metric.deposits.toLocaleString()}`
+          }
+          icon={<Banknote className="h-4 w-4" />}
+          tone="emerald"
+          hint={`${metric.arrivalsSoon} arrival${metric.arrivalsSoon === 1 ? "" : "s"} within the next 48 hours.`}
+        />
+      </div>
+
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <div className={cn("min-w-0", showForm ? "block" : "hidden lg:block")}>
           {formPanel}
@@ -613,7 +686,10 @@ export function LodgingReservationsPanel({
           <div className="flex items-center justify-between gap-2 px-0.5">
             <p className="text-sm font-medium tracking-tight">Open holds</p>
             {!loading ? (
-              <Badge variant="secondary" className="tabular-nums font-normal">
+              <Badge
+                variant="secondary"
+                className="tabular-nums font-normal"
+              >
                 {rows.length}
               </Badge>
             ) : null}
@@ -622,12 +698,11 @@ export function LodgingReservationsPanel({
           {loading ? (
             <p className="text-sm text-muted-foreground py-8">Loading…</p>
           ) : rows.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-14 text-center text-sm text-muted-foreground">
-                No open reservations. Use the form to hold inventory for a
-                future arrival.
-              </CardContent>
-            </Card>
+            <LodgingEmptyState
+              title="No open reservations"
+              description="Use the form to hold inventory for a future arrival — held rooms stay out of sale until check-in or cancel."
+              icon={<CalendarRange className="h-6 w-6" />}
+            />
           ) : (
             rows.map((r) => {
               const guestName = r.guest
@@ -642,11 +717,11 @@ export function LodgingReservationsPanel({
                 vacantCleanRooms,
                 r,
               );
-              return (
-                <Card
+              return (                <Card
                   key={r.id}
-                  className="border-border/70 shadow-sm transition-shadow hover:shadow-md"
+                  className="overflow-hidden border-border/70 shadow-sm transition-shadow hover:shadow-md"
                 >
+                  <div className="h-1 bg-linear-to-r from-sky-500/45 via-primary/30 to-transparent" />
                   <CardContent className="flex flex-col gap-4 py-4">
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -659,12 +734,18 @@ export function LodgingReservationsPanel({
                         >
                           {r.reservationCode}
                         </Badge>
-                        <Badge variant="secondary" className="capitalize">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "capitalize font-medium",
+                            reservationStatusClass(r.status),
+                          )}
+                        >
                           {LODGING_RESERVATION_STATUS_LABELS[
                             r.status as (typeof LODGING_RESERVATION_STATUSES)[number]
                           ] || r.status}
                         </Badge>
-                        <Badge variant="outline" className="capitalize">
+                        <Badge variant="secondary" className="capitalize">
                           {LODGING_RESERVATION_SOURCE_LABELS[
                             r.source as (typeof LODGING_RESERVATION_SOURCES)[number]
                           ] || r.source}

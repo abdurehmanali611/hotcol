@@ -33,7 +33,6 @@ import { CM_LEADER_NAV_ITEMS, type CmLeaderNavId } from "@/constants";
 import { useTenantRouteGuard } from "@/hooks/useTenantRouteGuard";
 import { useTenantScopeAndDisplay } from "@/lib/useTenantScopeAndDisplay";
 import { logoutAction, notifyApiFailure } from "@/lib/actions";
-import { cn } from "@/lib/utils";
 import { LodgingCmQueuePanel } from "@/components/hotel/LodgingCmQueuePanel";
 import { LodgingActionHistoryPanel } from "@/components/hotel/LodgingActionHistoryPanel";
 import { LodgingStatCardsGrid } from "@/components/hotel/LodgingStatCards";
@@ -41,11 +40,11 @@ import {
   LodgingPageHero,
   LodgingPanelShell,
   LodgingSectionCard,
+  LodgingActivityList,
+  LodgingEmptyState,
   LodgingStatusBadge,
   lodgingNavActiveClass,
   lodgingPrimaryBtnClass,
-  lodgingListFrameClass,
-  lodgingListDivideClass,
 } from "@/components/hotel/lodgingChrome";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import {
@@ -220,6 +219,29 @@ export function CMLeaderDashboard() {
                 title={sectionMeta?.label ?? "CM"}
                 description={sectionMeta?.description}
                 icon={<SectionIcon className="h-5 w-5" />}
+                actions={
+                  activeSection === "dashboard" ? (
+                    <>
+                      <Button
+                        type="button"
+                        className={lodgingPrimaryBtnClass}
+                        onClick={() => setActiveSection("queue")}
+                      >
+                        <ClipboardList className="h-4 w-4" />
+                        Open queue
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 gap-1.5 border-amber-500/30 text-amber-900 hover:bg-amber-500/10 dark:text-amber-300"
+                        onClick={() => setActiveSection("assignments")}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Assignments
+                      </Button>
+                    </>
+                  ) : null
+                }
               />
 
               {activeSection === "dashboard" && (
@@ -231,33 +253,11 @@ export function CMLeaderDashboard() {
                   />
                   <LodgingSectionCard
                     title="Recent activity"
+                    description="Latest cleaning, maintenance, and status changes on this property."
                     icon={<History className="h-4 w-4" />}
+                    accent="bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent"
                   >
-                      {logs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No activity yet.</p>
-                      ) : (
-                        <ul
-                          className={cn(
-                            lodgingListFrameClass,
-                            lodgingListDivideClass,
-                            "divide-y",
-                          )}
-                        >
-                          {logs.slice(0, 10).map((log) => (
-                            <li key={log.id} className="px-4 py-3 text-sm">
-                              <div className="flex flex-wrap justify-between gap-2">
-                                <span className="font-medium">{log.action}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(log.createdAt).toLocaleString()}
-                                </span>
-                              </div>
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                {log.actorRole} · {log.actorName}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                    <LodgingActivityList rows={logs} limit={10} />
                   </LodgingSectionCard>
                 </div>
               )}
@@ -279,11 +279,12 @@ export function CMLeaderDashboard() {
                   description="Complete open jobs when work is finished."
                   icon={<ClipboardList className="h-4 w-4" />}
                   accent="bg-linear-to-r from-amber-500/40 via-primary/25 to-transparent"
-                >
-                    {assignments.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No assignments yet.
-                      </p>
+                >                    {assignments.length === 0 ? (
+                      <LodgingEmptyState
+                        title="No assignments yet"
+                        description="Jobs assigned to cleaners and maintainers will appear here with a Complete action."
+                        icon={<ClipboardList className="h-6 w-6" />}
+                      />
                     ) : (
                       <ul className="divide-y overflow-hidden rounded-xl border border-amber-500/15 bg-linear-to-br from-amber-500/3 to-transparent">
                         {assignments.map((a) => (

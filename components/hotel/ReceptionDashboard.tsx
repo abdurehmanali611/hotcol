@@ -55,6 +55,7 @@ import {
   LodgingPanelShell,
   LodgingSectionCard,
   LodgingActionBand,
+  LodgingActivityList,
   lodgingNavActiveClass,
   lodgingFieldClass,
   lodgingPrimaryBtnClass,
@@ -63,6 +64,10 @@ import {
   lodgingGhostBtnClass,
 } from "@/components/hotel/lodgingChrome";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
+import {
+  fetchTenantHotelContact,
+  type TenantHotelContact,
+} from "@/lib/api/lodgingHotelContact";
 import { ReceptionRoomTransferDialog } from "@/components/hotel/ReceptionRoomTransferDialog";
 import { LodgingStayDepartureReceipt } from "@/components/hotel/LodgingStayDepartureReceipt";
 import { LodgingRegistrationCard } from "@/components/hotel/LodgingRegistrationCard";
@@ -212,6 +217,21 @@ export function ReceptionDashboard() {
     );
   }, []);
 
+  /** Guest-call numbers for the departure receipt header (loaded once at boot). */
+  useEffect(() => {
+    let cancelled = false;
+    void fetchTenantHotelContact()
+      .then((row) => {
+        if (!cancelled) setHotelContact(row);
+      })
+      .catch(() => {
+        /* optional — receipt simply hides the contact strip */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [activeSection, setActiveSection] =
     useState<ReceptionSectionId>("dashboard");
   const [loading, setLoading] = useState(true);
@@ -219,6 +239,8 @@ export function ReceptionDashboard() {
   const [pending, setPending] = useState<string | null>(null);
 
   const [stats, setStats] = useState<LodgingDashboardStats | null>(null);
+  const [hotelContact, setHotelContact] =
+    useState<TenantHotelContact | null>(null);
   const [logs, setLogs] = useState<LodgingActionLog[]>([]);
   const [rooms, setRooms] = useState<LodgingRoom[]>([]);
   const [stays, setStays] = useState<LodgingStay[]>([]);
@@ -703,36 +725,44 @@ export function ReceptionDashboard() {
                 title={sectionTitle}
                 description={sectionDescription}
                 icon={<SectionIcon className="h-5 w-5" />}
+                actions={
+                  activeSection === "dashboard" ? (
+                    <>
+                      <Button
+                        type="button"
+                        className={cn("gap-1.5", lodgingPrimaryBtnClass)}
+                        onClick={() => setActiveSection("check-in")}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        New check-in
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 gap-1.5 border-sky-500/30 text-sky-800 hover:bg-sky-500/10 dark:text-sky-300"
+                        onClick={() => setActiveSection("reservations")}
+                      >
+                        <CalendarRange className="h-4 w-4" />
+                        Reservations
+                      </Button>
+                    </>
+                  ) : null
+                }
               />
 
               {activeSection === "dashboard" && (
                 <div className="space-y-6">
-                  <LodgingStatCardsGrid stats={stats} />
+                  <LodgingStatCardsGrid
+                    stats={stats}
+                    includeActiveStays
+                    comprehensive
+                  />
                   <LodgingSectionCard
                     title="Recent activity"
                     description="Your latest lodging actions on this property"
                     icon={<History className="h-4 w-4" />}
                   >
-                      {logs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No activity yet.</p>
-                      ) : (
-                        <ul className={cn("divide-y overflow-hidden rounded-xl", lodgingListFrameClass, lodgingListDivideClass)}>
-                          {logs.slice(0, 12).map((log) => (
-                            <li key={log.id} className="px-4 py-3 text-sm">
-                              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                                <span className="font-medium">{log.action}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(log.createdAt).toLocaleString()}
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {log.actorRole || "—"} · {log.actorName || "—"} ·{" "}
-                                {log.entityType || "—"}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                    <LodgingActivityList rows={logs} limit={12} />
                   </LodgingSectionCard>
                 </div>
               )}
@@ -1894,6 +1924,7 @@ export function ReceptionDashboard() {
                 propertyName={displayName}
                 propertyTin={tenantScope}
                 logoUrl={logoUrl}
+                hotelContact={hotelContact}
               />
             </div>
           </div>

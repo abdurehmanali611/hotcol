@@ -68,6 +68,10 @@ import { notifyApiFailure } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { HotelDayPicker } from "@/components/hotel/HotelDayPicker";
+import {
+  LodgingEmptyState,
+  LodgingMetricCard,
+} from "@/components/hotel/lodgingChrome";
 
 function ymdToExpectedReadyIso(value: string): string | null {
   const raw = String(value || "").trim();
@@ -669,12 +673,48 @@ export function LodgingCmQueuePanel({
   const isMaintForm = workKind === "maintenance";
   const FormIcon = isMaintForm ? Wrench : UserPlus;
 
+  const queueTotals = useMemo(() => {
+    const dirty = queue.filter((r) => r.status === "vacant_dirty").length;
+    const maintenance = queue.filter(
+      (r) => r.status === "on_maintenance",
+    ).length;
+    const inspected = queue.filter((r) => r.status === "inspected").length;
+    return { dirty, maintenance, inspected };
+  }, [queue]);
+
   return (
     <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <LodgingMetricCard
+          label="Waiting to clean"
+          value={queueTotals.dirty}
+          icon={<Sparkles className="h-4 w-4" />}
+          tone="amber"
+          hint="Dirty rooms that need a cleaner assigned."
+        />
+        <LodgingMetricCard
+          label="On maintenance"
+          value={queueTotals.maintenance}
+          icon={<Wrench className="h-4 w-4" />}
+          tone="rose"
+          hint="Rooms blocked for repair work."
+        />
+        <LodgingMetricCard
+          label="Open CM jobs"
+          value={openAssignments.length}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          tone="primary"
+          hint={`${queueTotals.inspected} room${queueTotals.inspected === 1 ? "" : "s"} inspected and ready to open.`}
+        />
+      </div>
+
       <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
         <div className="h-1 bg-linear-to-r from-amber-500/40 via-orange-400/25 to-transparent" />
         <CardHeader className="bg-muted/10 pb-3">
-          <CardTitle className="text-lg tracking-tight">
+          <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/8 text-amber-800 dark:text-amber-300">
+              <Sparkles className="h-4.5 w-4.5" />
+            </span>
             Dirty & maintenance queue
           </CardTitle>
           <CardDescription>
@@ -684,9 +724,11 @@ export function LodgingCmQueuePanel({
         </CardHeader>
         <CardContent className="space-y-4">
           {queue.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-8 text-center text-sm text-muted-foreground">
-              Queue is empty.
-            </p>
+            <LodgingEmptyState
+              title="Queue is empty"
+              description="No dirty or maintenance rooms right now. Rooms appear here as soon as a guest checks out or a status changes."
+              icon={<Sparkles className="h-6 w-6" />}
+            />
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/15 bg-amber-500/4 px-3 py-2.5">
@@ -1200,7 +1242,12 @@ export function LodgingCmQueuePanel({
       <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
         <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
         <CardHeader className="bg-muted/10 pb-3">
-          <CardTitle className="text-lg tracking-tight">Open assignments</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
+              <Users className="h-4.5 w-4.5" />
+            </span>
+            Open assignments
+          </CardTitle>
           <CardDescription>
             Complete each person&apos;s job when finished. Edit open cleaning
             (vacant dirty) or maintenance jobs to add or remove assignees, or
@@ -1210,9 +1257,11 @@ export function LodgingCmQueuePanel({
         </CardHeader>
         <CardContent>
           {openAssignments.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-8 text-center text-sm text-muted-foreground">
-              No open assignments.
-            </p>
+            <LodgingEmptyState
+              title="No open assignments"
+              description="Assign cleaners or maintenance from the queue above — jobs appear here until the last person finishes."
+              icon={<Users className="h-6 w-6" />}
+            />
           ) : (
             <ul className="divide-y divide-sky-500/10 overflow-hidden rounded-xl border border-sky-500/15 bg-background shadow-sm">
               {openAssignments.map((a) => {

@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { HotelFormSection } from "@/components/hotel/HotelTerminalInitFormLayout";
+import { LodgingEmptyState } from "@/components/hotel/lodgingChrome";
 import {
   createLodgingCmStaffApi,
   deleteLodgingCmStaffApi,
@@ -161,8 +162,10 @@ function RoleRosterForm({
       <Card className="overflow-hidden border-border/70 shadow-md">
         <div className={`h-1 bg-linear-to-r ${accentClass}`} />
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base tracking-tight">
-            <Icon className="h-4 w-4 text-primary" />
+          <CardTitle className="flex items-center gap-2.5 text-base tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/6 text-teal-800/90 dark:text-teal-300">
+              <Icon className="h-4.5 w-4.5" />
+            </span>
             {title}
           </CardTitle>
           <CardDescription className="text-pretty leading-relaxed">
@@ -269,9 +272,11 @@ function RoleRosterForm({
               </span>
             </p>
             {rows.length === 0 && !loading ? (
-              <p className="rounded-xl border border-dashed border-border/70 bg-muted/10 px-4 py-6 text-center text-sm text-muted-foreground">
-                No {role === "cleaner" ? "cleaners" : "maintainers"} yet.
-              </p>
+              <LodgingEmptyState
+                title={`No ${role === "cleaner" ? "cleaners" : "maintainers"} yet`}
+                description="Add names above — Reception and the CM queue pick from this roster when assigning rooms."
+                icon={<Icon className="h-6 w-6" />}
+              />
             ) : (
               <ul className="divide-y overflow-hidden rounded-xl border border-border/70">
                 {rows.map((r) => (

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Inbox } from "lucide-react";
+import { History, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +74,8 @@ export function LodgingPageHero({
   description,
   icon,
   actions,
+  badge,
+  stats,
   children,
   className,
 }: {
@@ -82,16 +84,26 @@ export function LodgingPageHero({
   description?: string;
   icon?: ReactNode;
   actions?: ReactNode;
+  badge?: ReactNode;
+  stats?: { label: string; value: string | number; tone?: string }[];
   children?: ReactNode;
   className?: string;
 }) {
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-2xl border border-primary/12 bg-linear-to-b from-primary/4 via-card to-sky-500/3 shadow-sm",
+        "relative overflow-hidden rounded-2xl border border-primary/12 bg-linear-to-b from-primary/4 via-card to-sky-500/3 shadow-sm",
         className,
       )}
     >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-20 -top-24 size-60 rounded-full bg-primary/10 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-28 left-1/4 size-72 rounded-full bg-sky-500/10 blur-3xl"
+      />
       <div className="h-px bg-linear-to-r from-transparent via-primary/35 to-transparent" />
       <div className="relative space-y-4 p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -119,9 +131,138 @@ export function LodgingPageHero({
             <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
           ) : null}
         </div>
+        {badge}
+        {stats?.length ? (
+          <div
+            className={cn(
+              "grid gap-3",
+              stats.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2",
+            )}
+          >
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className={cn(
+                  "rounded-2xl border border-border/60 bg-linear-to-br p-4 shadow-sm",
+                  stat.tone ?? "from-primary/6 to-transparent",
+                )}
+              >
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {stat.label}
+                </p>
+                <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight">
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {children}
       </div>
     </section>
+  );
+}
+
+/** Single tinted metric tile — HR `HrMetricCard` equivalent with rooming identity. */
+export const LODGING_METRIC_TONES = {
+  primary: "border-primary/15 from-primary/8",
+  sky: "border-sky-500/15 from-sky-500/8",
+  emerald: "border-emerald-500/15 from-emerald-500/8",
+  amber: "border-amber-500/18 from-amber-500/10",
+  rose: "border-rose-500/18 from-rose-500/10",
+  violet: "border-violet-500/15 from-violet-500/8",
+  teal: "border-teal-500/15 from-teal-500/8",
+  slate: "border-slate-500/20 from-slate-500/8",
+} as const;
+
+export type LodgingMetricTone = keyof typeof LODGING_METRIC_TONES;
+
+export function LodgingMetricCard({
+  label,
+  value,
+  hint,
+  icon,
+  tone = "primary",
+  className,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  icon?: ReactNode;
+  tone?: LodgingMetricTone;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-2xl border bg-linear-to-br to-card p-4 shadow-sm transition-shadow hover:shadow-md",
+        LODGING_METRIC_TONES[tone],
+        className,
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight">
+            {value}
+          </p>
+        </div>
+        {icon ? (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/90 text-teal-700/85 dark:text-teal-300">
+            {icon}
+          </span>
+        ) : null}
+      </div>
+      {hint ? (
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Filter bar — HR `HrFilterBar` equivalent for rooming lists. */
+export function LodgingFilterBar({
+  title = "Filters",
+  children,
+  onClear,
+  showClear,
+  className,
+}: {
+  title?: string;
+  children: ReactNode;
+  onClear?: () => void;
+  showClear?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "space-y-3 rounded-2xl border border-primary/12 bg-muted/20 px-4 py-3.5 shadow-sm",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-800/60 dark:text-teal-300/70">
+          {title}
+        </span>
+        {showClear && onClear ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            onClick={onClear}
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -428,6 +569,97 @@ export function LodgingStatusBadge({
     <Badge variant="outline" className={cn("font-medium capitalize", className)}>
       {label ?? status.replace(/_/g, " ")}
     </Badge>
+  );
+}
+
+/** Minimal shape of a lodging action log row (matches `LodgingActionLog`). */
+export type LodgingActivityRow = {
+  id: number | string;
+  action: string;
+  actorRole?: string | null;
+  actorName?: string | null;
+  entityType?: string | null;
+  createdAt: string | Date;
+};
+
+function relativeFromNow(value: string | Date): string {
+  const then = new Date(value).getTime();
+  if (!Number.isFinite(then)) return "";
+  const diff = Date.now() - then;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(then).toLocaleDateString();
+}
+
+/**
+ * Framed audit list — gives every role's “Recent activity” block the same
+ * polish: tinted icon chip, role pill, relative time, hover wash.
+ */
+export function LodgingActivityList({
+  rows,
+  limit = 10,
+  emptyTitle = "No activity yet",
+  emptyDescription = "Actions performed on this property will show up here with who did them and when.",
+  icon,
+}: {
+  rows: LodgingActivityRow[];
+  limit?: number;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  icon?: ReactNode;
+}) {
+  const visible = rows.slice(0, limit);
+  if (visible.length === 0) {
+    return (
+      <LodgingEmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+        icon={icon}
+      />
+    );
+  }
+  return (
+    <ul
+      className={cn(
+        lodgingListFrameClass,
+        lodgingListDivideClass,
+        "divide-y",
+      )}
+    >
+      {visible.map((row) => (
+        <li
+          key={row.id}
+          className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-primary/4"
+        >
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/12 bg-primary/6 text-teal-800/85 transition-colors group-hover:border-primary/25 dark:text-teal-300">
+            {icon ?? <History className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-medium leading-snug text-pretty">
+              {row.action}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              {row.actorRole ? (
+                <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium">
+                  {row.actorRole}
+                </span>
+              ) : null}
+              {row.actorName ? <span>{row.actorName}</span> : null}
+              {row.actorName && row.entityType ? <span aria-hidden>·</span> : null}
+              {row.entityType ? <span>{row.entityType}</span> : null}
+            </div>
+          </div>
+          <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+            {relativeFromNow(row.createdAt)}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -168,7 +168,7 @@ export async function exportRowsExcel(
   fileBase: string,
   sheetName: string,
   rows: Record<string, unknown>[],
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { XLSX, saveAs } = await loadExcelLibs();
     const wb = XLSX.utils.book_new();
@@ -187,5 +187,7 @@ export async function exportRowsExcel(
   } catch (error) {
     console.error("Hotel inventory Excel export failed:", error);
     toast.error("Failed to export to Excel");
+    return false;
   }
+  return true;
 }

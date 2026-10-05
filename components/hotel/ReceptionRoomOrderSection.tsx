@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import OrderComponent from "@/components/Order";
 import OrderDetailsModal from "@/components/orderDetailsModal";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LodgingEmptyState } from "@/components/hotel/lodgingChrome";
+import { BedDouble, UtensilsCrossed } from "lucide-react";
 import {
   createBatchOrders,
   notifyApiFailure,
@@ -155,30 +156,27 @@ export function ReceptionRoomOrderSection({
 
   if (stays.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">No active stays</CardTitle>
-          <CardDescription>
-            Check a guest in before placing{" "}
-            {mode === "laundry" ? "laundry" : "food & drink"} orders on a room.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <LodgingEmptyState
+        title="No active stays"
+        description={`Check a guest in before placing ${
+          mode === "laundry" ? "laundry" : "food & drink"
+        } orders on a room.`}
+        icon={<BedDouble className="h-6 w-6" />}
+      />
     );
   }
 
   if (items.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">No catalog items</CardTitle>
-          <CardDescription>
-            {mode === "laundry"
-              ? "Add laundry items under Manager → Rooms → Laundry first."
-              : "No café menu items available for this property."}
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <LodgingEmptyState
+        title="No catalog items"
+        description={
+          mode === "laundry"
+            ? "Add laundry items under Manager → Rooms → Laundry first."
+            : "No café menu items available for this property."
+        }
+        icon={<UtensilsCrossed className="h-6 w-6" />}
+      />
     );
   }
 

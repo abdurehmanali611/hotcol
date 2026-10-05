@@ -45,6 +45,7 @@ import { HrOptionCombobox } from "@/components/hr/HrOptionCombobox";
 import {
   HrDialogHeader,
   HrEmptyState,
+  HrFilterBar,
   HrFormSection,
   HrPanelShell,
   HrStatusBadge,
@@ -245,6 +246,9 @@ export function HrEmployeesPanel({
   onRefresh: () => Promise<void>;
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  /** Department code ("" = all) and team id ("" = all, "none" = unassigned). */
+  const [deptFilter, setDeptFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HrEmployee | null>(null);
   const emptyBatchRow = () => ({
@@ -276,6 +280,7 @@ export function HrEmployeesPanel({
   );
   const [hrDepartments, setHrDepartments] = useState<HrDepartment[]>([]);
   const [teams, setTeams] = useState<HrTeam[]>([]);
+  const [allTeams, setAllTeams] = useState<HrTeam[]>([]);
   const [teamsByDeptId, setTeamsByDeptId] = useState<Record<number, HrTeam[]>>(
     {},
   );
@@ -301,6 +306,24 @@ export function HrEmployeesPanel({
   }, []);
 
   const defaultDepartment = hrDepartments[0]?.code ?? "";
+
+  /** Every active team — powers the directory team filter (form teams stay per-department). */
+  useEffect(() => {
+    let cancelled = false;
+    const loadTeams = async () => {
+      try {
+        const rows = await fetchHrTeamsApi();
+        if (cancelled) return;
+        setAllTeams(rows.filter((t) => t.active !== false));
+      } catch (e) {
+        notifyApiFailure(e, "Could not load teams");
+      }
+    };
+    void loadTeams();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const form = useForm<HrEmployeeFormValues>({
     resolver: zodResolver(hrEmployeeFormSchema) as Resolver<HrEmployeeFormValues>,
@@ -393,13 +416,76 @@ export function HrEmployeesPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extraDeptIdsKey]);
 
-  const filtered = useMemo(
-    () =>
-      employees.filter((e) =>
-        statusFilter === "all" ? true : e.status === statusFilter,
-      ),
-    [employees, statusFilter],
-  );
+  const departmentFilterOptions = useMemo(() => {
+    const known = new Set(hrDepartments.map((d) => d.code));
+    const extras: { value: string; label: string }[] = [];
+    for (const e of employees) {
+      const code = String(e.department || "").trim();
+      if (!code || known.has(code)) continue;
+      if (extras.some((x) => x.value === code)) continue;
+      extras.push({ value: code, label: hrDepartmentLabel(code, hrDepartments) });
+    }
+    return [
+      { value: "", label: "All departments" },
+      ...hrDepartments.map((d) => ({
+        value: d.code,
+        label: d.label || hrDepartmentLabel(d.code, hrDepartments),
+        hint: d.code,
+      })),
+      ...extras.sort((a, b) => a.label.localeCompare(b.label)),
+    ];
+  }, [hrDepartments, employees]);
+
+  const teamFilterOptions = useMemo(() => {
+    const deptId = deptFilter
+      ? hrDepartments.find((d) => d.code === deptFilter)?.id ?? null
+      : null;
+    return [
+      { value: "", label: "All teams" },
+      { value: "none", label: "No team" },
+      ...allTeams
+        .filter((t) => deptId == null || t.departmentId === deptId)
+        .map((t) => ({
+          value: String(t.id),
+          label: t.label,
+          hint: t.code || undefined,
+        })),
+    ];
+  }, [allTeams, deptFilter, hrDepartments]);
+
+  /** Changing department hides teams that belong elsewhere — drop a stale team pick. */
+  const onDeptFilterChange = (code: string) => {
+    setDeptFilter(code);
+    if (!teamFilter || teamFilter === "none") return;
+    const deptId = code
+      ? hrDepartments.find((d) => d.code === code)?.id ?? null
+      : null;
+    const stillVisible = allTeams.some(
+      (t) => String(t.id) === teamFilter && (deptId == null || t.departmentId === deptId),
+    );
+    if (!stillVisible) setTeamFilter("");
+  };
+
+  const filtered = useMemo(() => {
+    const dept = deptFilter
+      ? hrDepartments.find((d) => d.code === deptFilter) ?? null
+      : null;
+    return employees.filter((e) => {
+      if (statusFilter !== "all" && e.status !== statusFilter) return false;
+      if (deptFilter) {
+        const code = String(e.department || "").trim();
+        if (code !== deptFilter && (!dept || code !== dept.label)) return false;
+      }
+      if (teamFilter === "none" && e.teamId != null) return false;
+      if (teamFilter && teamFilter !== "none" && String(e.teamId ?? "") !== teamFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [employees, statusFilter, deptFilter, teamFilter, hrDepartments]);
+
+  const filtersActive =
+    statusFilter !== "all" || Boolean(deptFilter) || Boolean(teamFilter);
 
   const directoryStats = useMemo(() => {
     const active = employees.filter((e) => e.status === "active").length;
@@ -888,31 +974,63 @@ export function HrEmployeesPanel({
       />
 
         <div className="space-y-4">
-        <div className="flex justify-end">
-          <div className="w-full max-w-56 space-y-1.5">
-            <Label
-              className={cn(
-                "text-xs font-medium",
-                hrStatusFilterLabelClass(statusFilter),
-              )}
-            >
-              Status
-            </Label>
-            <HrOptionCombobox
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as StatusFilter)}
-              options={[
-                { value: "all", label: "All" },
-                { value: "active", label: "Active" },
-                { value: "on_leave", label: "On leave" },
-                { value: "terminated", label: "Terminated" },
-              ]}
-              placeholder="Filter status…"
-              emptyText="No statuses."
-              className={hrStatusFilterTriggerClass(statusFilter)}
-            />
+        <HrFilterBar
+          title="Directory filters"
+          showClear={filtersActive}
+          onClear={() => {
+            setStatusFilter("all");
+            setDeptFilter("");
+            setTeamFilter("");
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label
+                className={cn(
+                  "text-xs font-medium",
+                  hrStatusFilterLabelClass(statusFilter),
+                )}
+              >
+                Status
+              </Label>
+              <HrOptionCombobox
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "active", label: "Active" },
+                  { value: "on_leave", label: "On leave" },
+                  { value: "terminated", label: "Terminated" },
+                ]}
+                placeholder="Filter status…"
+                emptyText="No statuses."
+                className={hrStatusFilterTriggerClass(statusFilter)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Department</Label>
+              <HrOptionCombobox
+                value={deptFilter}
+                onChange={onDeptFilterChange}
+                options={departmentFilterOptions}
+                placeholder="All departments"
+                searchPlaceholder="Search departments…"
+                emptyText="No departments registered."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Team</Label>
+              <HrOptionCombobox
+                value={teamFilter}
+                onChange={setTeamFilter}
+                options={teamFilterOptions}
+                placeholder="All teams"
+                searchPlaceholder="Search teams…"
+                emptyText="No teams in this department."
+              />
+            </div>
           </div>
-        </div>
+        </HrFilterBar>
           {filtered.length ? (
           <HrTableFrame>
             <DataTable

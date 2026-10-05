@@ -130,6 +130,8 @@ export type HrCareerAction = {
   toDept: string;
   fromTitle: string;
   toTitle: string;
+  /** Target team applied on Manager approve; null keeps the current team. */
+  toTeamId: number | null;
   toOrgPosition: string;
   status: string;
   createdBy: string;
@@ -609,7 +611,7 @@ export async function fetchHrCareerActions(status?: string) {
   const data = await gql<{ hrCareerActions: HrCareerAction[] }>(
     `query ($status: String) {
       hrCareerActions(status: $status) {
-        id employeeId kind detail fromDept toDept fromTitle toTitle toOrgPosition status createdBy createdAt
+        id employeeId kind detail fromDept toDept fromTitle toTitle toTeamId toOrgPosition status createdBy createdAt
       }
     }`,
     { status: status ?? null },
@@ -625,6 +627,7 @@ export async function createHrCareerActionApi(input: {
   toDept?: string;
   fromTitle?: string;
   toTitle?: string;
+  toTeamId?: number | null;
   toOrgPosition?: string;
 }) {
   const data = await gql<{ createHrCareerAction: HrCareerAction }>(
@@ -636,6 +639,7 @@ export async function createHrCareerActionApi(input: {
       $toDept: String
       $fromTitle: String
       $toTitle: String
+      $toTeamId: Int
       $toOrgPosition: String
     ) {
       createHrCareerAction(
@@ -646,10 +650,11 @@ export async function createHrCareerActionApi(input: {
         toDept: $toDept
         fromTitle: $fromTitle
         toTitle: $toTitle
+        toTeamId: $toTeamId
         toOrgPosition: $toOrgPosition
       ) { id status }
     }`,
-    input,
+    { ...input, toTeamId: input.toTeamId ?? null },
   );
   return data.createHrCareerAction;
 }
