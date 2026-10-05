@@ -610,8 +610,8 @@ export function ReceptionCheckInForm({
             description="Search by phone. Selecting a match fills the guest form — you can still edit before check-in."
             tone="sky"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1 space-y-1.5 max-w-md">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+              <div className="min-w-0 w-full space-y-1.5 sm:max-w-md">
                 <Label>Phone search</Label>
                 <PhoneInput
                   defaultCountry="ET"
@@ -625,26 +625,28 @@ export function ReceptionCheckInForm({
                   className={lodgingFieldClass}
                 />
               </div>
-              <PendingButton
-                type="button"
-                variant="outline"
-                className="h-10 border-sky-500/30 hover:bg-sky-500/10"
-                pending={pending === "guest-search"}
-                onClick={() => void searchGuests()}
-              >
-                <Search className="h-4 w-4" />
-                Search
-              </PendingButton>
-              {guestId != null ? (
-                <Button
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                <PendingButton
                   type="button"
-                  variant="ghost"
-                  className={lodgingFieldClass}
-                  onClick={clearReturningGuest}
+                  variant="outline"
+                  className="h-10 w-full border-sky-500/30 hover:bg-sky-500/10 sm:w-auto"
+                  pending={pending === "guest-search"}
+                  onClick={() => void searchGuests()}
                 >
-                  Clear match
-                </Button>
-              ) : null}
+                  <Search className="h-4 w-4" />
+                  Search
+                </PendingButton>
+                {guestId != null ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-10 w-full sm:w-auto"
+                    onClick={clearReturningGuest}
+                  >
+                    Clear match
+                  </Button>
+                ) : null}
+              </div>
             </div>
             {guestId != null ? (
               <Badge
