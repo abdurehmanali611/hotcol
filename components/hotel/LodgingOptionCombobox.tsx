@@ -23,6 +23,8 @@ export type LodgingComboboxOption = {
   value: string;
   label: string;
   hint?: string;
+  /** Extra text matched by search but never rendered (phone, Fayda, room…). */
+  keywords?: string;
 };
 
 /** Searchable single-select — same pattern as hotel store item registration. */
@@ -56,7 +58,7 @@ export function LodgingOptionCombobox({
   const filtered = useMemo(() => {
     if (!query) return options;
     return options.filter((o) => {
-      const hay = `${o.label} ${o.hint || ""} ${o.value}`.toLowerCase();
+      const hay = `${o.label} ${o.hint || ""} ${o.keywords || ""} ${o.value}`.toLowerCase();
       return hay.includes(query);
     });
   }, [options, query]);
