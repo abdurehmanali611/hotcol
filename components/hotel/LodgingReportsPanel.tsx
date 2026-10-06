@@ -671,7 +671,7 @@ export function LodgingReportsPanel({
                 Loading snapshot…
               </div>
             ) : (
-              <LodgingStatCardsGrid stats={stats} />
+              <LodgingStatCardsGrid stats={stats} className="lg:grid-cols-3 xl:grid-cols-3" />
             )}
           </LodgingFormSection>
 

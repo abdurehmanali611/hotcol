@@ -7,6 +7,7 @@ import { SUPPRESS_BROWSER_PRINT_CHROME } from "@/lib/suppressBrowserPrintChrome"
 import { Toaster, toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChangeOwnPasswordButton } from "@/components/ChangeOwnPasswordButton";
+import { LiveDateTimeClock } from "@/components/LiveDateTimeClock";
 import {
   Sidebar,
   SidebarContent,
@@ -694,16 +695,10 @@ export function ReceptionDashboard() {
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-0 bg-linear-to-br from-background via-background to-muted/20 md:rounded-xl md:border md:border-border/80 md:bg-background md:shadow-lg md:ring-1 md:ring-black/5 dark:md:ring-white/10">
           <header className="app-chrome-header sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-primary/12 px-3 md:h-16 md:px-6">
             <SidebarTrigger />
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xs font-medium uppercase tracking-wider text-primary/80 md:text-sm">
-                {displayName || "Property"}
-              </h1>
-              {receptionistName ? (
-                <p className="truncate text-sm font-medium tracking-tight">
-                  {receptionistName}
-                </p>
-              ) : null}
-            </div>
+            <h1 className="min-w-0 shrink-0 truncate text-xs font-medium uppercase tracking-wider text-primary/80 md:text-sm">
+              {displayName || "Property"}
+            </h1>
+            <LiveDateTimeClock className="min-w-0 flex-1" />
             <Button
               variant="ghost"
               size="icon"
