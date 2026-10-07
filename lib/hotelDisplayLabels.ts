@@ -90,7 +90,7 @@ export function formatItemRegistrationStatus(status: string): string {
     case "AUTHORIZED":
       return "Authorized — in inventory";
     case "VOID":
-      return "Void (finance rejected)";
+      return "Voided — rejected by finance";
     case "REJECTED_CC":
       return "Rejected at cost control";
     case "REJECTED_FINANCE":
