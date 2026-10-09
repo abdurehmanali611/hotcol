@@ -64,6 +64,7 @@ import {
   LodgingEmptyState,
   LodgingCountBadge,
   LodgingStatusBadge,
+  LodgingCompanyBadge,
 } from "@/components/hotel/lodgingChrome";
 import { InventoryNotificationCenter } from "@/components/inventory/InventoryNotificationCenter";
 import {
@@ -420,6 +421,13 @@ export function ReceptionDashboard() {
           value: String(s.id),
           label,
           hint: s.voucherCode,
+          badge: (
+            <LodgingCompanyBadge
+              isCompany={s.isCompany}
+              companyName={s.companyName}
+              companyTin={s.companyTin}
+            />
+          ),
           keywords: [
             g?.phone,
             g?.phoneSecondary,
@@ -428,6 +436,8 @@ export function ReceptionDashboard() {
             g?.email,
             rooms,
             s.voucherCode,
+            s.companyName,
+            s.companyTin,
             new Date(s.arrivalAt).toLocaleString(),
           ]
             .filter(Boolean)
@@ -896,6 +906,13 @@ export function ReceptionDashboard() {
                                     {formatMoney(selectedStayActiveTotal)}
                                   </span>
                                 </CardDescription>
+                                <LodgingCompanyBadge
+                                  isCompany={selectedStay.isCompany}
+                                  companyName={selectedStay.companyName}
+                                  companyTin={selectedStay.companyTin}
+                                  variant="block"
+                                  className="mt-1"
+                                />
                               </div>
                             </div>
                             {selectedStay.status === "checked_in" ? (

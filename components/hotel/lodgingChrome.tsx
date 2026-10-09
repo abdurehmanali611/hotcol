@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { History, Inbox } from "lucide-react";
+import { Building2, History, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -679,6 +679,78 @@ export function LodgingCountBadge({
       )}
     >
       {children}
+    </Badge>
+  );
+}
+
+/**
+ * Company check-in marker — shows the billing company and its TIN.
+ * Renders nothing for personal stays (or company rows missing a name).
+ *
+ * `variant`:
+ *   - "chip"    compact inline pill for pickers / list rows
+ *   - "block"   fuller stacked block for detail headers
+ */
+export function LodgingCompanyBadge({
+  isCompany,
+  companyName,
+  companyTin,
+  variant = "chip",
+  className,
+}: {
+  isCompany?: boolean | null;
+  companyName?: string | null;
+  companyTin?: string | null;
+  variant?: "chip" | "block";
+  className?: string;
+}) {
+  const name = (companyName || "").trim();
+  const tin = (companyTin || "").trim();
+  if (!isCompany || (!name && !tin)) return null;
+
+  if (variant === "block") {
+    return (
+      <div
+        className={cn(
+          "inline-flex max-w-full items-start gap-2.5 rounded-xl border border-sky-500/25 bg-sky-500/6 px-3 py-2 text-sky-900 dark:text-sky-200",
+          className,
+        )}
+      >
+        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-500/12 text-sky-700 dark:text-sky-300">
+          <Building2 className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 space-y-0.5">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700/70 dark:text-sky-300/75">
+            Company check-in
+          </span>
+          <span className="block truncate text-sm font-semibold tracking-tight">
+            {name || "Company"}
+          </span>
+          {tin ? (
+            <span className="block text-xs tabular-nums text-sky-800/75 dark:text-sky-300/80">
+              TIN {tin}
+            </span>
+          ) : null}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-1 border-sky-500/30 bg-sky-500/8 font-medium text-sky-900 dark:text-sky-200",
+        className,
+      )}
+    >
+      <Building2 className="h-3 w-3 shrink-0 opacity-80" />
+      <span className="min-w-0 truncate">
+        {name || "Company"}
+        {tin ? (
+          <span className="font-normal opacity-70"> · TIN {tin}</span>
+        ) : null}
+      </span>
     </Badge>
   );
 }
