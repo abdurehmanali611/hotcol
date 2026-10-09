@@ -687,70 +687,47 @@ export function LodgingCountBadge({
  * Company check-in marker — shows the billing company and its TIN.
  * Renders nothing for personal stays (or company rows missing a name).
  *
- * `variant`:
- *   - "chip"    compact inline pill for pickers / list rows
- *   - "block"   fuller stacked block for detail headers
+ * Design intent: quiet and informative, not a sticker. A slim labelled rule
+ * under the guest name reads as a property of the stay rather than an alert.
  */
 export function LodgingCompanyBadge({
   isCompany,
   companyName,
   companyTin,
-  variant = "chip",
   className,
 }: {
   isCompany?: boolean | null;
   companyName?: string | null;
   companyTin?: string | null;
-  variant?: "chip" | "block";
   className?: string;
 }) {
   const name = (companyName || "").trim();
   const tin = (companyTin || "").trim();
   if (!isCompany || (!name && !tin)) return null;
 
-  if (variant === "block") {
-    return (
-      <div
-        className={cn(
-          "inline-flex max-w-full items-start gap-2.5 rounded-xl border border-sky-500/25 bg-sky-500/6 px-3 py-2 text-sky-900 dark:text-sky-200",
-          className,
-        )}
-      >
-        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-500/12 text-sky-700 dark:text-sky-300">
-          <Building2 className="h-3.5 w-3.5" />
-        </span>
-        <span className="min-w-0 space-y-0.5">
-          <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700/70 dark:text-sky-300/75">
-            Company check-in
-          </span>
-          <span className="block truncate text-sm font-semibold tracking-tight">
-            {name || "Company"}
-          </span>
-          {tin ? (
-            <span className="block text-xs tabular-nums text-sky-800/75 dark:text-sky-300/80">
-              TIN {tin}
-            </span>
-          ) : null}
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <Badge
-      variant="outline"
+    <div
       className={cn(
-        "gap-1 border-sky-500/30 bg-sky-500/8 font-medium text-sky-900 dark:text-sky-200",
+        "flex min-w-0 items-center gap-3 border-l-2 border-sky-500/45 pl-3",
         className,
       )}
     >
-      <Building2 className="h-3 w-3 shrink-0 opacity-80" />
-      <span className="min-w-0 truncate">
-        {name || "Company"}
-        {tin ? (
-          <span className="font-normal opacity-70"> · TIN {tin}</span>
-        ) : null}
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300">
+        <Building2 className="h-4 w-4" />
       </span>
-    </Badge>
+      <div className="min-w-0 leading-tight">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700/70 dark:text-sky-300/75">
+          Company
+        </p>
+        <p className="mt-0.5 truncate text-sm font-semibold tracking-tight text-foreground">
+          {name || "Company"}
+          {tin ? (
+            <span className="ml-2 font-normal tabular-nums text-muted-foreground">
+              TIN {tin}
+            </span>
+          ) : null}
+        </p>
+      </div>
+    </div>
   );
 }

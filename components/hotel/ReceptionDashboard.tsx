@@ -421,13 +421,6 @@ export function ReceptionDashboard() {
           value: String(s.id),
           label,
           hint: s.voucherCode,
-          badge: (
-            <LodgingCompanyBadge
-              isCompany={s.isCompany}
-              companyName={s.companyName}
-              companyTin={s.companyTin}
-            />
-          ),
           keywords: [
             g?.phone,
             g?.phoneSecondary,
@@ -910,8 +903,6 @@ export function ReceptionDashboard() {
                                   isCompany={selectedStay.isCompany}
                                   companyName={selectedStay.companyName}
                                   companyTin={selectedStay.companyTin}
-                                  variant="block"
-                                  className="mt-1"
                                 />
                               </div>
                             </div>

@@ -23,8 +23,6 @@ export type LodgingComboboxOption = {
   value: string;
   label: string;
   hint?: string;
-  /** Optional badge node rendered after the label (e.g. company check-in chip). */
-  badge?: React.ReactNode;
   /** Extra text matched by search but never rendered (phone, Fayda, room…). */
   keywords?: string;
 };
@@ -92,16 +90,11 @@ export function LodgingOptionCombobox({
         >
           <span
             className={cn(
-              "flex min-w-0 items-center gap-2 text-left",
+              "min-w-0 truncate text-left",
               !selected && "text-muted-foreground",
             )}
           >
-            <span className="min-w-0 truncate">
-              {selected?.label || placeholder}
-            </span>
-            {selected?.badge ? (
-              <span className="shrink-0">{selected.badge}</span>
-            ) : null}
+            {selected?.label || placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -139,18 +132,13 @@ export function LodgingOptionCombobox({
                           on ? "opacity-100" : "opacity-0",
                         )}
                       />
-                      <span className="flex min-w-0 flex-1 items-center gap-2">
-                        <span className="min-w-0 truncate">
-                          {o.label}
-                          {o.hint ? (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              · {o.hint}
-                            </span>
-                          ) : null}
-                        </span>
-                        {o.badge ? (
-                          <span className="shrink-0">{o.badge}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {o.label}
+                        {o.hint ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {o.hint}
+                          </span>
                         ) : null}
                       </span>
                     </CommandItem>
