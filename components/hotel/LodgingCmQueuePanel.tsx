@@ -42,6 +42,7 @@ import {
   CheckCircle2,
   ChevronsUpDown,
   Copy,
+  BedDouble,
   Pencil,
   Plus,
   Sparkles,
@@ -103,6 +104,9 @@ function canEditOpenAssignment(a: LodgingCmAssignment): boolean {
   if (String(a.status || "").toLowerCase() !== "open") return false;
   const roomStatus = String(a.room?.status || "").toLowerCase();
   const wk = String(a.workKind || "").toLowerCase();
+  if (roomStatus === "occupied") {
+    return wk === "cleaning" || wk === "maintenance";
+  }
   if (wk === "cleaning") return roomStatus === "vacant_dirty";
   if (wk === "maintenance") return roomStatus === "on_maintenance";
   return false;
@@ -387,6 +391,9 @@ export function LodgingCmQueuePanel({
 }) {
   const [pending, setPending] = useState<string | null>(null);
   const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
+  const [selectedOccupiedRoomIds, setSelectedOccupiedRoomIds] = useState<
+    number[]
+  >([]);
   const [assignRoomIds, setAssignRoomIds] = useState<number[]>([]);
   const [workKind, setWorkKind] = useState<AssignMode>("cleaning");
   const [peopleLayout, setPeopleLayout] = useState<PeopleLayout>("shared");
@@ -506,9 +513,53 @@ export function LodgingCmQueuePanel({
     return map;
   }, [openAssignments]);
 
+  const occupiedRooms = useMemo(
+    () => queue.filter((room) => room.status === "occupied"),
+    [queue],
+  );
+  const housekeepingQueue = useMemo(
+    () => queue.filter((room) => room.status !== "occupied"),
+    [queue],
+  );
+  const occupiedRoomsNeedingAssignment = useMemo(
+    () =>
+      occupiedRooms.filter(
+        (room) =>
+          (openCleaningByRoom.get(room.id) ?? []).length === 0 &&
+          (openMaintByRoom.get(room.id) ?? []).length === 0,
+      ),
+    [occupiedRooms, openCleaningByRoom, openMaintByRoom],
+  );
+  const occupiedOpenAssignmentCount = useMemo(
+    () =>
+      openAssignments.filter(
+        (assignment) =>
+          assignment.status === "open" &&
+          String(assignment.room?.status || "").toLowerCase() === "occupied",
+      ).length,
+    [openAssignments],
+  );
+  const selectedOccupiedRooms = occupiedRoomsNeedingAssignment.filter((room) =>
+    selectedOccupiedRoomIds.includes(room.id),
+  );
+  const nonOccupiedOpenAssignments = openAssignments.filter(
+    (assignment) =>
+      String(assignment.room?.status || "").toLowerCase() !== "occupied",
+  );
+
+  useEffect(() => {
+    const availableIds = new Set(
+      occupiedRoomsNeedingAssignment.map((room) => room.id),
+    );
+    setSelectedOccupiedRoomIds((prev) => {
+      const next = prev.filter((id) => availableIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [occupiedRoomsNeedingAssignment]);
+
   const selectedRooms = useMemo(
-    () => queue.filter((r) => selectedRoomIds.includes(r.id)),
-    [queue, selectedRoomIds],
+    () => housekeepingQueue.filter((r) => selectedRoomIds.includes(r.id)),
+    [housekeepingQueue, selectedRoomIds],
   );
 
   const selectedDirty = selectedRooms.filter((r) => r.status === "vacant_dirty");
@@ -557,7 +608,7 @@ export function LodgingCmQueuePanel({
       setSelectedRoomIds([]);
       return;
     }
-    setSelectedRoomIds(queue.map((r) => r.id));
+    setSelectedRoomIds(housekeepingQueue.map((r) => r.id));
   };
 
   const openAssignForRooms = (rooms: LodgingRoom[], mode: AssignMode) => {
@@ -657,6 +708,9 @@ export function LodgingCmQueuePanel({
       setSelectedRoomIds((prev) =>
         prev.filter((id) => !assignRoomIds.includes(id)),
       );
+      setSelectedOccupiedRoomIds((prev) =>
+        prev.filter((id) => !assignRoomIds.includes(id)),
+      );
       resetAssign();
       await onRefresh();
     } catch (e) {
@@ -671,16 +725,25 @@ export function LodgingCmQueuePanel({
   };
 
   const isMaintForm = workKind === "maintenance";
+  const isOccupiedAssignment =
+    assignRooms.length > 0 &&
+    assignRooms.every((room) => room.status === "occupied");
+  const isOccupiedEdit =
+    String(editingAssignment?.room?.status || "").toLowerCase() === "occupied";
   const FormIcon = isMaintForm ? Wrench : UserPlus;
 
   const queueTotals = useMemo(() => {
-    const dirty = queue.filter((r) => r.status === "vacant_dirty").length;
-    const maintenance = queue.filter(
+    const dirty = housekeepingQueue.filter(
+      (r) => r.status === "vacant_dirty",
+    ).length;
+    const maintenance = housekeepingQueue.filter(
       (r) => r.status === "on_maintenance",
     ).length;
-    const inspected = queue.filter((r) => r.status === "inspected").length;
+    const inspected = housekeepingQueue.filter(
+      (r) => r.status === "inspected",
+    ).length;
     return { dirty, maintenance, inspected };
-  }, [queue]);
+  }, [housekeepingQueue]);
 
   return (
     <div className="space-y-6">
@@ -708,6 +771,311 @@ export function LodgingCmQueuePanel({
         />
       </div>
 
+      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm ring-1 ring-black/3 dark:ring-white/5">
+        <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
+        <CardHeader className="bg-muted/10 pb-3">
+          <CardTitle className="flex flex-wrap items-center gap-2.5 text-lg tracking-tight md:text-xl">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
+              <BedDouble className="h-4.5 w-4.5" />
+            </span>
+            Occupied room work
+            <Badge
+              variant="outline"
+              className="border-sky-500/20 bg-sky-500/8 font-medium text-sky-800 dark:text-sky-300"
+            >
+              {occupiedRooms.length} room{occupiedRooms.length === 1 ? "" : "s"}
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-amber-500/20 bg-amber-500/8 font-medium text-amber-900 dark:text-amber-300"
+            >
+              {occupiedOpenAssignmentCount} open job
+              {occupiedOpenAssignmentCount === 1 ? "" : "s"}
+            </Badge>
+          </CardTitle>
+          <CardDescription className="max-w-3xl text-pretty leading-relaxed">
+            Assign cleaning or maintenance while guests are in-house. Completing
+            a task never changes the room&apos;s occupied status.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          {occupiedRooms.length === 0 ? (
+            <LodgingEmptyState
+              title="No occupied rooms"
+              description="Occupied rooms will appear here for in-stay cleaning or maintenance assignments."
+              icon={<BedDouble className="h-6 w-6" />}
+            />
+          ) : (
+            <>
+              <div className="flex flex-col gap-3 rounded-xl border border-sky-500/15 bg-linear-to-r from-sky-500/5 via-background to-background p-3 sm:flex-row sm:items-center sm:px-4">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={
+                      occupiedRoomsNeedingAssignment.length > 0 &&
+                      selectedOccupiedRooms.length ===
+                        occupiedRoomsNeedingAssignment.length
+                    }
+                    disabled={occupiedRoomsNeedingAssignment.length === 0}
+                    onCheckedChange={(value) => {
+                      setSelectedOccupiedRoomIds(
+                        value === true
+                          ? occupiedRoomsNeedingAssignment.map(
+                              (room) => room.id,
+                            )
+                          : [],
+                      );
+                    }}
+                    aria-label="Select all occupied rooms available for assignment"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">
+                      {selectedOccupiedRooms.length > 0
+                        ? `${selectedOccupiedRooms.length} room${selectedOccupiedRooms.length === 1 ? "" : "s"} selected`
+                        : "Select rooms to assign work in batches"}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                      {occupiedRoomsNeedingAssignment.length} room
+                      {occupiedRoomsNeedingAssignment.length === 1 ? "" : "s"}{" "}
+                      available · rooms with open work are not selectable
+                    </span>
+                  </span>
+                </div>
+                {selectedOccupiedRooms.length > 0 ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 gap-1.5 rounded-xl shadow-sm"
+                      onClick={() =>
+                        openAssignForRooms(selectedOccupiedRooms, "cleaning")
+                      }
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Assign cleaners
+                      <span className="rounded-md bg-primary-foreground/15 px-1.5 py-0.5 text-[11px] tabular-nums">
+                        {selectedOccupiedRooms.length}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5 rounded-xl border-rose-500/30 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
+                      onClick={() =>
+                        openAssignForRooms(
+                          selectedOccupiedRooms,
+                          "maintenance",
+                        )
+                      }
+                    >
+                      <Wrench className="h-4 w-4" />
+                      Assign maintainers
+                      <span className="rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[11px] tabular-nums">
+                        {selectedOccupiedRooms.length}
+                      </span>
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm">
+                {occupiedRooms.map((room) => {
+                  const cleaning = openCleaningByRoom.get(room.id) ?? [];
+                  const maintenance = openMaintByRoom.get(room.id) ?? [];
+                  const roomAssignments = [...cleaning, ...maintenance];
+                  const hasOpenWork = roomAssignments.length > 0;
+                  const selected = selectedOccupiedRoomIds.includes(room.id);
+                  const firstByKind = new Set<string>();
+                  return (
+                    <li
+                      key={room.id}
+                      className={cn(
+                        "grid gap-4 p-4 transition-colors sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start",
+                        selected && "bg-sky-500/5",
+                      )}
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
+                        <Checkbox
+                          className="mt-2 shrink-0"
+                          checked={selected}
+                          disabled={hasOpenWork}
+                          onCheckedChange={(value) =>
+                            setSelectedOccupiedRoomIds((prev) =>
+                              value === true
+                                ? prev.includes(room.id)
+                                  ? prev
+                                  : [...prev, room.id]
+                                : prev.filter((id) => id !== room.id),
+                            )
+                          }
+                          aria-label={`Select occupied room ${room.roomNumber}`}
+                        />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-500/15 bg-sky-500/5 text-sky-800 dark:text-sky-300">
+                          <BedDouble className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold tabular-nums tracking-tight">
+                              Room {room.roomNumber}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-medium",
+                                roomStatusBadgeClass(room.status),
+                              )}
+                            >
+                              Occupied
+                            </Badge>
+                            {showRoomMeta ? (
+                              <span className="text-xs text-muted-foreground">
+                                {room.roomType} · Floor {room.floor || "—"}
+                              </span>
+                            ) : null}
+                          </div>
+                          {roomAssignments.length > 0 ? (
+                            <ul className="grid gap-2 sm:grid-cols-2">
+                              {roomAssignments.map((assignment) => {
+                                const kind = String(
+                                  assignment.workKind || "",
+                                ).toLowerCase();
+                                const isFirstOfKind = !firstByKind.has(kind);
+                                firstByKind.add(kind);
+                                return (
+                                  <li
+                                    key={assignment.id}
+                                    className="min-w-0 rounded-xl border border-border/70 bg-muted/15 p-3"
+                                  >
+                                    <div className="flex min-w-0 items-start justify-between gap-2">
+                                      <div className="flex min-w-0 items-start gap-2.5">
+                                        <span
+                                          className={cn(
+                                            "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg",
+                                            kind === "maintenance"
+                                              ? "bg-rose-500/8 text-rose-700 dark:text-rose-300"
+                                              : "bg-amber-500/8 text-amber-800 dark:text-amber-300",
+                                          )}
+                                        >
+                                          {kind === "maintenance" ? (
+                                            <Wrench className="size-4" />
+                                          ) : (
+                                            <Sparkles className="size-4" />
+                                          )}
+                                        </span>
+                                        <div className="min-w-0 space-y-1">
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="text-sm font-medium capitalize">
+                                              {kind}
+                                            </span>
+                                            <Badge
+                                              variant="outline"
+                                              className="border-amber-500/20 bg-amber-500/8 px-1.5 py-0 text-[10px] font-medium text-amber-900 dark:text-amber-300"
+                                            >
+                                              Open
+                                            </Badge>
+                                          </div>
+                                          <p className="break-words text-xs leading-relaxed text-muted-foreground">
+                                            {assignment.assigneeName}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      {isFirstOfKind ? (
+                                        <Button
+                                          type="button"
+                                          size="icon-sm"
+                                          variant="ghost"
+                                          className="shrink-0 rounded-lg text-muted-foreground"
+                                          aria-label={`Edit ${kind} assignees for room ${room.roomNumber}`}
+                                          onClick={() =>
+                                            openEditAssignment(assignment)
+                                          }
+                                        >
+                                          <Pencil className="size-4" />
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                    {assignment.notes ? (
+                                      <p className="mt-2 border-t border-border/60 pt-2 text-xs leading-relaxed text-muted-foreground">
+                                        {assignment.notes}
+                                      </p>
+                                    ) : null}
+                                    <div className="mt-3 flex justify-end">
+                                      <PendingButton
+                                        type="button"
+                                        size="sm"
+                                        className="h-8 gap-1.5 rounded-lg bg-emerald-600 px-3 shadow-sm hover:bg-emerald-700"
+                                        pending={
+                                          pending === `done-${assignment.id}`
+                                        }
+                                        onClick={async () => {
+                                          setPending(`done-${assignment.id}`);
+                                          try {
+                                            await completeLodgingCmAssignmentApi(
+                                              assignment.id,
+                                            );
+                                            await onRefresh();
+                                          } catch (e) {
+                                            notifyApiFailure(
+                                              e,
+                                              "Could not complete",
+                                            );
+                                          } finally {
+                                            setPending(null);
+                                          }
+                                        }}
+                                      >
+                                        <CheckCircle2 className="size-4" />
+                                        Mark complete
+                                      </PendingButton>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <div className="flex flex-col gap-3 rounded-xl border border-dashed border-sky-500/20 bg-sky-500/3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm text-muted-foreground">
+                                No active work assigned to this room.
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-9 gap-1.5 rounded-xl shadow-sm"
+                                  onClick={() =>
+                                    openAssignForRooms([room], "cleaning")
+                                  }
+                                >
+                                  <UserPlus className="size-4" />
+                                  Assign cleaner
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 gap-1.5 rounded-xl border-rose-500/30 text-rose-800 hover:bg-rose-500/10 dark:text-rose-300"
+                                  onClick={() =>
+                                    openAssignForRooms([room], "maintenance")
+                                  }
+                                >
+                                  <Wrench className="size-4" />
+                                  Assign maintainer
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
         <div className="h-1 bg-linear-to-r from-amber-500/40 via-orange-400/25 to-transparent" />
         <CardHeader className="bg-muted/10 pb-3">
@@ -715,18 +1083,18 @@ export function LodgingCmQueuePanel({
             <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/8 text-amber-800 dark:text-amber-300">
               <Sparkles className="h-4.5 w-4.5" />
             </span>
-            Dirty & maintenance queue
+            Housekeeping & maintenance queue
           </CardTitle>
           <CardDescription>
-            Dirty rooms need cleaners assigned before they can open as vacant
-            clean. Send rooms to maintenance when repair work is required.
+            Assign cleaners to dirty rooms, or send rooms to maintenance when
+            repair work is required.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {queue.length === 0 ? (
+          {housekeepingQueue.length === 0 ? (
             <LodgingEmptyState
               title="Queue is empty"
-              description="No dirty or maintenance rooms right now. Rooms appear here as soon as a guest checks out or a status changes."
+              description="No dirty or maintenance rooms need attention right now."
               icon={<Sparkles className="h-6 w-6" />}
             />
           ) : (
@@ -735,7 +1103,7 @@ export function LodgingCmQueuePanel({
                 <Checkbox
                   checked={
                     selectedRoomIds.length > 0 &&
-                    selectedRoomIds.length === queue.length
+                    selectedRoomIds.length === housekeepingQueue.length
                   }
                   onCheckedChange={(v) => toggleAllVisible(v === true)}
                   aria-label="Select all rooms in queue"
@@ -781,7 +1149,7 @@ export function LodgingCmQueuePanel({
               </div>
 
               <ul className="divide-y divide-amber-500/10 overflow-hidden rounded-xl border border-amber-500/15 bg-background shadow-sm">
-                {queue.map((room) => {
+                {housekeepingQueue.map((room) => {
                   const status = room.status as LodgingRoomStatus;
                   const onMaintenance = status === "on_maintenance";
                   const isInspected = status === "inspected";
@@ -842,8 +1210,8 @@ export function LodgingCmQueuePanel({
                                 ).toLocaleString()}
                               </span>
                             ) : null}
-                            {(onMaintenance ? maintOpen : cleaningOpen)
-                              .length > 0 ? (
+                            {(onMaintenance ? maintOpen : cleaningOpen).length >
+                              0 ? (
                               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                 <Users className="h-3.5 w-3.5" />
                                 {(onMaintenance ? maintOpen : cleaningOpen)
@@ -973,8 +1341,8 @@ export function LodgingCmQueuePanel({
             </DialogTitle>
             <DialogDescription className="text-pretty leading-relaxed">
               {isMaintForm
-                ? "Search and select maintainers from the Manager roster for each room (or share one team across all selected rooms)."
-                : "Search and select cleaners from the Manager roster. When the last cleaner completes, the room becomes inspected — then Open as vacant clean unlocks."}
+                ? `Search and select maintainers from the Manager roster for each room (or share one team across all selected rooms).${isOccupiedAssignment ? " Completing this job will leave the room occupied." : ""}`
+                : `Search and select cleaners from the Manager roster.${isOccupiedAssignment ? " Completing this job will leave the room occupied." : " When the last cleaner completes, the room becomes inspected — then Open as vacant clean unlocks."}`}
             </DialogDescription>
             <div className="flex flex-wrap gap-1.5">
               {assignRooms.map((r) => (
@@ -1077,27 +1445,29 @@ export function LodgingCmQueuePanel({
                     placeholder="Optional note for every room"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <HotelDayPicker
-                    id="shared-expected-end"
-                    label="Expected ready (for reservation holds)"
-                    value={sharedDraft.expectedEndAt}
-                    onChange={(ymd) =>
-                      setSharedDraft((d) => ({
-                        ...d,
-                        expectedEndAt: ymd,
-                      }))
-                    }
-                    placeholder="Optional ready date & time"
-                    buttonClassName="bg-background"
-                    withTime
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Dirty rooms with an expected ready before a booking&apos;s
-                    arrival can be held for that reservation. Leave blank if
-                    unknown.
-                  </p>
-                </div>
+                {!isOccupiedAssignment ? (
+                  <div className="space-y-1.5">
+                    <HotelDayPicker
+                      id="shared-expected-end"
+                      label="Expected ready (for reservation holds)"
+                      value={sharedDraft.expectedEndAt}
+                      onChange={(ymd) =>
+                        setSharedDraft((d) => ({
+                          ...d,
+                          expectedEndAt: ymd,
+                        }))
+                      }
+                      placeholder="Optional ready date & time"
+                      buttonClassName="bg-background"
+                      withTime
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Dirty rooms with an expected ready before a booking&apos;s
+                      arrival can be held for that reservation. Leave blank if
+                      unknown.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-3">
@@ -1187,19 +1557,21 @@ export function LodgingCmQueuePanel({
                           placeholder="Optional for this room"
                         />
                       </div>
-                      <HotelDayPicker
-                        id={`expected-end-${room.id}`}
-                        label="Expected ready"
-                        value={draft.expectedEndAt}
-                        onChange={(ymd) =>
-                          updatePerRoom(room.id, {
-                            expectedEndAt: ymd,
-                          })
-                        }
-                        placeholder="Optional ready date & time"
-                        buttonClassName="bg-background"
-                        withTime
-                      />
+                      {room.status !== "occupied" ? (
+                        <HotelDayPicker
+                          id={`expected-end-${room.id}`}
+                          label="Expected ready"
+                          value={draft.expectedEndAt}
+                          onChange={(ymd) =>
+                            updatePerRoom(room.id, {
+                              expectedEndAt: ymd,
+                            })
+                          }
+                          placeholder="Optional ready date & time"
+                          buttonClassName="bg-background"
+                          withTime
+                        />
+                      ) : null}
                     </div>
                   );
                 })}
@@ -1249,14 +1621,14 @@ export function LodgingCmQueuePanel({
             Open assignments
           </CardTitle>
           <CardDescription>
-            Complete each person&apos;s job when finished. Edit open cleaning
-            (vacant dirty) or maintenance jobs to add or remove assignees, or
-            change the expected ready time. Last cleaner done → inspected; last
-            maintenance done → inspected.
+            Complete each person&apos;s job when finished. Assignments for
+            occupied rooms are managed separately in the Occupied room work
+            card; the last cleaner or maintainer on a vacant room advances it
+            to inspected.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {openAssignments.length === 0 ? (
+          {nonOccupiedOpenAssignments.length === 0 ? (
             <LodgingEmptyState
               title="No open assignments"
               description="Assign cleaners or maintenance from the queue above — jobs appear here until the last person finishes."
@@ -1264,10 +1636,10 @@ export function LodgingCmQueuePanel({
             />
           ) : (
             <ul className="divide-y divide-sky-500/10 overflow-hidden rounded-xl border border-sky-500/15 bg-background shadow-sm">
-              {openAssignments.map((a) => {
+              {nonOccupiedOpenAssignments.map((a) => {
                 const editable = canEditOpenAssignment(a);
                 const isFirstOfGroup =
-                  openAssignments.find(
+                  nonOccupiedOpenAssignments.find(
                     (row) =>
                       row.roomId === a.roomId &&
                       row.workKind === a.workKind &&
@@ -1406,15 +1778,17 @@ export function LodgingCmQueuePanel({
                 className="h-10"
               />
             </div>
-            <HotelDayPicker
-              id="edit-cm-expected-end"
-              label="Expected ready"
-              value={editExpectedEndAt}
-              onChange={setEditExpectedEndAt}
-              placeholder="Pick date & time (optional)"
-              buttonClassName="bg-background"
-              withTime
-            />
+            {!isOccupiedEdit ? (
+              <HotelDayPicker
+                id="edit-cm-expected-end"
+                label="Expected ready"
+                value={editExpectedEndAt}
+                onChange={setEditExpectedEndAt}
+                placeholder="Pick date & time (optional)"
+                buttonClassName="bg-background"
+                withTime
+              />
+            ) : null}
           </div>
           <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-6 py-4 sm:gap-2">
             <Button
