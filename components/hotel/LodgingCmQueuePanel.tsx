@@ -37,10 +37,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   CalendarClock,
   Check,
   CheckCircle2,
   ChevronsUpDown,
+  ChevronDown,
   Copy,
   BedDouble,
   Pencil,
@@ -771,34 +777,46 @@ export function LodgingCmQueuePanel({
         />
       </div>
 
-      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm ring-1 ring-black/3 dark:ring-white/5">
-        <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
-        <CardHeader className="bg-muted/10 pb-3">
-          <CardTitle className="flex flex-wrap items-center gap-2.5 text-lg tracking-tight md:text-xl">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
-              <BedDouble className="h-4.5 w-4.5" />
-            </span>
-            Occupied room work
-            <Badge
-              variant="outline"
-              className="border-sky-500/20 bg-sky-500/8 font-medium text-sky-800 dark:text-sky-300"
+      <Collapsible defaultOpen={false} className="group/cm-card">
+        <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm ring-1 ring-black/3 dark:ring-white/5">
+          <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
-              {occupiedRooms.length} room{occupiedRooms.length === 1 ? "" : "s"}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-amber-500/20 bg-amber-500/8 font-medium text-amber-900 dark:text-amber-300"
-            >
-              {occupiedOpenAssignmentCount} open job
-              {occupiedOpenAssignmentCount === 1 ? "" : "s"}
-            </Badge>
-          </CardTitle>
-          <CardDescription className="max-w-3xl text-pretty leading-relaxed">
-            Assign cleaning or maintenance while guests are in-house. Completing
-            a task never changes the room&apos;s occupied status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
+              <CardHeader className="bg-muted/10 pb-3">
+                <CardTitle className="flex flex-wrap items-center gap-2.5 text-lg tracking-tight md:text-xl">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
+                    <BedDouble className="h-4.5 w-4.5" />
+                  </span>
+                  Occupied room work
+                  <Badge
+                    variant="outline"
+                    className="border-sky-500/20 bg-sky-500/8 font-medium text-sky-800 dark:text-sky-300"
+                  >
+                    {occupiedRooms.length} room
+                    {occupiedRooms.length === 1 ? "" : "s"}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-amber-500/20 bg-amber-500/8 font-medium text-amber-900 dark:text-amber-300"
+                  >
+                    {occupiedOpenAssignmentCount} open job
+                    {occupiedOpenAssignmentCount === 1 ? "" : "s"}
+                  </Badge>
+                  <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/cm-card:rotate-180" />
+                </CardTitle>
+                <CardDescription className="max-w-3xl text-pretty leading-relaxed">
+                  Assign cleaning or maintenance while guests are in-house.
+                  Completing a task never changes the room&apos;s occupied
+                  status.
+                </CardDescription>
+              </CardHeader>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4 pt-4">
           {occupiedRooms.length === 0 ? (
             <LodgingEmptyState
               title="No occupied rooms"
@@ -1073,24 +1091,36 @@ export function LodgingCmQueuePanel({
               </ul>
             </>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
-      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
-        <div className="h-1 bg-linear-to-r from-amber-500/40 via-orange-400/25 to-transparent" />
-        <CardHeader className="bg-muted/10 pb-3">
-          <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/8 text-amber-800 dark:text-amber-300">
-              <Sparkles className="h-4.5 w-4.5" />
-            </span>
-            Housekeeping & maintenance queue
-          </CardTitle>
-          <CardDescription>
-            Assign cleaners to dirty rooms, or send rooms to maintenance when
-            repair work is required.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Collapsible defaultOpen={false} className="group/cm-card">
+        <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
+          <div className="h-1 bg-linear-to-r from-amber-500/40 via-orange-400/25 to-transparent" />
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <CardHeader className="bg-muted/10 pb-3">
+                <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/8 text-amber-800 dark:text-amber-300">
+                    <Sparkles className="h-4.5 w-4.5" />
+                  </span>
+                  Housekeeping & maintenance queue
+                  <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/cm-card:rotate-180" />
+                </CardTitle>
+                <CardDescription>
+                  Assign cleaners to dirty rooms, or send rooms to maintenance
+                  when repair work is required.
+                </CardDescription>
+              </CardHeader>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
           {housekeepingQueue.length === 0 ? (
             <LodgingEmptyState
               title="Queue is empty"
@@ -1304,8 +1334,10 @@ export function LodgingCmQueuePanel({
               </ul>
             </>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Dialog
         open={assignRoomIds.length > 0 && assignRooms.length > 0}
@@ -1611,23 +1643,33 @@ export function LodgingCmQueuePanel({
         </DialogContent>
       </Dialog>
 
-      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
-        <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
-        <CardHeader className="bg-muted/10 pb-3">
-          <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
-              <Users className="h-4.5 w-4.5" />
-            </span>
-            Open assignments
-          </CardTitle>
-          <CardDescription>
-            Complete each person&apos;s job when finished. Assignments for
-            occupied rooms are managed separately in the Occupied room work
-            card; the last cleaner or maintainer on a vacant room advances it
-            to inspected.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Collapsible defaultOpen={false} className="group/cm-card">
+        <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
+          <div className="h-1 bg-linear-to-r from-sky-500/40 via-primary/25 to-transparent" />
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <CardHeader className="bg-muted/10 pb-3">
+                <CardTitle className="flex items-center gap-2.5 text-lg tracking-tight">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/8 text-sky-800 dark:text-sky-300">
+                    <Users className="h-4.5 w-4.5" />
+                  </span>
+                  Open assignments
+                  <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/cm-card:rotate-180" />
+                </CardTitle>
+                <CardDescription>
+                  Complete each person&apos;s job when finished. Assignments for
+                  occupied rooms are managed separately in the Occupied room
+                  work card; the last cleaner or maintainer on a vacant room
+                  advances it to inspected.
+                </CardDescription>
+              </CardHeader>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
           {nonOccupiedOpenAssignments.length === 0 ? (
             <LodgingEmptyState
               title="No open assignments"
@@ -1714,8 +1756,10 @@ export function LodgingCmQueuePanel({
               })}
             </ul>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Dialog
         open={editingAssignment != null}
