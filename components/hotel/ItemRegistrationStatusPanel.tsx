@@ -42,6 +42,7 @@ import {
   REGISTRATION_RECEIVED_BY_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
+import { summarizeReceiptFinancials } from "@/lib/hotelInventoryPayment";
 
 const REG_APPROVAL_OPTIONS: {
   id: RegistrationApprovalFilter;
@@ -335,6 +336,37 @@ export function ItemRegistrationStatusPanel({
           hideToolbar
           initialSorting={FIFO_TABLE_SORT}
           emptyMessage="No item registrations match these filters."
+          footerSummary={(tableRows) => {
+            const { vatETB, grandTotalETB } = summarizeReceiptFinancials(
+              tableRows.map((row) => ({
+                quantity: row.amount,
+                unitPrice: row.unitPrice,
+                purchaseWithVat: row.purchaseWithVat,
+              })),
+            );
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    Total amount
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {grandTotalETB.toLocaleString()} ETB
+                  </span>
+                </span>
+                {vatETB > 0.01 ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs">
+                    <span className="font-medium text-violet-700 dark:text-violet-400">
+                      Total VAT
+                    </span>
+                    <span className="font-semibold tabular-nums text-violet-800 dark:text-violet-300">
+                      {vatETB.toLocaleString()} ETB
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            );
+          }}
         />
       </div>
     </div>

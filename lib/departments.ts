@@ -57,6 +57,17 @@ export const PURCHASE_REQUESTED_BY_DEPARTMENT_CODES = [
   ...HOTEL_DEPARTMENT_CODES,
 ];
 
+/**
+ * Departments listed in the manager's Department leaders registry.
+ * Staff is a real registry entry (so it can carry leader names) but stays out of
+ * HOTEL_DEPARTMENT_CODES — that list seeds the request/registration option lists,
+ * which already add Staff explicitly as their own entry.
+ */
+export const LEADER_DEPARTMENT_CODES = [
+  ...HOTEL_DEPARTMENT_CODES,
+  STAFF_REQUESTED_BY_CODE,
+] as const;
+
 export const DEPARTMENT_LABELS: Record<HotelDepartmentCode, string> = {
   KITCHEN: "Kitchen",
   BAR: "Bar",
@@ -179,8 +190,7 @@ export function formatDepartmentWithLeader(
   leaderName?: string | null,
 ): string {
   const normalized = normalizeDepartmentCode(String(code ?? "").trim());
-  if (normalized === STAFF_REQUESTED_BY_CODE) return "Staff";
-  const label = departmentLabel(code);
+  const label = departmentLabel(normalized);
   // Display a single accountable leader (not the full comma-separated registry).
   const names = splitLeaderNames(String(leaderName ?? ""));
   const name = names[0] ?? "";
@@ -214,7 +224,7 @@ export function encodeDepartmentLeaderValue(
   leaderName = "",
 ): string {
   const dept = normalizeDepartmentCode(String(department ?? "").trim());
-  if (!dept || dept === STAFF_REQUESTED_BY_CODE) return dept || "";
+  if (!dept) return "";
   const leader = String(leaderName ?? "").trim();
   return leader ? `${dept}${DEPARTMENT_LEADER_VALUE_SEP}${leader}` : dept;
 }
@@ -272,8 +282,11 @@ export function departmentLeaderDisplayLabel(row: {
   const reqDept = normalizeDepartmentCode(
     String(row.requestedByDepartment ?? "").trim(),
   );
-  if (reqDept === STAFF_REQUESTED_BY_CODE) return "Staff";
   const reqLeader = String(row.requestedByLeaderName ?? "").trim();
+  if (reqDept === STAFF_REQUESTED_BY_CODE) {
+    const one = splitLeaderNames(reqLeader)[0] || "";
+    return one ? `Staff (${one})` : "Staff";
+  }
   if (reqDept && reqLeader) {
     const deptLabel =
       String(row.requestedByDepartmentLabel ?? "").trim() ||
@@ -309,18 +322,24 @@ export function selectOptionsForDepartments(
 ): DepartmentLeaderSelectOption[] {
   const perLeader = opts?.perLeader !== false;
   const allowed = new Set(allowedCodes);
-  const staffOption: DepartmentLeaderSelectOption[] = allowed.has(
-    STAFF_REQUESTED_BY_CODE,
-  )
-    ? [
-        {
-          value: STAFF_REQUESTED_BY_CODE,
-          label: "Staff",
-          department: STAFF_REQUESTED_BY_CODE,
-          leaderName: "",
-        },
-      ]
-    : [];
+  // Staff is offered as its own plain option until the manager registers leader
+  // names for it; once registered it behaves like every other department.
+  const staffRegistered = leaders.some(
+    (r) =>
+      normalizeDepartmentCode(r.department) === STAFF_REQUESTED_BY_CODE &&
+      splitLeaderNames(r.leaderName).length > 0,
+  );
+  const staffOption: DepartmentLeaderSelectOption[] =
+    allowed.has(STAFF_REQUESTED_BY_CODE) && !staffRegistered
+      ? [
+          {
+            value: STAFF_REQUESTED_BY_CODE,
+            label: "Staff",
+            department: STAFF_REQUESTED_BY_CODE,
+            leaderName: "",
+          },
+        ]
+      : [];
 
   const departmentOptions: DepartmentLeaderSelectOption[] = [];
   for (const r of leaders) {

@@ -520,6 +520,38 @@ export function PurchaseRequestStatusPanel({
           hideToolbar
           initialSorting={FIFO_TABLE_SORT}
           emptyMessage="No purchase requests match these filters."
+          footerSummary={(tableRows) => {
+            let vatETB = 0;
+            let totalETB = 0;
+            for (const row of tableRows) {
+              const { vatETB: rowVat, totalETB: rowTotal } =
+                purchaseLineMoneyBreakdown(row);
+              vatETB += rowVat;
+              totalETB += rowTotal;
+            }
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    Total amount
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {totalETB.toLocaleString()} ETB
+                  </span>
+                </span>
+                {vatETB > 0.01 ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs">
+                    <span className="font-medium text-violet-700 dark:text-violet-400">
+                      Total VAT
+                    </span>
+                    <span className="font-semibold tabular-nums text-violet-800 dark:text-violet-300">
+                      {vatETB.toLocaleString()} ETB
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            );
+          }}
         />
       </div>
     </div>

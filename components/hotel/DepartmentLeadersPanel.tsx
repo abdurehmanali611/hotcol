@@ -18,8 +18,8 @@ import {
   upsertDepartmentLeaderApi,
 } from "@/lib/api/departmentLeaders";
 import {
-  DEPARTMENT_LABELS,
-  HOTEL_DEPARTMENT_CODES,
+  departmentLabel,
+  LEADER_DEPARTMENT_CODES,
   LEGACY_HOUSE_KEEPING_CODE,
   normalizeLeaderNames,
   type DepartmentLeaderRow,
@@ -38,7 +38,7 @@ export function DepartmentLeadersPanel() {
       const rows = await fetchDepartmentLeaders();
       setLeaders(rows);
       const next: Record<string, string> = {};
-      for (const code of HOTEL_DEPARTMENT_CODES) {
+      for (const code of LEADER_DEPARTMENT_CODES) {
         const row = rows.find((r) => r.department === code);
         next[code] = row?.leaderName ?? "";
       }
@@ -70,7 +70,9 @@ export function DepartmentLeadersPanel() {
         <CardDescription>
           Register one or more leaders per department (comma-separated), e.g.{" "}
           <span className="font-medium text-foreground">Abdu, Sara</span>.
-          Housekeeping has separate room and public area leaders. Only
+          Staff works the same way — once you save names here, request forms ask
+          which Staff leader is accountable. Housekeeping has separate room and
+          public area leaders. Only
           departments with a leader appear when store staff choose received by
           or requested by. Names are snapshotted on each request for printed
           receipts.
@@ -81,9 +83,9 @@ export function DepartmentLeadersPanel() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <ul className="divide-y rounded-xl border border-border/70">
-            {HOTEL_DEPARTMENT_CODES.map((code) => {
+            {LEADER_DEPARTMENT_CODES.map((code) => {
               const existing = byDept.get(code);
-              const label = DEPARTMENT_LABELS[code];
+              const label = departmentLabel(code);
               return (
                 <li
                   key={code}

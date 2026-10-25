@@ -49,6 +49,16 @@ import {
   REQUESTED_BY_DEPARTMENT_CODES,
 } from "@/lib/departments";
 import { useDepartmentLeaderSelectOptions } from "@/hooks/useDepartmentLeaderSelectOptions";
+import {
+  stockLineUnitPriceLookup,
+  unitPriceByRegistrationIdFromFreshBazaar,
+  unitPriceByRegistrationIdFromInventory,
+  unitPriceByStockOutRequestIdFromItemStatus,
+} from "@/lib/inventoryLineTotals";
+import {
+  computeInventoryVatETB,
+  computeLineSubtotalETB,
+} from "@/lib/hotelInventoryPayment";
 
 const STOCK_APPROVAL_OPTIONS: { id: StockApprovalFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -115,6 +125,19 @@ export function StockMovementStatusPanel({
 
   const { options: departmentOptions } = useDepartmentLeaderSelectOptions(
     REQUESTED_BY_DEPARTMENT_CODES,
+  );
+
+  const regLookup = useMemo(
+    () => unitPriceByRegistrationIdFromInventory(linkedInventory),
+    [linkedInventory],
+  );
+  const statusLookup = useMemo(
+    () => unitPriceByStockOutRequestIdFromItemStatus(itemStatusHistory),
+    [itemStatusHistory],
+  );
+  const bazaarLookup = useMemo(
+    () => unitPriceByRegistrationIdFromFreshBazaar(freshBazaarArchives),
+    [freshBazaarArchives],
   );
 
   const filtered = useMemo(() => {
@@ -390,6 +413,51 @@ export function StockMovementStatusPanel({
           hideToolbar
           initialSorting={FIFO_TABLE_SORT}
           emptyMessage="No stock movement requests match these filters."
+          footerSummary={(tableRows) => {
+            let vatETB = 0;
+            let totalETB = 0;
+            for (const row of tableRows) {
+              const pricing = stockLineUnitPriceLookup(
+                row,
+                regLookup,
+                statusLookup,
+                bazaarLookup,
+              );
+              if (!pricing) continue;
+              const subtotalETB = computeLineSubtotalETB(
+                row.amount,
+                pricing.unitPrice,
+              );
+              const rowVatETB = computeInventoryVatETB(
+                subtotalETB,
+                pricing.purchaseWithVat,
+              );
+              vatETB += rowVatETB;
+              totalETB += subtotalETB + rowVatETB;
+            }
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    Total amount
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {totalETB.toLocaleString()} ETB
+                  </span>
+                </span>
+                {vatETB > 0.01 ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs">
+                    <span className="font-medium text-violet-700 dark:text-violet-400">
+                      Total VAT
+                    </span>
+                    <span className="font-semibold tabular-nums text-violet-800 dark:text-violet-300">
+                      {vatETB.toLocaleString()} ETB
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            );
+          }}
         />
       </div>
     </div>
